@@ -92,7 +92,7 @@ ADD test.sh /tmp
 ADD build-ios-toolchain.sh /tmp
 RUN /tmp/build-ios-toolchain.sh 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68
 
-ADD iPhoneOS9.3.sdk.zip /tmp
+RUN curl ${S3_URL}/iPhoneOS9.3.sdk.zip > /tmp/iPhoneOS9.3.sdk.zip
 RUN unzip -d /opt /tmp/iPhoneOS9.3.sdk.zip
 
 #RUN ln -s /usr/bin/llvm-dsymutil-3.8 /usr/bin/dsymutil
