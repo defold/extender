@@ -65,6 +65,10 @@ task buildDocker(type: Docker, dependsOn: build) {
             from jar
             into stageDir
         }
+        copy {
+            from 'docker'
+            into stageDir
+        }
     }
 }
 

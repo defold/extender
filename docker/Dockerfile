@@ -105,5 +105,10 @@ ADD test-ios-toolchain.sh /tmp
 #CMD ["ls", "/root/.wine/drive_c/Program Files"]
 #CMD ["/tmp/test.sh"]
 #CMD ["/bin/bash"]
-CMD sleep 1000000
+#CMD sleep 1000000
 #CMD echo FOO
+
+ADD extender-0.1.0.jar app.jar
+RUN sh -c 'touch /app.jar'
+ENTRYPOINT ["java","-jar","/app.jar"]
+EXPOSE 9000
