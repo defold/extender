@@ -1,4 +1,4 @@
-FROM ubuntu:14.04
+FROM ubuntu:16.04
 
 # Base stuff
 RUN apt-get update && apt-get install -y software-properties-common
@@ -14,6 +14,11 @@ RUN \
     git \
     gcc \
     g++ \
+    libssl-dev \
+    openssl \
+    libtool \
+    autoconf \
+    automake \
     ccache \
     uuid-dev \
     libxi-dev \
@@ -52,6 +57,8 @@ RUN cd ${ANDROID_ROOT} && \
 
 ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
 
+RUN wget -q -O - ${S3_URL}/clang%2Bllvm-3.9.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+
 # Windows
 ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files"
 
@@ -82,9 +89,21 @@ ENV LC_ALL en_US.UTF-8
 
 ADD hw.c /tmp
 ADD test.sh /tmp
+ADD build-ios-toolchain.sh /tmp
+RUN /tmp/build-ios-toolchain.sh 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68
+
+ADD iPhoneOS9.3.sdk.zip /tmp
+RUN unzip -d /opt /tmp/iPhoneOS9.3.sdk.zip
+
+#RUN ln -s /usr/bin/llvm-dsymutil-3.8 /usr/bin/dsymutil
+RUN ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil
+RUN ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin11-clang
+
+ADD test-ios-toolchain.sh /tmp
 
 #CMD ["find", "/root/.wine/drive_c/"]
 #CMD ["ls", "/root/.wine/drive_c/Program Files"]
-CMD ["/tmp/test.sh"]
-#CMD sleep 100
+#CMD ["/tmp/test.sh"]
+#CMD ["/bin/bash"]
+CMD sleep 1000000
 #CMD echo FOO
