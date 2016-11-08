@@ -1,40 +1,31 @@
 package com.defold.extender;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
+import com.google.common.collect.ImmutableMap;
+import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
-import com.google.common.collect.ImmutableMap;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+class Extender {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
+    private final Configuration config;
+    private final String platform;
+    private final File root;
+    private final File build;
+    private final PlatformConfig platformConfig;
 
-public class Extender {
-
-    private Configuration config;
-    private String platform;
-    private File root;
-    private File build;
-    private PlatformConfig platformConfig;
-    private static Logger logger = LoggerFactory.getLogger(Extender.class);
-
-    public Extender(Configuration config, String platform, File root) throws IOException {
+    Extender(Configuration config, String platform, File root) throws IOException {
         this.config = config;
         this.platform = platform;
         this.platformConfig = config.platforms.get(platform);
@@ -52,8 +43,7 @@ public class Extender {
     }
 
     private String subst(String template, Map<String, Object> context) {
-        String s = Mustache.compiler().compile(template).execute(context);
-        return s;
+        return Mustache.compiler().compile(template).execute(context);
     }
 
     private List<String> subst(List<String> template, Map<String, Object> context) {
@@ -65,19 +55,18 @@ public class Extender {
     }
 
     private static String exec(String...args) throws IOException, InterruptedException {
-        logger.info(Arrays.toString(args));
+        LOGGER.info(Arrays.toString(args));
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
         Process p = pb.start();
 
-        int ret = 127;
         byte[] buf = new byte[16 * 1024];
         InputStream is = p.getInputStream();
 
         StringBuilder sb = new StringBuilder();
 
-        int n = 0;
+        int n;
         do {
             n = is.read(buf);
             if (n > 0) {
@@ -85,7 +74,7 @@ public class Extender {
             }
         }
         while (n > 0);
-        ret = p.waitFor();
+        int ret = p.waitFor();
         if (ret > 0) {
             throw new IOException(sb.toString());
         }
@@ -207,7 +196,7 @@ public class Extender {
         return lib;
     }
 
-    public File buildEngine() throws IOException, InterruptedException {
+    File buildEngine() throws IOException, InterruptedException {
         Collection<File> allFiles = FileUtils.listFiles(root, null, true);
         List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         List<File> extDirs = new ArrayList<>();
@@ -232,8 +221,7 @@ public class Extender {
         return linkEngine(extDirs, symbols);
     }
 
-    public void dispose() throws IOException {
+    void dispose() throws IOException {
         FileUtils.deleteDirectory(build);
     }
-
 }
