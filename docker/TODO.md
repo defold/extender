@@ -5,24 +5,14 @@
   *"Setting the deployment target to 4.x also tells the linker to link in a static library which will satisfy the symbol dependencies introduced by the compiler generated code. This library is called libarclite_iphoneos.a. If you do not set the deployment target to 4.x, this library will not be linked in and the loader will try to resolve these dependencies at runtime."*
 
   Added by default, with -force_load, when linking on OSX but not on Linux
-  
+
 * [ ] Investigate libclang_rt.ios.a
 
   Automatically included when linking on OSX but not on Linux
 
+* [ ] Toolchain related libs, not included in the SDK:s, are not included in the docker images, e.g libarclite_XXX.a
 
-
-
-sdfok
-dsokf
-
-        isjdfisdf
-        idsjf
-
-
-
-
-
+  Investigate
 
 * Verify linker flags
 
