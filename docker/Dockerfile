@@ -89,15 +89,16 @@ ENV LC_ALL en_US.UTF-8
 
 ADD hw.c /tmp
 ADD test.sh /tmp
-ADD build-ios-toolchain.sh /tmp
-RUN /tmp/build-ios-toolchain.sh 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68
+ADD build-darwin-toolchain.sh /tmp
+RUN /tmp/build-darwin-toolchain.sh 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68
 
-RUN curl ${S3_URL}/iPhoneOS9.3.sdk.zip > /tmp/iPhoneOS9.3.sdk.zip
-RUN unzip -d /opt /tmp/iPhoneOS9.3.sdk.zip
+RUN wget -q -O - ${S3_URL}/iPhoneOS9.3.sdk.tar.gz | tar xz -C /opt
+RUN wget -q -O - ${S3_URL}/MacOSX10.11.sdk.tar.gz | tar xz -C /opt
 
 #RUN ln -s /usr/bin/llvm-dsymutil-3.8 /usr/bin/dsymutil
 RUN ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil
 RUN ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin11-clang
+RUN ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin11-clang
 
 ADD test-ios-toolchain.sh /tmp
 
