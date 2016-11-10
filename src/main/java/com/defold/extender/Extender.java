@@ -1,8 +1,6 @@
 package com.defold.extender;
 
 import com.google.common.collect.ImmutableMap;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +22,7 @@ class Extender {
     private final File root;
     private final File build;
     private final PlatformConfig platformConfig;
+    private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     Extender(Configuration config, String platform, File root) throws IOException {
         this.config = config;
@@ -37,25 +36,10 @@ class Extender {
         }
     }
 
-    private String[] substCmd(String template, Map<String, Object> context) {
-        String s = Mustache.compiler().compile(template).execute(context);
-        return s.split(" ");
-    }
+    private static String exec(String command) throws IOException, InterruptedException {
+        LOGGER.info(command);
 
-    private String subst(String template, Map<String, Object> context) {
-        return Mustache.compiler().compile(template).execute(context);
-    }
-
-    private List<String> subst(List<String> template, Map<String, Object> context) {
-        List<String> ret = new ArrayList<>();
-        for (String t : template) {
-            ret.add(Mustache.compiler().compile(t).execute(context));
-        }
-        return ret;
-    }
-
-    private static String exec(String...args) throws IOException, InterruptedException {
-        LOGGER.info(Arrays.toString(args));
+        String[] args = command.split(" ");
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
@@ -74,6 +58,7 @@ class Extender {
             }
         }
         while (n > 0);
+
         int ret = p.waitFor();
         if (ret > 0) {
             throw new IOException(sb.toString());
@@ -108,8 +93,7 @@ class Extender {
         Map<String, Object> mainContext = context();
         mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
 
-        Template mainTemplate = Mustache.compiler().compile(config.main);
-        String main = mainTemplate.execute(mainContext);
+        String main = templateExecutor.execute(config.main, mainContext);
         FileUtils.writeStringToFile(maincpp, main);
 
         List<String> extLibs = new ArrayList<>();
@@ -129,8 +113,8 @@ class Extender {
         context.put("tgt", exe.getAbsolutePath());
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths));
 
-        String[] args = substCmd(platformConfig.linkCmd, context);
-        exec(args);
+        String command = templateExecutor.execute(platformConfig.linkCmd, context);
+        exec(command);
 
         return exe;
     }
@@ -144,8 +128,8 @@ class Extender {
         context.put("src", f);
         context.put("tgt", o);
         context.put("ext", ImmutableMap.of("includes", includes));
-        String[] args = substCmd(platformConfig.compileCmd, context);
-        exec(args);
+        String command = templateExecutor.execute(platformConfig.compileCmd, context);
+        exec(command);
         return o;
     }
 
@@ -158,10 +142,10 @@ class Extender {
         Set<String> keys = c.keySet();
         for (String k : keys) {
             Object v = c.get(k);
-            if (v instanceof String ) {
-                v = subst((String) v, c);
+            if (v instanceof String) {
+                v = templateExecutor.execute((String) v, c);
             } else if (v instanceof List) {
-                v = subst((List<String>) v, c);
+                v = templateExecutor.execute((List<String>) v, c);
             }
             c.put(k, v);
         }
@@ -191,18 +175,15 @@ class Extender {
         Map<String, Object> context = context();
         context.put("tgt", lib);
         context.put("objs", objs);
-        String[] args = substCmd(platformConfig.libCmd, context);
-        exec(args);
+        String command = templateExecutor.execute(platformConfig.libCmd, context);
+        exec(command);
         return lib;
     }
 
     File buildEngine() throws IOException, InterruptedException {
         Collection<File> allFiles = FileUtils.listFiles(root, null, true);
         List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
-        List<File> extDirs = new ArrayList<>();
-        for (File f : manifests) {
-            extDirs.add(f.getParentFile());
-        }
+        List<File> extDirs = manifests.stream().map(File::getParentFile).collect(Collectors.toList());
 
         List<String> symbols = new ArrayList<>();
 
@@ -212,6 +193,7 @@ class Extender {
             symbols.add((String) m.get("name"));
         }
 
+        // TODO: Why are we having libs here?
         List<File> libs = new ArrayList<>();
         for (File manifest : manifests) {
             File lib = buildExtension(manifest);
