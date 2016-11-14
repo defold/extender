@@ -1,6 +1,5 @@
 package com.defold.extender;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -14,17 +13,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.embedded.EmbeddedWebApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = "extender.config-url = file:test-data/config.yml")
+@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = "extender.defoldSdkPath = test-data/sdk")
 public class ExtenderTest {
 
     @Autowired
@@ -33,15 +30,9 @@ public class ExtenderTest {
     @Value("${local.server.port}")
     int port;
 
-    @Value("${extender.config-url}")
-    URL configUrl;
-
     @Test
     public void testBuild() throws IOException, InterruptedException {
-        Yaml yaml = new Yaml();
-        Configuration config = yaml.loadAs(IOUtils.toString(configUrl), Configuration.class);
-
-        Extender extender = new Extender(config, "x86-osx", new File("test-data/ext"));
+        Extender extender = new Extender("x86-osx", new File("test-data/ext"), new File("test-data/sdk/a"));
         File engine = extender.buildEngine();
         assertTrue(engine.isFile());
         extender.dispose();
@@ -56,7 +47,7 @@ public class ExtenderTest {
         }
 
         HttpEntity entity = builder.build();
-        String url = String.format("http://localhost:%d/build/x86-osx", port);
+        String url = String.format("http://localhost:%d/build/x86-osx/a", port);
         HttpPost request = new HttpPost(url);
 
         request.setEntity(entity);

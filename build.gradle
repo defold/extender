@@ -27,9 +27,6 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 dependencies {
-	// TODO lock version to 4.2.5.RELEASE?
-
-    // tag::jetty[]
     compile("org.springframework.boot:spring-boot-starter-web") {
         exclude module: "spring-boot-starter-tomcat"
     }
@@ -37,18 +34,13 @@ dependencies {
     testCompile('org.springframework:spring-test')
     testCompile('org.springframework.boot:spring-boot-starter-test')
 
-    //compile("org.springframework.boot:spring-boot-starter-mustache")
     compile('com.samskivert:jmustache:1.12')
     compile('com.google.guava:guava:19.0')
     compile('org.apache.httpcomponents:httpclient:4.5.2')
     compile('org.apache.httpcomponents:httpmime:4.5.2')
 
-
-    // end::jetty[]
     compile('commons-io:commons-io:2.4')
-    // tag::actuator[]
     compile("org.springframework.boot:spring-boot-starter-actuator")
-    // end::actuator[]
     testCompile("junit:junit")
 }
 
@@ -71,4 +63,3 @@ task buildDocker(type: Docker, dependsOn: build) {
         }
     }
 }
-

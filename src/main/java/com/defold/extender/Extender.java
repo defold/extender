@@ -19,16 +19,21 @@ class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
     private final String platform;
-    private final File root;
+    private File sdk;
+    private final File extentionSource;
     private final File build;
     private final PlatformConfig platformConfig;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
-    Extender(Configuration config, String platform, File root) throws IOException {
-        this.config = config;
+    Extender(String platform, File extentionSource, File sdk) throws IOException {
+        // Read config from SDK
+        InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/defoldsdk/extender/config.yml").toPath());
+        this.config = new Yaml().loadAs(configFileInputStream, Configuration.class);
+
         this.platform = platform;
+        this.sdk = sdk;
         this.platformConfig = config.platforms.get(platform);
-        this.root = root;
+        this.extentionSource = extentionSource;
         this.build = Files.createTempDirectory("engine").toFile();
 
         if (this.platformConfig == null) {
@@ -135,22 +140,23 @@ class Extender {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> context() {
-        Map<String, Object> c = new HashMap<>(config.context);
-        c.put("platform", this.platform);
-        c.putAll(platformConfig.context);
+        Map<String, Object> context = new HashMap<>(config.context);
+        context.put("dynamo_home", new File(sdk, "defoldsdk").getAbsolutePath());
+        context.put("platform", this.platform);
+        context.putAll(platformConfig.context);
 
-        Set<String> keys = c.keySet();
+        Set<String> keys = context.keySet();
         for (String k : keys) {
-            Object v = c.get(k);
+            Object v = context.get(k);
             if (v instanceof String) {
-                v = templateExecutor.execute((String) v, c);
+                v = templateExecutor.execute((String) v, context);
             } else if (v instanceof List) {
-                v = templateExecutor.execute((List<String>) v, c);
+                v = templateExecutor.execute((List<String>) v, context);
             }
-            c.put(k, v);
+            context.put(k, v);
         }
 
-        return c;
+        return context;
     }
 
     private File buildExtension(File manifest) throws IOException, InterruptedException {
@@ -181,7 +187,7 @@ class Extender {
     }
 
     File buildEngine() throws IOException, InterruptedException {
-        Collection<File> allFiles = FileUtils.listFiles(root, null, true);
+        Collection<File> allFiles = FileUtils.listFiles(extentionSource, null, true);
         List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         List<File> extDirs = manifests.stream().map(File::getParentFile).collect(Collectors.toList());
 
