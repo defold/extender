@@ -61,5 +61,15 @@ public class ExtenderController {
             FileUtils.deleteDirectory(src);
         }
     }
+
+    @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
+    public void buildEngineLocal(MultipartHttpServletRequest req, HttpServletResponse resp,
+                            @PathVariable("platform") String platform)
+            throws IOException, InterruptedException, URISyntaxException {
+
+        buildEngine(req, resp, platform, "78c69d18904b19926eefb4647dda0a2f72892d5d");
+    }
+
+
 }
 

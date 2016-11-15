@@ -33,7 +33,7 @@ public class DefoldSdkService {
 
         // If directory does not exist, create it and download SDK
         if (!Files.exists(sdkDirectory.toPath())) {
-            Files.createDirectory(sdkDirectory.toPath());
+            Files.createDirectories(sdkDirectory.toPath());
 
             URL url = new URL(String.format(remoteSdkUrlPattern, hash));
             ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
