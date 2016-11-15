@@ -19,13 +19,13 @@ class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
     private final String platform;
-    private File sdk;
-    private final File extentionSource;
+    private final File sdk;
+    private final File extensionSource;
     private final File build;
     private final PlatformConfig platformConfig;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
-    Extender(String platform, File extentionSource, File sdk) throws IOException {
+    Extender(String platform, File extensionSource, File sdk) throws IOException {
         // Read config from SDK
         InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/defoldsdk/extender/config.yml").toPath());
         this.config = new Yaml().loadAs(configFileInputStream, Configuration.class);
@@ -33,7 +33,7 @@ class Extender {
         this.platform = platform;
         this.sdk = sdk;
         this.platformConfig = config.platforms.get(platform);
-        this.extentionSource = extentionSource;
+        this.extensionSource = extensionSource;
         this.build = Files.createTempDirectory("engine").toFile();
 
         if (this.platformConfig == null) {
@@ -187,7 +187,7 @@ class Extender {
     }
 
     File buildEngine() throws IOException, InterruptedException {
-        Collection<File> allFiles = FileUtils.listFiles(extentionSource, null, true);
+        Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
         List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         List<File> extDirs = manifests.stream().map(File::getParentFile).collect(Collectors.toList());
 
@@ -199,11 +199,8 @@ class Extender {
             symbols.add((String) m.get("name"));
         }
 
-        // TODO: Why are we having libs here?
-        List<File> libs = new ArrayList<>();
         for (File manifest : manifests) {
-            File lib = buildExtension(manifest);
-            libs.add(lib);
+            buildExtension(manifest);
         }
 
         return linkEngine(extDirs, symbols);
