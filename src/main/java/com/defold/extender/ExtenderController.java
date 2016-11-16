@@ -1,5 +1,6 @@
 package com.defold.extender;
 
+import com.defold.extender.services.DefoldSdkService;
 import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,7 +51,12 @@ public class ExtenderController {
             }
 
             // Get SDK
-            File sdk = defoldSdkService.getSdk(sdkVersion);
+            File sdk;
+            if (sdkVersion == null) {
+                sdk = defoldSdkService.getLocalSdk();
+            } else {
+                sdk = defoldSdkService.getSdk(sdkVersion);
+            }
 
             Extender extender = new Extender(platform, src, sdk);
             File exe = extender.buildEngine();
@@ -67,9 +73,7 @@ public class ExtenderController {
                             @PathVariable("platform") String platform)
             throws IOException, InterruptedException, URISyntaxException {
 
-        buildEngine(req, resp, platform, "78c69d18904b19926eefb4647dda0a2f72892d5d");
+        buildEngine(req, resp, platform, null);
     }
-
-
 }
 

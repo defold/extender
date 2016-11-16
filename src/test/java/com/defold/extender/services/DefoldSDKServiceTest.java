@@ -1,4 +1,4 @@
-package com.defold.extender;
+package com.defold.extender.services;
 
 import org.junit.Ignore;
 import org.junit.Test;

@@ -27,7 +27,7 @@ class Extender {
 
     Extender(String platform, File extensionSource, File sdk) throws IOException {
         // Read config from SDK
-        InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/defoldsdk/extender/config.yml").toPath());
+        InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/extender/build.yml").toPath());
         this.config = new Yaml().loadAs(configFileInputStream, Configuration.class);
 
         this.platform = platform;
@@ -141,7 +141,7 @@ class Extender {
     @SuppressWarnings("unchecked")
     private Map<String, Object> context() {
         Map<String, Object> context = new HashMap<>(config.context);
-        context.put("dynamo_home", new File(sdk, "defoldsdk").getAbsolutePath());
+        context.put("dynamo_home", sdk.getAbsolutePath());
         context.put("platform", this.platform);
         context.putAll(platformConfig.context);
 

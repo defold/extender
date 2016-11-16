@@ -1,5 +1,6 @@
-package com.defold.extender;
+package com.defold.extender.services;
 
+import com.defold.extender.ZipUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.ClientHttpRequest;
@@ -18,12 +19,14 @@ import java.nio.file.Path;
 
 @Service
 public class DefoldSdkService {
-    private static final String remoteSdkUrlPattern = "http://d.defold.com/archive/%s/engine/defoldsdk.zip";
+    private static final String REMOTE_SDK_URL_PATTERN = "http://d.defold.com/archive/%s/engine/defoldsdk.zip";
 
     private final Path baseSdkDirectory;
+    private final File dynamoHome;
 
     public DefoldSdkService(@Value("${extender.defoldSdkPath}") String baseSdkDirectory) {
         this.baseSdkDirectory = new File(baseSdkDirectory).toPath();
+        this.dynamoHome = System.getenv("DYNAMO_HOME") != null ? new File(System.getenv("DYNAMO_HOME")) : null;
     }
 
     public File getSdk(String hash) throws IOException, URISyntaxException {
@@ -35,7 +38,7 @@ public class DefoldSdkService {
         if (!Files.exists(sdkDirectory.toPath())) {
             Files.createDirectories(sdkDirectory.toPath());
 
-            URL url = new URL(String.format(remoteSdkUrlPattern, hash));
+            URL url = new URL(String.format(REMOTE_SDK_URL_PATTERN, hash));
             ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
             ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
 
@@ -46,6 +49,10 @@ public class DefoldSdkService {
             }
         }
 
-        return sdkDirectory;
+        return new File(sdkDirectory, "defoldsdk");
+    }
+
+    public File getLocalSdk() {
+        return dynamoHome;
     }
 }

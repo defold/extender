@@ -32,7 +32,7 @@ public class ExtenderTest {
 
     @Test
     public void testBuild() throws IOException, InterruptedException {
-        Extender extender = new Extender("x86-osx", new File("test-data/ext"), new File("test-data/sdk/a"));
+        Extender extender = new Extender("x86-osx", new File("test-data/ext"), new File("test-data/sdk/a/defoldsdk"));
         File engine = extender.buildEngine();
         assertTrue(engine.isFile());
         extender.dispose();

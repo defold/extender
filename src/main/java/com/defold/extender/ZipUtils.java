@@ -8,9 +8,9 @@ import java.nio.file.Path;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-class ZipUtils {
+public class ZipUtils {
 
-    static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
+    public static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
         try (ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
             ZipEntry zipEntry = zipInputStream.getNextEntry();
 

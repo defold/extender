@@ -4,3 +4,6 @@ extender:
     defoldSdkPath: /tmp/defoldsdk
 multipart.maxFileSize: 50Mb
 multipart.maxRequestSize: 50Mb
+
+# Don't check for templates on startup.
+spring.mustache.check-template-location: false
