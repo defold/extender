@@ -1,6 +1,8 @@
 package com.defold.extender.services;
 
 import com.defold.extender.ZipUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.ClientHttpRequest;
@@ -19,6 +21,7 @@ import java.nio.file.Path;
 
 @Service
 public class DefoldSdkService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
     private static final String REMOTE_SDK_URL_PATTERN = "http://d.defold.com/archive/%s/engine/defoldsdk.zip";
 
     private final Path baseSdkDirectory;
@@ -36,6 +39,7 @@ public class DefoldSdkService {
 
         // If directory does not exist, create it and download SDK
         if (!Files.exists(sdkDirectory.toPath())) {
+            LOGGER.info("Downloading Defold SDK version {} ...", hash);
             Files.createDirectories(sdkDirectory.toPath());
 
             URL url = new URL(String.format(REMOTE_SDK_URL_PATTERN, hash));
@@ -49,10 +53,12 @@ public class DefoldSdkService {
             }
         }
 
+        LOGGER.info("Using Defold SDK version {}", hash);
         return new File(sdkDirectory, "defoldsdk");
     }
 
     public File getLocalSdk() {
+        LOGGER.info("Using local Defold SDK at {}", dynamoHome.toString());
         return dynamoHome;
     }
 }

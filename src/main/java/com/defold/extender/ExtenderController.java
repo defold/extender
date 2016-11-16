@@ -39,7 +39,7 @@ public class ExtenderController {
             throws IOException, InterruptedException, URISyntaxException {
 
         Set<String> keys = req.getMultiFileMap().keySet();
-        File src = Files.createTempDirectory("engine").toFile();
+        File src = Files.createTempDirectory("source").toFile();
 
         try {
             // Store uploaded source files on disk

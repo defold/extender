@@ -34,7 +34,7 @@ class Extender {
         this.sdk = sdk;
         this.platformConfig = config.platforms.get(platform);
         this.extensionSource = extensionSource;
-        this.build = Files.createTempDirectory("engine").toFile();
+        this.build = Files.createTempDirectory("build").toFile();
 
         if (this.platformConfig == null) {
             throw new IllegalArgumentException(String.format("Unsupported platform %s", platform));
@@ -187,6 +187,8 @@ class Extender {
     }
 
     File buildEngine() throws IOException, InterruptedException {
+        LOGGER.info("Building engine for platform {} with extension source {}", platform, extensionSource);
+
         Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
         List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         List<File> extDirs = manifests.stream().map(File::getParentFile).collect(Collectors.toList());
