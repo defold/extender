@@ -2,6 +2,8 @@ package com.defold.extender;
 
 import com.defold.extender.services.DefoldSdkService;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +21,7 @@ import java.util.Set;
 
 @RestController
 public class ExtenderController {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
 
     private final DefoldSdkService defoldSdkService;
 
@@ -32,23 +35,26 @@ public class ExtenderController {
         return "Extender";
     }
 
+    @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
+    public void buildEngineLocal(MultipartHttpServletRequest req, HttpServletResponse resp,
+                                 @PathVariable("platform") String platform)
+            throws IOException, InterruptedException, URISyntaxException {
+
+        buildEngine(req, resp, platform, null);
+    }
+
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
-    public void buildEngine(MultipartHttpServletRequest req, HttpServletResponse resp,
+    public void buildEngine(MultipartHttpServletRequest request,
+                            HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersion)
             throws IOException, InterruptedException, URISyntaxException {
 
-        Set<String> keys = req.getMultiFileMap().keySet();
-        File src = Files.createTempDirectory("source").toFile();
+        // TODO: Make upload directory configurable
+        File uploadDirectory = Files.createTempDirectory("upload").toFile();
 
         try {
-            // Store uploaded source files on disk
-            for (String k : keys) {
-                MultipartFile multipartFile = req.getMultiFileMap().getFirst(k);
-                File f = new File(src, multipartFile.getName());
-                f.getParentFile().mkdirs();
-                Files.copy(multipartFile.getInputStream(), f.toPath());
-            }
+            receiveUpload(request, uploadDirectory);
 
             // Get SDK
             File sdk;
@@ -58,22 +64,34 @@ public class ExtenderController {
                 sdk = defoldSdkService.getSdk(sdkVersion);
             }
 
-            Extender extender = new Extender(platform, src, sdk);
-            File exe = extender.buildEngine();
-            FileUtils.copyFile(exe, resp.getOutputStream());
-            extender.dispose();
+            Extender extender = new Extender(platform, uploadDirectory, sdk);
 
+            File exe;
+            try {
+                exe = extender.buildEngine();
+            } catch (IOException | InterruptedException e) {
+                LOGGER.error("Failed to build extension.", e);
+                throw e;
+            }
+
+            // Write executable to output stream
+            FileUtils.copyFile(exe, response.getOutputStream());
+
+            extender.dispose();
         } finally {
-            FileUtils.deleteDirectory(src);
+            // Delete temporary upload directory
+            FileUtils.deleteDirectory(uploadDirectory);
         }
     }
 
-    @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
-    public void buildEngineLocal(MultipartHttpServletRequest req, HttpServletResponse resp,
-                            @PathVariable("platform") String platform)
-            throws IOException, InterruptedException, URISyntaxException {
+    private void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException {
+        Set<String> keys = request.getMultiFileMap().keySet();
 
-        buildEngine(req, resp, platform, null);
+        for (String key : keys) {
+            MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
+            File file = new File(uploadDirectory, multipartFile.getName());
+            Files.createDirectories(file.getParentFile().toPath());
+            Files.copy(multipartFile.getInputStream(), file.toPath());
+        }
     }
 }
-

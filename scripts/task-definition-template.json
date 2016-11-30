@@ -1,0 +1,18 @@
+{
+  "family": "extender",
+  "containerDefinitions": [
+    {
+      "image": "%IMAGE%",
+      "name": "extender",
+      "cpu": 10,
+      "memory": 1024,
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 9000,
+          "hostPort": 9000
+        }
+      ]
+    }
+  ]
+}
