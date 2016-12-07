@@ -5,10 +5,11 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
@@ -38,9 +39,17 @@ public class ExtenderController {
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
     public void buildEngineLocal(MultipartHttpServletRequest req, HttpServletResponse resp,
                                  @PathVariable("platform") String platform)
-            throws IOException, InterruptedException, URISyntaxException {
+            throws URISyntaxException, IOException, ExtenderException {
 
         buildEngine(req, resp, platform, null);
+    }
+
+    @ExceptionHandler({ ExtenderException.class })
+    public ResponseEntity<String> handleIllegalArgumentException(ExtenderException ex) {
+        LOGGER.error("Failed to build extension: " + ex.getOutput());
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.BAD_REQUEST);
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
@@ -48,7 +57,7 @@ public class ExtenderController {
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersion)
-            throws IOException, InterruptedException, URISyntaxException {
+            throws ExtenderException, IOException, URISyntaxException {
 
         // TODO: Make upload directory configurable
         File uploadDirectory = Files.createTempDirectory("upload").toFile();
@@ -65,14 +74,7 @@ public class ExtenderController {
             }
 
             Extender extender = new Extender(platform, uploadDirectory, sdk);
-
-            File exe;
-            try {
-                exe = extender.buildEngine();
-            } catch (IOException | InterruptedException e) {
-                LOGGER.error("Failed to build extension.", e);
-                throw e;
-            }
+            File exe = extender.buildEngine();
 
             // Write executable to output stream
             FileUtils.copyFile(exe, response.getOutputStream());

@@ -24,6 +24,7 @@ class Extender {
     private final File build;
     private final PlatformConfig platformConfig;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
+    private final ProcessExecutor processExecutor = new ProcessExecutor();
 
     Extender(String platform, File extensionSource, File sdk) throws IOException {
         // Read config from SDK
@@ -39,37 +40,6 @@ class Extender {
         if (this.platformConfig == null) {
             throw new IllegalArgumentException(String.format("Unsupported platform %s", platform));
         }
-    }
-
-    private static String exec(String command) throws IOException, InterruptedException {
-        LOGGER.info(command);
-
-        String[] args = command.split(" ");
-
-        ProcessBuilder pb = new ProcessBuilder(args);
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-
-        byte[] buf = new byte[16 * 1024];
-        InputStream is = p.getInputStream();
-
-        StringBuilder sb = new StringBuilder();
-
-        int n;
-        do {
-            n = is.read(buf);
-            if (n > 0) {
-                sb.append(new String(buf, 0, n));
-            }
-        }
-        while (n > 0);
-
-        int ret = p.waitFor();
-        if (ret > 0) {
-            throw new IOException(sb.toString());
-        }
-
-        return sb.toString();
     }
 
     private List<String> collectLibraries(File libDir, String re) {
@@ -119,7 +89,7 @@ class Extender {
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths));
 
         String command = templateExecutor.execute(platformConfig.linkCmd, context);
-        exec(command);
+        processExecutor.execute(command);
 
         return exe;
     }
@@ -134,7 +104,7 @@ class Extender {
         context.put("tgt", o);
         context.put("ext", ImmutableMap.of("includes", includes));
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
-        exec(command);
+        processExecutor.execute(command);
         return o;
     }
 
@@ -182,30 +152,34 @@ class Extender {
         context.put("tgt", lib);
         context.put("objs", objs);
         String command = templateExecutor.execute(platformConfig.libCmd, context);
-        exec(command);
+        processExecutor.execute(command);
         return lib;
     }
 
-    File buildEngine() throws IOException, InterruptedException {
+    File buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, extensionSource);
 
-        Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
-        List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
-        List<File> extDirs = manifests.stream().map(File::getParentFile).collect(Collectors.toList());
+        try {
+            Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
+            List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
+            List<File> extDirs = manifests.stream().map(File::getParentFile).collect(Collectors.toList());
 
-        List<String> symbols = new ArrayList<>();
+            List<String> symbols = new ArrayList<>();
 
-        for (File f : manifests) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> m = (Map<String, Object>) new Yaml().load(FileUtils.readFileToString(f));
-            symbols.add((String) m.get("name"));
+            for (File f : manifests) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> m = (Map<String, Object>) new Yaml().load(FileUtils.readFileToString(f));
+                symbols.add((String) m.get("name"));
+            }
+
+            for (File manifest : manifests) {
+                buildExtension(manifest);
+            }
+
+            return linkEngine(extDirs, symbols);
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
         }
-
-        for (File manifest : manifests) {
-            buildExtension(manifest);
-        }
-
-        return linkEngine(extDirs, symbols);
     }
 
     void dispose() throws IOException {

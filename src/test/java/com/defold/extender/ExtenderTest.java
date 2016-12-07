@@ -31,7 +31,7 @@ public class ExtenderTest {
     int port;
 
     @Test
-    public void testBuild() throws IOException, InterruptedException {
+    public void testBuild() throws IOException, InterruptedException, ExtenderException {
         Extender extender = new Extender("x86-osx", new File("test-data/ext"), new File("test-data/sdk/a/defoldsdk"));
         File engine = extender.buildEngine();
         assertTrue(engine.isFile());
