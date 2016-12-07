@@ -99,6 +99,7 @@ RUN wget -q -O - ${S3_URL}/MacOSX10.11.sdk.tar.gz | tar xz -C /opt
 RUN ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil
 RUN ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin11-clang
 RUN ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin11-clang
+RUN ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin11-clang-ar
 
 ADD test-ios-toolchain.sh /tmp
 
