@@ -58,6 +58,13 @@ class Extender {
         return libs;
     }
 
+    private List<File> filterList(Collection<File> files, String re)
+    {
+        Pattern p = Pattern.compile(re);
+        List<File> filtered = files.stream().filter(f -> p.matcher( f.getName() ).matches() ).collect(Collectors.toList());
+        return filtered;
+    }
+
     private File linkEngine(List<File> extDirs, List<String> symbols) throws IOException, InterruptedException {
         File maincpp = new File(build, "main.cpp");
         File exe = new File(build, String.format("dmengine%s", platformConfig.exeExt));
@@ -135,6 +142,7 @@ class Extender {
         Collection<File> srcFiles = new ArrayList<>();
         if (src.isDirectory()) {
             srcFiles = FileUtils.listFiles(src, null, true);
+            srcFiles = filterList(srcFiles, platformConfig.sourceRe);
         }
         List<String> objs = new ArrayList<>();
 

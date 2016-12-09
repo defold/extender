@@ -11,6 +11,7 @@ class PlatformConfig {
     public String exeExt;
     public String shlibRe;
     public String stlibRe;
+    public String sourceRe;
     public String compileCmd;
     public String linkCmd;
     public String libCmd;

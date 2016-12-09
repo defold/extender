@@ -39,6 +39,7 @@ platforms:
     exeExt: ''
     shlibRe: 'lib(.+).dylib'
     stlibRe: 'lib(.+).a'
+    sourceRe: '(?i).*(.cpp|.c|.cc|.mm|.m)'
     compileCmd: 'clang++ -c -m32 {{#includes}}-I{{.}} {{/includes}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{src}} -o{{tgt}}'
     linkCmd: clang++ -m32 -stdlib=libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#ext.libs}}-l{{.}} {{/ext.libs}}
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
