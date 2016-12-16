@@ -2,12 +2,21 @@ package com.defold.extender;
 
 import java.io.IOException;
 import java.io.InputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class ProcessExecutor {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProcessExecutor.class);
     private final StringBuilder output = new StringBuilder();
 
+    void log(String msg) {
+    	output.append(msg).append("\n");
+
+    	LOGGER.debug(msg + "\n");
+    }
+
     int execute(String command) throws IOException, InterruptedException {
-        output.append(command).append("\n");
+        log(command);
 
         String[] args = command.split(" ");
 
@@ -31,7 +40,7 @@ class ProcessExecutor {
 
         int exitValue = p.waitFor();
 
-        output.append(sb.toString()).append("\n");
+        log(sb.toString());
 
         if (exitValue > 0) {
             throw new IOException(sb.toString());

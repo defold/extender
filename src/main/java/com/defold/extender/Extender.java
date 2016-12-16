@@ -42,7 +42,7 @@ class Extender {
         }
     }
 
-    private List<String> collectLibraries(File libDir, String re) {
+    static List<String> collectLibraries(File libDir, String re) {
         Pattern p = Pattern.compile(re);
         List<String> libs = new ArrayList<>();
         if (libDir.exists()) {
@@ -58,69 +58,84 @@ class Extender {
         return libs;
     }
 
-    private List<File> filterList(Collection<File> files, String re)
+    static ManifestConfiguration loadManifest(File manifest) throws IOException
+    {
+        return new Yaml().loadAs(FileUtils.readFileToString(manifest), ManifestConfiguration.class);
+    }
+
+    static List<File> filterFiles(Collection<File> files, String re)
     {
         Pattern p = Pattern.compile(re);
         List<File> filtered = files.stream().filter(f -> p.matcher( f.getName() ).matches() ).collect(Collectors.toList());
         return filtered;
     }
 
-    private File linkEngine(List<File> extDirs, List<String> symbols) throws IOException, InterruptedException {
-        File maincpp = new File(build, "main.cpp");
-        File exe = new File(build, String.format("dmengine%s", platformConfig.exeExt));
-
-        List<String> extSymbols = new ArrayList<>();
-        extSymbols.addAll(symbols);
-
-        Map<String, Object> mainContext = context();
-        mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
-
-        String main = templateExecutor.execute(config.main, mainContext);
-        FileUtils.writeStringToFile(maincpp, main);
-
-        List<String> extLibs = new ArrayList<>();
-        List<String> extLibPaths = new ArrayList<>(Arrays.asList(build.toString()));
-
-        for (File ed : extDirs) {
-            File libDir = new File(ed, "lib" + File.separator + this.platform);
-            extLibs.addAll(collectLibraries(libDir, platformConfig.shlibRe));
-            extLibs.addAll(collectLibraries(libDir, platformConfig.stlibRe));
-
-            extLibPaths.add(new File(ed, "lib" + File.separator + this.platform).toString());
+    // Merges two lists. Appends values of b to a. Only keeps unique values
+    static List<String> mergeLists(List<String> a, List<String> b)
+    {
+        ArrayList<String> out = new ArrayList<String>();
+        for( String v : a )
+        {
+            if( !out.contains(v) ) {
+                out.add(v);
+            }
         }
-        extLibs.addAll(collectLibraries(build, platformConfig.stlibRe));
 
-        Map<String, Object> context = context();
-        context.put("src", Arrays.asList(maincpp.getAbsolutePath()));
-        context.put("tgt", exe.getAbsolutePath());
-        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths));
-
-        String command = templateExecutor.execute(platformConfig.linkCmd, context);
-        processExecutor.execute(command);
-
-        return exe;
+        for( String v : b )
+        {
+            if( !out.contains(v) ) {
+                out.add(v);
+            }
+        }
+        return out;
     }
 
-    private File compileFile(int i, File extDir, File f) throws IOException, InterruptedException {
-        List<String> includes = new ArrayList<>();
-        includes.add(extDir.getAbsolutePath() + File.separator + "include");
-        File o = new File(build, String.format("%s_%d.o", f.getName(), i));
+    // Copies the original context, and appends the extra context's elements, if the keys and types are valid
+    static Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
+        Map<String, Object> context = new HashMap<>( originalContext );
 
-        Map<String, Object> context = context();
-        context.put("src", f);
-        context.put("tgt", o);
-        context.put("ext", ImmutableMap.of("includes", includes));
-        String command = templateExecutor.execute(platformConfig.compileCmd, context);
-        processExecutor.execute(command);
-        return o;
+        Set<String> keys = extensionContext.keySet();
+        for (String k : keys) {
+            Object v1 = context.get(k);
+            Object v2 = extensionContext.get(k);
+            // If the user has added a non supported name
+            if (v1 == null) {
+                throw new ExtenderException("Manifest context variable unsupported: " + k);
+            }
+            if (!v1.getClass().equals(v2.getClass())) {
+                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString() ) );
+            }
+            if (v1 instanceof List) {
+                v1 = Extender.mergeLists( (List<String>)v1, (List<String>) v2 );
+            }
+            context.put(k, v1);
+        }
+        return context;
+    }
+
+    static Map<String, Object> makeEmptyCopy(Map<String, Object> original)
+    {
+        Map<String, Object> out = new HashMap<>();
+        Set<String> keys = original.keySet();
+        for (String k : keys) {
+            Object v = original.get(k);
+            if (v instanceof String) {
+                v = "";
+            } else if (v instanceof List) {
+                v = new ArrayList<String>();
+            }
+            out.put(k, v);
+        }
+        return out;
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> context() {
+    private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
         context.put("dynamo_home", sdk.getAbsolutePath());
         context.put("platform", this.platform);
-        context.putAll(platformConfig.context);
+
+        context.putAll(Extender.mergeContexts(platformConfig.context, manifestContext) );
 
         Set<String> keys = context.keySet();
         for (String k : keys) {
@@ -136,19 +151,33 @@ class Extender {
         return context;
     }
 
-    private File buildExtension(File manifest) throws IOException, InterruptedException {
+    private File compileFile(int i, File extDir, File f, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
+        List<String> includes = new ArrayList<>();
+        includes.add(extDir.getAbsolutePath() + File.separator + "include");
+        File o = new File(build, String.format("%s_%d.o", f.getName(), i));
+
+        Map<String, Object> context = context(manifestContext);
+        context.put("src", f);
+        context.put("tgt", o);
+        context.put("ext", ImmutableMap.of("includes", includes));
+        String command = templateExecutor.execute(platformConfig.compileCmd, context);
+        processExecutor.execute(command);
+        return o;
+    }
+
+    private File buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
         File src = new File(extDir, "src");
         Collection<File> srcFiles = new ArrayList<>();
         if (src.isDirectory()) {
             srcFiles = FileUtils.listFiles(src, null, true);
-            srcFiles = filterList(srcFiles, platformConfig.sourceRe);
+            srcFiles = Extender.filterFiles(srcFiles, platformConfig.sourceRe);
         }
         List<String> objs = new ArrayList<>();
 
         int i = 0;
         for (File f : srcFiles) {
-            File o = compileFile(i, extDir, f);
+            File o = compileFile(i, extDir, f, manifestContext);
             objs.add(o.getAbsolutePath());
             i++;
         }
@@ -156,13 +185,73 @@ class Extender {
         File lib = File.createTempFile("lib", ".a", build);
         lib.delete();
 
-        Map<String, Object> context = context();
+        Map<String, Object> context = context(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
         String command = templateExecutor.execute(platformConfig.libCmd, context);
         processExecutor.execute(command);
         return lib;
     }
+
+
+    private File linkEngine(List<File> extDirs, List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
+        File maincpp = new File(build, "main.cpp");
+        File exe = new File(build, String.format("dmengine%s", platformConfig.exeExt));
+
+        List<String> extSymbols = new ArrayList<>();
+        extSymbols.addAll(symbols);
+
+        Map<String, Object> mainContext = context(manifestContext);
+        mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
+
+        String main = templateExecutor.execute(config.main, mainContext);
+        FileUtils.writeStringToFile(maincpp, main);
+
+        List<String> extLibs = new ArrayList<>();
+        List<String> extLibPaths = new ArrayList<>(Arrays.asList(build.toString()));
+
+        for (File ed : extDirs) {
+            File libDir = new File(ed, "lib" + File.separator + this.platform);
+            extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.shlibRe));
+            extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.stlibRe));
+
+            File extLibPlatformDir = new File(ed, "lib" + File.separator + this.platform);
+            if (extLibPlatformDir.exists()) {
+                extLibPaths.add(extLibPlatformDir.toString());
+            }
+        }
+        extLibs.addAll(Extender.collectLibraries(build, platformConfig.stlibRe));
+
+        Map<String, Object> context = context(manifestContext);
+        context.put("src", Arrays.asList(maincpp.getAbsolutePath()));
+        context.put("tgt", exe.getAbsolutePath());
+        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths));
+
+        String command = templateExecutor.execute(platformConfig.linkCmd, context);
+        processExecutor.execute(command);
+
+        return exe;
+    }
+
+    private Map<String, Object> getManifestContext(ManifestConfiguration manifestConfig ) throws ExtenderException
+    {
+        ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(this.platform);
+
+        // Check that the manifest only contains valid platforms
+        Set<String> allowedPlatforms = config.platforms.keySet();
+        Set<String> manifestPlatforms = manifestConfig.platforms.keySet();
+        manifestPlatforms.removeAll(allowedPlatforms);
+        if( !manifestPlatforms.isEmpty() ) {
+            processExecutor.log(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()) );
+            throw new ExtenderException(processExecutor.getOutput());
+        }
+
+        if( manifestPlatformConfig != null ) {
+            return manifestPlatformConfig.context;
+        }
+        return new HashMap<String, Object>();
+    }
+
 
     File buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, extensionSource);
@@ -174,17 +263,31 @@ class Extender {
 
             List<String> symbols = new ArrayList<>();
 
-            for (File f : manifests) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> m = (Map<String, Object>) new Yaml().load(FileUtils.readFileToString(f));
-                symbols.add((String) m.get("name"));
-            }
-
+            Map<String, Map<String, Object> > manifestConfigs = new HashMap<>();
             for (File manifest : manifests) {
-                buildExtension(manifest);
+                ManifestConfiguration manifestConfig = Extender.loadManifest(manifest);
+
+                Map<String, Object> manifestContext = new HashMap<String, Object>();
+                if( manifestConfig.platforms != null ) {
+                    manifestContext = getManifestContext(manifestConfig);
+                }
+                
+                manifestConfigs.put(manifestConfig.name, manifestContext);
+
+                symbols.add(manifestConfig.name);
+
+                buildExtension(manifest, manifestContext);
             }
 
-            return linkEngine(extDirs, symbols);
+            Map<String, Object> mergedExtensionContext = Extender.makeEmptyCopy( platformConfig.context );
+
+            Set<String> keys = manifestConfigs.keySet();
+            for (String k : keys) {
+                Map<String, Object> extensionContext = manifestConfigs.get(k);
+                mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, extensionContext);
+            }
+
+            return linkEngine(extDirs, symbols, mergedExtensionContext);
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }

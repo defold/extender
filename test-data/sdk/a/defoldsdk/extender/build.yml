@@ -35,6 +35,7 @@ main: |
 platforms:
   x86-osx:
     context:
+        frameworks: []
         engineLibs: []
     exeExt: ''
     shlibRe: 'lib(.+).dylib'
