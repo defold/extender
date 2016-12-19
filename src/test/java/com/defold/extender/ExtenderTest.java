@@ -112,27 +112,52 @@ public class ExtenderTest {
         Map<String, Object> a = new HashMap<String, Object>();
         Map<String, Object> b = new HashMap<String, Object>();
 
-		String[] a_frameworks = {  "a", "b", "b", "c" };
+        String[] a_frameworks = {  "a", "b", "b", "c" };
         a.put("frameworks", Arrays.asList(a_frameworks));
-		String[] a_defines = {  "A", "B" };
+        String[] a_defines = {  "A", "B" };
         a.put("defines", Arrays.asList(a_defines));
 
-		String[] b_frameworks = {  "a", "d" };
+        String[] b_frameworks = {  "a", "d" };
         b.put("frameworks", Arrays.asList(b_frameworks));
-
 
         Map<String, Object> result = Extender.mergeContexts(a, b);
 
-
         Map<String, Object> expected = new HashMap<String, Object>();
-		String[] expected_frameworks = {  "a", "b", "c", "d" };
+        String[] expected_frameworks = {  "a", "b", "c", "d" };
         expected.put("frameworks", Arrays.asList(expected_frameworks));
-		String[] expected_defines = {  "A", "B" };
+        String[] expected_defines = {  "A", "B" };
         expected.put("defines", Arrays.asList(expected_defines));
 
         assertEquals( expected, result );
     }
 
+    @Test
+    public void testListTypes()
+    {
+        List<Object> a = new ArrayList<Object>();
+        a.add("a");
+        a.add("b");
+        a.add("c");
+        a.add("d");
+    	assertTrue( Extender.isListOfStrings(a) );
 
+
+        List<Object> b = new ArrayList<Object>();
+        b.add("a");
+        b.add("b");
+        b.add(1);
+        b.add(2);
+    	assertTrue( !Extender.isListOfStrings(b) );
+    }
+
+    @Test
+    public void testCollectLibraries()
+    {
+    	// The folder contains a library and a text file
+    	List<String> result = Extender.collectLibraries( new File("test-data/ext/lib/x86-osx"), "lib(.+).a" );
+
+		String[] expected = { "alib" };
+        assertEquals( expected, result.toArray() );
+    }
 
 }

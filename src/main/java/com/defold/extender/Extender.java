@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 class Extender {
@@ -58,7 +59,7 @@ class Extender {
         return libs;
     }
 
-    static ManifestConfiguration loadManifest(File manifest) throws IOException
+    private ManifestConfiguration loadManifest(File manifest) throws IOException
     {
         return new Yaml().loadAs(FileUtils.readFileToString(manifest), ManifestConfiguration.class);
     }
@@ -73,21 +74,12 @@ class Extender {
     // Merges two lists. Appends values of b to a. Only keeps unique values
     static List<String> mergeLists(List<String> a, List<String> b)
     {
-        ArrayList<String> out = new ArrayList<String>();
-        for( String v : a )
-        {
-            if( !out.contains(v) ) {
-                out.add(v);
-            }
-        }
+        return Stream.concat(a.stream(), b.stream()).distinct().collect(Collectors.toList());
+    }
 
-        for( String v : b )
-        {
-            if( !out.contains(v) ) {
-                out.add(v);
-            }
-        }
-        return out;
+    static boolean isListOfStrings(List<Object> list)
+    {
+        return list.stream().allMatch(o -> o instanceof String);
     }
 
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
@@ -105,6 +97,9 @@ class Extender {
             if (!v1.getClass().equals(v2.getClass())) {
                 throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString() ) );
             }
+            if (!Extender.isListOfStrings((List<Object>)v2) ) {
+                throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s", v2.toString() ) );
+            }
             if (v1 instanceof List) {
                 v1 = Extender.mergeLists( (List<String>)v1, (List<String>) v2 );
             }
@@ -113,7 +108,7 @@ class Extender {
         return context;
     }
 
-    static Map<String, Object> makeEmptyCopy(Map<String, Object> original)
+    static Map<String, Object> createEmptyContext(Map<String, Object> original)
     {
         Map<String, Object> out = new HashMap<>();
         Set<String> keys = original.keySet();
@@ -151,13 +146,13 @@ class Extender {
         return context;
     }
 
-    private File compileFile(int i, File extDir, File f, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
+    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
         List<String> includes = new ArrayList<>();
         includes.add(extDir.getAbsolutePath() + File.separator + "include");
-        File o = new File(build, String.format("%s_%d.o", f.getName(), i));
+        File o = new File(build, String.format("%s_%d.o", src.getName(), index));
 
         Map<String, Object> context = context(manifestContext);
-        context.put("src", f);
+        context.put("src", src);
         context.put("tgt", o);
         context.put("ext", ImmutableMap.of("includes", includes));
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
@@ -167,17 +162,17 @@ class Extender {
 
     private File buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
-        File src = new File(extDir, "src");
+        File srcDir = new File(extDir, "src");
         Collection<File> srcFiles = new ArrayList<>();
-        if (src.isDirectory()) {
-            srcFiles = FileUtils.listFiles(src, null, true);
+        if (srcDir.isDirectory()) {
+            srcFiles = FileUtils.listFiles(srcDir, null, true);
             srcFiles = Extender.filterFiles(srcFiles, platformConfig.sourceRe);
         }
         List<String> objs = new ArrayList<>();
 
         int i = 0;
-        for (File f : srcFiles) {
-            File o = compileFile(i, extDir, f, manifestContext);
+        for (File src : srcFiles) {
+            File o = compileFile(i, extDir, src, manifestContext);
             objs.add(o.getAbsolutePath());
             i++;
         }
@@ -242,14 +237,13 @@ class Extender {
         Set<String> manifestPlatforms = manifestConfig.platforms.keySet();
         manifestPlatforms.removeAll(allowedPlatforms);
         if( !manifestPlatforms.isEmpty() ) {
-            processExecutor.log(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()) );
-            throw new ExtenderException(processExecutor.getOutput());
+            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()) );
         }
 
         if( manifestPlatformConfig != null ) {
             return manifestPlatformConfig.context;
         }
-        return new HashMap<String, Object>();
+        return new HashMap<>();
     }
 
 
@@ -265,7 +259,7 @@ class Extender {
 
             Map<String, Map<String, Object> > manifestConfigs = new HashMap<>();
             for (File manifest : manifests) {
-                ManifestConfiguration manifestConfig = Extender.loadManifest(manifest);
+                ManifestConfiguration manifestConfig = loadManifest(manifest);
 
                 Map<String, Object> manifestContext = new HashMap<String, Object>();
                 if( manifestConfig.platforms != null ) {
@@ -279,7 +273,7 @@ class Extender {
                 buildExtension(manifest, manifestContext);
             }
 
-            Map<String, Object> mergedExtensionContext = Extender.makeEmptyCopy( platformConfig.context );
+            Map<String, Object> mergedExtensionContext = Extender.createEmptyContext( platformConfig.context );
 
             Set<String> keys = manifestConfigs.keySet();
             for (String k : keys) {
