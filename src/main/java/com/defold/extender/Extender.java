@@ -27,6 +27,8 @@ class Extender {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
 
+    private final String frameworkRe = new String("(.+).framework");
+
     Extender(String platform, File extensionSource, File sdk) throws IOException {
         // Read config from SDK
         InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/extender/build.yml").toPath());
@@ -146,15 +148,47 @@ class Extender {
         return context;
     }
 
+    private List<String> getFrameworks(File extDir)
+    {
+        List<String> frameworks = new ArrayList<>();
+        frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + this.platform), frameworkRe)); // e.g. armv64--ios
+        String[] platformParts = this.platform.split("-");
+        if (platformParts.length == 2 ) {
+            frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + platformParts[1]), frameworkRe)); // e.g. "ios"
+        }
+        return frameworks;
+    }
+
+    private List<String> getFrameworkPaths(File extDir)
+    {
+        List<String> frameworkPaths = new ArrayList<>();
+        File dir = new File(extDir, "lib" + File.separator + this.platform);
+        if (dir.exists()) {
+            frameworkPaths.add(dir.getAbsolutePath());
+        }
+        String[] platformParts = this.platform.split("-");
+        if (platformParts.length == 2 ) {
+            File dirShort = new File(extDir, "lib" + File.separator + platformParts[1]);
+            if (dirShort.exists()) {
+                frameworkPaths.add(dirShort.getAbsolutePath());
+            }
+        }
+        return frameworkPaths;
+    }
+
     private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
         List<String> includes = new ArrayList<>();
         includes.add(extDir.getAbsolutePath() + File.separator + "include");
         File o = new File(build, String.format("%s_%d.o", src.getName(), index));
+        
+        List<String> frameworks = getFrameworks(extDir);
+        List<String> frameworkPaths = getFrameworkPaths(extDir);
 
         Map<String, Object> context = context(manifestContext);
         context.put("src", src);
         context.put("tgt", o);
-        context.put("ext", ImmutableMap.of("includes", includes));
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
+
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
         processExecutor.execute(command);
         return o;
@@ -204,23 +238,42 @@ class Extender {
 
         List<String> extLibs = new ArrayList<>();
         List<String> extLibPaths = new ArrayList<>(Arrays.asList(build.toString()));
+        List<String> extFrameworks = new ArrayList<>();
+        List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(build.toString()));
 
-        for (File ed : extDirs) {
-            File libDir = new File(ed, "lib" + File.separator + this.platform);
+        for (File extDir : extDirs) {
+            File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
+
+            if (libDir.exists()) {
+                extLibPaths.add(libDir.toString());
+                extFrameworkPaths.add(libDir.toString());
+            }
+
             extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.shlibRe));
             extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.stlibRe));
+            extFrameworks.addAll( getFrameworks(extDir) );
 
-            File extLibPlatformDir = new File(ed, "lib" + File.separator + this.platform);
-            if (extLibPlatformDir.exists()) {
-                extLibPaths.add(extLibPlatformDir.toString());
+            String[] platformParts = this.platform.split("-");
+            if (platformParts.length == 2 ) {
+                File libCommonDir = new File(extDir, "lib" + File.separator + platformParts[1]); // e.g. ios
+
+                if (libCommonDir.exists()) {
+                    extLibPaths.add(libCommonDir.toString());
+                    extFrameworkPaths.add(libCommonDir.toString());
+                }
+
+                extLibs.addAll(Extender.collectLibraries(libCommonDir, platformConfig.shlibRe));
+                extLibs.addAll(Extender.collectLibraries(libCommonDir, platformConfig.stlibRe));
+                extFrameworkPaths.addAll( getFrameworkPaths(extDir) );
             }
+
         }
         extLibs.addAll(Extender.collectLibraries(build, platformConfig.stlibRe));
 
         Map<String, Object> context = context(manifestContext);
         context.put("src", Arrays.asList(maincpp.getAbsolutePath()));
         context.put("tgt", exe.getAbsolutePath());
-        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths));
+        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths));
 
         String command = templateExecutor.execute(platformConfig.linkCmd, context);
         processExecutor.execute(command);
