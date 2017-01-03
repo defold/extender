@@ -1,65 +1,7 @@
-buildscript {
+
+subprojects {
+
     repositories {
         mavenCentral()
-    }
-    dependencies {
-        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.4.2.RELEASE")
-        classpath('se.transmode.gradle:gradle-docker:1.2')
-    }
-}
-
-apply plugin: 'java'
-apply plugin: 'eclipse'
-apply plugin: 'idea'
-apply plugin: 'org.springframework.boot'
-apply plugin: 'docker'
-
-jar {
-    baseName = 'extender'
-    version =  '0.1.0'
-}
-
-repositories {
-    mavenCentral()
-}
-
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
-
-dependencies {
-    compile("org.springframework.boot:spring-boot-starter-web") {
-        exclude module: "spring-boot-starter-tomcat"
-    }
-    compile("org.springframework.boot:spring-boot-starter-jetty")
-    testCompile('org.springframework:spring-test')
-    testCompile('org.springframework.boot:spring-boot-starter-test')
-
-    compile('com.samskivert:jmustache:1.12')
-    compile('com.google.guava:guava:19.0')
-    compile('org.apache.httpcomponents:httpclient:4.5.2')
-    compile('org.apache.httpcomponents:httpmime:4.5.2')
-
-    compile('commons-io:commons-io:2.4')
-    compile("org.springframework.boot:spring-boot-starter-actuator")
-    testCompile("junit:junit")
-}
-
-task wrapper(type: Wrapper) {
-    gradleVersion = '2.13'
-}
-
-task buildDocker(type: Docker, dependsOn: build) {
-    push = false
-    applicationName = jar.baseName
-    dockerfile = file('docker/Dockerfile')
-    doFirst {
-        copy {
-            from jar
-            into stageDir
-        }
-        copy {
-            from 'docker'
-            into stageDir
-        }
     }
 }
