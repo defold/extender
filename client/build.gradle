@@ -1,0 +1,16 @@
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+jar {
+    baseName = 'extender-client'
+    version = '0.0.1'
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+}
