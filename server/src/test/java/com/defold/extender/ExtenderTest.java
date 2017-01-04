@@ -40,7 +40,7 @@ public class ExtenderTest {
     public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port);
         List<String> sourceFiles = Lists.newArrayList("test-data/ext/ext.manifest", "test-data/ext/src/test_ext.cpp", "test-data/ext/include/test_ext.h", "test-data/ext/lib/x86-osx/libalib.a");
-        File destination = Files.createTempFile("dmengine", ".exe").toFile();
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
         extenderClient.build(

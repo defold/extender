@@ -77,7 +77,7 @@ public class ExtenderController {
             File exe = extender.buildEngine();
 
             // Write executable to output stream
-            FileUtils.copyFile(exe, response.getOutputStream());
+            ZipUtils.zip(response.getOutputStream(), exe);
 
             extender.dispose();
         } finally {

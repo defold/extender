@@ -3,10 +3,12 @@ package com.defold.extender;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 public class ZipUtils {
 
@@ -31,5 +33,17 @@ public class ZipUtils {
                 zipEntry = zipInputStream.getNextEntry();
             }
         }
+    }
+
+    public static void zip(OutputStream outputStream, File... files) throws IOException {
+        ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
+
+        for (File file : files) {
+            zipOutputStream.putNextEntry(new ZipEntry(file.getName()));
+            Files.copy(file.toPath(), zipOutputStream);
+            zipOutputStream.closeEntry();
+        }
+
+        zipOutputStream.finish();
     }
 }
