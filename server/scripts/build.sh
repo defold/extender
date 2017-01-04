@@ -2,4 +2,4 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-${DIR}/../gradlew buildDocker
+${DIR}/../../gradlew buildDocker
