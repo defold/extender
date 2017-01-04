@@ -143,11 +143,21 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testCollectLibraries() {
-    	// The folder contains a library and a text file
-    	List<String> result = Extender.collectLibraries( new File("test-data/ext/lib/x86-osx"), "lib(.+).a" );
+    public void testCollectLibraries()
+    {
+       // The folder contains a library and a text file
+       {
+           List<String> result = Extender.collectLibraries( new File("test-data/ext/lib/x86-osx"), "lib(.+).a" );
+           String[] expected = { "alib" };
+           assertEquals( expected, result.toArray() );
+       }
+       {
+           List<String> result = Extender.collectLibraries( new File("test-data/ext/lib/x86-osx"), "(.+).framework" );
 
-		String[] expected = { "alib" };
-        assertArrayEquals(expected, result.toArray());
+           System.out.println("RESULT: " + result.toString());
+           
+           String[] expected = { "blib" };
+           assertEquals( expected, result.toArray() );
+       }
     }
 }
