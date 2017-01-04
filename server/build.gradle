@@ -31,17 +31,17 @@ dependencies {
         exclude module: "spring-boot-starter-tomcat"
     }
     compile("org.springframework.boot:spring-boot-starter-jetty")
-    testCompile('org.springframework:spring-test')
-    testCompile('org.springframework.boot:spring-boot-starter-test')
-
     compile('com.samskivert:jmustache:1.12')
     compile('com.google.guava:guava:19.0')
     compile('org.apache.httpcomponents:httpclient:4.5.2')
     compile('org.apache.httpcomponents:httpmime:4.5.2')
-
     compile('commons-io:commons-io:2.4')
     compile("org.springframework.boot:spring-boot-starter-actuator")
+
     testCompile("junit:junit")
+    testCompile('org.springframework:spring-test')
+    testCompile('org.springframework.boot:spring-boot-starter-test')
+    testCompile project(':client')
 }
 
 task wrapper(type: Wrapper) {

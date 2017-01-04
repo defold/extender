@@ -1,11 +1,8 @@
 package com.defold.extender;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
+import com.google.common.collect.Lists;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +13,10 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = "extender.defoldSdkPath = test-data/sdk")
@@ -40,25 +37,23 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testRemoteBuild() throws IOException {
-        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-        File root = new File("test-data");
-        for (String s : new String[] {"ext/ext.manifest", "ext/src/test_ext.cpp", "ext/include/test_ext.h", "ext/lib/x86-osx/libalib.a"}) {
-            builder.addBinaryBody(s, new File(root, s));
-        }
+    public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port);
+        List<String> sourceFiles = Lists.newArrayList("test-data/ext/ext.manifest", "test-data/ext/src/test_ext.cpp", "test-data/ext/include/test_ext.h", "test-data/ext/lib/x86-osx/libalib.a");
+        File destination = Files.createTempFile("dmengine", ".exe").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
 
-        HttpEntity entity = builder.build();
-        String url = String.format("http://localhost:%d/build/x86-osx/a", port);
-        HttpPost request = new HttpPost(url);
+        extenderClient.build(
+                "x86-osx",
+                "a",
+                sourceFiles,
+                destination,
+                log
+        );
 
-        request.setEntity(entity);
-
-        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
-            HttpResponse response = client.execute(request);
-            assertEquals(200, response.getStatusLine().getStatusCode());
-        }
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
     }
-
 
     @Test
     public void testFilterFiles() throws IOException, InterruptedException, ExtenderException {
@@ -73,20 +68,20 @@ public class ExtenderTest {
 		    "a.m", "a.bogus", "a.mm"
 		};
 
-		Collection<File> src = new ArrayList<File>();
+		Collection<File> src = new ArrayList<>();
 		for ( String k : arr ) {
 			src.add( new File(k) );
 		}
 
-		String[] expectednames = { 
+		String[] expectedNames = {
 		    "a.cpp", "a.cxx",
 		    "a.CPP", "a.CC", "a.CXX",
 		    "a.m", "a.mm"
 		};
 
-		List<File> expected = new ArrayList<File>();
-		for ( String k : expectednames ) {
-			expected.add( new File(k) );
+		List<File> expected = new ArrayList<>();
+		for (String k : expectedNames) {
+			expected.add(new File(k));
 		}
 
     	List<File> result = Extender.filterFiles(src, "(?i).*(.cpp|.c|.cc|.cxx|.c++|.mm|.m)");
@@ -103,14 +98,13 @@ public class ExtenderTest {
 
 		String[] expected = { "1", "2", "3", "4", "5" };
 
-        assertEquals( expected, c.toArray() );
+        assertArrayEquals(expected, c.toArray());
     }
-
 
     @Test
     public void testMergeContext() throws IOException, InterruptedException, ExtenderException {
-        Map<String, Object> a = new HashMap<String, Object>();
-        Map<String, Object> b = new HashMap<String, Object>();
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> b = new HashMap<>();
 
         String[] a_frameworks = {  "a", "b", "b", "c" };
         a.put("frameworks", Arrays.asList(a_frameworks));
@@ -122,7 +116,7 @@ public class ExtenderTest {
 
         Map<String, Object> result = Extender.mergeContexts(a, b);
 
-        Map<String, Object> expected = new HashMap<String, Object>();
+        Map<String, Object> expected = new HashMap<>();
         String[] expected_frameworks = {  "a", "b", "c", "d" };
         expected.put("frameworks", Arrays.asList(expected_frameworks));
         String[] expected_defines = {  "A", "B" };
@@ -132,17 +126,15 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testListTypes()
-    {
-        List<Object> a = new ArrayList<Object>();
+    public void testListTypes() {
+        List<Object> a = new ArrayList<>();
         a.add("a");
         a.add("b");
         a.add("c");
         a.add("d");
     	assertTrue( Extender.isListOfStrings(a) );
 
-
-        List<Object> b = new ArrayList<Object>();
+        List<Object> b = new ArrayList<>();
         b.add("a");
         b.add("b");
         b.add(1);
@@ -151,13 +143,11 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testCollectLibraries()
-    {
+    public void testCollectLibraries() {
     	// The folder contains a library and a text file
     	List<String> result = Extender.collectLibraries( new File("test-data/ext/lib/x86-osx"), "lib(.+).a" );
 
 		String[] expected = { "alib" };
-        assertEquals( expected, result.toArray() );
+        assertArrayEquals(expected, result.toArray());
     }
-
 }
