@@ -25,12 +25,12 @@ public class ExtenderClient {
         this.extenderBaseUrl = extenderBaseUrl;
     }
 
-    public void build(String platform, String sdkVersion, String root, List<String> sourceFiles, File destination, File log) throws ExtenderClientException {
+    public void build(String platform, String sdkVersion, File root, List<File> sourceFiles, File destination, File log) throws ExtenderClientException {
         MultipartEntity entity = new MultipartEntity();
 
-        for (String s : sourceFiles) {
+        for (File s : sourceFiles) {
             String relativePath = ExtenderClient.getRelativePath(root, s);
-            FileBody bin = new FileBody(new File(s));
+            FileBody bin = new FileBody(s);
             entity.addPart(relativePath, bin);
         }
 
@@ -54,11 +54,58 @@ public class ExtenderClient {
         }
     }
 
-    // Helper functions
 
-    private static final Pattern extensionPattern = Pattern.compile(new String("ext.manifest"));
+    /* Scans a directory and returns true if there are extensions available
+    */
+    public static boolean hasExtensions(File dir) {
+        File[] files = dir.listFiles();
+        if (!dir.exists()) {
+            return false;
+        }
+        for (File f : files) {
+            Matcher m = extensionPattern.matcher(f.getName());
+            if (m.matches()) {
+                return true;
+            }
 
-    public static List<File> findExtensionFolders(File dir) {
+            if (f.isDirectory()) {
+                if( hasExtensions(f) ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /* Gets all the extension source files (headers, c++, libs etc...) from a (project) root directory
+    */
+    public static List<File> getExtensionSource(File root, String platform) throws IOException {
+        List<File> source = new ArrayList<>();
+        List<File> extensions = ExtenderClient.listExtensionFolders(root);
+
+        for (File f : extensions) {
+
+            source.add( new File(f.getAbsolutePath() + File.separator + ExtenderClient.extensionFilename) );
+            source.addAll( ExtenderClient.listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "include") ) );
+            source.addAll( ExtenderClient.listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "src") ) );
+            source.addAll( ExtenderClient.listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "lib" + File.separator + platform) ) );
+
+            String[] platformParts = platform.split("-");
+            if (platformParts.length == 2 ) {
+                source.addAll( ExtenderClient.listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "lib" + File.separator + platformParts[1]) ) );
+            }
+        }
+        return source;
+    }    
+
+    private static final String extensionFilename = "ext.manifest";
+    private static final Pattern extensionPattern = Pattern.compile(extensionFilename);
+
+    private static List<File> listExtensionFolders(File dir) throws IOException {
+        if (!dir.isDirectory()) {
+            throw new IOException("Path is not a directory: " + dir.getAbsolutePath());
+        }
+
         List<File> folders = new ArrayList<>();
 
         File[] files = dir.listFiles();
@@ -68,17 +115,17 @@ public class ExtenderClient {
                 folders.add( dir );
                 return folders;
             }
-            if (f.isDirectory() ) {
-                folders.addAll( findExtensionFolders( f ) );
+            if (f.isDirectory()) {
+                folders.addAll( listExtensionFolders( f ) );
             }
         }
         return folders;
     }
 
-    public static List<File> findSourceFiles(File dir) {
+    private static List<File> listFilesRecursive(File dir) {
         List<File> output = new ArrayList<>();
-        if (!dir.exists()) {
-            return output;
+        if (!dir.isDirectory()) {
+            return output; // the extensions doesn't have to have all folders that we look for
         }
 
         File[] files = dir.listFiles();
@@ -86,14 +133,13 @@ public class ExtenderClient {
             if (f.isFile() ) {
                 output.add(f);
             } else {
-                output.addAll( findSourceFiles(f) );
+                output.addAll( listFilesRecursive(f) );
             }
         }
         return output;
     }
 
-    public static final String getRelativePath(String base, String path) {
-        String relative = new File(base).toURI().relativize(new File(path).toURI()).getPath();
-        return relative;
+    private static final String getRelativePath(File base, File path) {
+        return base.toURI().relativize(path.toURI()).getPath();
     }
 }

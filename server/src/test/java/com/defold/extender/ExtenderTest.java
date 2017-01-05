@@ -39,14 +39,14 @@ public class ExtenderTest {
     @Test
     public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port);
-        List<String> sourceFiles = Lists.newArrayList("test-data/ext/ext.manifest", "test-data/ext/src/test_ext.cpp", "test-data/ext/include/test_ext.h", "test-data/ext/lib/x86-osx/libalib.a");
+        List<File> sourceFiles = Lists.newArrayList(new File("test-data/ext/ext.manifest"), new File("test-data/ext/src/test_ext.cpp"), new File("test-data/ext/include/test_ext.h"), new File("test-data/ext/lib/x86-osx/libalib.a"));
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
         extenderClient.build(
                 "x86-osx",
                 "a",
-                "",
+                new File(""),
                 sourceFiles,
                 destination,
                 log
@@ -54,6 +54,29 @@ public class ExtenderTest {
 
         assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
         assertEquals("Log should be of size zero if successful.", 0, log.length());
+    }
+
+    @Test
+    public void testClientHasExtensions() throws IOException, InterruptedException, ExtenderException {
+        assertFalse( ExtenderClient.hasExtensions(new File("test-data/testproject/a")) );
+        assertTrue( ExtenderClient.hasExtensions(new File("test-data/testproject/b")) );
+        assertTrue( ExtenderClient.hasExtensions(new File("test-data/testproject")) );
+    }
+
+    @Test
+    public void testClientGetSource() throws IOException, InterruptedException, ExtenderException {
+        File root = new File("test-data/testproject/a");
+        List<File> files = null;
+
+        String platform = "x86-osx";
+        files = ExtenderClient.getExtensionSource(new File("test-data/testproject/a"), platform);
+        assertEquals( 0, files.size() );
+
+        files = ExtenderClient.getExtensionSource(new File("test-data/testproject/b"), platform);
+        assertEquals( 5, files.size() );
+
+        files = ExtenderClient.getExtensionSource(new File("test-data/testproject"), platform);
+        assertEquals( 5, files.size() );
     }
 
     @Test
