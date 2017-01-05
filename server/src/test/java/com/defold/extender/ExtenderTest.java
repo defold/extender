@@ -46,6 +46,7 @@ public class ExtenderTest {
         extenderClient.build(
                 "x86-osx",
                 "a",
+                "",
                 sourceFiles,
                 destination,
                 log
