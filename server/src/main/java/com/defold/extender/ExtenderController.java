@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.Set;
@@ -93,7 +94,10 @@ public class ExtenderController {
             MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
             File file = new File(uploadDirectory, multipartFile.getName());
             Files.createDirectories(file.getParentFile().toPath());
-            Files.copy(multipartFile.getInputStream(), file.toPath());
+
+            try (InputStream inputStream = multipartFile.getInputStream()) {
+                Files.copy(inputStream, file.toPath());
+            }
         }
     }
 }
