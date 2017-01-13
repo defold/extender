@@ -5,12 +5,11 @@
       "image": "%IMAGE%",
       "name": "extender",
       "cpu": 10,
-      "memory": 1024,
+      "memory": 2048,
       "essential": true,
       "portMappings": [
         {
-          "containerPort": 9000,
-          "hostPort": 9000
+          "containerPort": 9000
         }
       ]
     }
