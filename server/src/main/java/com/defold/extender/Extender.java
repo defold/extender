@@ -194,6 +194,19 @@ class Extender {
         return o;
     }
 
+    private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+        Map<String, Object> context = context(manifestContext);
+        File o = File.createTempFile("main_tmp", ".o", build);
+        o.delete();
+
+        context.put("src", maincpp);
+        context.put("tgt", o);
+
+        String command = templateExecutor.execute(platformConfig.compileCmd, context);
+        processExecutor.execute(command);
+        return o;
+    }
+
     private File buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
         File srcDir = new File(extDir, "src");
@@ -236,6 +249,8 @@ class Extender {
         String main = templateExecutor.execute(config.main, mainContext);
         FileUtils.writeStringToFile(maincpp, main);
 
+        File mainObject = compileMain(maincpp, manifestContext);
+
         List<String> extLibs = new ArrayList<>();
         List<String> extLibPaths = new ArrayList<>(Arrays.asList(build.toString()));
         List<String> extFrameworks = new ArrayList<>();
@@ -271,7 +286,7 @@ class Extender {
         extLibs.addAll(Extender.collectLibraries(build, platformConfig.stlibRe));
 
         Map<String, Object> context = context(manifestContext);
-        context.put("src", Arrays.asList(maincpp.getAbsolutePath()));
+        context.put("src", mainObject);
         context.put("tgt", exe.getAbsolutePath());
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths));
 
