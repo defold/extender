@@ -11,7 +11,15 @@
         {
           "containerPort": 9000
         }
-      ]
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "prod-logs",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "extender"
+        }
+      }
     }
   ]
 }
