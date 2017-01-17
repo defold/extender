@@ -61,6 +61,15 @@ class Extender {
         return libs;
     }
 
+    private File uniqueTmpFile(File parent, String prefix, String suffix) {
+        File file;
+        do {
+            file = new File(build, prefix + UUID.randomUUID().toString() + suffix);
+        } while (file.exists());
+
+        return file;
+    }
+
     private ManifestConfiguration loadManifest(File manifest) throws IOException
     {
         return new Yaml().loadAs(FileUtils.readFileToString(manifest), ManifestConfiguration.class);
@@ -196,12 +205,9 @@ class Extender {
 
     private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         Map<String, Object> context = context(manifestContext);
-        File o = File.createTempFile("main_tmp", ".o", build);
-        o.delete();
-
+        File o = uniqueTmpFile(build, "main_tmp", ".o");
         context.put("src", maincpp);
         context.put("tgt", o);
-
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
         processExecutor.execute(command);
         return o;
@@ -224,9 +230,7 @@ class Extender {
             i++;
         }
 
-        File lib = File.createTempFile("lib", ".a", build);
-        lib.delete();
-
+        File lib = uniqueTmpFile(build, "lib", ".a");
         Map<String, Object> context = context(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
