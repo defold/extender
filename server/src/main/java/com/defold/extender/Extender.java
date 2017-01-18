@@ -61,6 +61,15 @@ class Extender {
         return libs;
     }
 
+    private File uniqueTmpFile(File parent, String prefix, String suffix) {
+        File file;
+        do {
+            file = new File(build, prefix + UUID.randomUUID().toString() + suffix);
+        } while (file.exists());
+
+        return file;
+    }
+
     private ManifestConfiguration loadManifest(File manifest) throws IOException
     {
         return new Yaml().loadAs(FileUtils.readFileToString(manifest), ManifestConfiguration.class);
@@ -194,6 +203,16 @@ class Extender {
         return o;
     }
 
+    private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+        Map<String, Object> context = context(manifestContext);
+        File o = uniqueTmpFile(build, "main_tmp", ".o");
+        context.put("src", maincpp);
+        context.put("tgt", o);
+        String command = templateExecutor.execute(platformConfig.compileCmd, context);
+        processExecutor.execute(command);
+        return o;
+    }
+
     private File buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
         File srcDir = new File(extDir, "src");
@@ -211,9 +230,7 @@ class Extender {
             i++;
         }
 
-        File lib = File.createTempFile("lib", ".a", build);
-        lib.delete();
-
+        File lib = uniqueTmpFile(build, "lib", ".a");
         Map<String, Object> context = context(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
@@ -235,6 +252,8 @@ class Extender {
 
         String main = templateExecutor.execute(config.main, mainContext);
         FileUtils.writeStringToFile(maincpp, main);
+
+        File mainObject = compileMain(maincpp, manifestContext);
 
         List<String> extLibs = new ArrayList<>();
         List<String> extLibPaths = new ArrayList<>(Arrays.asList(build.toString()));
@@ -271,7 +290,7 @@ class Extender {
         extLibs.addAll(Extender.collectLibraries(build, platformConfig.stlibRe));
 
         Map<String, Object> context = context(manifestContext);
-        context.put("src", Arrays.asList(maincpp.getAbsolutePath()));
+        context.put("src", mainObject);
         context.put("tgt", exe.getAbsolutePath());
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths));
 
