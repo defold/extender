@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 
 class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
@@ -9,7 +10,15 @@ class ProcessExecutor {
     int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");
 
-        String[] args = command.split(" ");
+        // To avoid an issue where a space was interpreted as an argument
+        String[] argsSplit = command.split(" ");
+        ArrayList<String> args = new ArrayList<>();
+        for (String arg : argsSplit) {
+            String cleanArg = arg.trim();
+            if (!cleanArg.equals("")) {
+                args.add(cleanArg);
+            }
+        }
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
