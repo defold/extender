@@ -35,8 +35,7 @@ RUN \
 ENV ANDROID_ROOT /opt/android
 ENV ANDROID_SDK_FILENAME android-sdk_r24.3.3-linux.tgz
 ENV ANDROID_SDK_URL http://dl.google.com/android/${ANDROID_SDK_FILENAME}
-ENV ANDROID_API_LEVELS android-17
-ENV ANDROID_BUILD_TOOLS_VERSION 20.0.0
+ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 
 ENV ANDROID_NDK_VERSION 10e
@@ -58,7 +57,7 @@ RUN mkdir -p cd ${ANDROID_ROOT} && \
     wget -q ${ANDROID_SDK_URL} && \
     tar -xzf ${ANDROID_SDK_FILENAME} && \
     rm ${ANDROID_SDK_FILENAME} && \
-    echo y | android update sdk --no-ui -a --filter tools,platform-tools,${ANDROID_API_LEVELS},build-tools-${ANDROID_BUILD_TOOLS_VERSION} && \
+    echo y | android update sdk --no-ui -a --filter tools,platform-tools,android-${ANDROID_TARGET_API_LEVEL},build-tools-${ANDROID_BUILD_TOOLS_VERSION} && \
     ln -s android-sdk-linux android-sdk
 
 ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip

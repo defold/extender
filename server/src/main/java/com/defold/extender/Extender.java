@@ -115,10 +115,11 @@ class Extender {
             if (!v1.getClass().equals(v2.getClass())) {
                 throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString() ) );
             }
+            if (!Extender.isListOfStrings((List<Object>)v2) ) {
+                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()) );
+            }
             if (v1 instanceof List) {
                 v1 = Extender.mergeLists( (List<String>)v1, (List<String>) v2 );
-            } else {
-                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()) );
             }
             context.put(k, v1);
         }
