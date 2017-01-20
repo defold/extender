@@ -3,7 +3,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.4.2.RELEASE")
+        classpath('org.springframework.boot:spring-boot-gradle-plugin:1.4.2.RELEASE')
         classpath('se.transmode.gradle:gradle-docker:1.2')
     }
 }
@@ -27,18 +27,19 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 dependencies {
-    compile("org.springframework.boot:spring-boot-starter-web") {
-        exclude module: "spring-boot-starter-tomcat"
+    compile('org.springframework.boot:spring-boot-starter-web') {
+        exclude module: 'spring-boot-starter-tomcat'
     }
-    compile("org.springframework.boot:spring-boot-starter-jetty")
+    compile('org.springframework.boot:spring-boot-starter-jetty')
     compile('com.samskivert:jmustache:1.12')
     compile('com.google.guava:guava:19.0')
     compile('org.apache.httpcomponents:httpclient:4.5.2')
     compile('org.apache.httpcomponents:httpmime:4.5.2')
     compile('commons-io:commons-io:2.4')
-    compile("org.springframework.boot:spring-boot-starter-actuator")
+    compile('org.springframework.boot:spring-boot-starter-actuator')
+    compile('org.influxdb:influxdb-java:2.4')
 
-    testCompile("junit:junit")
+    testCompile('junit:junit')
     testCompile('org.springframework:spring-test')
     testCompile('org.springframework.boot:spring-boot-starter-test')
     testCompile project(':client')
