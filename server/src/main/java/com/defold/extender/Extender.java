@@ -27,7 +27,14 @@ class Extender {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
 
-    private final String frameworkRe = new String("(.+).framework");
+    private static final String frameworkRe = new String("(.+).framework");
+
+    private static final String ANDROID_NDK_PATH               = System.getenv("ANDROID_NDK_PATH");
+    private static final String ANDROID_NDK_INCLUDE_PATH       = System.getenv("ANDROID_NDK_INCLUDE");
+    private static final String ANDROID_STL_INCLUDE_PATH       = System.getenv("ANDROID_STL_INCLUDE");
+    private static final String ANDROID_STL_ARCH_INCLUDE_PATH  = System.getenv("ANDROID_STL_ARCH_INCLUDE");
+    private static final String ANDROID_STL_LIB_PATH           = System.getenv("ANDROID_STL_LIB");
+    private static final String ANDROID_SYSROOT_PATH           = System.getenv("ANDROID_SYSROOT");
 
     Extender(String platform, File extensionSource, File sdk) throws IOException {
         // Read config from SDK
@@ -109,7 +116,7 @@ class Extender {
                 throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString() ) );
             }
             if (!Extender.isListOfStrings((List<Object>)v2) ) {
-                throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s", v2.toString() ) );
+                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()) );
             }
             if (v1 instanceof List) {
                 v1 = Extender.mergeLists( (List<String>)v1, (List<String>) v2 );
@@ -141,6 +148,15 @@ class Extender {
         context.put("dynamo_home", sdk.getAbsolutePath());
         context.put("platform", this.platform);
 
+        if (this.platform.contains("android")) {
+            context.put("android_ndk_path", ANDROID_NDK_PATH);
+            context.put("android_ndk_include", ANDROID_NDK_INCLUDE_PATH);
+            context.put("android_stl_include", ANDROID_STL_INCLUDE_PATH);
+            context.put("android_stl_arch_include", ANDROID_STL_ARCH_INCLUDE_PATH);
+            context.put("android_stl_lib", ANDROID_STL_LIB_PATH);
+            context.put("android_sysroot", ANDROID_SYSROOT_PATH);
+        }
+
         context.putAll(Extender.mergeContexts(platformConfig.context, manifestContext) );
 
         Set<String> keys = context.keySet();
@@ -160,7 +176,7 @@ class Extender {
     private List<String> getFrameworks(File extDir)
     {
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + this.platform), frameworkRe)); // e.g. armv64--ios
+        frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + this.platform), frameworkRe)); // e.g. armv64-ios
         String[] platformParts = this.platform.split("-");
         if (platformParts.length == 2 ) {
             frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + platformParts[1]), frameworkRe)); // e.g. "ios"
@@ -242,7 +258,7 @@ class Extender {
 
     private File linkEngine(List<File> extDirs, List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
         File maincpp = new File(build, "main.cpp");
-        File exe = new File(build, String.format("dmengine%s", platformConfig.exeExt));
+        File exe = new File(build, String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt));
 
         List<String> extSymbols = new ArrayList<>();
         extSymbols.addAll(symbols);
@@ -260,6 +276,7 @@ class Extender {
         List<String> extFrameworks = new ArrayList<>();
         List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(build.toString()));
 
+        extLibs.addAll(Extender.collectLibraries(build, platformConfig.stlibRe));
         for (File extDir : extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
 
@@ -285,9 +302,7 @@ class Extender {
                 extLibs.addAll(Extender.collectLibraries(libCommonDir, platformConfig.stlibRe));
                 extFrameworkPaths.addAll( getFrameworkPaths(extDir) );
             }
-
         }
-        extLibs.addAll(Extender.collectLibraries(build, platformConfig.stlibRe));
 
         Map<String, Object> context = context(manifestContext);
         context.put("src", mainObject);

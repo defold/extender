@@ -26,7 +26,8 @@ RUN \
     valgrind python-setuptools \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
-    freeglut3-dev && \
+    freeglut3-dev \
+    unzip && \
     rm -rf /var/lib/apt/lists/* && \
     rm -rf /var/cache/oracle-jdk8-installer
 
@@ -34,24 +35,40 @@ RUN \
 ENV ANDROID_ROOT /opt/android
 ENV ANDROID_SDK_FILENAME android-sdk_r24.3.3-linux.tgz
 ENV ANDROID_SDK_URL http://dl.google.com/android/${ANDROID_SDK_FILENAME}
-ENV ANDROID_API_LEVELS android-17
-ENV ANDROID_BUILD_TOOLS_VERSION 20.0.0
+ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools
+
+ENV ANDROID_NDK_VERSION 10e
+ENV ANDROID_NDK_API_VERSION 14
+ENV ANDROID_TARGET_API_LEVEL 23
+ENV ANDROID_MIN_API_LEVEL 9
+ENV ANDROID_GCC_VERSION 4.8
+ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
+ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/tmp/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
+ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
+ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
+ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
+ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
+ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
+
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}
 RUN mkdir -p cd ${ANDROID_ROOT} && \
     cd ${ANDROID_ROOT} && \
     wget -q ${ANDROID_SDK_URL} && \
     tar -xzf ${ANDROID_SDK_FILENAME} && \
     rm ${ANDROID_SDK_FILENAME} && \
-    echo y | android update sdk --no-ui -a --filter tools,platform-tools,${ANDROID_API_LEVELS},build-tools-${ANDROID_BUILD_TOOLS_VERSION} && \
+    echo y | android update sdk --no-ui -a --filter tools,platform-tools,android-${ANDROID_TARGET_API_LEVEL},build-tools-${ANDROID_BUILD_TOOLS_VERSION} && \
     ln -s android-sdk-linux android-sdk
 
-ENV ANDROID_NDK_FILENAME android-ndk64-r10b-linux-x86.tar.bz2
-ENV ANDROID_NDK_URL http://dl.google.com/android/ndk/${ANDROID_NDK_FILENAME}
+ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
+#ENV ANDROID_NDK_URL http://dl.google.com/android/ndk/${ANDROID_NDK_FILENAME}
+# ENV ANDROID_NDK_FILENAME android-ndk64-r${ANDROID_NDK_VERSION}-linux-x86.tar.bz2
+ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
+
 RUN cd ${ANDROID_ROOT} && \
     wget -q ${ANDROID_NDK_URL} && \
     chmod +x ${ANDROID_NDK_FILENAME} && \
-    tar xfj ${ANDROID_NDK_FILENAME} && \
+    unzip ${ANDROID_NDK_FILENAME} && \
     chmod +r -R ${ANDROID_ROOT} && \
     rm ${ANDROID_NDK_FILENAME}
 

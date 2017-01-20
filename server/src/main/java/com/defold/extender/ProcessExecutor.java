@@ -2,6 +2,8 @@ package com.defold.extender;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
@@ -9,7 +11,9 @@ class ProcessExecutor {
     int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");
 
-        String[] args = command.split(" ");
+        // To avoid an issue where an extra space was interpreted as an argument
+        ArrayList<String> args = new ArrayList<>(Arrays.asList(command.split(" ")));
+        args.removeAll(Arrays.asList(""));
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);

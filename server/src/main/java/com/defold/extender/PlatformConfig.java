@@ -8,6 +8,7 @@ class PlatformConfig {
 
     public List<String> compileArgs;
     public Map<String, Object> context = new HashMap<>();
+    public String exePrefix;
     public String exeExt;
     public String shlibRe;
     public String stlibRe;
