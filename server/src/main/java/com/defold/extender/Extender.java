@@ -27,14 +27,14 @@ class Extender {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
 
-    private final String frameworkRe = new String("(.+).framework");
+    private static final String frameworkRe = new String("(.+).framework");
 
-    private final String ANDROID_NDK_PATH               = System.getenv("ANDROID_NDK_PATH");
-    private final String ANDROID_NDK_INCLUDE_PATH       = System.getenv("ANDROID_NDK_INCLUDE");
-    private final String ANDROID_STL_INCLUDE_PATH       = System.getenv("ANDROID_STL_INCLUDE");
-    private final String ANDROID_STL_ARCH_INCLUDE_PATH  = System.getenv("ANDROID_STL_ARCH_INCLUDE");
-    private final String ANDROID_STL_LIB_PATH           = System.getenv("ANDROID_STL_LIB");
-    private final String ANDROID_SYSROOT_PATH           = System.getenv("ANDROID_SYSROOT");
+    private static final String ANDROID_NDK_PATH               = System.getenv("ANDROID_NDK_PATH");
+    private static final String ANDROID_NDK_INCLUDE_PATH       = System.getenv("ANDROID_NDK_INCLUDE");
+    private static final String ANDROID_STL_INCLUDE_PATH       = System.getenv("ANDROID_STL_INCLUDE");
+    private static final String ANDROID_STL_ARCH_INCLUDE_PATH  = System.getenv("ANDROID_STL_ARCH_INCLUDE");
+    private static final String ANDROID_STL_LIB_PATH           = System.getenv("ANDROID_STL_LIB");
+    private static final String ANDROID_SYSROOT_PATH           = System.getenv("ANDROID_SYSROOT");
 
     Extender(String platform, File extensionSource, File sdk) throws IOException {
         // Read config from SDK
