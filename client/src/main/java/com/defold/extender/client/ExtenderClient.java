@@ -49,7 +49,7 @@ public class ExtenderClient {
                 throw new ExtenderClientException("Failed to build source.");
             }
         } catch (IOException e) {
-            throw new ExtenderClientException("Failed to communicate with Extender service.", e);
+            throw new ExtenderClientException(String.format("Failed to communicate with Extender service:\n%s: %s", e.getClass().getCanonicalName(), e.toString()) );
         }
     }
 
