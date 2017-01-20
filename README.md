@@ -13,7 +13,7 @@ This describes how to run the build server locally.
 
 _NOTE:_ The first time you build it will take a while. This could make the Gradle-plugin
 used by the build-script to hang. In order to mitigate this you can run following commands
-first: `docker build docker`
+first: `docker build server/docker`
 
 ### Start
 * Then, start a container based on that image by running: `./scripts/run.sh`.
