@@ -1,5 +1,6 @@
 package com.defold.extender.client;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
@@ -24,7 +25,30 @@ public class ExtenderClient {
         this.extenderBaseUrl = extenderBaseUrl;
     }
 
-    public void build(String platform, String sdkVersion, File root, List<File> sourceFiles, File destination, File log) throws ExtenderClientException {
+    /** Builds a new engine given a platform and an sdk version plus source files.
+     * The result is a .zip file
+     *
+     * @param platform      E.g. "arm64-ios", "armv7-android", "x86_64-osx"
+     * @param sdkVersion    Sha1 of defold version
+     * @param root          Folder where to start creating relative paths from
+     * @param sourceFiles   List of files that should be build on server (.cpp, .a, etc)
+     * @param cacheDir      A directory where the cache is located
+     * @param destination   The output where the returned zip file is copied
+     * @param log           A log file
+     * @throws ExtenderClientException
+     */
+    public void build(String platform, String sdkVersion, File root, List<File> sourceFiles, File cacheDir, File destination, File log) throws ExtenderClientException {
+        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+        File cachedBuild = cache.isCachedBuildValid(platform, sourceFiles);
+        if (cachedBuild != null) {
+            try {
+                FileUtils.copyFile(cachedBuild, destination);
+            } catch (IOException e) {
+                throw new ExtenderClientException(String.format("Failed to copy %s to %s", cachedBuild.getAbsolutePath(), destination.getAbsolutePath()), e);
+            }
+            return;
+        }
+
         MultipartEntity entity = new MultipartEntity();
 
         for (File s : sourceFiles) {
@@ -50,6 +74,23 @@ public class ExtenderClient {
             }
         } catch (IOException e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
+        }
+
+        // Store the new build
+        cachedBuild = cache.getCachedBuildFile(platform);
+        File parentDir = cachedBuild.getParentFile();
+
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+        if (!parentDir.exists()) {
+            throw new ExtenderClientException(String.format("Failed to create cache dir %s", parentDir.getAbsolutePath()));
+        }
+
+        try {
+            FileUtils.copyFile(destination, cachedBuild);
+        } catch (IOException e) {
+            throw new ExtenderClientException(String.format("Failed to store cached copy %s to %s", destination.getAbsolutePath(), cachedBuild.getAbsolutePath()), e);
         }
     }
 

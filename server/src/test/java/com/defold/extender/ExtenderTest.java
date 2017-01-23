@@ -1,8 +1,10 @@
 package com.defold.extender;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientCache;
 import com.defold.extender.client.ExtenderClientException;
 import com.google.common.collect.Lists;
+import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
@@ -43,17 +46,26 @@ public class ExtenderTest {
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
+        String platform = "x86-osx";
+        String sdkVersion = "a";
+        File cacheDir = new File("build");
         extenderClient.build(
-                "x86-osx",
-                "a",
+                platform,
+                sdkVersion,
                 new File(""),
                 sourceFiles,
+                cacheDir,
                 destination,
                 log
         );
 
         assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
         assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+        assertTrue( cache.getCachedBuildFile(platform).exists() );
+
+        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 
     @Test
@@ -183,5 +195,80 @@ public class ExtenderTest {
            String[] expected = { "blib" };
            assertEquals( expected, result.toArray() );
        }
+    }
+
+    @Test
+    public void testClientCacheHash() throws IOException, InterruptedException {
+        FileWriter fwr1 = new FileWriter(new File("build/a"));
+        FileWriter fwr2 = new FileWriter(new File("build/b"));
+        FileWriter fwr3 = new FileWriter(new File("build/c"));
+        fwr1.write("a");
+        fwr2.write("a");
+        fwr3.write("b");
+        fwr1.close();
+        fwr2.close();
+        fwr3.close();
+
+        ExtenderClientCache cache = new ExtenderClientCache(new File("."));
+
+        {
+            File file1 = new File("build/a");
+            File file2 = new File("build/b");
+            File file3 = new File("build/c");
+            assertEquals(cache.getHash(file1), cache.getHash(file2));
+            assertNotEquals(cache.getHash(file1), cache.getHash(file3));
+        }
+
+        Thread.sleep(1000);
+
+        fwr2 = new FileWriter(new File("build/b"));
+        fwr2.write("b");
+        fwr2.flush();
+        fwr2.close();
+
+        {
+            File file1 = new File("build/a");
+            File file2 = new File("build/b");
+
+            assertNotEquals(cache.getHash(file1), cache.getHash(file2));
+        }
+
+        FileUtils.deleteQuietly(new File("build/a"));
+        FileUtils.deleteQuietly(new File("build/b"));
+        FileUtils.deleteQuietly(new File("build/c"));
+    }
+
+    @Test
+    public void testClientCacheSignatureHash() throws IOException {
+        File a = new File("build/a");
+        File b = new File("build/b");
+        FileWriter fwr1 = new FileWriter(a);
+        FileWriter fwr2 = new FileWriter(b);
+        fwr1.write("a");
+        fwr2.write("b");
+        fwr1.flush();
+        fwr2.flush();
+        fwr1.close();
+        fwr2.close();
+
+        List<File> files1 = new ArrayList<>();
+        files1.add(a);
+        files1.add(b);
+
+
+        List<File> files2 = new ArrayList<>();
+        files2.add(b);
+        files2.add(a);
+
+        ExtenderClientCache cache = new ExtenderClientCache(new File("."));
+
+        assertEquals(cache.getHash(files1), cache.getHash(files2));
+
+        files2.add(a);
+
+        assertNotEquals(cache.getHash(files1), cache.getHash(files2));
+
+        FileUtils.deleteQuietly(new File("build/a"));
+        FileUtils.deleteQuietly(new File("build/b"));
     }
 }
