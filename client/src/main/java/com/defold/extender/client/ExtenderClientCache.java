@@ -29,23 +29,23 @@ public class ExtenderClientCache {
         return hex;
     }
 
-	private static String hash(File file) {
-	    try{
-	        MessageDigest md = MessageDigest.getInstance(hashFn);
-	        byte[] data = Files.readAllBytes(file.toPath());
-	        md.update(data);
-	        return hashToString(md.digest());
-	    } catch(Exception e){
-	        throw new RuntimeException(e);
-	    }
-	 }
+    private static String hash(File file) {
+        try{
+            MessageDigest md = MessageDigest.getInstance(hashFn);
+            byte[] data = Files.readAllBytes(file.toPath());
+            md.update(data);
+            return hashToString(md.digest());
+        } catch(Exception e){
+            throw new RuntimeException(e);
+        }
+     }
 
     public String getHash(File file) {
         String path = file.getAbsolutePath();
         Timestamp fileTimestamp = new Timestamp(file.lastModified());
         Timestamp timestamp = this.timestamps.getOrDefault(path, null);
 
-    	if (timestamp != null && fileTimestamp.equals(timestamp) ) {
+        if (timestamp != null && fileTimestamp.equals(timestamp) ) {
             String hash = this.hashes.getOrDefault(path, null);
             if (hash != null) {
                 return hash;
@@ -54,7 +54,7 @@ public class ExtenderClientCache {
 
         // Create a new hash
         String hash = ExtenderClientCache.hash(file);
-    	this.timestamps.put(path, fileTimestamp);
+        this.timestamps.put(path, fileTimestamp);
         this.hashes.put(path, hash);
         return hash;
     }
