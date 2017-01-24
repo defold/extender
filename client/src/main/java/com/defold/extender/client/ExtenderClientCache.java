@@ -3,7 +3,6 @@ package com.defold.extender.client;
 import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
 import java.io.*;
 import java.nio.file.Files;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
 
@@ -14,7 +13,7 @@ public class ExtenderClientCache {
     private static final String hashFn = "SHA-256";
     private static final String cacheFile = ".buildcache";
 
-    private HashMap<String, Timestamp> timestamps = new HashMap<>();        // Time stamps for input files
+    private HashMap<String, Instant> timestamps = new HashMap<>();        // Time stamps for input files
     private HashMap<String, String> hashes = new HashMap<>();               // Hashes for input files
     private HashMap<String, String> persistentHashes = new HashMap<>();     // Only the build artifacts
 
@@ -33,13 +32,13 @@ public class ExtenderClientCache {
 
     /** Calculates (if needed) a hash from a file (Public for unit tests)
      */
-    public String getHash(File file) {
+    public String getHash(File file) throws ExtenderClientException {
         String path = file.getAbsolutePath();
-        Timestamp fileTimestamp = new Timestamp(file.lastModified());
-        Timestamp timestamp = this.timestamps.getOrDefault(path, null);
+        Instant fileTimestamp = Instant.ofEpochMilli(file.lastModified());
+        Instant timestamp = this.timestamps.get(path);
 
         if (timestamp != null && fileTimestamp.equals(timestamp) ) {
-            String hash = this.hashes.getOrDefault(path, null);
+            String hash = this.hashes.get(path);
             if (hash != null) {
                 return hash;
             }
@@ -52,17 +51,12 @@ public class ExtenderClientCache {
         return hash;
     }
 
-    private void getHash(List<File> files, MessageDigest md) {
+    private void getHash(List<File> files, MessageDigest md) throws ExtenderClientException {
         if (files.isEmpty()) {
-            throw new RuntimeException("The list of files must not be empty");
+            throw new ExtenderClientException("The list of files must not be empty");
         }
 
-        files.sort(new Comparator<File>() {
-            @Override
-            public int compare(File o1, File o2) {
-                return o1.getAbsolutePath().compareTo(o2.getAbsolutePath());
-            }
-        });
+        files.sort(Comparator.comparing(File::getAbsolutePath));
 
         for (File file : files) {
             String fileHash = getHash(file);
@@ -72,7 +66,7 @@ public class ExtenderClientCache {
 
     /** Gets the combined hash from a list of files (Public for unit tests)
      */
-    public String getHash(List<File> files) {
+    public String getHash(List<File> files) throws ExtenderClientException {
         MessageDigest md = ExtenderClientCache.getHasher();
         getHash(files, md);
         return hashToString(md.digest());
@@ -93,13 +87,13 @@ public class ExtenderClientCache {
     /** Checks if a cached build is still valid.
      * @return If the cached version is still valid, returns that file
      */
-    public File isCachedBuildValid(String platform, String sdkVersion, List<File> files) {
+    public File getCachedBuild(String platform, String sdkVersion, List<File> files) throws ExtenderClientException {
         File f = getCachedBuildFile(platform);
         if (!f.exists()) {
             return null;
         }
 
-        String previousHash = this.persistentHashes.getOrDefault(f.getAbsolutePath(), null);
+        String previousHash = this.persistentHashes.get(f.getAbsolutePath());
         String inputHash = calcKey(platform, sdkVersion, files);
         return inputHash.equals(previousHash) ? f : null;
     }
@@ -110,7 +104,7 @@ public class ExtenderClientCache {
      * @param files         A list of files affecting the build
      * @return The calculated key
      */
-    public String calcKey(String platform, String sdkVersion, List<File> files) {
+    public String calcKey(String platform, String sdkVersion, List<File> files) throws ExtenderClientException {
         MessageDigest md = ExtenderClientCache.getHasher();
         md.update(platform.getBytes());
         md.update(sdkVersion.getBytes());
@@ -124,7 +118,7 @@ public class ExtenderClientCache {
      * @param sdkVersion
      * @param files
      */
-    public void storeCachedBuild(String platform, String sdkVersion, List<File> files) {
+    public void storeCachedBuild(String platform, String sdkVersion, List<File> files) throws ExtenderClientException {
         String key = calcKey(platform, sdkVersion, files);
         File f = getCachedBuildFile(platform);
         this.persistentHashes.put(f.getAbsolutePath(), key);
@@ -133,12 +127,12 @@ public class ExtenderClientCache {
 
     //
 
-    private static MessageDigest getHasher() {
+    private static MessageDigest getHasher() throws ExtenderClientException {
         MessageDigest md = null;
         try {
             md = MessageDigest.getInstance(hashFn);
         } catch(Exception e){
-            throw new RuntimeException("Could not create hash function: " + hashFn, e);
+            throw new ExtenderClientException("Could not create hash function: " + hashFn, e);
         }
         return md;
     }
@@ -147,14 +141,14 @@ public class ExtenderClientCache {
         return (new HexBinaryAdapter()).marshal(digest);
     }
 
-    private static String hash(File file) {
+    private static String hash(File file) throws ExtenderClientException {
         try{
             MessageDigest md = ExtenderClientCache.getHasher();
             byte[] data = Files.readAllBytes(file.toPath());
             md.update(data);
             return hashToString(md.digest());
         } catch(Exception e){
-            throw new RuntimeException(e);
+            throw new ExtenderClientException(String.format("Failed to hash file: ", file.getAbsolutePath()), e);
         }
     }
 

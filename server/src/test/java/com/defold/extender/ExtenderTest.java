@@ -207,7 +207,7 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testClientCacheHash() throws IOException, InterruptedException {
+    public void testClientCacheHash() throws IOException, InterruptedException, ExtenderClientException {
         writeToFile("build/a", "a");
         writeToFile("build/b", "a");
         writeToFile("build/c", "b");
@@ -239,7 +239,7 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testClientCacheSignatureHash() throws IOException {
+    public void testClientCacheSignatureHash() throws IOException, ExtenderClientException {
         File a = new File("build/a");
         File b = new File("build/b");
 
@@ -268,7 +268,7 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testClientCacheValidBuild() throws IOException, InterruptedException {
+    public void testClientCacheValidBuild() throws IOException, InterruptedException, ExtenderClientException {
         File a = new File("build/a");
         File b = new File("build/b");
         File c = new File("build/c");
@@ -289,7 +289,7 @@ public class ExtenderTest {
         ExtenderClientCache cache = new ExtenderClientCache(new File("."));
 
         // Is doesn't exist yet, so false
-        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
 
         File build = cache.getCachedBuildFile(platform);
         build.deleteOnExit();
@@ -302,38 +302,38 @@ public class ExtenderTest {
         cache.storeCachedBuild(platform, sdkVersion, files);
 
         // It should exist now, so true
-        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
 
         // Changing a source file should invalidate the file
         Thread.sleep(1000);
         writeToFile("build/b", "bb");
-        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
 
         // If we update the build, is should be cached
         cache.storeCachedBuild(platform, sdkVersion, files);
-        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
 
         // Add a "new" file to the list, but let it have an old timestamp
         files.add(c);
 
-        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
 
         // If we update the build, is should be cached
         cache.storeCachedBuild(platform, sdkVersion, files);
-        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
 
         // Remove one file
         files.remove(0);
 
-        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
 
         // If we update the build, is should be cached
         cache.storeCachedBuild(platform, sdkVersion, files);
-        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
     }
 
     @Test
-    public void testClientCachePersistence() throws IOException, InterruptedException {
+    public void testClientCachePersistence() throws IOException, InterruptedException, ExtenderClientException {
         File a = new File("build/a");
         a.deleteOnExit();
         writeToFile("build/a", "a");
@@ -368,7 +368,7 @@ public class ExtenderTest {
         {
             ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
 
-            assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+            assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
 
             // Write the build, and update the cache
             writeToFile(build.getAbsolutePath(), (new Date()).toString());
@@ -379,7 +379,7 @@ public class ExtenderTest {
         {
             ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
 
-            assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+            assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
         }
     }
 

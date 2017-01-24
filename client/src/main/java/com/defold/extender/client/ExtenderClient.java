@@ -46,7 +46,7 @@ public class ExtenderClient {
      * @throws ExtenderClientException
      */
     public void build(String platform, String sdkVersion, File root, List<File> sourceFiles, File destination, File log) throws ExtenderClientException {
-        File cachedBuild = cache.isCachedBuildValid(platform, sdkVersion, sourceFiles);
+        File cachedBuild = cache.getCachedBuild(platform, sdkVersion, sourceFiles);
         if (cachedBuild != null) {
             try {
                 Files.copy(new FileInputStream(cachedBuild), destination.toPath(), REPLACE_EXISTING);
