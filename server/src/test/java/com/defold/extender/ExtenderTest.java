@@ -17,6 +17,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.time.Instant;
 import java.util.*;
 
 import static org.junit.Assert.*;
@@ -41,20 +42,19 @@ public class ExtenderTest {
 
     @Test
     public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
-        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port);
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port, cacheDir);
         List<File> sourceFiles = Lists.newArrayList(new File("test-data/ext/ext.manifest"), new File("test-data/ext/src/test_ext.cpp"), new File("test-data/ext/include/test_ext.h"), new File("test-data/ext/lib/x86-osx/libalib.a"));
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
         String platform = "x86-osx";
         String sdkVersion = "a";
-        File cacheDir = new File("build");
         extenderClient.build(
                 platform,
                 sdkVersion,
                 new File(""),
                 sourceFiles,
-                cacheDir,
                 destination,
                 log
         );
@@ -197,17 +197,20 @@ public class ExtenderTest {
        }
     }
 
+    private void writeToFile(String path, String msg) throws IOException {
+        File f = new File(path);
+        FileWriter fwr = new FileWriter(f);
+        fwr.write(msg);
+        fwr.flush();
+        fwr.close();
+        f.setLastModified(Instant.now().toEpochMilli() + 23);
+    }
+
     @Test
     public void testClientCacheHash() throws IOException, InterruptedException {
-        FileWriter fwr1 = new FileWriter(new File("build/a"));
-        FileWriter fwr2 = new FileWriter(new File("build/b"));
-        FileWriter fwr3 = new FileWriter(new File("build/c"));
-        fwr1.write("a");
-        fwr2.write("a");
-        fwr3.write("b");
-        fwr1.close();
-        fwr2.close();
-        fwr3.close();
+        writeToFile("build/a", "a");
+        writeToFile("build/b", "a");
+        writeToFile("build/c", "b");
 
         ExtenderClientCache cache = new ExtenderClientCache(new File("."));
 
@@ -221,10 +224,7 @@ public class ExtenderTest {
 
         Thread.sleep(1000);
 
-        fwr2 = new FileWriter(new File("build/b"));
-        fwr2.write("b");
-        fwr2.flush();
-        fwr2.close();
+        writeToFile("build/b", "b");
 
         {
             File file1 = new File("build/a");
@@ -242,14 +242,9 @@ public class ExtenderTest {
     public void testClientCacheSignatureHash() throws IOException {
         File a = new File("build/a");
         File b = new File("build/b");
-        FileWriter fwr1 = new FileWriter(a);
-        FileWriter fwr2 = new FileWriter(b);
-        fwr1.write("a");
-        fwr2.write("b");
-        fwr1.flush();
-        fwr2.flush();
-        fwr1.close();
-        fwr2.close();
+
+        writeToFile("build/a", "a");
+        writeToFile("build/b", "b");
 
         List<File> files1 = new ArrayList<>();
         files1.add(a);
@@ -271,4 +266,121 @@ public class ExtenderTest {
         FileUtils.deleteQuietly(new File("build/a"));
         FileUtils.deleteQuietly(new File("build/b"));
     }
+
+    @Test
+    public void testClientCacheValidBuild() throws IOException, InterruptedException {
+        File a = new File("build/a");
+        File b = new File("build/b");
+        File c = new File("build/c");
+        a.deleteOnExit();
+        b.deleteOnExit();
+        c.deleteOnExit();
+
+        writeToFile("build/a", "a");
+        writeToFile("build/b", "b");
+        writeToFile("build/c", "c");
+
+        List<File> files = new ArrayList<>();
+        files.add(a);
+        files.add(b);
+
+        String platform = "osx";
+        String sdkVersion = "abc456";
+        ExtenderClientCache cache = new ExtenderClientCache(new File("."));
+
+        // Is doesn't exist yet, so false
+        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+        File build = cache.getCachedBuildFile(platform);
+        build.deleteOnExit();
+        File parentDir = build.getParentFile();
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+
+        writeToFile(build.getAbsolutePath(), (new Date()).toString());
+        cache.storeCachedBuild(platform, sdkVersion, files);
+
+        // It should exist now, so true
+        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+        // Changing a source file should invalidate the file
+        Thread.sleep(1000);
+        writeToFile("build/b", "bb");
+        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+        // If we update the build, is should be cached
+        cache.storeCachedBuild(platform, sdkVersion, files);
+        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+        // Add a "new" file to the list, but let it have an old timestamp
+        files.add(c);
+
+        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+        // If we update the build, is should be cached
+        cache.storeCachedBuild(platform, sdkVersion, files);
+        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+        // Remove one file
+        files.remove(0);
+
+        assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+        // If we update the build, is should be cached
+        cache.storeCachedBuild(platform, sdkVersion, files);
+        assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+    }
+
+    @Test
+    public void testClientCachePersistence() throws IOException, InterruptedException {
+        File a = new File("build/a");
+        a.deleteOnExit();
+        writeToFile("build/a", "a");
+
+        List<File> files = new ArrayList<>();
+        files.add(a);
+
+        String platform = "osx";
+        String sdkVersion = "abc456";
+        File cacheDir = new File(".");
+
+        // First, get the file, and create the directory
+        File build = null;
+        {
+            ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+
+            if (cache.getCacheFile().exists()) {
+                cache.getCacheFile().delete();
+            }
+            assertFalse( cache.getCacheFile().exists() );
+
+            build = cache.getCachedBuildFile(platform);
+            build.deleteOnExit();
+
+            File parentDir = build.getParentFile();
+            if (!parentDir.exists()) {
+                parentDir.mkdirs();
+            }
+        }
+
+        // Start with an empty cache
+        {
+            ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+
+            assertEquals( null, cache.isCachedBuildValid(platform, sdkVersion, files) );
+
+            // Write the build, and update the cache
+            writeToFile(build.getAbsolutePath(), (new Date()).toString());
+            cache.storeCachedBuild(platform, sdkVersion, files);
+        }
+
+        // Now, lets create another cache, and check that we get a cached version
+        {
+            ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+
+            assertEquals( build, cache.isCachedBuildValid(platform, sdkVersion, files) );
+        }
+    }
+
 }

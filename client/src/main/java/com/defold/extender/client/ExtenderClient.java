@@ -1,6 +1,5 @@
 package com.defold.extender.client;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
@@ -10,19 +9,29 @@ import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+
 public class ExtenderClient {
 
     private final String extenderBaseUrl;
+    private ExtenderClientCache cache;
 
-    public ExtenderClient(String extenderBaseUrl) {
+    /** Creates a local build cache
+     * @param extenderBaseUrl   The build server url (e.g. https://build.defold.com)
+     * @param cacheDir          A directory where the cache files are located (it must exist beforehand)
+     */
+    public ExtenderClient(String extenderBaseUrl, File cacheDir) throws IOException {
         this.extenderBaseUrl = extenderBaseUrl;
+        this.cache = new ExtenderClientCache(cacheDir);
     }
 
     /** Builds a new engine given a platform and an sdk version plus source files.
@@ -32,17 +41,15 @@ public class ExtenderClient {
      * @param sdkVersion    Sha1 of defold version
      * @param root          Folder where to start creating relative paths from
      * @param sourceFiles   List of files that should be build on server (.cpp, .a, etc)
-     * @param cacheDir      A directory where the cache is located
      * @param destination   The output where the returned zip file is copied
      * @param log           A log file
      * @throws ExtenderClientException
      */
-    public void build(String platform, String sdkVersion, File root, List<File> sourceFiles, File cacheDir, File destination, File log) throws ExtenderClientException {
-        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
-        File cachedBuild = cache.isCachedBuildValid(platform, sourceFiles);
+    public void build(String platform, String sdkVersion, File root, List<File> sourceFiles, File destination, File log) throws ExtenderClientException {
+        File cachedBuild = cache.isCachedBuildValid(platform, sdkVersion, sourceFiles);
         if (cachedBuild != null) {
             try {
-                FileUtils.copyFile(cachedBuild, destination);
+                Files.copy(new FileInputStream(cachedBuild), destination.toPath(), REPLACE_EXISTING);
             } catch (IOException e) {
                 throw new ExtenderClientException(String.format("Failed to copy %s to %s", cachedBuild.getAbsolutePath(), destination.getAbsolutePath()), e);
             }
@@ -88,7 +95,8 @@ public class ExtenderClient {
         }
 
         try {
-            FileUtils.copyFile(destination, cachedBuild);
+            Files.copy(new FileInputStream(destination), cachedBuild.toPath(), REPLACE_EXISTING);
+            cache.storeCachedBuild(platform, sdkVersion, sourceFiles);
         } catch (IOException e) {
             throw new ExtenderClientException(String.format("Failed to store cached copy %s to %s", destination.getAbsolutePath(), cachedBuild.getAbsolutePath()), e);
         }
