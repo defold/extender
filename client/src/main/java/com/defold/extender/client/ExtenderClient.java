@@ -9,16 +9,12 @@ import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 public class ExtenderClient {
 
@@ -46,13 +42,10 @@ public class ExtenderClient {
      * @throws ExtenderClientException
      */
     public void build(String platform, String sdkVersion, File root, List<File> sourceFiles, File destination, File log) throws ExtenderClientException {
-        File cachedBuild = cache.getCachedBuild(platform, sdkVersion, sourceFiles);
-        if (cachedBuild != null) {
-            try {
-                Files.copy(new FileInputStream(cachedBuild), destination.toPath(), REPLACE_EXISTING);
-            } catch (IOException e) {
-                throw new ExtenderClientException(String.format("Failed to copy %s to %s", cachedBuild.getAbsolutePath(), destination.getAbsolutePath()), e);
-            }
+        String cacheKey = cache.calcKey(platform, sdkVersion, sourceFiles);
+        boolean isCached = cache.isCached(platform, cacheKey);
+        if (isCached) {
+            cache.get(platform, cacheKey, destination);
             return;
         }
 
@@ -84,22 +77,7 @@ public class ExtenderClient {
         }
 
         // Store the new build
-        cachedBuild = cache.getCachedBuildFile(platform);
-        File parentDir = cachedBuild.getParentFile();
-
-        if (!parentDir.exists()) {
-            parentDir.mkdirs();
-        }
-        if (!parentDir.exists()) {
-            throw new ExtenderClientException(String.format("Failed to create cache dir %s", parentDir.getAbsolutePath()));
-        }
-
-        try {
-            Files.copy(new FileInputStream(destination), cachedBuild.toPath(), REPLACE_EXISTING);
-            cache.storeCachedBuild(platform, sdkVersion, sourceFiles);
-        } catch (IOException e) {
-            throw new ExtenderClientException(String.format("Failed to store cached copy %s to %s", destination.getAbsolutePath(), cachedBuild.getAbsolutePath()), e);
-        }
+        cache.put(platform, cacheKey, destination);
     }
 
 

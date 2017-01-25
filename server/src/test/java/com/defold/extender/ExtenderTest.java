@@ -13,10 +13,13 @@ import org.springframework.boot.context.embedded.EmbeddedWebApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
 
@@ -255,13 +258,17 @@ public class ExtenderTest {
         files2.add(b);
         files2.add(a);
 
+        String platform = "osx";
+        String sdkVersion = "abc456";
         ExtenderClientCache cache = new ExtenderClientCache(new File("."));
 
         assertEquals(cache.getHash(files1), cache.getHash(files2));
+        assertEquals(cache.calcKey(platform, sdkVersion, files1), cache.calcKey(platform, sdkVersion, files2));
 
         files2.add(a);
 
         assertNotEquals(cache.getHash(files1), cache.getHash(files2));
+        assertNotEquals(cache.calcKey(platform, sdkVersion, files1), cache.calcKey(platform, sdkVersion, files2));
 
         FileUtils.deleteQuietly(new File("build/a"));
         FileUtils.deleteQuietly(new File("build/b"));
@@ -288,52 +295,66 @@ public class ExtenderTest {
         String sdkVersion = "abc456";
         ExtenderClientCache cache = new ExtenderClientCache(new File("."));
 
+        if (cache.getCacheFile().exists()) {
+            cache.getCacheFile().delete();
+        }
+
+        String key = null;
         // Is doesn't exist yet, so false
-        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
+        key = cache.calcKey(platform, sdkVersion, files);
+        assertEquals( false, cache.isCached(platform, key) );
 
         File build = cache.getCachedBuildFile(platform);
         build.deleteOnExit();
-        File parentDir = build.getParentFile();
-        if (!parentDir.exists()) {
-            parentDir.mkdirs();
-        }
 
         writeToFile(build.getAbsolutePath(), (new Date()).toString());
-        cache.storeCachedBuild(platform, sdkVersion, files);
+        cache.put(platform, key, build);
 
         // It should exist now, so true
-        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
+        assertEquals( true, cache.isCached(platform, key) );
 
         // Changing a source file should invalidate the file
         Thread.sleep(1000);
         writeToFile("build/b", "bb");
-        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
+        key = cache.calcKey(platform, sdkVersion, files);
+
+        assertEquals( false, cache.isCached(platform, key) );
 
         // If we update the build, is should be cached
-        cache.storeCachedBuild(platform, sdkVersion, files);
-        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
+        cache.put(platform, key, build);
+        assertEquals( true, cache.isCached(platform, key) );
 
         // Add a "new" file to the list, but let it have an old timestamp
         files.add(c);
+        key = cache.calcKey(platform, sdkVersion, files);
 
-        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
+        assertEquals( false, cache.isCached(platform, key) );
 
         // If we update the build, is should be cached
-        cache.storeCachedBuild(platform, sdkVersion, files);
-        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
+        cache.put(platform, key, build);
+        assertEquals( true, cache.isCached(platform, key) );
 
         // Remove one file
         files.remove(0);
+        key = cache.calcKey(platform, sdkVersion, files);
 
-        assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
+        assertEquals( false, cache.isCached(platform, key) );
 
         // If we update the build, is should be cached
-        cache.storeCachedBuild(platform, sdkVersion, files);
-        assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
+        cache.put(platform, key, build);
+        assertEquals( true, cache.isCached(platform, key) );
+    }
+
+    public static String calcChecksum(File file) throws IOException, NoSuchAlgorithmException {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] data = Files.readAllBytes(file.toPath());
+        md.update(data);
+        byte[] digest = md.digest();
+        return (new HexBinaryAdapter()).marshal(digest);
     }
 
     @Test
-    public void testClientCachePersistence() throws IOException, InterruptedException, ExtenderClientException {
+    public void testClientCachePersistence() throws IOException, InterruptedException, ExtenderClientException, NoSuchAlgorithmException {
         File a = new File("build/a");
         a.deleteOnExit();
         writeToFile("build/a", "a");
@@ -345,41 +366,46 @@ public class ExtenderTest {
         String sdkVersion = "abc456";
         File cacheDir = new File(".");
 
-        // First, get the file, and create the directory
-        File build = null;
+
+        String key = null;
         {
             ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+            key = cache.calcKey(platform, sdkVersion, files);
 
             if (cache.getCacheFile().exists()) {
                 cache.getCacheFile().delete();
             }
             assertFalse( cache.getCacheFile().exists() );
-
-            build = cache.getCachedBuildFile(platform);
-            build.deleteOnExit();
-
-            File parentDir = build.getParentFile();
-            if (!parentDir.exists()) {
-                parentDir.mkdirs();
-            }
         }
 
         // Start with an empty cache
+        String checksum = null;
         {
             ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
 
-            assertEquals( null, cache.getCachedBuild(platform, sdkVersion, files) );
+            assertEquals( false, cache.isCached(platform, key) );
 
             // Write the build, and update the cache
+            File build = File.createTempFile("test", "build");
+            build.deleteOnExit();
             writeToFile(build.getAbsolutePath(), (new Date()).toString());
-            cache.storeCachedBuild(platform, sdkVersion, files);
+            cache.put(platform, key, build);
+
+            checksum = calcChecksum(build);
         }
 
         // Now, lets create another cache, and check that we get a cached version
         {
             ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
 
-            assertEquals( build, cache.getCachedBuild(platform, sdkVersion, files) );
+            assertEquals( true, cache.isCached(platform, key) );
+
+            File build = File.createTempFile("test2", "build");
+            cache.get(platform, key, build);
+
+            String checksum2 = calcChecksum(build);
+
+            assertEquals( checksum, checksum2 );
         }
     }
 

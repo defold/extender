@@ -8,6 +8,8 @@ import java.util.*;
 
 import java.security.MessageDigest;
 
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+
 public class ExtenderClientCache {
 
     private static final String hashFn = "SHA-256";
@@ -84,20 +86,6 @@ public class ExtenderClientCache {
         return new File(cacheDir.getAbsolutePath() + File.separator + this.cacheFile);
     }
 
-    /** Checks if a cached build is still valid.
-     * @return If the cached version is still valid, returns that file
-     */
-    public File getCachedBuild(String platform, String sdkVersion, List<File> files) throws ExtenderClientException {
-        File f = getCachedBuildFile(platform);
-        if (!f.exists()) {
-            return null;
-        }
-
-        String previousHash = this.persistentHashes.get(f.getAbsolutePath());
-        String inputHash = calcKey(platform, sdkVersion, files);
-        return inputHash.equals(previousHash) ? f : null;
-    }
-
     /** Calculates a key to identify a build
      * @param platform      E.g. "armv7-ios"
      * @param sdkVersion    A sha1 of the defold sdk (i.e. engine version)
@@ -112,17 +100,64 @@ public class ExtenderClientCache {
         return hashToString(md.digest());
     }
 
+    /** Checks if a cached build is still valid.
+     * @param platform  E.g. "armv7-ios"
+     * @param key       The calculated key (see calcKey())
+     * @return True if the cached version is still valid
+     */
+    public boolean isCached(String platform, String key) throws ExtenderClientException {
+        File cachedFile = getCachedBuildFile(platform);
+        String previousHash = this.persistentHashes.get(cachedFile.getAbsolutePath());
+        return key.equals(previousHash);
+    }
+
+
     /** After a successful build, the client has to store the "key" in the cache.
      * This will persist the cache between sessions
-     * @param platform
-     * @param sdkVersion
-     * @param files
+     * @param platform  E.g. "armv7-ios"
+     * @param key       The calculated key (see calcKey())
+     * @param source    The file to be copied into the cache
      */
-    public void storeCachedBuild(String platform, String sdkVersion, List<File> files) throws ExtenderClientException {
-        String key = calcKey(platform, sdkVersion, files);
-        File f = getCachedBuildFile(platform);
-        this.persistentHashes.put(f.getAbsolutePath(), key);
+    public void put(String platform, String key, File source) throws ExtenderClientException {
+        File cachedFile = getCachedBuildFile(platform);
+        File parentDir = cachedFile.getParentFile();
+
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+        if (!parentDir.exists()) {
+            throw new ExtenderClientException(String.format("Failed to create cache dir %s", parentDir.getAbsolutePath()));
+        }
+
+        try {
+            Files.copy(new FileInputStream(source), cachedFile.toPath(), REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new ExtenderClientException(String.format("Failed to copy %s to %s", source.getAbsolutePath(), cachedFile.getAbsolutePath()), e);
+        }
+
+        this.persistentHashes.put(cachedFile.getAbsolutePath(), key);
         saveCache();
+    }
+
+    /** Gets a previously cached build
+     * @param platform      E.g. "armv7-ios"
+     * @param key           The calculated key (see calcKey())
+     * @param destination   Where to copy the data to
+     * @return
+     * @throws ExtenderClientException
+     */
+    public void get(String platform, String key, File destination) throws ExtenderClientException {
+        File cachedFile = getCachedBuildFile(platform);
+
+        if (!key.equals(this.persistentHashes.get(cachedFile.getAbsolutePath())) ) {
+            throw new ExtenderClientException(String.format("The file %s wasn't cached with key %s", cachedFile.getAbsolutePath(), key));
+        }
+
+        try {
+            Files.copy(new FileInputStream(cachedFile), destination.toPath(), REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new ExtenderClientException(String.format("Failed to copy %s to %s", cachedFile.getAbsolutePath(), destination.getAbsolutePath()), e);
+        }
     }
 
     //
@@ -151,7 +186,6 @@ public class ExtenderClientCache {
             throw new ExtenderClientException(String.format("Failed to hash file: ", file.getAbsolutePath()), e);
         }
     }
-
 
     private void saveCache() {
         Properties properties = new Properties();
