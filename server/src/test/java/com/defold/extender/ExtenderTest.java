@@ -1,9 +1,11 @@
 package com.defold.extender;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientCache;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.IExtenderResource;
 import com.google.common.collect.Lists;
+import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +14,14 @@ import org.springframework.boot.context.embedded.EmbeddedWebApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,16 +34,19 @@ public class ExtenderTest {
 
     private static class FileExtenderResource implements IExtenderResource {
 
-        private File file;
+        private File file = null;
         private String filePath;
-        private byte[] content;
+        private String fileAbsPath;
         FileExtenderResource(String filePath) {
-            this.filePath = filePath;
             this.file = new File(filePath);
+            this.filePath = file.getPath();
+            this.fileAbsPath = file.getAbsolutePath();
         }
 
         FileExtenderResource(File file) {
             this.file = file;
+            this.filePath = file.getPath();
+            this.fileAbsPath = file.getAbsolutePath();
         }
 
         @Override
@@ -46,7 +56,7 @@ public class ExtenderTest {
 
         @Override
         public String getAbsPath() {
-            return filePath;
+            return fileAbsPath;
         }
 
         @Override
@@ -61,7 +71,7 @@ public class ExtenderTest {
 
         @Override
         public long getLastModified() {
-            return 0;
+            return file.lastModified();
         }
     }
 
@@ -71,7 +81,7 @@ public class ExtenderTest {
 
         for (File f : extensions) {
 
-            source.add( new FileExtenderResource(f.getAbsolutePath() + File.separator + ExtenderClient.extensionFilename) );
+            source.add( new FileExtenderResource(f.getAbsolutePath() + File.separator + extensionFilename) );
             source.addAll( listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "include") ) );
             source.addAll( listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "src") ) );
             source.addAll( listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "lib" + File.separator + platform) ) );
@@ -163,14 +173,17 @@ public class ExtenderTest {
 
     @Test
     public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
-        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port);
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port, cacheDir);
         List<IExtenderResource> sourceFiles = Lists.newArrayList(new FileExtenderResource("test-data/ext/ext.manifest"), new FileExtenderResource("test-data/ext/src/test_ext.cpp"), new FileExtenderResource("test-data/ext/include/test_ext.h"), new FileExtenderResource("test-data/ext/lib/x86-osx/libalib.a"));
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
+        String platform = "x86-osx";
+        String sdkVersion = "a";
         extenderClient.build(
-                "x86-osx",
-                "a",
+                platform,
+                sdkVersion,
                 sourceFiles,
                 destination,
                 log
@@ -178,6 +191,11 @@ public class ExtenderTest {
 
         assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
         assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+        assertTrue( cache.getCachedBuildFile(platform).exists() );
+
+        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 
     @Test
@@ -308,4 +326,226 @@ public class ExtenderTest {
            assertEquals( expected, result.toArray() );
        }
     }
+
+    private void writeToFile(String path, String msg) throws IOException {
+        File f = new File(path);
+        FileWriter fwr = new FileWriter(f);
+        fwr.write(msg);
+        fwr.flush();
+        fwr.close();
+        f.setLastModified(Instant.now().toEpochMilli() + 23);
+    }
+
+    @Test
+    public void testClientCacheHash() throws IOException, InterruptedException, ExtenderClientException {
+        writeToFile("build/a", "a");
+        writeToFile("build/b", "a");
+        writeToFile("build/c", "b");
+
+        ExtenderClientCache cache = new ExtenderClientCache(new File("."));
+
+        {
+            File file1 = new File("build/a");
+            File file2 = new File("build/b");
+            File file3 = new File("build/c");
+            FileExtenderResource file1Res = new FileExtenderResource(file1);
+            FileExtenderResource file2Res = new FileExtenderResource(file2);
+            FileExtenderResource file3Res = new FileExtenderResource(file3);
+            assertEquals(cache.getHash(file1Res), cache.getHash(file2Res));
+            assertNotEquals(cache.getHash(file1Res), cache.getHash(file3Res));
+        }
+
+        Thread.sleep(1000);
+
+        writeToFile("build/b", "b");
+
+        {
+            File file1 = new File("build/a");
+            File file2 = new File("build/b");
+            FileExtenderResource file1Res = new FileExtenderResource(file1);
+            FileExtenderResource file2Res = new FileExtenderResource(file2);
+
+            assertNotEquals(cache.getHash(file1Res), cache.getHash(file2Res));
+        }
+
+        FileUtils.deleteQuietly(new File("build/a"));
+        FileUtils.deleteQuietly(new File("build/b"));
+        FileUtils.deleteQuietly(new File("build/c"));
+    }
+
+    @Test
+    public void testClientCacheSignatureHash() throws IOException, ExtenderClientException {
+        File a = new File("build/a");
+        File b = new File("build/b");
+        FileExtenderResource aRes = new FileExtenderResource(a);
+        FileExtenderResource bRes = new FileExtenderResource(b);
+
+        writeToFile("build/a", "a");
+        writeToFile("build/b", "b");
+
+        List<IExtenderResource> files1 = new ArrayList<>();
+        files1.add(aRes);
+        files1.add(bRes);
+
+
+        List<IExtenderResource> files2 = new ArrayList<>();
+        files2.add(bRes);
+        files2.add(aRes);
+
+        String platform = "osx";
+        String sdkVersion = "abc456";
+        ExtenderClientCache cache = new ExtenderClientCache(new File("."));
+
+        assertEquals(cache.getHash(files1), cache.getHash(files2));
+        assertEquals(cache.calcKey(platform, sdkVersion, files1), cache.calcKey(platform, sdkVersion, files2));
+
+        files2.add(aRes);
+
+        assertNotEquals(cache.getHash(files1), cache.getHash(files2));
+        assertNotEquals(cache.calcKey(platform, sdkVersion, files1), cache.calcKey(platform, sdkVersion, files2));
+
+        FileUtils.deleteQuietly(new File("build/a"));
+        FileUtils.deleteQuietly(new File("build/b"));
+    }
+
+    @Test
+    public void testClientCacheValidBuild() throws IOException, InterruptedException, ExtenderClientException {
+        File a = new File("build/a");
+        File b = new File("build/b");
+        File c = new File("build/c");
+        FileExtenderResource aRes = new FileExtenderResource(a);
+        FileExtenderResource bRes = new FileExtenderResource(b);
+        FileExtenderResource cRes = new FileExtenderResource(c);
+
+        a.deleteOnExit();
+        b.deleteOnExit();
+        c.deleteOnExit();
+
+        writeToFile("build/a", "a");
+        writeToFile("build/b", "b");
+        writeToFile("build/c", "c");
+
+        List<IExtenderResource> files = new ArrayList<>();
+        files.add(aRes);
+        files.add(bRes);
+
+        String platform = "osx";
+        String sdkVersion = "abc456";
+        ExtenderClientCache cache = new ExtenderClientCache(new File("."));
+
+        if (cache.getCacheFile().exists()) {
+            cache.getCacheFile().delete();
+        }
+
+        String key = null;
+        // Is doesn't exist yet, so false
+        key = cache.calcKey(platform, sdkVersion, files);
+        assertEquals( false, cache.isCached(platform, key) );
+
+        File build = cache.getCachedBuildFile(platform);
+        build.deleteOnExit();
+
+        writeToFile(build.getAbsolutePath(), (new Date()).toString());
+        cache.put(platform, key, build);
+
+        // It should exist now, so true
+        assertEquals( true, cache.isCached(platform, key) );
+
+        // Changing a source file should invalidate the file
+        Thread.sleep(1000);
+        writeToFile("build/b", "bb");
+        key = cache.calcKey(platform, sdkVersion, files);
+
+        assertEquals( false, cache.isCached(platform, key) );
+
+        // If we update the build, is should be cached
+        cache.put(platform, key, build);
+        assertEquals( true, cache.isCached(platform, key) );
+
+        // Add a "new" file to the list, but let it have an old timestamp
+        files.add(cRes);
+        key = cache.calcKey(platform, sdkVersion, files);
+
+        assertEquals( false, cache.isCached(platform, key) );
+
+        // If we update the build, is should be cached
+        cache.put(platform, key, build);
+        assertEquals( true, cache.isCached(platform, key) );
+
+        // Remove one file
+        files.remove(0);
+        key = cache.calcKey(platform, sdkVersion, files);
+
+        assertEquals( false, cache.isCached(platform, key) );
+
+        // If we update the build, is should be cached
+        cache.put(platform, key, build);
+        assertEquals( true, cache.isCached(platform, key) );
+    }
+
+    public static String calcChecksum(File file) throws IOException, NoSuchAlgorithmException {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] data = Files.readAllBytes(file.toPath());
+        md.update(data);
+        byte[] digest = md.digest();
+        return (new HexBinaryAdapter()).marshal(digest);
+    }
+
+    @Test
+    public void testClientCachePersistence() throws IOException, InterruptedException, ExtenderClientException, NoSuchAlgorithmException {
+        File a = new File("build/a");
+        FileExtenderResource aRes = new FileExtenderResource(a);
+        a.deleteOnExit();
+        writeToFile("build/a", "a");
+
+        List<IExtenderResource> files = new ArrayList<>();
+        files.add(aRes);
+
+        String platform = "osx";
+        String sdkVersion = "abc456";
+        File cacheDir = new File(".");
+
+
+        String key = null;
+        {
+            ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+            key = cache.calcKey(platform, sdkVersion, files);
+
+            if (cache.getCacheFile().exists()) {
+                cache.getCacheFile().delete();
+            }
+            assertFalse( cache.getCacheFile().exists() );
+        }
+
+        // Start with an empty cache
+        String checksum = null;
+        {
+            ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+
+            assertEquals( false, cache.isCached(platform, key) );
+
+            // Write the build, and update the cache
+            File build = File.createTempFile("test", "build");
+            build.deleteOnExit();
+            writeToFile(build.getAbsolutePath(), (new Date()).toString());
+            cache.put(platform, key, build);
+
+            checksum = calcChecksum(build);
+        }
+
+        // Now, lets create another cache, and check that we get a cached version
+        {
+            ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+
+            assertEquals( true, cache.isCached(platform, key) );
+
+            File build = File.createTempFile("test2", "build");
+            cache.get(platform, key, build);
+
+            String checksum2 = calcChecksum(build);
+
+            assertEquals( checksum, checksum2 );
+        }
+    }
+
 }
