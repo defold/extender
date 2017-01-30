@@ -26,7 +26,7 @@ import java.util.*;
 import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = "extender.defoldSdkPath = test-data/sdk")
+@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = {"extender.sdk-location = test-data/sdk", "extender.sdk-cache-size = 3"})
 public class ExtenderTest {
 
     @Autowired
@@ -37,7 +37,7 @@ public class ExtenderTest {
 
     @Test
     public void testBuild() throws IOException, InterruptedException, ExtenderException {
-        Extender extender = new Extender("x86-osx", new File("test-data/ext"), new File("test-data/sdk/a/defoldsdk"));
+        Extender extender = new Extender("x86-osx", new File("test-data/ext"), new File("test-data/sdk/a/defoldsdk"), Files.createTempDirectory("test").toString());
         File engine = extender.buildEngine();
         assertTrue(engine.isFile());
         extender.dispose();

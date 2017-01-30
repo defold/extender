@@ -5,6 +5,7 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,6 +27,8 @@ public class ExtenderController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
 
     private final DefoldSdkService defoldSdkService;
+
+    @Value("${extender.build-location}") String buildDirectory;
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService) {
@@ -74,7 +77,7 @@ public class ExtenderController {
                 sdk = defoldSdkService.getSdk(sdkVersion);
             }
 
-            Extender extender = new Extender(platform, uploadDirectory, sdk);
+            Extender extender = new Extender(platform, uploadDirectory, sdk, buildDirectory);
             File exe = extender.buildEngine();
 
             // Write executable to output stream

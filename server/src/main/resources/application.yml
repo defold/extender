@@ -1,7 +1,9 @@
 server:
     port: 9000
 extender:
-    defoldSdkPath: /tmp/defoldsdk
+    sdk-location: /var/extender/sdk
+    sdk-cache-size: 3
+    build-location: /var/extender/builds
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
 

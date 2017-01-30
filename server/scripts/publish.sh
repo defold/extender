@@ -5,7 +5,7 @@ set -e
 SRC_REPOSITORY="extender/extender:latest"
 VERSION=$(date "+%Y%m%d_%H%M")
 DEST_REPOSITORY="378120250811.dkr.ecr.eu-west-1.amazonaws.com/extender:$VERSION"
-CLUSTER="prod-default-cluster"
+CLUSTER="prod-eu-west1"
 SERVICE_NAME="extender"
 TASK_FAMILY="extender"
 
