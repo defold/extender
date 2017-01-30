@@ -29,8 +29,6 @@ public class ExtenderApplication {
         String dbName = "myMetricsDB";	// the name of the datastore you choose
         influxDB.createDatabase(dbName);
 
-
-
         InfluxDBMetricWriter.Builder builder = new InfluxDBMetricWriter.Builder(influxDB);
 
         String hostName;

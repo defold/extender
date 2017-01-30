@@ -10,6 +10,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,7 +29,7 @@ class Extender {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
 
-    private static final String frameworkRe = new String("(.+).framework");
+    private static final String FRAMEWORK_RE = "(.+).framework";
 
     private static final String ANDROID_NDK_PATH               = System.getenv("ANDROID_NDK_PATH");
     private static final String ANDROID_NDK_INCLUDE_PATH       = System.getenv("ANDROID_NDK_INCLUDE");
@@ -36,7 +38,7 @@ class Extender {
     private static final String ANDROID_STL_LIB_PATH           = System.getenv("ANDROID_STL_LIB");
     private static final String ANDROID_SYSROOT_PATH           = System.getenv("ANDROID_SYSROOT");
 
-    Extender(String platform, File extensionSource, File sdk) throws IOException {
+    Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException {
         // Read config from SDK
         InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/extender/build.yml").toPath());
         this.config = new Yaml().loadAs(configFileInputStream, Configuration.class);
@@ -45,7 +47,10 @@ class Extender {
         this.sdk = sdk;
         this.platformConfig = config.platforms.get(platform);
         this.extensionSource = extensionSource;
-        this.build = Files.createTempDirectory("build").toFile();
+
+        Path buildPath = Paths.get(buildDirectory);
+        Files.createDirectories(buildPath);
+        this.build = Files.createTempDirectory(buildPath, "build").toFile();
 
         if (this.platformConfig == null) {
             throw new IllegalArgumentException(String.format("Unsupported platform %s", platform));
@@ -176,10 +181,10 @@ class Extender {
     private List<String> getFrameworks(File extDir)
     {
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + this.platform), frameworkRe)); // e.g. armv64-ios
+        frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
         String[] platformParts = this.platform.split("-");
         if (platformParts.length == 2 ) {
-            frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + platformParts[1]), frameworkRe)); // e.g. "ios"
+            frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
         }
         return frameworks;
     }
