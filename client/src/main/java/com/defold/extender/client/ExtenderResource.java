@@ -2,7 +2,7 @@ package com.defold.extender.client;
 
 import java.io.IOException;
 
-public interface IExtenderResource {
+public interface ExtenderResource {
 
     byte[] sha1() throws IOException;
 

@@ -3,7 +3,7 @@ package com.defold.extender;
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientCache;
 import com.defold.extender.client.ExtenderClientException;
-import com.defold.extender.client.IExtenderResource;
+import com.defold.extender.client.ExtenderResource;
 import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.junit.Test;
@@ -32,7 +32,7 @@ import static org.junit.Assert.*;
 @SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = "extender.defoldSdkPath = test-data/sdk")
 public class ExtenderTest {
 
-    private static class FileExtenderResource implements IExtenderResource {
+    private static class FileExtenderResource implements ExtenderResource {
 
         private File file = null;
         private String filePath;
@@ -75,8 +75,8 @@ public class ExtenderTest {
         }
     }
 
-    private static List<IExtenderResource> getExtensionSource(File root, String platform) throws IOException {
-        List<IExtenderResource> source = new ArrayList<>();
+    private static List<ExtenderResource> getExtensionSource(File root, String platform) throws IOException {
+        List<ExtenderResource> source = new ArrayList<>();
         List<File> extensions = listExtensionFolders(root);
 
         for (File f : extensions) {
@@ -140,8 +140,8 @@ public class ExtenderTest {
         return folders;
     }
 
-    private static List<IExtenderResource> listFilesRecursive(File dir) {
-        List<IExtenderResource> output = new ArrayList<>();
+    private static List<ExtenderResource> listFilesRecursive(File dir) {
+        List<ExtenderResource> output = new ArrayList<>();
         if (!dir.isDirectory()) {
             return output; // the extensions doesn't have to have all folders that we look for
         }
@@ -175,7 +175,7 @@ public class ExtenderTest {
     public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port, cacheDir);
-        List<IExtenderResource> sourceFiles = Lists.newArrayList(new FileExtenderResource("test-data/ext/ext.manifest"), new FileExtenderResource("test-data/ext/src/test_ext.cpp"), new FileExtenderResource("test-data/ext/include/test_ext.h"), new FileExtenderResource("test-data/ext/lib/x86-osx/libalib.a"));
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(new FileExtenderResource("test-data/ext/ext.manifest"), new FileExtenderResource("test-data/ext/src/test_ext.cpp"), new FileExtenderResource("test-data/ext/include/test_ext.h"), new FileExtenderResource("test-data/ext/lib/x86-osx/libalib.a"));
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
@@ -208,7 +208,7 @@ public class ExtenderTest {
     @Test
     public void testClientGetSource() throws IOException, InterruptedException, ExtenderException {
         File root = new File("test-data/testproject/a");
-        List<IExtenderResource> files = null;
+        List<ExtenderResource> files = null;
 
         String platform = "x86-osx";
         files = getExtensionSource(new File("test-data/testproject/a"), platform);
@@ -383,12 +383,12 @@ public class ExtenderTest {
         writeToFile("build/a", "a");
         writeToFile("build/b", "b");
 
-        List<IExtenderResource> files1 = new ArrayList<>();
+        List<ExtenderResource> files1 = new ArrayList<>();
         files1.add(aRes);
         files1.add(bRes);
 
 
-        List<IExtenderResource> files2 = new ArrayList<>();
+        List<ExtenderResource> files2 = new ArrayList<>();
         files2.add(bRes);
         files2.add(aRes);
 
@@ -425,7 +425,7 @@ public class ExtenderTest {
         writeToFile("build/b", "b");
         writeToFile("build/c", "c");
 
-        List<IExtenderResource> files = new ArrayList<>();
+        List<ExtenderResource> files = new ArrayList<>();
         files.add(aRes);
         files.add(bRes);
 
@@ -498,7 +498,7 @@ public class ExtenderTest {
         a.deleteOnExit();
         writeToFile("build/a", "a");
 
-        List<IExtenderResource> files = new ArrayList<>();
+        List<ExtenderResource> files = new ArrayList<>();
         files.add(aRes);
 
         String platform = "osx";
