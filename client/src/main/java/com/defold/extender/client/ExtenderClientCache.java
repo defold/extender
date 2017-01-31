@@ -3,7 +3,6 @@ package com.defold.extender.client;
 import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
 import java.io.*;
 import java.nio.file.Files;
-import java.time.Instant;
 import java.util.*;
 
 import java.security.MessageDigest;
@@ -15,7 +14,7 @@ public class ExtenderClientCache {
     private static final String hashFn = "SHA-256";
     private static final String cacheFile = ".buildcache";
 
-    private HashMap<String, Instant> timestamps = new HashMap<>();        // Time stamps for input files
+    private HashMap<String, Long> timestamps = new HashMap<>();        // Time stamps for input files
     private HashMap<String, String> hashes = new HashMap<>();               // Hashes for input files
     private HashMap<String, String> persistentHashes = new HashMap<>();     // Only the build artifacts
 
@@ -32,12 +31,12 @@ public class ExtenderClientCache {
         loadCache();
     }
 
-    /** Calculates (if needed) a hash from a file (Public for unit tests)
+    /** Calculates (if needed) a hash from a resource (Public for unit tests)
      */
-    public String getHash(File file) throws ExtenderClientException {
-        String path = file.getAbsolutePath();
-        Instant fileTimestamp = Instant.ofEpochMilli(file.lastModified());
-        Instant timestamp = this.timestamps.get(path);
+    public String getHash(ExtenderResource extenderResource) throws ExtenderClientException {
+        String path = extenderResource.getAbsPath();
+        Long fileTimestamp = extenderResource.getLastModified();
+        Long timestamp = this.timestamps.get(path);
 
         if (timestamp != null && fileTimestamp.equals(timestamp) ) {
             String hash = this.hashes.get(path);
@@ -47,30 +46,30 @@ public class ExtenderClientCache {
         }
 
         // Create a new hash
-        String hash = ExtenderClientCache.hash(file);
+        String hash = ExtenderClientCache.hash(extenderResource);
         this.timestamps.put(path, fileTimestamp);
         this.hashes.put(path, hash);
         return hash;
     }
 
-    private void getHash(List<File> files, MessageDigest md) throws ExtenderClientException {
-        if (files.isEmpty()) {
-            throw new ExtenderClientException("The list of files must not be empty");
+    private void getHash(List<ExtenderResource> extenderResources, MessageDigest md) throws ExtenderClientException {
+        if (extenderResources.isEmpty()) {
+            throw new ExtenderClientException("The list of resources must not be empty");
         }
 
-        files.sort(Comparator.comparing(File::getAbsolutePath));
+        extenderResources.sort(Comparator.comparing(ExtenderResource::getAbsPath));
 
-        for (File file : files) {
-            String fileHash = getHash(file);
+        for (ExtenderResource extenderResource : extenderResources) {
+            String fileHash = getHash(extenderResource);
             md.update(fileHash.getBytes());
         }
     }
 
-    /** Gets the combined hash from a list of files (Public for unit tests)
+    /** Gets the combined hash from a list of resources (Public for unit tests)
      */
-    public String getHash(List<File> files) throws ExtenderClientException {
+    public String getHash(List<ExtenderResource> extenderResources) throws ExtenderClientException {
         MessageDigest md = ExtenderClientCache.getHasher();
-        getHash(files, md);
+        getHash(extenderResources, md);
         return hashToString(md.digest());
     }
 
@@ -87,16 +86,16 @@ public class ExtenderClientCache {
     }
 
     /** Calculates a key to identify a build
-     * @param platform      E.g. "armv7-ios"
-     * @param sdkVersion    A sha1 of the defold sdk (i.e. engine version)
-     * @param files         A list of files affecting the build
+     * @param platform          E.g. "armv7-ios"
+     * @param sdkVersion        A sha1 of the defold sdk (i.e. engine version)
+     * @param extenderResources A list of resources affecting the build
      * @return The calculated key
      */
-    public String calcKey(String platform, String sdkVersion, List<File> files) throws ExtenderClientException {
+    public String calcKey(String platform, String sdkVersion, List<ExtenderResource> extenderResources) throws ExtenderClientException {
         MessageDigest md = ExtenderClientCache.getHasher();
         md.update(platform.getBytes());
         md.update(sdkVersion.getBytes());
-        getHash(files, md);
+        getHash(extenderResources, md);
         return hashToString(md.digest());
     }
 
@@ -176,14 +175,14 @@ public class ExtenderClientCache {
         return (new HexBinaryAdapter()).marshal(digest);
     }
 
-    private static String hash(File file) throws ExtenderClientException {
+    private static String hash(ExtenderResource extenderResource) throws ExtenderClientException {
         try{
             MessageDigest md = ExtenderClientCache.getHasher();
-            byte[] data = Files.readAllBytes(file.toPath());
+            byte[] data = extenderResource.getContent();
             md.update(data);
             return hashToString(md.digest());
         } catch(Exception e){
-            throw new ExtenderClientException(String.format("Failed to hash file: ", file.getAbsolutePath()), e);
+            throw new ExtenderClientException(String.format("Failed to hash resource: ", extenderResource.getAbsPath()), e);
         }
     }
 

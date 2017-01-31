@@ -3,6 +3,7 @@ package com.defold.extender;
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientCache;
 import com.defold.extender.client.ExtenderClientException;
+import com.defold.extender.client.ExtenderResource;
 import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.junit.Test;
@@ -22,12 +23,139 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = {"extender.sdk-location = test-data/sdk", "extender.sdk-cache-size = 3"})
 public class ExtenderTest {
+
+    private static class FileExtenderResource implements ExtenderResource {
+
+        private File file = null;
+        private String filePath;
+        private String fileAbsPath;
+        FileExtenderResource(String filePath) {
+            this.file = new File(filePath);
+            this.filePath = file.getPath();
+            this.fileAbsPath = file.getAbsolutePath();
+        }
+
+        FileExtenderResource(File file) {
+            this.file = file;
+            this.filePath = file.getPath();
+            this.fileAbsPath = file.getAbsolutePath();
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
+            return new byte[0];
+        }
+
+        @Override
+        public String getAbsPath() {
+            return fileAbsPath;
+        }
+
+        @Override
+        public String getPath() {
+            return filePath;
+        }
+
+        @Override
+        public byte[] getContent() throws IOException {
+            return Files.readAllBytes(this.file.toPath());
+        }
+
+        @Override
+        public long getLastModified() {
+            return file.lastModified();
+        }
+    }
+
+    private static List<ExtenderResource> getExtensionSource(File root, String platform) throws IOException {
+        List<ExtenderResource> source = new ArrayList<>();
+        List<File> extensions = listExtensionFolders(root);
+
+        for (File f : extensions) {
+
+            source.add( new FileExtenderResource(f.getAbsolutePath() + File.separator + extensionFilename) );
+            source.addAll( listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "include") ) );
+            source.addAll( listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "src") ) );
+            source.addAll( listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "lib" + File.separator + platform) ) );
+
+            String[] platformParts = platform.split("-");
+            if (platformParts.length == 2 ) {
+                source.addAll( listFilesRecursive( new File(f.getAbsolutePath() + File.separator + "lib" + File.separator + platformParts[1]) ) );
+            }
+        }
+        return source;
+    }
+
+    /* Scans a directory and returns true if there are extensions available
+    */
+    private static boolean hasExtensions(File dir) {
+        File[] files = dir.listFiles();
+        if (!dir.exists()) {
+            return false;
+        }
+        for (File f : files) {
+            Matcher m = extensionPattern.matcher(f.getName());
+            if (m.matches()) {
+                return true;
+            }
+
+            if (f.isDirectory()) {
+                if( hasExtensions(f) ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static final String extensionFilename = "ext.manifest";
+    private static final Pattern extensionPattern = Pattern.compile(extensionFilename);
+
+    private static List<File> listExtensionFolders(File dir) throws IOException {
+        if (!dir.isDirectory()) {
+            throw new IOException("Path is not a directory: " + dir.getAbsolutePath());
+        }
+
+        List<File> folders = new ArrayList<>();
+
+        File[] files = dir.listFiles();
+        for (File f : files) {
+            Matcher m = extensionPattern.matcher(f.getName());
+            if (m.matches()) {
+                folders.add( dir );
+                return folders;
+            }
+            if (f.isDirectory()) {
+                folders.addAll( listExtensionFolders( f ) );
+            }
+        }
+        return folders;
+    }
+
+    private static List<ExtenderResource> listFilesRecursive(File dir) {
+        List<ExtenderResource> output = new ArrayList<>();
+        if (!dir.isDirectory()) {
+            return output; // the extensions doesn't have to have all folders that we look for
+        }
+
+        File[] files = dir.listFiles();
+        for (File f: files) {
+            if (f.isFile() ) {
+                output.add( new FileExtenderResource(f) );
+            } else {
+                output.addAll( listFilesRecursive(f) );
+            }
+        }
+        return output;
+    }
 
     @Autowired
     EmbeddedWebApplicationContext server;
@@ -47,7 +175,7 @@ public class ExtenderTest {
     public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + port, cacheDir);
-        List<File> sourceFiles = Lists.newArrayList(new File("test-data/ext/ext.manifest"), new File("test-data/ext/src/test_ext.cpp"), new File("test-data/ext/include/test_ext.h"), new File("test-data/ext/lib/x86-osx/libalib.a"));
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(new FileExtenderResource("test-data/ext/ext.manifest"), new FileExtenderResource("test-data/ext/src/test_ext.cpp"), new FileExtenderResource("test-data/ext/include/test_ext.h"), new FileExtenderResource("test-data/ext/lib/x86-osx/libalib.a"));
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
@@ -56,7 +184,6 @@ public class ExtenderTest {
         extenderClient.build(
                 platform,
                 sdkVersion,
-                new File(""),
                 sourceFiles,
                 destination,
                 log
@@ -73,24 +200,24 @@ public class ExtenderTest {
 
     @Test
     public void testClientHasExtensions() throws IOException, InterruptedException, ExtenderException {
-        assertFalse( ExtenderClient.hasExtensions(new File("test-data/testproject/a")) );
-        assertTrue( ExtenderClient.hasExtensions(new File("test-data/testproject/b")) );
-        assertTrue( ExtenderClient.hasExtensions(new File("test-data/testproject")) );
+        assertFalse( hasExtensions(new File("test-data/testproject/a")) );
+        assertTrue( hasExtensions(new File("test-data/testproject/b")) );
+        assertTrue( hasExtensions(new File("test-data/testproject")) );
     }
 
     @Test
     public void testClientGetSource() throws IOException, InterruptedException, ExtenderException {
         File root = new File("test-data/testproject/a");
-        List<File> files = null;
+        List<ExtenderResource> files = null;
 
         String platform = "x86-osx";
-        files = ExtenderClient.getExtensionSource(new File("test-data/testproject/a"), platform);
+        files = getExtensionSource(new File("test-data/testproject/a"), platform);
         assertEquals( 0, files.size() );
 
-        files = ExtenderClient.getExtensionSource(new File("test-data/testproject/b"), platform);
+        files = getExtensionSource(new File("test-data/testproject/b"), platform);
         assertEquals( 5, files.size() );
 
-        files = ExtenderClient.getExtensionSource(new File("test-data/testproject"), platform);
+        files = getExtensionSource(new File("test-data/testproject"), platform);
         assertEquals( 5, files.size() );
     }
 
@@ -221,8 +348,11 @@ public class ExtenderTest {
             File file1 = new File("build/a");
             File file2 = new File("build/b");
             File file3 = new File("build/c");
-            assertEquals(cache.getHash(file1), cache.getHash(file2));
-            assertNotEquals(cache.getHash(file1), cache.getHash(file3));
+            FileExtenderResource file1Res = new FileExtenderResource(file1);
+            FileExtenderResource file2Res = new FileExtenderResource(file2);
+            FileExtenderResource file3Res = new FileExtenderResource(file3);
+            assertEquals(cache.getHash(file1Res), cache.getHash(file2Res));
+            assertNotEquals(cache.getHash(file1Res), cache.getHash(file3Res));
         }
 
         Thread.sleep(1000);
@@ -232,8 +362,10 @@ public class ExtenderTest {
         {
             File file1 = new File("build/a");
             File file2 = new File("build/b");
+            FileExtenderResource file1Res = new FileExtenderResource(file1);
+            FileExtenderResource file2Res = new FileExtenderResource(file2);
 
-            assertNotEquals(cache.getHash(file1), cache.getHash(file2));
+            assertNotEquals(cache.getHash(file1Res), cache.getHash(file2Res));
         }
 
         FileUtils.deleteQuietly(new File("build/a"));
@@ -245,18 +377,20 @@ public class ExtenderTest {
     public void testClientCacheSignatureHash() throws IOException, ExtenderClientException {
         File a = new File("build/a");
         File b = new File("build/b");
+        FileExtenderResource aRes = new FileExtenderResource(a);
+        FileExtenderResource bRes = new FileExtenderResource(b);
 
         writeToFile("build/a", "a");
         writeToFile("build/b", "b");
 
-        List<File> files1 = new ArrayList<>();
-        files1.add(a);
-        files1.add(b);
+        List<ExtenderResource> files1 = new ArrayList<>();
+        files1.add(aRes);
+        files1.add(bRes);
 
 
-        List<File> files2 = new ArrayList<>();
-        files2.add(b);
-        files2.add(a);
+        List<ExtenderResource> files2 = new ArrayList<>();
+        files2.add(bRes);
+        files2.add(aRes);
 
         String platform = "osx";
         String sdkVersion = "abc456";
@@ -265,7 +399,7 @@ public class ExtenderTest {
         assertEquals(cache.getHash(files1), cache.getHash(files2));
         assertEquals(cache.calcKey(platform, sdkVersion, files1), cache.calcKey(platform, sdkVersion, files2));
 
-        files2.add(a);
+        files2.add(aRes);
 
         assertNotEquals(cache.getHash(files1), cache.getHash(files2));
         assertNotEquals(cache.calcKey(platform, sdkVersion, files1), cache.calcKey(platform, sdkVersion, files2));
@@ -279,6 +413,10 @@ public class ExtenderTest {
         File a = new File("build/a");
         File b = new File("build/b");
         File c = new File("build/c");
+        FileExtenderResource aRes = new FileExtenderResource(a);
+        FileExtenderResource bRes = new FileExtenderResource(b);
+        FileExtenderResource cRes = new FileExtenderResource(c);
+
         a.deleteOnExit();
         b.deleteOnExit();
         c.deleteOnExit();
@@ -287,9 +425,9 @@ public class ExtenderTest {
         writeToFile("build/b", "b");
         writeToFile("build/c", "c");
 
-        List<File> files = new ArrayList<>();
-        files.add(a);
-        files.add(b);
+        List<ExtenderResource> files = new ArrayList<>();
+        files.add(aRes);
+        files.add(bRes);
 
         String platform = "osx";
         String sdkVersion = "abc456";
@@ -325,7 +463,7 @@ public class ExtenderTest {
         assertEquals( true, cache.isCached(platform, key) );
 
         // Add a "new" file to the list, but let it have an old timestamp
-        files.add(c);
+        files.add(cRes);
         key = cache.calcKey(platform, sdkVersion, files);
 
         assertEquals( false, cache.isCached(platform, key) );
@@ -356,11 +494,12 @@ public class ExtenderTest {
     @Test
     public void testClientCachePersistence() throws IOException, InterruptedException, ExtenderClientException, NoSuchAlgorithmException {
         File a = new File("build/a");
+        FileExtenderResource aRes = new FileExtenderResource(a);
         a.deleteOnExit();
         writeToFile("build/a", "a");
 
-        List<File> files = new ArrayList<>();
-        files.add(a);
+        List<ExtenderResource> files = new ArrayList<>();
+        files.add(aRes);
 
         String platform = "osx";
         String sdkVersion = "abc456";
