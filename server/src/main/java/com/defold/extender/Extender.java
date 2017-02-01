@@ -24,12 +24,9 @@ class Extender {
     private final File extensionSource;
     private final File build;
     private final PlatformConfig platformConfig;
-    private final WhitelistConfig whitelistConfig;
+    private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
-    private final List<Pattern> allowedLibs = new ArrayList<Pattern>();
-    private final List<Pattern> allowedFlags = new ArrayList<Pattern>();
-    private final Pattern allowedDefines;
 
     private static final String frameworkRe = new String("(.+).framework");
 
@@ -55,23 +52,11 @@ class Extender {
             throw new IllegalArgumentException(String.format("Unsupported platform %s", platform));
         }
 
-        this.whitelistConfig = config.whitelist;
-        this.allowedDefines = Pattern.compile(String.format("^(%s)$", this.whitelistConfig.defineRe ));
-
-        Extender.expandPatterns(this.templateExecutor, this.whitelistConfig.context, this.platformConfig.allowedFlags, this.allowedFlags);
-        for (String s : this.platformConfig.allowedLibs) {
-            this.allowedLibs.add( Pattern.compile(String.format("^(%s)$", s)) );
-        }
+        this.manifestValidator = new ExtensionManifestValidator(config.whitelist, this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
     }
 
-    public WhitelistConfig getWhitelistConfig() {
-        return this.whitelistConfig;
-    }
-
-    static void expandPatterns(TemplateExecutor executor, Map<String, Object> context, List<String> vars, List<Pattern> out) {
-        for (String s : vars) {
-            out.add( Pattern.compile( String.format("^(%s)$", executor.execute(s, context)) ) );
-        }
+    ExtensionManifestValidator getManifestValidator() {
+        return manifestValidator;
     }
 
     static List<String> collectLibraries(File libDir, String re) {
@@ -89,11 +74,6 @@ class Extender {
         }
         return libs;
     }
-
-    public Map<String, Object> getWhitelistContext() {
-        return this.config.whitelist.context;
-    }
-
 
     private File uniqueTmpFile(File parent, String prefix, String suffix) {
         File file;
@@ -127,59 +107,6 @@ class Extender {
         return list.stream().allMatch(o -> o instanceof String);
     }
 
-    static String whitelistCheck(Pattern p, List<String> l) {
-        for (String s : l) {
-            Matcher m = p.matcher(s);
-            if (!m.matches()) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    static String whitelistCheck(List<Pattern> patterns, List<String> l) {
-        for (String s : l) {
-            boolean matched = false;
-            for (Pattern p : patterns) {
-                Matcher m = p.matcher(s);
-                if (m.matches()) {
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    static void whiteListContext(List<Pattern> allowedLibs, List<Pattern> allowedFlags, Pattern defineRe, String extensionName, Map<String, Object> extensionContext) throws ExtenderException {
-        Set<String> keys = extensionContext.keySet();
-        for (String k : keys) {
-            Object v = extensionContext.get(k);
-
-            if (k.equals("defines")) {
-                String s = Extender.whitelistCheck(defineRe, (List<String>) v);
-                if (s != null) {
-                    throw new ExtenderException(String.format("Invalid define in extension '%s': '%s'", extensionName, s));
-                }
-            } else if (k.equals("libs") || k.equals("frameworks")) {
-                String s = Extender.whitelistCheck(allowedLibs, (List<String>) v);
-                if (s != null) {
-                    throw new ExtenderException(String.format("Invalid name in extension '%s' - '%s': '%s'", extensionName, k, s));
-                }
-            } else if (k.equals("flags") || k.equals("linkFlags")) {
-                String s = Extender.whitelistCheck(allowedFlags, (List<String>) v);
-                if (s != null) {
-                    throw new ExtenderException(String.format("Invalid flag in extension '%s' - '%s': '%s'", extensionName, k, s));
-                }
-            } else {
-                // If the user has added a non supported name
-                throw new ExtenderException(String.format("Manifest context variable unsupported in '%s': %s", extensionName, k));
-            }
-        }
-    }
 
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
     static Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
@@ -432,7 +359,7 @@ class Extender {
                     manifestContext = getManifestContext(manifestConfig);
                 }
 
-                Extender.whiteListContext(this.allowedLibs, this.allowedFlags, this.allowedDefines, manifestConfig.name, manifestContext);
+                this.manifestValidator.validate(manifestConfig.name, manifestContext);
                 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 
