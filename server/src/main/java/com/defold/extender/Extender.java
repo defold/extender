@@ -26,6 +26,7 @@ class Extender {
     private final File extensionSource;
     private final File build;
     private final PlatformConfig platformConfig;
+    private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
 
@@ -55,6 +56,12 @@ class Extender {
         if (this.platformConfig == null) {
             throw new IllegalArgumentException(String.format("Unsupported platform %s", platform));
         }
+
+        this.manifestValidator = new ExtensionManifestValidator(config.whitelist, this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
+    }
+
+    ExtensionManifestValidator getManifestValidator() {
+        return manifestValidator;
     }
 
     static List<String> collectLibraries(File libDir, String re) {
@@ -105,6 +112,7 @@ class Extender {
         return list.stream().allMatch(o -> o instanceof String);
     }
 
+
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
     static Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>( originalContext );
@@ -113,18 +121,16 @@ class Extender {
         for (String k : keys) {
             Object v1 = context.get(k);
             Object v2 = extensionContext.get(k);
-            // If the user has added a non supported name
-            if (v1 == null) {
-                throw new ExtenderException("Manifest context variable unsupported: " + k);
-            }
+
             if (!v1.getClass().equals(v2.getClass())) {
-                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString() ) );
+                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
             }
-            if (!Extender.isListOfStrings((List<Object>)v2) ) {
-                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()) );
+            if (!Extender.isListOfStrings((List<Object>) v2)) {
+                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
             }
+
             if (v1 instanceof List) {
-                v1 = Extender.mergeLists( (List<String>)v1, (List<String>) v2 );
+                v1 = Extender.mergeLists((List<String>) v1, (List<String>) v2);
             }
             context.put(k, v1);
         }
@@ -357,6 +363,8 @@ class Extender {
                 if( manifestConfig.platforms != null ) {
                     manifestContext = getManifestContext(manifestConfig);
                 }
+
+                this.manifestValidator.validate(manifestConfig.name, manifestContext);
                 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 

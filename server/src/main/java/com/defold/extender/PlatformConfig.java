@@ -6,7 +6,6 @@ import java.util.Map;
 
 class PlatformConfig {
 
-    public List<String> compileArgs;
     public Map<String, Object> context = new HashMap<>();
     public String exePrefix;
     public String exeExt;
@@ -16,4 +15,6 @@ class PlatformConfig {
     public String compileCmd;
     public String linkCmd;
     public String libCmd;
+    public List<String> allowedLibs;
+    public List<String> allowedFlags;
 }
