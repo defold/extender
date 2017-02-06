@@ -53,7 +53,7 @@ public class ExtenderController {
         LOGGER.error("Failed to build extension: " + ex.getOutput());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.TEXT_PLAIN);
-        return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
