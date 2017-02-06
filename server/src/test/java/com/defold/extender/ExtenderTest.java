@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = {"extender.sdk-location = test-data/sdk", "extender.sdk-cache-size = 3"})
+@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = {"extender.sdk-location = test-data/sdk", "extender.sdk-cache-size = 3", "extender.build-location = /tmp/extender/builds"})
 public class ExtenderTest {
 
     private static class FileExtenderResource implements ExtenderResource {
