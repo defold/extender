@@ -12,7 +12,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.embedded.EmbeddedWebApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockMultipartHttpServletRequest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 import org.yaml.snakeyaml.Yaml;
 
 import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
@@ -20,6 +23,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -29,6 +33,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.Assert.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.fileUpload;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT, value = {"extender.sdk-location = test-data/sdk", "extender.sdk-cache-size = 3", "extender.build-location = /tmp/extender/builds"})
@@ -171,6 +176,100 @@ public class ExtenderTest {
         File engine = extender.buildEngine();
         assertTrue(engine.isFile());
         extender.dispose();
+    }
+
+    @Test
+    public void testReceiveFiles() throws IOException, InterruptedException, ExtenderException {
+
+        MockMultipartHttpServletRequestBuilder builder = null;
+        MockHttpServletRequest request = null;
+        File uploadDirectory = null;
+        String filename = null;
+        String expectedContent = null;
+
+        // Should be fine
+        uploadDirectory = Files.createTempDirectory("upload").toFile();
+        uploadDirectory.deleteOnExit();
+        builder = fileUpload("/tmpUpload");
+        filename = "include/test.h";
+        expectedContent = "//ABcdEFgh";
+        builder.file(filename, expectedContent.getBytes());
+        request = builder.buildRequest(null);
+        {
+            ExtenderController.receiveUpload((MockMultipartHttpServletRequest) request, uploadDirectory);
+            File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename );
+            file.deleteOnExit();
+            assertTrue(file.exists());
+            String fileContent = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            assertTrue( expectedContent.equals(fileContent) );
+        }
+
+        // Mustn't upload files outside of the folder!
+        uploadDirectory = Files.createTempDirectory("upload").toFile();
+        uploadDirectory.deleteOnExit();
+        builder = fileUpload("/tmpUpload");
+        filename = "../include/test.h";
+        expectedContent = "//invalidfile";
+        builder.file(filename, expectedContent.getBytes());
+        request = builder.buildRequest(null);
+        {
+            boolean thrown = false;
+            try {
+                ExtenderController.receiveUpload((MockMultipartHttpServletRequest) request, uploadDirectory);
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertTrue(thrown);
+            File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename );
+            assertFalse(file.exists());
+        }
+    }
+
+    @Test
+    public void testValidateFilenames() throws IOException, InterruptedException, ExtenderException {
+        MockMultipartHttpServletRequestBuilder builder = null;
+
+        // Should be fine
+        builder = fileUpload("/tmpUpload");
+        builder.file("include/test.h", "// test.h".getBytes());
+        MockHttpServletRequest request = builder.buildRequest(null);
+        {
+            boolean thrown = false;
+            try {
+                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertFalse(thrown);
+        }
+
+        // Should throw error
+        builder = fileUpload("/tmpUpload");
+        builder.file("include/foo;echo foo;.h", "// trying to sneak in an echo command".getBytes());
+        request = builder.buildRequest(null);
+        {
+            boolean thrown = false;
+            try {
+                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertTrue(thrown);
+        }
+
+        // Should throw error
+        builder = fileUpload("/tmpUpload");
+        builder.file("../../etc/passwd", "// trying to sneak in a new system file".getBytes());
+        request = builder.buildRequest(null);
+        {
+            boolean thrown = false;
+            try {
+                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertTrue(thrown);
+        }
     }
 
     @Test
@@ -364,7 +463,7 @@ public class ExtenderTest {
 
         InputStream configFileInputStream = Files.newInputStream(new File("test-data/sdk/a/defoldsdk/extender/build.yml").toPath());
         Configuration config = new Yaml().loadAs(configFileInputStream, Configuration.class);
-        ExtensionManifestValidator validator = new ExtensionManifestValidator(config.whitelist, allowedFlagsTemplates, allowedLibsTemplates);
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), allowedFlagsTemplates, allowedLibsTemplates);
 
         List<String> stringValues = new ArrayList<>();
         Map<String, Object> context = new HashMap<>();

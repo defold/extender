@@ -21,10 +21,15 @@ import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 public class ExtenderController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
+
+    // Used to verify the uploaded filenames
+    private static final String FILENAME_RE = "^([A-Za-z0-9_ ](?:[A-Za-z0-9_\\-\\/ ]|(?:\\.[A-Za-z0-9_\\-\\/ ]))+)$";
 
     private final DefoldSdkService defoldSdkService;
 
@@ -67,6 +72,7 @@ public class ExtenderController {
         File uploadDirectory = Files.createTempDirectory("upload").toFile();
 
         try {
+            validateFilenames(request);
             receiveUpload(request, uploadDirectory);
 
             // Get SDK
@@ -90,14 +96,37 @@ public class ExtenderController {
         }
     }
 
-    private void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException {
+    static public void validateFilenames(MultipartHttpServletRequest request) throws ExtenderException {
+        Pattern p = Pattern.compile(ExtenderController.FILENAME_RE);
+        Set<String> keys = request.getMultiFileMap().keySet();
+
+        for (String key : keys) {
+            MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
+            Matcher m = p.matcher(multipartFile.getName());
+            if (!m.matches()) {
+                throw new ExtenderException(String.format("Filename '%s' is invalid or contains invalid characters", multipartFile.getName()));
+            }
+        }
+    }
+
+    static private boolean isRelativePath(File parent, File file) throws IOException {
+        String parentPath = parent.getCanonicalPath();
+        String filePath = file.getCanonicalPath();
+        return filePath.startsWith(parentPath);
+    }
+
+    static public void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException, ExtenderException {
         Set<String> keys = request.getMultiFileMap().keySet();
 
         for (String key : keys) {
             MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
             File file = new File(uploadDirectory, multipartFile.getName());
-            Files.createDirectories(file.getParentFile().toPath());
 
+            if (!isRelativePath(uploadDirectory, file)) {
+                throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", multipartFile.getName()));
+            }
+
+            Files.createDirectories(file.getParentFile().toPath());
             try (InputStream inputStream = multipartFile.getInputStream()) {
                 Files.copy(inputStream, file.toPath());
             }

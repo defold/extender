@@ -18,15 +18,11 @@ class ExtensionManifestValidator {
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedLibs) {
         this.whitelistConfig = whitelistConfig;
 
-        this.allowedDefines.add( Pattern.compile(String.format("^(%s)$", whitelistConfig.defineRe ) ) );
+        this.allowedDefines.add( WhitelistConfig.compile(whitelistConfig.defineRe) );
 
         TemplateExecutor templateExecutor = new TemplateExecutor();
         ExtensionManifestValidator.expandPatterns(templateExecutor, this.whitelistConfig.context, allowedFlags, this.allowedFlags);
         ExtensionManifestValidator.expandPatterns(templateExecutor, this.whitelistConfig.context, allowedLibs, this.allowedLibs);
-    }
-
-    public WhitelistConfig getWhitelistConfig() {
-        return this.whitelistConfig;
     }
 
     static boolean isListOfStrings(List<Object> list) {
@@ -80,7 +76,7 @@ class ExtensionManifestValidator {
 
     static void expandPatterns(TemplateExecutor executor, Map<String, Object> context, List<String> vars, List<Pattern> out) {
         for (String s : vars) {
-            out.add( Pattern.compile( String.format("^(%s)$", executor.execute(s, context)) ) );
+            out.add( WhitelistConfig.compile(executor.execute(s, context)) );
         }
     }
 
