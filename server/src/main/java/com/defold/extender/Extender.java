@@ -57,7 +57,7 @@ class Extender {
             throw new IllegalArgumentException(String.format("Unsupported platform %s", platform));
         }
 
-        this.manifestValidator = new ExtensionManifestValidator(config.whitelist, this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
+        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
     }
 
     ExtensionManifestValidator getManifestValidator() {
@@ -343,7 +343,6 @@ class Extender {
         }
         return new HashMap<>();
     }
-
 
     File buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, extensionSource);
