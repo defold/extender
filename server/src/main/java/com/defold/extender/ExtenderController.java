@@ -29,7 +29,7 @@ public class ExtenderController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
 
     // Used to verify the uploaded filenames
-    private static final String FILENAME_RE = "^([A-Za-z0-9_ ](?:[A-Za-z0-9_\\-\\/ ]|(?:\\.[A-Za-z0-9_\\-\\/ ]))+)$";
+    private static final Pattern FILENAME_RE = Pattern.compile("^([A-Za-z0-9_ ](?:[A-Za-z0-9_\\-\\/ ]|(?:\\.[A-Za-z0-9_\\-\\/ ]))+)$");
 
     private final DefoldSdkService defoldSdkService;
 
@@ -97,12 +97,11 @@ public class ExtenderController {
     }
 
     static public void validateFilenames(MultipartHttpServletRequest request) throws ExtenderException {
-        Pattern p = Pattern.compile(ExtenderController.FILENAME_RE);
         Set<String> keys = request.getMultiFileMap().keySet();
 
         for (String key : keys) {
             MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
-            Matcher m = p.matcher(multipartFile.getName());
+            Matcher m = ExtenderController.FILENAME_RE.matcher(multipartFile.getName());
             if (!m.matches()) {
                 throw new ExtenderException(String.format("Filename '%s' is invalid or contains invalid characters", multipartFile.getName()));
             }
