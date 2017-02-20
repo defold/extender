@@ -16,6 +16,7 @@ import java.net.UnknownHostException;
 
 @SpringBootApplication
 public class ExtenderApplication {
+
     public static void main(String[] args) throws IOException, InterruptedException {
         SpringApplication.run(ExtenderApplication.class, args);
     }
@@ -26,7 +27,7 @@ public class ExtenderApplication {
 
         InfluxDB influxDB = InfluxDBFactory.connect("http://metrics.defold.com:8086", "root", "root");
 
-        String dbName = "myMetricsDB";	// the name of the datastore you choose
+        String dbName = "myMetricsDB"; // the name of the datastore you choose
         influxDB.createDatabase(dbName);
 
         InfluxDBMetricWriter.Builder builder = new InfluxDBMetricWriter.Builder(influxDB);

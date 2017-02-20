@@ -1,6 +1,5 @@
 package com.defold.extender;
 
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -10,26 +9,20 @@ import java.util.regex.Pattern;
 
 class ExtensionManifestValidator {
 
-    private final WhitelistConfig whitelistConfig;
-    private final List<Pattern> allowedLibs = new ArrayList<Pattern>();
-    private final List<Pattern> allowedFlags = new ArrayList<Pattern>();
-    private final List<Pattern> allowedDefines = new ArrayList<Pattern>();
+    private final List<Pattern> allowedLibs = new ArrayList<>();
+    private final List<Pattern> allowedFlags = new ArrayList<>();
+    private final List<Pattern> allowedDefines = new ArrayList<>();
 
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedLibs) {
-        this.whitelistConfig = whitelistConfig;
-
-        this.allowedDefines.add( WhitelistConfig.compile(whitelistConfig.defineRe) );
+        this.allowedDefines.add(WhitelistConfig.compile(whitelistConfig.defineRe));
 
         TemplateExecutor templateExecutor = new TemplateExecutor();
-        ExtensionManifestValidator.expandPatterns(templateExecutor, this.whitelistConfig.context, allowedFlags, this.allowedFlags);
-        ExtensionManifestValidator.expandPatterns(templateExecutor, this.whitelistConfig.context, allowedLibs, this.allowedLibs);
+        ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedFlags, this.allowedFlags);
+        ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedLibs, this.allowedLibs);
     }
 
-    static boolean isListOfStrings(List<Object> list) {
-        if (list instanceof List<?>) {
-            return list.stream().allMatch(o -> o instanceof String);
-        }
-        return false;
+    private static boolean isListOfStrings(List<Object> list) {
+        return list != null && list.stream().allMatch(o -> o instanceof String);
     }
 
     void validate(String extensionName, Map<String, Object> context) throws ExtenderException {
@@ -37,14 +30,14 @@ class ExtensionManifestValidator {
         for (String k : keys) {
             Object v = context.get(k);
 
-            if (!ExtensionManifestValidator.isListOfStrings((List<Object>)v)) {
-                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s: %s (type %s)  (%s)", k, v.toString(), v.getClass().getCanonicalName(), extensionName ));
+            if (!ExtensionManifestValidator.isListOfStrings((List<Object>) v)) {
+                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s: %s (type %s)  (%s)", k, v.toString(), v.getClass().getCanonicalName(), extensionName));
             }
 
-            List<String> strings = (List<String>)v;
-            List<Pattern> patterns = null;
-            String type = "";
-            switch(k) {
+            List<String> strings = (List<String>) v;
+            List<Pattern> patterns;
+            String type;
+            switch (k) {
                 case "defines":
                     patterns = this.allowedDefines;
                     type = "define";
@@ -74,9 +67,9 @@ class ExtensionManifestValidator {
         }
     }
 
-    static void expandPatterns(TemplateExecutor executor, Map<String, Object> context, List<String> vars, List<Pattern> out) {
+    private static void expandPatterns(TemplateExecutor executor, Map<String, Object> context, List<String> vars, List<Pattern> out) {
         for (String s : vars) {
-            out.add( WhitelistConfig.compile(executor.execute(s, context)) );
+            out.add(WhitelistConfig.compile(executor.execute(s, context)));
         }
     }
 

@@ -49,7 +49,7 @@ public class InfluxDBMetricWriter implements GaugeWriter {
         private String reportingHostname;
         private String reportingEnvironment;
 
-        public Builder(InfluxDB influxDB) {
+        Builder(InfluxDB influxDB) {
             this.influxDB = influxDB;
         }
 
@@ -59,26 +59,26 @@ public class InfluxDBMetricWriter implements GaugeWriter {
             return this;
         }
 
-        public InfluxDBMetricWriter build() {
+        InfluxDBMetricWriter build() {
             return new InfluxDBMetricWriter(this);
         }
 
-        public Builder withDatabaseName(String databaseName) {
+        Builder withDatabaseName(String databaseName) {
             this.databaseName = databaseName;
             return this;
         }
 
-        public Builder withBatchActions(int batchActions) {
+        Builder withBatchActions(int batchActions) {
             this.batchActions = batchActions;
             return this;
         }
 
-        public Builder withReportingHostname(String reportingHostname) {
+        Builder withReportingHostname(String reportingHostname) {
             this.reportingHostname = reportingHostname;
             return this;
         }
 
-        public Builder withReportingEnvironment(String reportingEnvironment) {
+        Builder withReportingEnvironment(String reportingEnvironment) {
             this.reportingEnvironment = reportingEnvironment;
             return this;
         }
