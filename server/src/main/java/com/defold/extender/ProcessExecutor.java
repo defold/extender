@@ -13,7 +13,7 @@ class ProcessExecutor {
 
         // To avoid an issue where an extra space was interpreted as an argument
         ArrayList<String> args = new ArrayList<>(Arrays.asList(command.split(" ")));
-        args.removeAll(Arrays.asList(""));
+        args.remove("");
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);

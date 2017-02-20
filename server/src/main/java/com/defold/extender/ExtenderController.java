@@ -29,11 +29,12 @@ public class ExtenderController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
 
     // Used to verify the uploaded filenames
-    private static final Pattern FILENAME_RE = Pattern.compile("^([A-Za-z0-9_ ](?:[A-Za-z0-9_\\-\\/ ]|(?:\\.[A-Za-z0-9_\\-\\/ ]))+)$");
+    private static final Pattern FILENAME_RE = Pattern.compile("^([A-Za-z0-9_ ](?:[A-Za-z0-9_\\-/ ]|(?:\\.[A-Za-z0-9_\\-/ ]))+)$");
 
     private final DefoldSdkService defoldSdkService;
 
-    @Value("${extender.build-location}") String buildDirectory;
+    @Value("${extender.build-location}")
+    String buildDirectory;
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService) {
@@ -53,7 +54,7 @@ public class ExtenderController {
         buildEngine(req, resp, platform, null);
     }
 
-    @ExceptionHandler({ ExtenderException.class })
+    @ExceptionHandler({ExtenderException.class})
     public ResponseEntity<String> handleIllegalArgumentException(ExtenderException ex) {
         LOGGER.error("Failed to build extension: " + ex.getOutput());
         HttpHeaders headers = new HttpHeaders();
@@ -68,7 +69,6 @@ public class ExtenderController {
                             @PathVariable("sdkVersion") String sdkVersion)
             throws ExtenderException, IOException, URISyntaxException {
 
-        // TODO: Make upload directory configurable
         File uploadDirectory = Files.createTempDirectory("upload").toFile();
 
         try {
@@ -96,7 +96,7 @@ public class ExtenderController {
         }
     }
 
-    static public void validateFilenames(MultipartHttpServletRequest request) throws ExtenderException {
+    static void validateFilenames(MultipartHttpServletRequest request) throws ExtenderException {
         Set<String> keys = request.getMultiFileMap().keySet();
 
         for (String key : keys) {
@@ -114,7 +114,7 @@ public class ExtenderController {
         return filePath.startsWith(parentPath);
     }
 
-    static public void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException, ExtenderException {
+    static void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException, ExtenderException {
         Set<String> keys = request.getMultiFileMap().keySet();
 
         for (String key : keys) {

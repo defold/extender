@@ -15,8 +15,8 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
@@ -32,12 +32,12 @@ class Extender {
 
     private static final String FRAMEWORK_RE = "(.+).framework";
 
-    private static final String ANDROID_NDK_PATH               = System.getenv("ANDROID_NDK_PATH");
-    private static final String ANDROID_NDK_INCLUDE_PATH       = System.getenv("ANDROID_NDK_INCLUDE");
-    private static final String ANDROID_STL_INCLUDE_PATH       = System.getenv("ANDROID_STL_INCLUDE");
-    private static final String ANDROID_STL_ARCH_INCLUDE_PATH  = System.getenv("ANDROID_STL_ARCH_INCLUDE");
-    private static final String ANDROID_STL_LIB_PATH           = System.getenv("ANDROID_STL_LIB");
-    private static final String ANDROID_SYSROOT_PATH           = System.getenv("ANDROID_SYSROOT");
+    private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
+    private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
+    private static final String ANDROID_STL_INCLUDE_PATH = System.getenv("ANDROID_STL_INCLUDE");
+    private static final String ANDROID_STL_ARCH_INCLUDE_PATH = System.getenv("ANDROID_STL_ARCH_INCLUDE");
+    private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
+    private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
     Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException {
         // Read config from SDK
@@ -60,10 +60,6 @@ class Extender {
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
     }
 
-    ExtensionManifestValidator getManifestValidator() {
-        return manifestValidator;
-    }
-
     static List<String> collectLibraries(File libDir, String re) {
         Pattern p = Pattern.compile(re);
         List<String> libs = new ArrayList<>();
@@ -80,7 +76,7 @@ class Extender {
         return libs;
     }
 
-    private File uniqueTmpFile(File parent, String prefix, String suffix) {
+    private File uniqueTmpFile(String prefix, String suffix) {
         File file;
         do {
             file = new File(build, prefix + UUID.randomUUID().toString() + suffix);
@@ -89,33 +85,28 @@ class Extender {
         return file;
     }
 
-    private ManifestConfiguration loadManifest(File manifest) throws IOException
-    {
+    private ManifestConfiguration loadManifest(File manifest) throws IOException {
         return new Yaml().loadAs(FileUtils.readFileToString(manifest), ManifestConfiguration.class);
     }
 
-    static List<File> filterFiles(Collection<File> files, String re)
-    {
+    static List<File> filterFiles(Collection<File> files, String re) {
         Pattern p = Pattern.compile(re);
-        List<File> filtered = files.stream().filter(f -> p.matcher( f.getName() ).matches() ).collect(Collectors.toList());
-        return filtered;
+        return files.stream().filter(f -> p.matcher(f.getName()).matches()).collect(Collectors.toList());
     }
 
     // Merges two lists. Appends values of b to a. Only keeps unique values
-    static List<String> mergeLists(List<String> a, List<String> b)
-    {
+    static List<String> mergeLists(List<String> a, List<String> b) {
         return Stream.concat(a.stream(), b.stream()).distinct().collect(Collectors.toList());
     }
 
-    static boolean isListOfStrings(List<Object> list)
-    {
+    static boolean isListOfStrings(List<Object> list) {
         return list.stream().allMatch(o -> o instanceof String);
     }
 
 
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
     static Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
-        Map<String, Object> context = new HashMap<>( originalContext );
+        Map<String, Object> context = new HashMap<>(originalContext);
 
         Set<String> keys = extensionContext.keySet();
         for (String k : keys) {
@@ -137,8 +128,7 @@ class Extender {
         return context;
     }
 
-    static Map<String, Object> createEmptyContext(Map<String, Object> original)
-    {
+    private static Map<String, Object> createEmptyContext(Map<String, Object> original) {
         Map<String, Object> out = new HashMap<>();
         Set<String> keys = original.keySet();
         for (String k : keys) {
@@ -168,7 +158,7 @@ class Extender {
             context.put("android_sysroot", ANDROID_SYSROOT_PATH);
         }
 
-        context.putAll(Extender.mergeContexts(platformConfig.context, manifestContext) );
+        context.putAll(Extender.mergeContexts(platformConfig.context, manifestContext));
 
         Set<String> keys = context.keySet();
         for (String k : keys) {
@@ -184,26 +174,24 @@ class Extender {
         return context;
     }
 
-    private List<String> getFrameworks(File extDir)
-    {
+    private List<String> getFrameworks(File extDir) {
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
         String[] platformParts = this.platform.split("-");
-        if (platformParts.length == 2 ) {
+        if (platformParts.length == 2) {
             frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
         }
         return frameworks;
     }
 
-    private List<String> getFrameworkPaths(File extDir)
-    {
+    private List<String> getFrameworkPaths(File extDir) {
         List<String> frameworkPaths = new ArrayList<>();
         File dir = new File(extDir, "lib" + File.separator + this.platform);
         if (dir.exists()) {
             frameworkPaths.add(dir.getAbsolutePath());
         }
         String[] platformParts = this.platform.split("-");
-        if (platformParts.length == 2 ) {
+        if (platformParts.length == 2) {
             File dirShort = new File(extDir, "lib" + File.separator + platformParts[1]);
             if (dirShort.exists()) {
                 frameworkPaths.add(dirShort.getAbsolutePath());
@@ -212,7 +200,7 @@ class Extender {
         return frameworkPaths;
     }
 
-    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
+    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
         includes.add(extDir.getAbsolutePath() + File.separator + "include");
         File o = new File(build, String.format("%s_%d.o", src.getName(), index));
@@ -232,7 +220,7 @@ class Extender {
 
     private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         Map<String, Object> context = context(manifestContext);
-        File o = uniqueTmpFile(build, "main_tmp", ".o");
+        File o = uniqueTmpFile("main_tmp", ".o");
         context.put("src", maincpp);
         context.put("tgt", o);
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
@@ -257,7 +245,7 @@ class Extender {
             i++;
         }
 
-        File lib = uniqueTmpFile(build, "lib", ".a");
+        File lib = uniqueTmpFile("lib", ".a");
         Map<String, Object> context = context(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
@@ -267,7 +255,7 @@ class Extender {
     }
 
 
-    private File linkEngine(List<File> extDirs, List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException  {
+    private File linkEngine(List<File> extDirs, List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File maincpp = new File(build, "main.cpp");
         File exe = new File(build, String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt));
 
@@ -298,10 +286,10 @@ class Extender {
 
             extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.shlibRe));
             extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.stlibRe));
-            extFrameworks.addAll( getFrameworks(extDir) );
+            extFrameworks.addAll(getFrameworks(extDir));
 
             String[] platformParts = this.platform.split("-");
-            if (platformParts.length == 2 ) {
+            if (platformParts.length == 2) {
                 File libCommonDir = new File(extDir, "lib" + File.separator + platformParts[1]); // e.g. ios
 
                 if (libCommonDir.exists()) {
@@ -311,7 +299,7 @@ class Extender {
 
                 extLibs.addAll(Extender.collectLibraries(libCommonDir, platformConfig.shlibRe));
                 extLibs.addAll(Extender.collectLibraries(libCommonDir, platformConfig.stlibRe));
-                extFrameworkPaths.addAll( getFrameworkPaths(extDir) );
+                extFrameworkPaths.addAll(getFrameworkPaths(extDir));
             }
         }
 
@@ -326,19 +314,18 @@ class Extender {
         return exe;
     }
 
-    private Map<String, Object> getManifestContext(ManifestConfiguration manifestConfig ) throws ExtenderException
-    {
+    private Map<String, Object> getManifestContext(ManifestConfiguration manifestConfig) throws ExtenderException {
         ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(this.platform);
 
         // Check that the manifest only contains valid platforms
         Set<String> allowedPlatforms = config.platforms.keySet();
         Set<String> manifestPlatforms = manifestConfig.platforms.keySet();
         manifestPlatforms.removeAll(allowedPlatforms);
-        if( !manifestPlatforms.isEmpty() ) {
-            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()) );
+        if (!manifestPlatforms.isEmpty()) {
+            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()));
         }
 
-        if( manifestPlatformConfig != null ) {
+        if (manifestPlatformConfig != null) {
             return manifestPlatformConfig.context;
         }
         return new HashMap<>();
@@ -354,17 +341,17 @@ class Extender {
 
             List<String> symbols = new ArrayList<>();
 
-            Map<String, Map<String, Object> > manifestConfigs = new HashMap<>();
+            Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : manifests) {
                 ManifestConfiguration manifestConfig = loadManifest(manifest);
 
-                Map<String, Object> manifestContext = new HashMap<String, Object>();
-                if( manifestConfig.platforms != null ) {
+                Map<String, Object> manifestContext = new HashMap<>();
+                if (manifestConfig.platforms != null) {
                     manifestContext = getManifestContext(manifestConfig);
                 }
 
                 this.manifestValidator.validate(manifestConfig.name, manifestContext);
-                
+
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 
                 symbols.add(manifestConfig.name);
@@ -372,7 +359,7 @@ class Extender {
                 buildExtension(manifest, manifestContext);
             }
 
-            Map<String, Object> mergedExtensionContext = Extender.createEmptyContext( platformConfig.context );
+            Map<String, Object> mergedExtensionContext = Extender.createEmptyContext(platformConfig.context);
 
             Set<String> keys = manifestConfigs.keySet();
             for (String k : keys) {
