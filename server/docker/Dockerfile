@@ -61,8 +61,6 @@ RUN mkdir -p cd ${ANDROID_ROOT} && \
     ln -s android-sdk-linux android-sdk
 
 ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
-#ENV ANDROID_NDK_URL http://dl.google.com/android/ndk/${ANDROID_NDK_FILENAME}
-# ENV ANDROID_NDK_FILENAME android-ndk64-r${ANDROID_NDK_VERSION}-linux-x86.tar.bz2
 ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
 
 RUN cd ${ANDROID_ROOT} && \
@@ -80,21 +78,13 @@ RUN wget -q -O - ${S3_URL}/clang%2Bllvm-3.9.0-x86_64-linux-gnu-ubuntu-16.04.tar.
 ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files"
 
 RUN mkdir -p "/root/.wine/drive_c/windows/system32"
-#RUN curl ${S3_URL}/prepreg-vc10-dx09-32.exe > "/root/.wine/drive_c/windows/system32/prepreg-vc10-dx09-32.exe"
-#RUN wget -P /root/.wine/drive_c/windows/system32 ${S3_URL}/prepreg-vc10-dx09-32.exe
 RUN wget -P /usr/bin ${S3_URL}/prepreg-vc10-dx09-32.exe
 RUN ls /root/.wine/drive_c/windows/system32
 
 
 RUN mkdir -p "${PROGRAM_FILES}"
 
-#RUN wget -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz  | tar xvf -C "${PROGRAM_FILES}" -
 RUN wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
-
-#RUN wget -P /tmp ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz
-#RUN curl Microsoft-Visual-Studio-10.0.tar.gz > /tmp/Microsoft-Visual-Studio-10.0.tar.gz
-#RUN cd ${PROGRAM_FILES} && tar xvf /tmp/Microsoft-Visual-Studio-10.0.tar.gz
-#RUN rm /tmp/Microsoft-Visual-Studio-10.0.tar.gz
 
 RUN useradd builder
 
@@ -112,7 +102,6 @@ RUN /tmp/build-darwin-toolchain.sh 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68
 RUN wget -q -O - ${S3_URL}/iPhoneOS9.3.sdk.tar.gz | tar xz -C /opt
 RUN wget -q -O - ${S3_URL}/MacOSX10.11.sdk.tar.gz | tar xz -C /opt
 
-#RUN ln -s /usr/bin/llvm-dsymutil-3.8 /usr/bin/dsymutil
 RUN ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil
 RUN ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin11-clang
 RUN ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin11-clang
@@ -120,14 +109,17 @@ RUN ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin11-clang-ar
 
 ADD test-ios-toolchain.sh /tmp
 
-#CMD ["find", "/root/.wine/drive_c/"]
-#CMD ["ls", "/root/.wine/drive_c/Program Files"]
-#CMD ["/tmp/test.sh"]
-#CMD ["/bin/bash"]
-#CMD sleep 1000000
-#CMD echo FOO
+# Create user "extender" with fixed user ID and run the webapp as that user.
+RUN useradd -r -u 2222 extender
+
+RUN mkdir -p /var/extender
+RUN chown extender: /var/extender
+
+RUN chown extender: $(readlink -f /usr/bin/java)
+RUN chmod +s $(readlink -f /usr/bin/java)
+
+USER extender
 
 ADD extender-0.1.0.jar app.jar
-RUN sh -c 'touch /app.jar'
 ENTRYPOINT ["java","-jar","/app.jar"]
 EXPOSE 9000
