@@ -41,6 +41,22 @@ public class ExtenderController {
         this.defoldSdkService = defoldSdkService;
     }
 
+    @ExceptionHandler({ExtenderException.class})
+    public ResponseEntity<String> handleExtenderException(ExtenderException ex) {
+        LOGGER.error("Failed to build extension: " + ex.getOutput());
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleException(Exception ex) {
+        LOGGER.error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), ex);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), headers, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @RequestMapping("/")
     public String index() {
         return "Extender";
@@ -52,14 +68,6 @@ public class ExtenderController {
             throws URISyntaxException, IOException, ExtenderException {
 
         buildEngine(req, resp, platform, null);
-    }
-
-    @ExceptionHandler({ExtenderException.class})
-    public ResponseEntity<String> handleIllegalArgumentException(ExtenderException ex) {
-        LOGGER.error("Failed to build extension: " + ex.getOutput());
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.TEXT_PLAIN);
-        return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
