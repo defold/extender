@@ -104,6 +104,48 @@ public class ExtenderTest {
             assertFalse(thrown);
         }
 
+        // Should be fine
+        builder = fileUpload("/tmpUpload");
+        builder.file("include/test+framework.h", "// test.h".getBytes());
+        request = builder.buildRequest(null);
+        {
+            boolean thrown = false;
+            try {
+                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertFalse(thrown);
+        }
+
+        // Should be fine
+        builder = fileUpload("/tmpUpload");
+        builder.file("src/test.c++", "// test".getBytes());
+        request = builder.buildRequest(null);
+        {
+            boolean thrown = false;
+            try {
+                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertFalse(thrown);
+        }
+
+        // Should throw error
+        builder = fileUpload("/tmpUpload");
+        builder.file("+foobar.h", "// test".getBytes());
+        request = builder.buildRequest(null);
+        {
+            boolean thrown = false;
+            try {
+                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertTrue(thrown);
+        }
+
         // Should throw error
         builder = fileUpload("/tmpUpload");
         builder.file("include/foo;echo foo;.h", "// trying to sneak in an echo command".getBytes());
