@@ -29,7 +29,7 @@ public class ExtenderController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
 
     // Used to verify the uploaded filenames
-    private static final Pattern FILENAME_RE = Pattern.compile("^([A-Za-z0-9_ ](?:[A-Za-z0-9_\\-/ ]|(?:\\.[A-Za-z0-9_\\-/ ]))+)$");
+    private static final Pattern FILENAME_RE = Pattern.compile("^([A-Za-z0-9_ ](?:[A-Za-z0-9_+\\-/ ]|(?:\\.[A-Za-z0-9_+\\-/ ]))+)$");
 
     private final DefoldSdkService defoldSdkService;
 
