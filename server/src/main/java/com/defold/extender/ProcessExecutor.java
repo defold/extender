@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
@@ -12,8 +14,9 @@ class ProcessExecutor {
         output.append(command).append("\n");
 
         // To avoid an issue where an extra space was interpreted as an argument
-        ArrayList<String> args = new ArrayList<>(Arrays.asList(command.split(" ")));
-        args.remove("");
+        List<String> args = Arrays.stream(command.split(" "))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
