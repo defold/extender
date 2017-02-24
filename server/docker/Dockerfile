@@ -118,6 +118,8 @@ RUN chown extender: /var/extender
 RUN chown extender: $(readlink -f /usr/bin/java)
 RUN chmod +s $(readlink -f /usr/bin/java)
 
+RUN chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
+
 USER extender
 
 ADD extender-0.1.0.jar app.jar

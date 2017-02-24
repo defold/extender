@@ -12,8 +12,15 @@ class ProcessExecutor {
         output.append(command).append("\n");
 
         // To avoid an issue where an extra space was interpreted as an argument
-        ArrayList<String> args = new ArrayList<>(Arrays.asList(command.split(" ")));
-        args.remove("");
+        ArrayList<String> splitargs = new ArrayList<>(Arrays.asList(command.split(" ")));
+        ArrayList<String> args = new ArrayList<>();
+
+        for(String s : splitargs)
+        {
+            if(!s.equals("")) {
+                args.add(s);
+            }
+        }
 
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
