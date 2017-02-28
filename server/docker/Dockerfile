@@ -42,7 +42,7 @@ ENV ANDROID_NDK_VERSION 10e
 ENV ANDROID_NDK_API_VERSION 14
 ENV ANDROID_TARGET_API_LEVEL 23
 ENV ANDROID_MIN_API_LEVEL 9
-ENV ANDROID_GCC_VERSION 4.9
+ENV ANDROID_GCC_VERSION 4.8
 ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/tmp/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
@@ -85,7 +85,7 @@ RUN ls /root/.wine/drive_c/windows/system32
 
 RUN mkdir -p "${PROGRAM_FILES}"
 
-#RUN wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
+RUN wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
 
 RUN useradd builder
 
