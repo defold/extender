@@ -1,9 +1,38 @@
+
 server:
     port: 9000
+
 extender:
     sdk-location: /var/extender/sdk
     sdk-cache-size: 3
     build-location: /var/extender/builds
+
+spring.http.multipart.max-file-size: 500mb
+spring.http.multipart.max-request-size: 500mb
+
+# Don't check for templates on startup.
+spring.mustache.check-template-location: false
+
+# All management endpoints except simple health status are disabled for security reasons.
+endpoints:
+  enabled: false
+  health:
+    enabled: true
+    sensitive: true
+
+---
+
+spring:
+  profiles: production
+
+server:
+    port: 9000
+
+extender:
+    sdk-location: /var/extender/sdk
+    sdk-cache-size: 3
+    build-location: /var/extender/builds
+
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
 

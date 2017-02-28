@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.autoconfigure.ExportMetricWriter;
 import org.springframework.boot.actuate.endpoint.MetricsEndpoint;
@@ -9,6 +10,7 @@ import org.springframework.boot.actuate.endpoint.MetricsEndpointMetricReader;
 import org.springframework.boot.actuate.metrics.writer.GaugeWriter;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -16,6 +18,9 @@ import java.net.UnknownHostException;
 
 @SpringBootApplication
 public class ExtenderApplication {
+
+    @Autowired
+    Environment environment;
 
     public static void main(String[] args) throws IOException, InterruptedException {
         SpringApplication.run(ExtenderApplication.class, args);
@@ -39,10 +44,15 @@ public class ExtenderApplication {
             hostName = "Unknown";
         }
 
+        String environmentString = "local";
+        if (this.environment.getActiveProfiles().length > 0) {
+            environmentString = environment.getActiveProfiles()[0];
+        }
+
         builder
                 .withDatabaseName(dbName)
                 .withBatchActions(500)
-                .withReportingEnvironment("local")
+                .withReportingEnvironment(environmentString)
                 .withReportingHostname(hostName);
 
         return builder.build();
