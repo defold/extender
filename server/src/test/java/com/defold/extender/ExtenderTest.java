@@ -17,13 +17,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 public class ExtenderTest {
 
     @Test
-    public void testClassesDex() throws IOException, ExtenderException {
-        Extender extender = new Extender("armv7-android", new File("test-data/ext"), new File("test-data/sdk/a/defoldsdk"), Files.createTempDirectory("test").toString());
-        File classesDex = extender.buildClassesDex();
-        System.out.println(classesDex);
-    }
-
-    @Test
     public void testReceiveFiles() throws IOException, InterruptedException, ExtenderException {
 
         MockMultipartHttpServletRequestBuilder builder;
