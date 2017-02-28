@@ -12,6 +12,12 @@
           "containerPort": 9000
         }
       ],
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "production"
+        }
+      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
