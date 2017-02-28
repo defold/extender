@@ -42,7 +42,7 @@ ENV ANDROID_NDK_VERSION 10e
 ENV ANDROID_NDK_API_VERSION 14
 ENV ANDROID_TARGET_API_LEVEL 23
 ENV ANDROID_MIN_API_LEVEL 9
-ENV ANDROID_GCC_VERSION 4.8
+ENV ANDROID_GCC_VERSION 4.9
 ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/tmp/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
@@ -50,8 +50,9 @@ ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
 ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
+ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_ROOT}/android-sdk/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
 RUN mkdir -p cd ${ANDROID_ROOT} && \
     cd ${ANDROID_ROOT} && \
     wget -q ${ANDROID_SDK_URL} && \
@@ -84,7 +85,7 @@ RUN ls /root/.wine/drive_c/windows/system32
 
 RUN mkdir -p "${PROGRAM_FILES}"
 
-RUN wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
+#RUN wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
 
 RUN useradd builder
 

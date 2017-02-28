@@ -16,13 +16,18 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 public class ExtenderController {
@@ -92,10 +97,18 @@ public class ExtenderController {
             }
 
             Extender extender = new Extender(platform, uploadDirectory, sdk, buildDirectory);
+
+            List<File> outputFiles = new ArrayList<>();
+            if (platform.endsWith("android")) {
+                File classesDex = extender.buildClassesDex();
+                outputFiles.add(classesDex);
+            }
+
             File exe = extender.buildEngine();
+            outputFiles.add(exe);
 
             // Write executable to output stream
-            ZipUtils.zip(response.getOutputStream(), exe);
+            ZipUtils.zip(response.getOutputStream(), outputFiles);
 
             extender.dispose();
         } finally {
