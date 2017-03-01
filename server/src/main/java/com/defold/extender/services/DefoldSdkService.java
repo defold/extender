@@ -98,4 +98,8 @@ public class DefoldSdkService {
         LOGGER.info("Using local Defold SDK at {}", dynamoHome.toString());
         return dynamoHome;
     }
+
+    public boolean isLocalSdkSupported() {
+        return dynamoHome != null;
+    }
 }

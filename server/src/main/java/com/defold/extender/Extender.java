@@ -39,7 +39,7 @@ class Extender {
     private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
     private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
-    Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException {
+    Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException, ExtenderException {
         // Read config from SDK
         InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/extender/build.yml").toPath());
         this.config = new Yaml().loadAs(configFileInputStream, Configuration.class);
@@ -54,7 +54,7 @@ class Extender {
         this.build = Files.createTempDirectory(buildPath, "build").toFile();
 
         if (this.platformConfig == null) {
-            throw new IllegalArgumentException(String.format("Unsupported platform %s", platform));
+            throw new ExtenderException(String.format("Unsupported platform %s", platform));
         }
 
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
