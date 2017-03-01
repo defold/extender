@@ -63,11 +63,15 @@ public class ExtenderController {
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
-    public void buildEngineLocal(MultipartHttpServletRequest req, HttpServletResponse resp,
+    public void buildEngineLocal(MultipartHttpServletRequest request, HttpServletResponse response,
                                  @PathVariable("platform") String platform)
             throws URISyntaxException, IOException, ExtenderException {
 
-        buildEngine(req, resp, platform, null);
+        if (defoldSdkService.isLocalSdkSupported()) {
+            buildEngine(request, response, platform, null);
+        }
+
+        throw new ExtenderException("No SDK version specified.");
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
