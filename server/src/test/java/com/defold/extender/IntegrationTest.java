@@ -9,17 +9,16 @@ import org.jf.dexlib2.iface.DexFile;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -27,9 +26,41 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class IntegrationTest {
 
     private static final int EXTENDER_PORT = 9000;
+
+    private TestConfiguration configuration;
+
+    private static class TestConfiguration {
+        public String defoldSha1 = "";
+        public boolean runTestClassesDex = true;
+
+        public TestConfiguration(String defoldSha1, boolean runTestClassesDex) {
+            this.defoldSha1 = defoldSha1;
+            this.runTestClassesDex = runTestClassesDex;
+        }
+
+        @Override
+        public String toString() {
+            return defoldSha1;
+        }
+    }
+
+    @Parameterized.Parameters(name = "{index}: sha1({0})")
+    public static Collection<TestConfiguration> data() {
+        TestConfiguration[] data = new TestConfiguration[] {
+                new TestConfiguration(/* local */  "a", true),
+                new TestConfiguration(/* 1.2.97 */ "8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", false),
+                new TestConfiguration(/* 1.2.98 */ "735ff76c8b1f93b3126ff223cd234d7ceb5b886d", false)
+        };
+        return Arrays.asList(data);
+    }
+
+    public IntegrationTest(TestConfiguration configuration) {
+        this.configuration = configuration;
+    }
 
     @BeforeClass
     public static void before() throws IOException, InterruptedException {
@@ -61,7 +92,7 @@ public class IntegrationTest {
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
         String platform = "x86-osx";
-        String sdkVersion = "a";
+        String sdkVersion = configuration.defoldSha1;
 
         try {
             extenderClient.build(
@@ -87,6 +118,9 @@ public class IntegrationTest {
 
     @Test
     public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException, InterruptedException {
+
+        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.", configuration.runTestClassesDex);
+
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
@@ -99,7 +133,7 @@ public class IntegrationTest {
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
         String platform = "armv7-android";
-        String sdkVersion = "a";
+        String sdkVersion = configuration.defoldSha1;
 
         try {
             extenderClient.build(

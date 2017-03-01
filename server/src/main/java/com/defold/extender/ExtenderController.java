@@ -98,16 +98,8 @@ public class ExtenderController {
 
             Extender extender = new Extender(platform, uploadDirectory, sdk, buildDirectory);
 
-            List<File> outputFiles = new ArrayList<>();
-            if (platform.endsWith("android")) {
-                File classesDex = extender.buildClassesDex();
-                outputFiles.add(classesDex);
-            }
-
-            File exe = extender.buildEngine();
-            outputFiles.add(exe);
-
-            // Write executable to output stream
+            // Build and write output files to output stream
+            List<File> outputFiles = extender.build();
             ZipUtils.zip(response.getOutputStream(), outputFiles);
 
             extender.dispose();

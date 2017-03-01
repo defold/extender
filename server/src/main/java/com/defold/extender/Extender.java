@@ -31,9 +31,10 @@ class Extender {
     private final ProcessExecutor processExecutor = new ProcessExecutor();
 
     private List<File> extDirs = new ArrayList<>();
+    private List<File> manifests = new ArrayList<>();
 
     private static final String FRAMEWORK_RE = "(.+)\\.framework";
-    private static final String JAR_RE = "(.+\\.jar)|";
+    private static final String JAR_RE = "(.+\\.jar)";
 
     private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
     private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
@@ -64,15 +65,16 @@ class Extender {
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
-        List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
-        this.extDirs = manifests.stream().map(File::getParentFile).collect(Collectors.toList());
+        this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
+        this.extDirs = this.manifests.stream().map(File::getParentFile).collect(Collectors.toList());
     }
 
-    static List<String> collectLibraries(File libDir, String re) {
+    // Does a regexp match on the filename for each file found in a directory
+    static List<String> collectFilesByName(File dir, String re) {
         Pattern p = Pattern.compile(re);
         List<String> libs = new ArrayList<>();
-        if (libDir.exists()) {
-            File[] files = libDir.listFiles();
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
             for (File f : files) {
                 Matcher m = p.matcher(f.getName());
                 if (m.matches()) {
@@ -84,15 +86,16 @@ class Extender {
         return libs;
     }
 
-    static List<String> collectFiles(File libDir, String re) {
+    // Does a regexp match on the absolute path for each file found in a directory
+    static List<String> collectFilesByPath(File dir, String re) {
         Pattern p = Pattern.compile(re);
         List<String> libs = new ArrayList<>();
-        if (libDir.exists()) {
-            File[] files = libDir.listFiles();
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
             for (File f : files) {
-                Matcher m = p.matcher(f.getName());
+                Matcher m = p.matcher(f.getAbsolutePath());
                 if (m.matches()) {
-                    libs.add(f.getAbsolutePath());
+                    libs.add(m.group(1));
                 }
 
             }
@@ -200,10 +203,10 @@ class Extender {
 
     private List<String> getFrameworks(File extDir) {
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
+        frameworks.addAll(Extender.collectFilesByName(new File(extDir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
         String[] platformParts = this.platform.split("-");
         if (platformParts.length == 2) {
-            frameworks.addAll(Extender.collectLibraries(new File(extDir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
+            frameworks.addAll(Extender.collectFilesByName(new File(extDir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
         }
         return frameworks;
     }
@@ -226,10 +229,10 @@ class Extender {
 
     private List<String> getJars(File extDir) {
         List<String> jars = new ArrayList<>();
-        jars.addAll(Extender.collectFiles(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
+        jars.addAll(Extender.collectFilesByPath(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
         String[] platformParts = this.platform.split("-");
         if (platformParts.length == 2) {
-            jars.addAll(Extender.collectFiles(new File(extDir, "lib" + File.separator + platformParts[1]), JAR_RE)); // e.g. "android"
+            jars.addAll(Extender.collectFilesByPath(new File(extDir, "lib" + File.separator + platformParts[1]), JAR_RE)); // e.g. "android"
         }
         return jars;
     }
@@ -309,7 +312,7 @@ class Extender {
         List<String> extFrameworks = new ArrayList<>();
         List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(build.toString()));
 
-        extLibs.addAll(Extender.collectLibraries(build, platformConfig.stlibRe));
+        extLibs.addAll(Extender.collectFilesByName(build, platformConfig.stlibRe));
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
 
@@ -318,8 +321,8 @@ class Extender {
                 extFrameworkPaths.add(libDir.toString());
             }
 
-            extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.shlibRe));
-            extLibs.addAll(Extender.collectLibraries(libDir, platformConfig.stlibRe));
+            extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.shlibRe));
+            extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.stlibRe));
             extFrameworks.addAll(getFrameworks(extDir));
 
             String[] platformParts = this.platform.split("-");
@@ -331,8 +334,8 @@ class Extender {
                     extFrameworkPaths.add(libCommonDir.toString());
                 }
 
-                extLibs.addAll(Extender.collectLibraries(libCommonDir, platformConfig.shlibRe));
-                extLibs.addAll(Extender.collectLibraries(libCommonDir, platformConfig.stlibRe));
+                extLibs.addAll(Extender.collectFilesByName(libCommonDir, platformConfig.shlibRe));
+                extLibs.addAll(Extender.collectFilesByName(libCommonDir, platformConfig.stlibRe));
                 extFrameworkPaths.addAll(getFrameworkPaths(extDir));
             }
         }
@@ -368,6 +371,11 @@ class Extender {
     public File buildClassesDex() throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", platform, extensionSource);
 
+        // To support older versions of build.yml where dxCmd is not defined:
+        if (platformConfig.dxCmd == null || platformConfig.dxCmd.isEmpty()) {
+            return null;
+        }
+
         File classesDex = new File(build, "classes.dex");
 
         List<String> extJars = new ArrayList<>();
@@ -393,13 +401,10 @@ class Extender {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, extensionSource);
 
         try {
-            Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
-            List<File> manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
-
             List<String> symbols = new ArrayList<>();
 
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
-            for (File manifest : manifests) {
+            for (File manifest : this.manifests) {
                 ManifestConfiguration manifestConfig = loadManifest(manifest);
 
                 Map<String, Object> manifestContext = new HashMap<>();
@@ -428,6 +433,21 @@ class Extender {
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
+    }
+
+    List<File> build() throws ExtenderException {
+        List<File> outputFiles = new ArrayList<>();
+        if (platform.endsWith("android")) {
+            File classesDex = buildClassesDex();
+            if (classesDex != null) {
+                outputFiles.add(classesDex);
+            }
+        }
+
+        File exe = buildEngine();
+        outputFiles.add(exe);
+
+        return outputFiles;
     }
 
     void dispose() throws IOException {
