@@ -8,7 +8,6 @@ class WhitelistConfig {
     public Map<String, Object> context = new HashMap<>();
 
     // Used to verify C++ defines before adding them on the command line
-    //public Pattern defineRe = WhitelistConfig.compile();
     public String defineRe = "[A-Za-z]+[A-Za-z0-9_]+=?[A-Za-z0-9_]+";
 
     public WhitelistConfig() {
