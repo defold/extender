@@ -42,6 +42,7 @@ dependencies {
     testCompile('junit:junit')
     testCompile('org.springframework:spring-test')
     testCompile('org.springframework.boot:spring-boot-starter-test')
+    testCompile('org.smali:dexlib2:2.0.3');
     testCompile project(':client')
 }
 

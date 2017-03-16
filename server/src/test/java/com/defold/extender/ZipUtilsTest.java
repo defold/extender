@@ -2,11 +2,14 @@ package com.defold.extender;
 
 import org.junit.Test;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
@@ -19,7 +22,11 @@ public class ZipUtilsTest {
         Path destinationFile = Files.createTempFile("archive", "zip");
         Path targetDirectory = Files.createTempDirectory("target");
 
-        ZipUtils.zip(new FileOutputStream(destinationFile.toFile()), sourceFile1.toFile(), sourceFile2.toFile());
+        List<File> files = new ArrayList<>();
+        files.add(sourceFile1.toFile());
+        files.add(sourceFile2.toFile());
+
+        ZipUtils.zip(new FileOutputStream(destinationFile.toFile()), files);
 
         ZipUtils.unzip(new FileInputStream(destinationFile.toFile()), targetDirectory);
 

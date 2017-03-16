@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -35,7 +36,7 @@ public class ZipUtils {
         }
     }
 
-    public static void zip(OutputStream outputStream, File... files) throws IOException {
+    public static void zip(OutputStream outputStream, List<File> files) throws IOException {
         ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
 
         for (File file : files) {

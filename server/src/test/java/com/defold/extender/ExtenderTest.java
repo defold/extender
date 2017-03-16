@@ -243,14 +243,21 @@ public class ExtenderTest {
     public void testCollectLibraries() {
         // The folder contains a library and a text file
         {
-            List<String> result = Extender.collectLibraries(new File("test-data/ext/lib/x86-osx"), "lib(.+).a");
+            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86-osx"), "lib(.+).a");
             String[] expected = {"alib"};
             assertArrayEquals(expected, result.toArray());
         }
         {
-            List<String> result = Extender.collectLibraries(new File("test-data/ext/lib/x86-osx"), "(.+).framework");
+            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86-osx"), "(.+).framework");
             String[] expected = {"blib"};
             assertArrayEquals(expected, result.toArray());
         }
+    }
+
+    @Test
+    public void testCollectJars() {
+        List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), "(.+\\.jar)");
+        assertEquals(1, result.size());
+        assertTrue(result.get(0).endsWith("test-data/ext/lib/armv7-android/Dummy.jar"));
     }
 }

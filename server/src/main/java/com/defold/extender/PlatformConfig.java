@@ -15,6 +15,7 @@ class PlatformConfig {
     public String compileCmd;
     public String linkCmd;
     public String libCmd;
+    public String dxCmd;
     public List<String> allowedLibs;
     public List<String> allowedFlags;
 }
