@@ -100,7 +100,13 @@ ADD test.sh /tmp
 ADD build-darwin-toolchain.sh /tmp
 RUN /tmp/build-darwin-toolchain.sh 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68
 
+# Right now, the package contains iPhoneOS.sdk, in the future, we want iPhoneOS9.3.sdk
 RUN wget -q -O - ${S3_URL}/iPhoneOS9.3.sdk.tar.gz | tar xz -C /opt
+# Until we've fixed the package
+RUN mv /opt/iPhoneOS.sdk /opt/iPhoneOS9.3.sdk
+# backwards compatible
+RUN ln -s /opt/iPhoneOS9.3.sdk /opt/iPhoneOS.sdk
+
 RUN wget -q -O - ${S3_URL}/MacOSX10.11.sdk.tar.gz | tar xz -C /opt
 
 RUN ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil
