@@ -22,9 +22,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 @RunWith(Parameterized.class)
 public class IntegrationTest {
@@ -35,27 +33,50 @@ public class IntegrationTest {
 
     private static class TestConfiguration {
         public String defoldSha1 = "";
+        public String platform = "";
         public boolean runTestClassesDex = true;
 
-        public TestConfiguration(String defoldSha1, boolean runTestClassesDex) {
+        public TestConfiguration(String defoldSha1, String platform, boolean runTestClassesDex) {
             this.defoldSha1 = defoldSha1;
+            this.platform = platform;
             this.runTestClassesDex = runTestClassesDex;
         }
 
         @Override
         public String toString() {
-            return defoldSha1;
+            return String.format("sha1(%s) %s", defoldSha1, platform);
         }
     }
 
-    @Parameterized.Parameters(name = "{index}: sha1({0})")
+    @Parameterized.Parameters(name = "{index}: {0}")
     public static Collection<TestConfiguration> data() {
-        TestConfiguration[] data = new TestConfiguration[] {
-                new TestConfiguration(/* local */  "a", true),
-                new TestConfiguration(/* 1.2.97 */ "8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", false),
-                new TestConfiguration(/* 1.2.98 */ "735ff76c8b1f93b3126ff223cd234d7ceb5b886d", false)
+
+        ArrayList<TestConfiguration> data = new ArrayList<>();
+
+        String[] versions = {
+                "8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", // 1.2.97
+                "735ff76c8b1f93b3126ff223cd234d7ceb5b886d", // 1.2.98
+                "0d7f8b51658bee90cb38f3d651b3ba072394afed", // 1.2.99
         };
-        return Arrays.asList(data);
+
+        String[][] supportedPlatforms = new String[][] {
+                new String[] {"x86-osx"},
+                new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"},
+                new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"},
+        };
+
+        data.add(new TestConfiguration("a", "armv7-android", true));
+
+        for( int i = 0; i < versions.length; ++i )
+        {
+            String version = versions[i];
+
+            for (String platform : supportedPlatforms[i]) {
+                data.add(new TestConfiguration(version, platform, false));
+            }
+        }
+
+        return data;
     }
 
     public IntegrationTest(TestConfiguration configuration) {
@@ -81,17 +102,27 @@ public class IntegrationTest {
 
     @Test
     public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
+
+        org.junit.Assume.assumeTrue("Dummy Defold version - skipping", configuration.defoldSha1.length() > 1);
+
+        File cachedBuild = new File(String.format("build/%s/build.zip", configuration.platform));
+        if (cachedBuild.exists())
+            cachedBuild.delete();
+        assertFalse(cachedBuild.exists());
+
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/include/test_ext.h"),
-                new FileExtenderResource("test-data/ext/lib/x86-osx/libalib.a"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libblib.a", configuration.platform)),
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform))
+        );
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
-        String platform = "x86-osx";
+        String platform = configuration.platform;
         String sdkVersion = configuration.defoldSha1;
 
         try {
@@ -103,6 +134,7 @@ public class IntegrationTest {
                     log
             );
         } catch (ExtenderClientException e) {
+            System.out.println("ERROR LOG:");
             System.out.println(new String(Files.readAllBytes(log.toPath())));
             throw e;
         }
@@ -112,6 +144,21 @@ public class IntegrationTest {
 
         ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
         assertTrue(cache.getCachedBuildFile(platform).exists());
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ZipFile zipFile = new ZipFile(destination);
+
+        if (platform.endsWith("android")) {
+            if (configuration.runTestClassesDex) {
+                assertNotEquals(null, zipFile.getEntry("classes.dex"));
+            }
+            assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
+        }
+        else if (platform.endsWith("ios") || platform.endsWith("osx")) {
+            assertNotEquals(null, zipFile.getEntry("dmengine"));
+        }
 
         FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
@@ -128,11 +175,12 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/include/test_ext.h"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/libblib.a"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
-        String platform = "armv7-android";
+        String platform = configuration.platform;
         String sdkVersion = configuration.defoldSha1;
 
         try {
@@ -162,7 +210,7 @@ public class IntegrationTest {
         Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
 
         // Verify that classes.dex contains our Dummy class
-        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 /*api level*/);
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
         for (ClassDef classDef: dexFile.getClasses()) {
             assertEquals("Lcom/svenandersson/dummy/Dummy;", classDef.getType());
         }

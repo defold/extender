@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "test_ext.h"
 
-int alib_add(int, int);
+int alib_add(int x, int y);
 
 extern "C"
 {

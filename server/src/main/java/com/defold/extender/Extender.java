@@ -323,6 +323,7 @@ class Extender {
 
             extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.shlibRe));
             extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.stlibRe));
+
             extFrameworks.addAll(getFrameworks(extDir));
 
             String[] platformParts = this.platform.split("-");
@@ -381,6 +382,10 @@ class Extender {
         List<String> extJars = new ArrayList<>();
         for (File extDir : this.extDirs) {
             extJars.addAll(getJars(extDir));
+        }
+
+        if (extJars.isEmpty()) {
+            return null;
         }
 
         Map<String, Object> context = context(platformConfig.context);

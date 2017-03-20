@@ -205,7 +205,9 @@ public class ExtenderClientCache {
         }
 
         for (String key : properties.stringPropertyNames()) {
-            this.persistentHashes.put(key, properties.get(key).toString());
+            File build = new File(key);
+            if( build.exists() )
+                this.persistentHashes.put(key, properties.get(key).toString());
         }
     }
 }
