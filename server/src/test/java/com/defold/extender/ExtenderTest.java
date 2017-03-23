@@ -244,7 +244,7 @@ public class ExtenderTest {
         // The folder contains a library and a text file
         {
             List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86-osx"), "lib(.+).a");
-            String[] expected = {"alib", "blib"};
+            String[] expected = {"alib"};
             assertArrayEquals(expected, result.toArray());
         }
         {
