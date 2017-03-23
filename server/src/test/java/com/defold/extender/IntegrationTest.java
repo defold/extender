@@ -31,20 +31,63 @@ public class IntegrationTest {
 
     private TestConfiguration configuration;
 
-    private static class TestConfiguration {
-        public String defoldSha1 = "";
-        public String platform = "";
-        public boolean runTestClassesDex = true;
+    private static class Version
+    {
+        public int major;
+        public int middle;
+        public int minor;
 
-        public TestConfiguration(String defoldSha1, String platform, boolean runTestClassesDex) {
-            this.defoldSha1 = defoldSha1;
-            this.platform = platform;
-            this.runTestClassesDex = runTestClassesDex;
+        public Version(int major, int middle, int minor)
+        {
+            this.major = major;
+            this.middle = middle;
+            this.minor = minor;
         }
 
         @Override
         public String toString() {
-            return String.format("sha1(%s) %s", defoldSha1, platform);
+            return String.format("%d.%d.%03d", major, middle, minor);
+        }
+
+        boolean isVersion(int major, int middle, int minor) {
+            return this.major == major && this.middle == middle && this.minor == minor;
+        }
+
+        boolean isLessThan(int major, int middle, int minor) {
+            return this.major < major || this.middle < middle || this.minor < minor;
+        }
+
+        boolean isGreaterThan(int major, int middle, int minor) {
+            return this.major > major || this.middle > middle || this.minor > minor;
+        }
+    }
+
+    private static class DefoldVersion
+    {
+        public String sha1;
+        public Version version;
+        public String[] platforms;
+
+        public DefoldVersion(String sha1, Version version, String[] platforms)
+        {
+            this.sha1 = sha1;
+            this.version = version;
+            this.platforms = platforms;
+        }
+    }
+
+    private static class TestConfiguration {
+        public DefoldVersion version;
+        public String platform = "";
+
+        public TestConfiguration(DefoldVersion version, String platform) {
+            this.version = version;
+            this.platform = platform;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%s sha1(%s) %s", version.version.toString(), version.sha1, platform);
         }
     }
 
@@ -53,26 +96,20 @@ public class IntegrationTest {
 
         ArrayList<TestConfiguration> data = new ArrayList<>();
 
-        String[] versions = {
-                "8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", // 1.2.97
-                "735ff76c8b1f93b3126ff223cd234d7ceb5b886d", // 1.2.98
-                "0d7f8b51658bee90cb38f3d651b3ba072394afed", // 1.2.99
-        };
+        DefoldVersion[] versions = {
+                // "a" is a made up sdk where we can more easily test build.yml fixes
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86-osx", "armv7-android"} ),
 
-        String[][] supportedPlatforms = new String[][] {
-                new String[] {"x86-osx"},
-                new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"},
-                new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"},
+                new DefoldVersion("8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", new Version(1, 2, 97), new String[] {"x86-osx"}),
+                new DefoldVersion("735ff76c8b1f93b3126ff223cd234d7ceb5b886d", new Version(1, 2, 98), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 99), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
         };
-
-        data.add(new TestConfiguration("a", "armv7-android", true));
 
         for( int i = 0; i < versions.length; ++i )
         {
-            String version = versions[i];
-
-            for (String platform : supportedPlatforms[i]) {
-                data.add(new TestConfiguration(version, platform, false));
+            for (String platform : versions[i].platforms ) {
+                data.add(new TestConfiguration(versions[i], platform));
             }
         }
 
@@ -84,7 +121,7 @@ public class IntegrationTest {
     }
 
     @BeforeClass
-    public static void before() throws IOException, InterruptedException {
+    public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
@@ -94,36 +131,39 @@ public class IntegrationTest {
     }
 
     @AfterClass
-    public static void after() throws IOException, InterruptedException {
+    public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.execute("scripts/stop-test-server.sh");
         System.out.println(processExecutor.getOutput());
     }
 
-    @Test
-    public void buildingRemoteShouldReturnEngine() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Dummy Defold version - skipping", configuration.defoldSha1.length() > 1);
-
+    private void clearCache()
+    {
         File cachedBuild = new File(String.format("build/%s/build.zip", configuration.platform));
         if (cachedBuild.exists())
             cachedBuild.delete();
         assertFalse(cachedBuild.exists());
+    }
+
+    @Test
+    public void buildEngineOLD() throws IOException, ExtenderClientException {
+
+        org.junit.Assume.assumeTrue("Too new sdk - skipping", configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
+
+        clearCache();
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/include/test_ext.h"),
-                new FileExtenderResource(String.format("test-data/ext/lib/%s/libblib.a", configuration.platform)),
                 new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform))
         );
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
         String platform = configuration.platform;
-        String sdkVersion = configuration.defoldSha1;
+        String sdkVersion = configuration.version.sha1;
 
         try {
             extenderClient.build(
@@ -151,9 +191,69 @@ public class IntegrationTest {
         ZipFile zipFile = new ZipFile(destination);
 
         if (platform.endsWith("android")) {
+            assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
+        }
+        else if (platform.endsWith("ios") || platform.endsWith("osx")) {
+            assertNotEquals(null, zipFile.getEntry("dmengine"));
+        }
+
+        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
+    }
+
+    @Test
+    public void buildEngine() throws IOException, ExtenderClientException {
+
+        boolean isAndroid = configuration.platform.contains("android");
+        boolean hasAndroidBug = isAndroid && (configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
+
+        org.junit.Assume.assumeFalse("Has android bug - skipping", hasAndroidBug );
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext2/ext.manifest"),
+                new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/ext2/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource(String.format("test-data/ext2/lib/%s/libblib.a", configuration.platform))
+        );
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println("ERROR LOG:");
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+        assertTrue(cache.getCachedBuildFile(platform).exists());
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ZipFile zipFile = new ZipFile(destination);
+
+        if (platform.endsWith("android")) {
+            /* Add this when we've made sure that all android builds create a classes.dex
             if (configuration.runTestClassesDex) {
                 assertNotEquals(null, zipFile.getEntry("classes.dex"));
-            }
+            }*/
             assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
         }
         else if (platform.endsWith("ios") || platform.endsWith("osx")) {
@@ -166,22 +266,22 @@ public class IntegrationTest {
     @Test
     public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException, InterruptedException {
 
-        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.", configuration.runTestClassesDex);
+        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.", configuration.platform.contains("android") && configuration.version.version.isVersion(0, 0, 0) );
+
+        clearCache();
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/include/test_ext.h"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libblib.a"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
 
         String platform = configuration.platform;
-        String sdkVersion = configuration.defoldSha1;
+        String sdkVersion = configuration.version.sha1;
 
         try {
             extenderClient.build(

@@ -47,6 +47,7 @@ platforms:
     context:
         frameworks: []
         engineLibs: []
+    exePrefix: ''
     exeExt: ''
     shlibRe: 'lib(.+).dylib'
     stlibRe: 'lib(.+).a'
