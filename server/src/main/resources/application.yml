@@ -4,7 +4,7 @@ server:
 
 extender:
     sdk-location: /var/extender/sdk
-    sdk-cache-size: 3
+    sdk-cache-size: 10 # Slightly bigger than production in order to not remove version controlled SDK
     build-location: /var/extender/builds
 
 spring.http.multipart.max-file-size: 500mb
