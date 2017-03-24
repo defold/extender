@@ -73,7 +73,9 @@ public class ExtenderController {
             throws URISyntaxException, IOException, ExtenderException {
 
         if (defoldSdkService.isLocalSdkSupported()) {
+
             buildEngine(request, response, platform, null);
+            return;
         }
 
         throw new ExtenderException("No SDK version specified.");

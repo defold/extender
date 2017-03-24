@@ -1,5 +1,5 @@
 
-int alib_add(int x, int y)
+int alib_mul(int x, int y)
 {
-	return x + y;
+	return x * y;
 }
