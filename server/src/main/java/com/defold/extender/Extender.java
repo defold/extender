@@ -112,8 +112,15 @@ class Extender {
         return file;
     }
 
-    private ManifestConfiguration loadManifest(File manifest) throws IOException {
-        return new Yaml().loadAs(FileUtils.readFileToString(manifest), ManifestConfiguration.class);
+    private ManifestConfiguration loadManifest(File manifest) throws IOException, ExtenderException {
+        String yaml = FileUtils.readFileToString(manifest);
+
+        if (yaml.contains("\t")) {
+            throw new ExtenderException("Manifest files (ext.manifest) are YAML files and cannot contain tabs. " +
+                    "Indentation should be done with spaces.");
+        }
+
+        return new Yaml().loadAs(yaml, ManifestConfiguration.class);
     }
 
     static List<File> filterFiles(Collection<File> files, String re) {
