@@ -9,14 +9,12 @@ This describes how to run the build server locally.
 * Make sure you have [Docker](https://www.docker.com) installed.
 
 ### Build
-* First, build the Extender Docker image by running: `./scripts/build.sh`
+* First, build the Extender Docker image by running: `./server/scripts/build.sh`
 
-_NOTE:_ The first time you build it will take a while. This could make the Gradle-plugin
-used by the build-script to hang. In order to mitigate this you can run following commands
-first: `docker build server/docker`
+_NOTE:_ The first time you build it will take a while. After that Docker cache will speed it up.
 
 ### Start
-* Then, start a container based on that image by running: `./scripts/run.sh`.
+* Then, start a container based on that image by running: `./server/scripts/run.sh`.
 
 ### Stop
 * Just hit `Ctrl-C`. 
@@ -25,7 +23,7 @@ first: `docker build server/docker`
 
 #### Docker container
 
-* When the container is running, then run `./scripts/debug.sh`. It connects to the container
+* When the container is running, then run `./server/scripts/debug.sh`. It connects to the container
  and executes bash. 
  
 ## Operations
