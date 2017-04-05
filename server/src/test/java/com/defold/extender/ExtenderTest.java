@@ -61,6 +61,23 @@ public class ExtenderTest {
             File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename);
             assertFalse(file.exists());
         }
+
+        // Should be fine (Windows back slashes)
+        uploadDirectory = Files.createTempDirectory("upload").toFile();
+        uploadDirectory.deleteOnExit();
+        builder = fileUpload("/tmpUpload");
+        filename = "src/foo/bar/test.cpp";
+        expectedContent = "//ABcdEFgh";
+        builder.file("src\\foo\\bar\\test.cpp", expectedContent.getBytes());
+        request = builder.buildRequest(null);
+        {
+            ExtenderController.receiveUpload((MockMultipartHttpServletRequest) request, uploadDirectory);
+            File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename);
+            file.deleteOnExit();
+            assertTrue(file.exists());
+            String fileContent = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            assertTrue(expectedContent.equals(fileContent));
+        }
     }
 
     @Test

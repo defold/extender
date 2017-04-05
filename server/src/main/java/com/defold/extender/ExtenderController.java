@@ -16,18 +16,14 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 @RestController
 public class ExtenderController {
@@ -138,7 +134,10 @@ public class ExtenderController {
 
         for (String key : keys) {
             MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
-            File file = new File(uploadDirectory, multipartFile.getName());
+
+            // translate it into a valid filename
+            String name = multipartFile.getName().replace('\\', File.separatorChar);;
+            File file = new File(uploadDirectory, name);
 
             if (!isRelativePath(uploadDirectory, file)) {
                 throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", multipartFile.getName()));
