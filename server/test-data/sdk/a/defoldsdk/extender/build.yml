@@ -60,7 +60,7 @@ platforms:
 
   armv7-android:
     context:
-        engineJars: []
+        engineJars: ["{{dynamo_home}}/share/java/Engine.jar"]
         engineLibs: []
 
     exePrefix: 'lib'
