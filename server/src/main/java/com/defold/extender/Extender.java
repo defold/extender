@@ -8,7 +8,6 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,6 +20,7 @@ import java.util.stream.Stream;
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
+    private final AppManifestConfiguration appManifest;
     private final String platform;
     private final File sdk;
     private final File extensionSource;
@@ -45,8 +45,19 @@ class Extender {
 
     Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException, ExtenderException {
         // Read config from SDK
-        InputStream configFileInputStream = Files.newInputStream(new File(sdk.getPath() + "/extender/build.yml").toPath());
-        this.config = new Yaml().loadAs(configFileInputStream, Configuration.class);
+        this.config = loadYaml(new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
+
+        Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
+
+        List<File> appMmanifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
+        if (appMmanifests.size() > 1 ) {
+            throw new ExtenderException("Only one app.manifest allowed!");
+        }
+        if (appMmanifests.isEmpty()) {
+            this.appManifest = new AppManifestConfiguration();
+        } else {
+            this.appManifest = loadYaml(appMmanifests.get(0), AppManifestConfiguration.class);
+        }
 
         this.platform = platform;
         this.sdk = sdk;
@@ -64,7 +75,6 @@ class Extender {
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
-        Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         this.extDirs = this.manifests.stream().map(File::getParentFile).collect(Collectors.toList());
     }
@@ -112,7 +122,7 @@ class Extender {
         return file;
     }
 
-    private ManifestConfiguration loadManifest(File manifest) throws IOException, ExtenderException {
+    static <T> T loadYaml(File manifest, Class<T> type) throws IOException, ExtenderException {
         String yaml = FileUtils.readFileToString(manifest);
 
         if (yaml.contains("\t")) {
@@ -120,7 +130,7 @@ class Extender {
                     "Indentation should be done with spaces.");
         }
 
-        return new Yaml().loadAs(yaml, ManifestConfiguration.class);
+        return new Yaml().loadAs(yaml, type);
     }
 
     static List<File> filterFiles(Collection<File> files, String re) {
@@ -298,6 +308,59 @@ class Extender {
         return lib;
     }
 
+    static List<String> getExcludeItems(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
+        List<String> items = new ArrayList<>();
+
+        if (manifest.platforms.containsKey("common")) {
+            Object v = manifest.platforms.get("common").context.get(name);
+            if( v != null ) {
+                if (!Extender.isListOfStrings((List<Object>) v)) {
+                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
+                }
+                items.addAll((List<String>) v);
+            }
+        }
+
+        if (manifest.platforms.containsKey(platform)) {
+            Object v = manifest.platforms.get(platform).context.get(name);
+            if( v != null ) {
+                if (!Extender.isListOfStrings((List<Object>) v)) {
+                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
+                }
+                items.addAll((List<String>) v);
+            }
+        }
+        return items;
+    }
+
+    // Excludes items from input list that matches an item in the expressions list
+    static List<String> excludeItems(List<String> input, List<String> expressions) {
+        List<String> items = new ArrayList<>();
+
+        List<Pattern> patterns = new ArrayList<>();
+        for (String expression : expressions) {
+            patterns.add( Pattern.compile(expression));
+        }
+        for (String item : input) {
+            boolean excluded = false;
+            if (expressions.contains(item) ) {
+                excluded = true;
+            }
+            else {
+                for (Pattern pattern : patterns) {
+                    Matcher m = pattern.matcher(item);
+                    if (m.matches()) {
+                        excluded = true;
+                        break;
+                    }
+                }
+            }
+            if (!excluded) {
+                items.add(item);
+            }
+        }
+        return items;
+    }
 
     private File linkEngine(List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File maincpp = new File(build, "main.cpp");
@@ -307,6 +370,10 @@ class Extender {
         extSymbols.addAll(symbols);
 
         Map<String, Object> mainContext = context(manifestContext);
+
+        extSymbols = excludeItems( extSymbols, getExcludeItems(appManifest, platform, "excludeSymbols"));
+        mainContext.put("symbols", excludeItems( (List<String>)mainContext.get("symbols"), getExcludeItems(appManifest, platform, "excludeSymbols")) );
+
         mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
 
         String main = templateExecutor.execute(config.main, mainContext);
@@ -348,10 +415,14 @@ class Extender {
             }
         }
 
+        extLibs = excludeItems( extLibs, getExcludeItems(appManifest, platform, "excludeLibs"));
+
         Map<String, Object> context = context(manifestContext);
         context.put("src", mainObject);
         context.put("tgt", exe.getAbsolutePath());
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths));
+
+        context.put("engineLibs", excludeItems( (List<String>)context.get("engineLibs"), getExcludeItems(appManifest, platform, "excludeLibs")) );
 
         String command = templateExecutor.execute(platformConfig.linkCmd, context);
         processExecutor.execute(command);
@@ -391,13 +462,10 @@ class Extender {
             extJars.addAll(getJars(extDir));
         }
 
-        if (extJars.isEmpty()) {
-            return null;
-        }
-
         Map<String, Object> context = context(platformConfig.context);
         context.put("classes_dex", classesDex.getAbsolutePath());
-        context.put("jars", extJars);
+        context.put("jars", excludeItems( extJars, getExcludeItems(appManifest, platform, "excludeJars")));
+        context.put("engineJars", excludeItems( (List<String>)context.get("engineJars"), getExcludeItems(appManifest, platform, "excludeJars")) );
 
         String command = templateExecutor.execute(platformConfig.dxCmd, context);
         try {
@@ -417,7 +485,7 @@ class Extender {
 
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = loadManifest(manifest);
+                ManifestConfiguration manifestConfig = loadYaml(manifest, ManifestConfiguration.class);
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {

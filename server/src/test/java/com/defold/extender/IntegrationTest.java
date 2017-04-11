@@ -11,6 +11,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.springframework.boot.logging.LogLevel;
+import org.springframework.boot.logging.LoggingSystem;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,7 +21,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -30,6 +35,10 @@ public class IntegrationTest {
     private static final int EXTENDER_PORT = 9000;
 
     private TestConfiguration configuration;
+
+    static {
+        LoggingSystem.get(ClassLoader.getSystemClassLoader()).setLogLevel(Logger.ROOT_LOGGER_NAME, LogLevel.INFO);
+    }
 
     private static class Version
     {
@@ -103,7 +112,7 @@ public class IntegrationTest {
                 new DefoldVersion("8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", new Version(1, 2, 97), new String[] {"x86-osx"}),
                 new DefoldVersion("735ff76c8b1f93b3126ff223cd234d7ceb5b886d", new Version(1, 2, 98), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 99), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
-                new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("1afccdb2cd42ca3bc7612a0496dfa6d434a8ebf9", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
         };
 
         for( int i = 0; i < versions.length; ++i )
@@ -314,5 +323,60 @@ public class IntegrationTest {
         for (ClassDef classDef: dexFile.getClasses()) {
             assertEquals("Lcom/svenandersson/dummy/Dummy;", classDef.getType());
         }
+    }
+
+    @Test
+    public void buildEngineAppManifest() throws IOException, ExtenderClientException {
+        // Testing that using an app.manifest helps resolve issues with duplicate symbols
+        // E.g. removing libs, symbols and jar files
+
+        boolean isAndroid = configuration.platform.contains("android");
+        boolean hasAndroidBug = isAndroid && (configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
+
+        org.junit.Assume.assumeFalse("Has android bug - skipping", hasAndroidBug );
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/testproject_appmanifest/_app/app.manifest"),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext/ext.manifest"),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext2/ext.manifest"),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext2/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext2/lib/%s/libblib.a", configuration.platform))
+        );
+
+        if (isAndroid) {
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy1.jar"));
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy2.jar"));
+        }
+
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println("ERROR LOG:");
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 }

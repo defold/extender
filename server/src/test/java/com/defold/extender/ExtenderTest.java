@@ -5,7 +5,9 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockMultipartHttpServletRequest;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,6 +17,21 @@ import static org.junit.Assert.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.fileUpload;
 
 public class ExtenderTest {
+
+    @Test
+    public void testExtender() throws IOException, InterruptedException, ExtenderException {
+        File uploadDir = new File("/tmp/tmpUpload");
+        uploadDir.mkdirs();
+        uploadDir.deleteOnExit();
+        File buildDir = new File("/tmp/tmpBuild");
+        buildDir.mkdirs();
+        buildDir.deleteOnExit();
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+        Extender extender = new Extender("x86-osx", uploadDir, sdk, buildDir.getAbsolutePath());
+
+        uploadDir.delete();
+        assertTrue(true);
+    }
 
     @Test
     public void testReceiveFiles() throws IOException, InterruptedException, ExtenderException {
@@ -276,5 +293,66 @@ public class ExtenderTest {
         List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), "(.+\\.jar)");
         assertEquals(1, result.size());
         assertTrue(result.get(0).endsWith("test-data/ext/lib/armv7-android/Dummy.jar"));
+    }
+
+
+    @Test
+    public void testExcludeItems() throws IOException, InterruptedException, ExtenderException {
+
+        File appManifestFile = new File("/tmp/app.manifest");
+        BufferedWriter writer = new BufferedWriter(new FileWriter(appManifestFile));
+        writer.write("platforms:\n    common:\n        context:\n            excludeSymbols: [\"SymbolA\"]\n    x86-osx:\n        context:\n            excludeSymbols: [\"SymbolB\"]\n    x86-win32:\n        context:\n            excludeSymbols: [\"SymbolC\"]");
+        writer.close();
+
+        AppManifestConfiguration appManifest = Extender.loadYaml(appManifestFile, AppManifestConfiguration.class);
+
+        assertTrue(appManifest != null);
+
+        // Make sure it handles platforms
+        {
+            List<String> items = Extender.getExcludeItems(appManifest, "x86-osx", "excludeSymbols");
+            assertTrue( items.contains("SymbolA") );
+            assertTrue( items.contains("SymbolB") );
+            assertFalse( items.contains("SymbolC") );
+        }
+
+        {
+            List<String> patterns = Extender.getExcludeItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> allItems = new ArrayList<>();
+            allItems.add("SymbolA");
+            allItems.add("SymbolB");
+            allItems.add("SymbolC");
+
+            List<String> items = Extender.excludeItems(allItems, patterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("SymbolC") );
+        }
+
+        {
+            List<String> patterns = new ArrayList<>();
+            patterns.add(".*/google-play-services.jar");
+
+            List<String> allItems = new ArrayList<>();
+            allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
+            allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
+
+            List<String> items = Extender.excludeItems(allItems, patterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
+        }
+
+        {
+            List<String> patterns = new ArrayList<>();
+            patterns.add("(.*)google-play-services.jar");
+
+            List<String> allItems = new ArrayList<>();
+            allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
+            allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
+
+            List<String> items = Extender.excludeItems(allItems, patterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
+        }
+
     }
 }
