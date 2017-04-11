@@ -2,6 +2,8 @@ package com.defold.extender;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -360,13 +362,76 @@ class Extender {
         return exe;
     }
 
-    public File buildJavaExtension(File manifest, Map<String, Object> manifestContext) throws ExtenderException {
+    public File buildRJar() throws ExtenderException {
+        try {
+            File rJavaDir = new File(extensionSource, "_app/rjava/");
+            if (rJavaDir.exists() && rJavaDir.isDirectory()) {
+                LOGGER.info("Building Android resources (R.java).");
+
+                // Create temp directories
+                File tmpDir = uniqueTmpFile("tmp", "rjava");
+                tmpDir.delete();
+                tmpDir.mkdir();
+
+                // <tmpDir>/classes - Output folder for compiling R.java files into classes
+                File classesDir = new File(tmpDir, "classes");
+                classesDir.delete();
+                classesDir.mkdir();
+
+                // <tmpDir>/R.jar - Jar file containing all R.classes
+                File outputJar = new File(tmpDir, "R.jar");
+
+                // <tmpDir>/sources.txt - Text file listing all R.java source paths, used by javac command
+                File sourcesListFile = new File(tmpDir, "sources.txt");
+                sourcesListFile.createNewFile();
+
+                // Collect all *.java files
+                Collection<File> files = FileUtils.listFiles(
+                    rJavaDir,
+                    new RegexFileFilter(".+\\.java"),
+                    DirectoryFileFilter.DIRECTORY
+                );
+
+                // Write source paths to sources.txt
+                for (File javaFile : files) {
+                    FileUtils.writeStringToFile(sourcesListFile, javaFile.getAbsolutePath() + "\n", Charset.defaultCharset(), true);
+                }
+
+                // Compile sources into class files
+                Map<String, Object> context = context(platformConfig.context);
+                context.put("classesDir", classesDir.getAbsolutePath());
+                context.put("classPath", classesDir.getAbsolutePath());
+                context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
+                String command = templateExecutor.execute(platformConfig.javacCmd, context);
+                processExecutor.execute(command);
+
+                // Collect all classes into a Jar file
+                context = context(platformConfig.context);
+                context.put("outputJar", outputJar.getAbsolutePath());
+                context.put("classesDir", classesDir.getAbsolutePath());
+                command = templateExecutor.execute(platformConfig.jarCmd, context);
+                processExecutor.execute(command);
+
+                return outputJar;
+            }
+        } catch (IOException e) {
+            throw new ExtenderException(e, e.getMessage());
+        } catch (InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return null;
+    }
+
+    public File buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
 
         if (platformConfig.javaSourceRe == null || platformConfig.javacCmd == null || platformConfig.jarCmd == null) {
             return null;
         }
 
         try {
+
+            LOGGER.info("Building Java sources with extension source {}", extensionSource);
 
             // Collect all Java source files
             File extDir = manifest.getParentFile();
@@ -386,10 +451,9 @@ class Extender {
             // * sources.txt - Text file with list of Java sources
             // * output.jar  - Resulting Jar file with all compiled Java classes
             // The temporary working directory should be removed when done.
-            File tmpDir = File.createTempFile("tmp", "javac");
+            File tmpDir = uniqueTmpFile("tmp", "javac");
             tmpDir.delete();
             tmpDir.mkdir();
-            tmpDir.deleteOnExit();
 
             File classesDir = new File(tmpDir, "classes");
             classesDir.delete();
@@ -408,7 +472,11 @@ class Extender {
             // Compile sources into class files
             Map<String, Object> context = context(manifestContext);
             context.put("classesDir", classesDir.getAbsolutePath());
-            context.put("workDir", srcDir.getAbsolutePath());
+            String classPath = srcDir.getAbsolutePath() + ":" + classesDir.getAbsolutePath();
+            if (rJar != null) {
+                classPath += ":" + rJar.getAbsolutePath();
+            }
+            context.put("classPath", classPath);
             context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
             String command = templateExecutor.execute(platformConfig.javacCmd, context);
             processExecutor.execute(command);
@@ -429,8 +497,12 @@ class Extender {
         }
     }
 
-    public List<File> buildJava() throws ExtenderException {
+    public List<File> buildJava(File rJar) throws ExtenderException {
         List<File> builtJars = new ArrayList<>();
+        if (rJar != null) {
+            builtJars.add(rJar);
+        }
+
         try {
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
@@ -445,7 +517,7 @@ class Extender {
 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 
-                File extensionJar = buildJavaExtension(manifest, manifestContext);
+                File extensionJar = buildJavaExtension(manifest, manifestContext, rJar);
                 if (extensionJar != null) {
                     builtJars.add(extensionJar);
                 }
@@ -476,7 +548,7 @@ class Extender {
     }
 
     public File buildClassesDex(List<File> extraJars) throws ExtenderException {
-        LOGGER.info("Building classes.dex with extension source {}", platform, extensionSource);
+        LOGGER.info("Building classes.dex with extension source {}", extensionSource);
 
         // To support older versions of build.yml where dxCmd is not defined:
         if (platformConfig.dxCmd == null || platformConfig.dxCmd.isEmpty()) {
@@ -488,7 +560,8 @@ class Extender {
         List<String> extJars = new ArrayList<>();
         for (File extDir : this.extDirs) {
             extJars.addAll(getJars(extDir));
-        }for (File extraJar : extraJars) {
+        }
+        for (File extraJar : extraJars) {
             extJars.add(extraJar.getAbsolutePath());
         }
 
@@ -552,7 +625,8 @@ class Extender {
         List<File> outputFiles = new ArrayList<>();
 
         if (platform.endsWith("android")) {
-            List<File> extraJars = buildJava();
+            File rJar = buildRJar();
+            List<File> extraJars = buildJava(rJar);
 
             File classesDex = buildClassesDex(extraJars);
             if (classesDex != null) {
