@@ -414,9 +414,7 @@ class Extender {
 
                 return outputJar;
             }
-        } catch (IOException e) {
-            throw new ExtenderException(e, e.getMessage());
-        } catch (InterruptedException e) {
+        } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
 
@@ -490,9 +488,7 @@ class Extender {
 
             return outputJar;
 
-        } catch (IOException e) {
-            throw new ExtenderException(e, e.getMessage());
-        } catch (InterruptedException e) {
+        } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
     }

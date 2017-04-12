@@ -13,6 +13,11 @@ public class FileExtenderResource implements ExtenderResource {
         this(new File(filePath));
     }
 
+    public FileExtenderResource(String filePath, String zipPath) {
+        this(new File(filePath));
+        this.filePath = zipPath;
+    }
+
     FileExtenderResource(File file) {
         this.file = file;
         this.filePath = file.getPath();
