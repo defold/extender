@@ -565,10 +565,6 @@ class Extender {
             extJars.add(extraJar.getAbsolutePath());
         }
 
-        if (extJars.isEmpty()) {
-            return null;
-        }
-
         Map<String, Object> context = context(platformConfig.context);
         context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("jars", extJars);

@@ -11,6 +11,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.springframework.boot.logging.LogLevel;
+import org.springframework.boot.logging.LoggingSystem;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +33,10 @@ public class IntegrationTest {
     private static final int EXTENDER_PORT = 9000;
 
     private TestConfiguration configuration;
+
+    static {
+        LoggingSystem.get(ClassLoader.getSystemClassLoader()).setLogLevel(Logger.ROOT_LOGGER_NAME, LogLevel.INFO);
+    }
 
     private static class Version
     {
