@@ -320,8 +320,13 @@ public class IntegrationTest {
 
         // Verify that classes.dex contains our Dummy class
         DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+
+        List<String> expected = new ArrayList<>();
+        expected.add("Lcom/svenandersson/dummy/Dummy;");
+        expected.add("Lcom/defoldtest/engine/Engine;");
+
         for (ClassDef classDef: dexFile.getClasses()) {
-            assertEquals("Lcom/svenandersson/dummy/Dummy;", classDef.getType());
+            assertTrue( expected.contains( classDef.getType() ) );
         }
     }
 

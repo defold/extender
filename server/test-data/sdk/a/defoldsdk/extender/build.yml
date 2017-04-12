@@ -90,7 +90,7 @@ platforms:
 
   armv7-android:
     context:
-        engineJars: []
+        engineJars: ["{{dynamo_home}}/share/java/Engine.jar"]
         engineLibs: ["engine_main", "engine_foo"]
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android"]
 
