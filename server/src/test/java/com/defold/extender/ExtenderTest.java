@@ -310,46 +310,64 @@ public class ExtenderTest {
 
         // Make sure it handles platforms
         {
-            List<String> items = Extender.getExcludeItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> items = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
             assertTrue( items.contains("SymbolA") );
             assertTrue( items.contains("SymbolB") );
             assertFalse( items.contains("SymbolC") );
         }
 
         {
-            List<String> patterns = Extender.getExcludeItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> includePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "includeSymbols");
+            List<String> excludePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
             List<String> allItems = new ArrayList<>();
             allItems.add("SymbolA");
             allItems.add("SymbolB");
             allItems.add("SymbolC");
 
-            List<String> items = Extender.excludeItems(allItems, patterns);
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
             assertEquals( 1, items.size() );
             assertTrue( items.contains("SymbolC") );
         }
 
         {
-            List<String> patterns = new ArrayList<>();
-            patterns.add(".*/google-play-services.jar");
+            List<String> includePatterns = new ArrayList<>();;
+            List<String> excludePatterns = new ArrayList<>();
+            excludePatterns.add(".*/google-play-services.jar");
 
             List<String> allItems = new ArrayList<>();
             allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
             allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
 
-            List<String> items = Extender.excludeItems(allItems, patterns);
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
             assertEquals( 1, items.size() );
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }
 
         {
-            List<String> patterns = new ArrayList<>();
-            patterns.add("(.*)google-play-services.jar");
+            List<String> includePatterns = new ArrayList<>();;
+            List<String> excludePatterns = new ArrayList<>();
+            excludePatterns.add("(.*)google-play-services.jar");
 
             List<String> allItems = new ArrayList<>();
             allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
             allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
 
-            List<String> items = Extender.excludeItems(allItems, patterns);
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
+        }
+
+        {
+            List<String> includePatterns = new ArrayList<>();;
+            List<String> excludePatterns = new ArrayList<>();
+            excludePatterns.add("(.*).jar");                // removes all jars
+            includePatterns.add("(.*)facebook(.*).jar");    // keeps the facebook jars
+
+            List<String> allItems = new ArrayList<>();
+            allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
+            allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
+
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
             assertEquals( 1, items.size() );
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }

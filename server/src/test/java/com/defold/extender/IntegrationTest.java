@@ -157,7 +157,7 @@ public class IntegrationTest {
     @Test
     public void buildEngineOLD() throws IOException, ExtenderClientException {
 
-        org.junit.Assume.assumeTrue("Too new sdk - skipping", configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
+        org.junit.Assume.assumeFalse("Too new sdk - skipping", configuration.version.version.isGreaterThan(1, 2, 100) );
 
         clearCache();
 
@@ -213,6 +213,7 @@ public class IntegrationTest {
     public void buildEngine() throws IOException, ExtenderClientException {
 
         boolean isAndroid = configuration.platform.contains("android");
+        // The bug in question is related to library dependency order. (i.e. getting "undefined reference to X")
         boolean hasAndroidBug = isAndroid && (configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
 
         org.junit.Assume.assumeFalse("Has android bug - skipping", hasAndroidBug );
@@ -336,9 +337,6 @@ public class IntegrationTest {
         // E.g. removing libs, symbols and jar files
 
         boolean isAndroid = configuration.platform.contains("android");
-        boolean hasAndroidBug = isAndroid && (configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
-
-        org.junit.Assume.assumeFalse("Has android bug - skipping", hasAndroidBug );
 
         clearCache();
 
