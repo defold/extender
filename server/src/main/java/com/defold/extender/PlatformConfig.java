@@ -12,9 +12,12 @@ class PlatformConfig {
     public String shlibRe;
     public String stlibRe;
     public String sourceRe;
+    public String javaSourceRe;
     public String compileCmd;
     public String linkCmd;
     public String libCmd;
+    public String javacCmd;
+    public String jarCmd;
     public String dxCmd;
     public List<String> allowedLibs;
     public List<String> allowedFlags;

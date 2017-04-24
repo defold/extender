@@ -21,9 +21,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -112,7 +110,8 @@ public class IntegrationTest {
                 new DefoldVersion("8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", new Version(1, 2, 97), new String[] {"x86-osx"}),
                 new DefoldVersion("735ff76c8b1f93b3126ff223cd234d7ceb5b886d", new Version(1, 2, 98), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 99), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
-                new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("1afccdb2cd42ca3bc7612a0496dfa6d434a8ebf9", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("1e53d81a6306962b64381195f081d442d033ead1", new Version(1, 2, 101), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
         };
 
         for( int i = 0; i < versions.length; ++i )
@@ -275,7 +274,10 @@ public class IntegrationTest {
     @Test
     public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException, InterruptedException {
 
-        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.", configuration.platform.contains("android") && configuration.version.version.isVersion(0, 0, 0) );
+        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
+                configuration.platform.contains("android") &&
+                        (configuration.version.version.isGreaterThan(1, 2, 100) || configuration.version.version.isVersion(0, 0, 0) )
+        );
 
         clearCache();
 
@@ -320,13 +322,131 @@ public class IntegrationTest {
 
         // Verify that classes.dex contains our Dummy class
         DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
-
-        List<String> expected = new ArrayList<>();
-        expected.add("Lcom/svenandersson/dummy/Dummy;");
-        expected.add("Lcom/defoldtest/engine/Engine;");
-
+        Set<String> dexClasses = new HashSet<>();
         for (ClassDef classDef: dexFile.getClasses()) {
-            assertTrue( expected.contains( classDef.getType() ) );
+            dexClasses.add(classDef.getType());
         }
+
+        assertTrue(dexClasses.contains("Lcom/svenandersson/dummy/Dummy;"));
+    }
+
+    @Test
+    public void buildAndroidCheckCompiledJava() throws IOException, ExtenderClientException, InterruptedException {
+
+        org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
+                configuration.platform.contains("android") &&
+                        (configuration.version.version.isGreaterThan(1, 2, 101) || configuration.version.version.isVersion(0, 0, 0) )
+        );
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/src/Test.java"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ZipFile zipFile = new ZipFile(destination);
+        ZipEntry classesDexEntry = zipFile.getEntry("classes.dex");
+        assertNotEquals(null, classesDexEntry);
+        assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
+
+
+        InputStream in = zipFile.getInputStream(classesDexEntry);
+        Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
+        Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Verify that classes.dex contains our Dummy class and our compiled Java class
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        Set<String> dexClasses = new HashSet<>();
+        for (ClassDef classDef: dexFile.getClasses()) {
+            dexClasses.add(classDef.getType());
+        }
+
+        assertTrue(dexClasses.contains("Lcom/svenandersson/dummy/Dummy;"));
+        assertTrue(dexClasses.contains("Lcom/defold/Test;"));
+    }
+
+    @Test
+    public void buildAndroidRJar() throws IOException, ExtenderClientException, InterruptedException {
+
+        org.junit.Assume.assumeTrue("Defold version does not support Android resources compilation test.",
+                configuration.platform.contains("android") &&
+                        (configuration.version.version.isGreaterThan(1, 2, 101) || configuration.version.version.isVersion(0, 0, 0) )
+        );
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
+                new FileExtenderResource("test-data/_app/rjava/com/dummy/R.java", "_app/rjava/com/dummy/R.java"));
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ZipFile zipFile = new ZipFile(destination);
+        ZipEntry classesDexEntry = zipFile.getEntry("classes.dex");
+        assertNotEquals(null, classesDexEntry);
+        assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
+
+
+        InputStream in = zipFile.getInputStream(classesDexEntry);
+        Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
+        Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Verify that classes.dex contains our Dummy class and our compiled Java class
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        Set<String> dexClasses = new HashSet<>();
+        for (ClassDef classDef: dexFile.getClasses()) {
+            dexClasses.add(classDef.getType());
+        }
+
+        assertTrue(dexClasses.contains("Lcom/dummy/R;"));
     }
 }
