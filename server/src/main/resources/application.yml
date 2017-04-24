@@ -20,6 +20,9 @@ endpoints:
     enabled: true
     sensitive: true
 
+# Suppress info-logging from metrics reporting client
+logging.level.okhttp3.OkHttpClient: WARN
+
 ---
 
 spring:
@@ -45,3 +48,6 @@ endpoints:
   health:
     enabled: true
     sensitive: true
+
+# Suppress info-logging from metrics reporting client
+logging.level.okhttp3.OkHttpClient: WARN
