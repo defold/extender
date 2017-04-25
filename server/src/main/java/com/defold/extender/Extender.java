@@ -50,14 +50,14 @@ class Extender {
 
         Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
 
-        List<File> appMmanifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
-        if (appMmanifests.size() > 1 ) {
+        List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
+        if (appManifests.size() > 1 ) {
             throw new ExtenderException("Only one app.manifest allowed!");
         }
-        if (appMmanifests.isEmpty()) {
+        if (appManifests.isEmpty()) {
             this.appManifest = new AppManifestConfiguration();
         } else {
-            this.appManifest = loadYaml(appMmanifests.get(0), AppManifestConfiguration.class);
+            this.appManifest = loadYaml(appManifests.get(0), AppManifestConfiguration.class);
         }
 
         this.platform = platform;

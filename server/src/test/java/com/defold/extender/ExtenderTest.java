@@ -7,7 +7,6 @@ import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequ
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -299,10 +298,7 @@ public class ExtenderTest {
     @Test
     public void testExcludeItems() throws IOException, InterruptedException, ExtenderException {
 
-        File appManifestFile = new File("/tmp/app.manifest");
-        BufferedWriter writer = new BufferedWriter(new FileWriter(appManifestFile));
-        writer.write("platforms:\n    common:\n        context:\n            excludeSymbols: [\"SymbolA\"]\n    x86-osx:\n        context:\n            excludeSymbols: [\"SymbolB\"]\n    x86-win32:\n        context:\n            excludeSymbols: [\"SymbolC\"]");
-        writer.close();
+        File appManifestFile = new File("test-data/extendertest.app.manifest");
 
         AppManifestConfiguration appManifest = Extender.loadYaml(appManifestFile, AppManifestConfiguration.class);
 

@@ -136,7 +136,7 @@ public class ExtenderController {
             MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
 
             // translate it into a valid filename
-            String name = multipartFile.getName().replace('\\', File.separatorChar);;
+            String name = multipartFile.getName().replace('\\', File.separatorChar);
             File file = new File(uploadDirectory, name);
 
             if (!isRelativePath(uploadDirectory, file)) {
