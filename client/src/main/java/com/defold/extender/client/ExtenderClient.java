@@ -19,6 +19,7 @@ public class ExtenderClient {
     private final String extenderBaseUrl;
     private ExtenderClientCache cache;
 
+    public static final String appManifestFilename = "app.manifest";
     public static final String extensionFilename = "ext.manifest";
     public static final Pattern extensionPattern = Pattern.compile(extensionFilename);
 

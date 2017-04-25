@@ -2,35 +2,64 @@ context:
     dynamo_home: '/Users/chmu/tmp/dynamo-home'
     frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
-    symbols: []
+    symbols: ["FooSymbol"]
 
 main: |
     #include <stdio.h>
 
+    #if __cplusplus
+    extern "C" {
+    #endif
+
     {{#symbols}}
-    extern "C" void {{.}}();
+    void {{{.}}}();
     {{/symbols}}
 
     {{#ext.symbols}}
-    extern "C" void {{.}}();
+    void {{{.}}}();
     {{/ext.symbols}}
+
+    #if __cplusplus
+    }
+    #endif
 
     void dmExportedSymbols() {
         {{#symbols}}
-        {{.}}();
+        {{{.}}}();
         {{/symbols}}
         {{#ext.symbols}}
-        {{.}}();
+        {{{.}}}();
         {{/ext.symbols}}
     }
 
-    extern "C" void Test();
+    extern int engine_main(int argc, char* argv[]);
+
     int main(int argc, char *argv[])
     {
-        printf("Hello Extender\n");
-        Test();
-        return 0;
+        return engine_main(argc, argv);
     }
+
+    #ifdef DM_PLATFORM_ANDROID
+
+    #if __cplusplus
+    extern "C" {
+    #endif
+
+    struct android_app;
+    extern void _glfwPreMain(struct android_app* state);
+    extern void app_dummy();
+
+    void android_main(struct android_app* state)
+    {
+        // Make sure glue isn't stripped.
+        app_dummy();
+        _glfwPreMain(state);
+    }
+
+    #if __cplusplus
+    }
+    #endif
+    #endif
 
 
 whitelist:
@@ -46,7 +75,8 @@ platforms:
   x86-osx:
     context:
         frameworks: []
-        engineLibs: []
+        engineLibs: ["engine_main", "engine_foo"]
+        libPaths:   ["{{dynamo_home}}/lib/darwin", "{{dynamo_home}}/ext/lib/darwin", "{{dynamo_home}}/lib/x86-osx"]
     exePrefix: ''
     exeExt: ''
     shlibRe: 'lib(.+).dylib'
@@ -61,7 +91,8 @@ platforms:
   armv7-android:
     context:
         engineJars: ["{{dynamo_home}}/share/java/Engine.jar"]
-        engineLibs: []
+        engineLibs: ["engine_main", "engine_foo"]
+        libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android"]
 
     exePrefix: 'lib'
     exeExt: '.so'

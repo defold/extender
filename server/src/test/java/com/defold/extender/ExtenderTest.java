@@ -5,6 +5,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockMultipartHttpServletRequest;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,21 @@ import static org.junit.Assert.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.fileUpload;
 
 public class ExtenderTest {
+
+    @Test
+    public void testExtender() throws IOException, InterruptedException, ExtenderException {
+        File uploadDir = new File("/tmp/tmpUpload");
+        uploadDir.mkdirs();
+        uploadDir.deleteOnExit();
+        File buildDir = new File("/tmp/tmpBuild");
+        buildDir.mkdirs();
+        buildDir.deleteOnExit();
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+        Extender extender = new Extender("x86-osx", uploadDir, sdk, buildDir.getAbsolutePath());
+
+        uploadDir.delete();
+        assertTrue(true);
+    }
 
     @Test
     public void testReceiveFiles() throws IOException, InterruptedException, ExtenderException {
@@ -60,6 +76,23 @@ public class ExtenderTest {
             assertTrue(thrown);
             File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename);
             assertFalse(file.exists());
+        }
+
+        // Should be fine (Windows back slashes)
+        uploadDirectory = Files.createTempDirectory("upload").toFile();
+        uploadDirectory.deleteOnExit();
+        builder = fileUpload("/tmpUpload");
+        filename = "src/foo/bar/test.cpp";
+        expectedContent = "//ABcdEFgh";
+        builder.file("src\\foo\\bar\\test.cpp", expectedContent.getBytes());
+        request = builder.buildRequest(null);
+        {
+            ExtenderController.receiveUpload((MockMultipartHttpServletRequest) request, uploadDirectory);
+            File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename);
+            file.deleteOnExit();
+            assertTrue(file.exists());
+            String fileContent = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            assertTrue(expectedContent.equals(fileContent));
         }
     }
 
@@ -259,5 +292,81 @@ public class ExtenderTest {
         List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), "(.+\\.jar)");
         assertEquals(1, result.size());
         assertTrue(result.get(0).endsWith("test-data/ext/lib/armv7-android/Dummy.jar"));
+    }
+
+
+    @Test
+    public void testExcludeItems() throws IOException, InterruptedException, ExtenderException {
+
+        File appManifestFile = new File("test-data/extendertest.app.manifest");
+
+        AppManifestConfiguration appManifest = Extender.loadYaml(appManifestFile, AppManifestConfiguration.class);
+
+        assertTrue(appManifest != null);
+
+        // Make sure it handles platforms
+        {
+            List<String> items = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            assertTrue( items.contains("SymbolA") );
+            assertTrue( items.contains("SymbolB") );
+            assertFalse( items.contains("SymbolC") );
+        }
+
+        {
+            List<String> includePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "includeSymbols");
+            List<String> excludePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> allItems = new ArrayList<>();
+            allItems.add("SymbolA");
+            allItems.add("SymbolB");
+            allItems.add("SymbolC");
+
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("SymbolC") );
+        }
+
+        {
+            List<String> includePatterns = new ArrayList<>();;
+            List<String> excludePatterns = new ArrayList<>();
+            excludePatterns.add(".*/google-play-services.jar");
+
+            List<String> allItems = new ArrayList<>();
+            allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
+            allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
+
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
+        }
+
+        {
+            List<String> includePatterns = new ArrayList<>();;
+            List<String> excludePatterns = new ArrayList<>();
+            excludePatterns.add("(.*)google-play-services.jar");
+
+            List<String> allItems = new ArrayList<>();
+            allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
+            allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
+
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
+        }
+
+        {
+            List<String> includePatterns = new ArrayList<>();;
+            List<String> excludePatterns = new ArrayList<>();
+            excludePatterns.add("(.*).jar");                // removes all jars
+            includePatterns.add("(.*)facebook(.*).jar");    // keeps the facebook jars
+
+            List<String> allItems = new ArrayList<>();
+            allItems.add("{{dynamo_home}}/ext/share/java/facebooksdk.jar");
+            allItems.add("{{dynamo_home}}/ext/share/java/google-play-services.jar");
+
+            List<String> items = ExtenderUtil.pruneItems(allItems, includePatterns, excludePatterns);
+            assertEquals( 1, items.size() );
+            assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
+        }
+
     }
 }

@@ -112,6 +112,7 @@ public class IntegrationTest {
                 new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 99), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("1afccdb2cd42ca3bc7612a0496dfa6d434a8ebf9", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("1e53d81a6306962b64381195f081d442d033ead1", new Version(1, 2, 101), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("d530758af74c2800d0898c591cc7188cc4515476", new Version(1, 2, 102), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
         };
 
         for( int i = 0; i < versions.length; ++i )
@@ -156,7 +157,7 @@ public class IntegrationTest {
     @Test
     public void buildEngineOLD() throws IOException, ExtenderClientException {
 
-        org.junit.Assume.assumeTrue("Too new sdk - skipping", configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
+        org.junit.Assume.assumeFalse("Too new sdk - skipping", configuration.version.version.isGreaterThan(1, 2, 100) );
 
         clearCache();
 
@@ -212,6 +213,7 @@ public class IntegrationTest {
     public void buildEngine() throws IOException, ExtenderClientException {
 
         boolean isAndroid = configuration.platform.contains("android");
+        // The bug in question is related to library dependency order. (i.e. getting "undefined reference to X")
         boolean hasAndroidBug = isAndroid && (configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
 
         org.junit.Assume.assumeFalse("Has android bug - skipping", hasAndroidBug );
@@ -335,7 +337,7 @@ public class IntegrationTest {
 
         org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
                 configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 101) || configuration.version.version.isVersion(0, 0, 0) )
+                        (configuration.version.version.isGreaterThan(1, 2, 102) || configuration.version.version.isVersion(0, 0, 0) )
         );
 
         clearCache();
@@ -396,7 +398,7 @@ public class IntegrationTest {
 
         org.junit.Assume.assumeTrue("Defold version does not support Android resources compilation test.",
                 configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 101) || configuration.version.version.isVersion(0, 0, 0) )
+                        (configuration.version.version.isGreaterThan(1, 2, 102) || configuration.version.version.isVersion(0, 0, 0) )
         );
 
         clearCache();
@@ -448,5 +450,57 @@ public class IntegrationTest {
         }
 
         assertTrue(dexClasses.contains("Lcom/dummy/R;"));
+    }
+
+    @Test
+    public void buildEngineAppManifest() throws IOException, ExtenderClientException {
+        // Testing that using an app.manifest helps resolve issues with duplicate symbols
+        // E.g. removing libs, symbols and jar files
+
+        boolean isAndroid = configuration.platform.contains("android");
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/testproject_appmanifest/_app/app.manifest"),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext/ext.manifest"),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext2/ext.manifest"),
+                new FileExtenderResource("test-data/testproject_appmanifest/ext2/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext2/lib/%s/libblib.a", configuration.platform))
+        );
+
+        if (isAndroid) {
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy1.jar"));
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy2.jar"));
+        }
+
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println("ERROR LOG:");
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 }

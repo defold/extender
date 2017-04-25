@@ -20,8 +20,6 @@ import java.util.regex.Pattern;
 import static org.junit.Assert.*;
 
 public class ExtenderClientTest {
-    private static final String extensionFilename = "ext.manifest";
-    private static final Pattern extensionPattern = Pattern.compile(extensionFilename);
 
     private void writeToFile(String path, String msg) throws IOException {
         File f = new File(path);
@@ -266,7 +264,7 @@ public class ExtenderClientTest {
 
         for (File f : extensions) {
 
-            source.add(new FileExtenderResource(f.getAbsolutePath() + File.separator + extensionFilename));
+            source.add(new FileExtenderResource(f.getAbsolutePath() + File.separator + ExtenderClient.extensionFilename));
             source.addAll(listFilesRecursive(new File(f.getAbsolutePath() + File.separator + "include")));
             source.addAll(listFilesRecursive(new File(f.getAbsolutePath() + File.separator + "src")));
             source.addAll(listFilesRecursive(new File(f.getAbsolutePath() + File.separator + "lib" + File.separator + platform)));
@@ -288,7 +286,7 @@ public class ExtenderClientTest {
 
         File[] files = dir.listFiles();
         for (File f : files) {
-            Matcher m = extensionPattern.matcher(f.getName());
+            Matcher m = ExtenderClient.extensionPattern.matcher(f.getName());
             if (m.matches()) {
                 folders.add(dir);
                 return folders;
