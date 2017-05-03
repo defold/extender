@@ -45,6 +45,7 @@ class ExtensionManifestValidator {
 
                 case "libs":
                 case "frameworks":
+                case "weakFrameworks":
                     patterns = allowedLibs;
                     type = "lib";
                     break;
