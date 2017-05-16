@@ -66,8 +66,7 @@ class ExtenderUtil
         return items;
     }
 
-    static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns)
-    {
+    static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns) {
         List<String> includeItems = matchItems(input, includePatterns);
         List<String> items = excludeItems(input, excludePatterns);
         for( String item : includeItems) {

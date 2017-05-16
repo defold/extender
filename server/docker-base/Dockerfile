@@ -113,3 +113,27 @@ RUN \
   ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin11-clang && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin11-clang && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin11-clang-ar
+
+# EMSCRIPTEN
+RUN apt-get install -y --no-install-recommends python2.7 && \
+  ln -s /usr/bin/python2.7 /usr/local/bin/python && \
+  ln -s /usr/bin/python2.7 /usr/local/bin/python2
+
+ENV EMSCRIPTEN_SDK /opt/emsdk
+ENV EMSCRIPTEN_HOME ${EMSCRIPTEN_SDK}/bin/emsdk_portable
+ENV EMSCRIPTEN_CONFIG ${EMSCRIPTEN_HOME}/.emscripten
+# This should really be a version number in the future, but it was somehow built with "master" as the folder name
+ENV EMSCRIPTEN_VERSION master
+# Where the embedded config file ends up
+ENV EM_CONFIG ${EMSCRIPTEN_CONFIG}
+ENV EMCC_SKIP_SANITY_CHECK 1
+# Add emscripten to the path
+ENV PATH ${PATH}:${EMSCRIPTEN_HOME}:${EMSCRIPTEN_HOME}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME}/node/4.1.1_64bit/bin:${EMSCRIPTEN_HOME}/emscripten/${EMSCRIPTEN_VERSION}
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK} && \
+  wget -q -O - ${S3_URL}/emsdk-1.35.23-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK} && \
+  ${EMSCRIPTEN_HOME}/emsdk activate --embedded && \
+  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG} && \
+  echo TEMP_DIR = \'/var/extender/builds\' >> ${EMSCRIPTEN_CONFIG} && \
+  chmod -R 755 ${EMSCRIPTEN_HOME}

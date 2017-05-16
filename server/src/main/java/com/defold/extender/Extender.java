@@ -37,8 +37,9 @@ class Extender {
     private List<File> extDirs = new ArrayList<>();
     private List<File> manifests = new ArrayList<>();
 
-    private static final String FRAMEWORK_RE = "(.+)\\.framework";
-    private static final String JAR_RE = "(.+\\.jar)";
+    public static final String FRAMEWORK_RE = "(.+)\\.framework";
+    public static final String JAR_RE = "(.+\\.jar)";
+    public static final String JS_RE = "(.+\\.js)";
 
     private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
     private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
@@ -50,6 +51,9 @@ class Extender {
     Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException, ExtenderException {
         // Read config from SDK
         this.config = loadYaml(new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
+
+        // Make sure the Emscripten compiler doesn't pollute the environment
+        processExecutor.putEnv("EM_CACHE", buildDirectory);
 
         Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
 
@@ -85,8 +89,11 @@ class Extender {
 
     // Does a regexp match on the filename for each file found in a directory
     static List<String> collectFilesByName(File dir, String re) {
-        Pattern p = Pattern.compile(re);
         List<String> libs = new ArrayList<>();
+        if (re == null) {
+            return libs;
+        }
+        Pattern p = Pattern.compile(re);
         if (dir.exists()) {
             File[] files = dir.listFiles();
             for (File f : files) {
@@ -102,8 +109,11 @@ class Extender {
 
     // Does a regexp match on the absolute path for each file found in a directory
     static List<String> collectFilesByPath(File dir, String re) {
-        Pattern p = Pattern.compile(re);
         List<String> libs = new ArrayList<>();
+        if (re == null) {
+            return libs;
+        }
+        Pattern p = Pattern.compile(re);
         if (dir.exists()) {
             File[] files = dir.listFiles();
             for (File f : files) {
@@ -146,9 +156,8 @@ class Extender {
         return files.stream().filter(f -> p.matcher(f.getName()).matches()).collect(Collectors.toList());
     }
 
-    // Merges two lists. Appends values of b to a. Only keeps unique values
     static List<String> mergeLists(List<String> a, List<String> b) {
-        return Stream.concat(a.stream(), b.stream()).distinct().collect(Collectors.toList());
+        return Stream.concat(a.stream(), b.stream()).collect(Collectors.toList());
     }
 
     static boolean isListOfStrings(List<Object> list) {
@@ -222,7 +231,6 @@ class Extender {
             }
             context.put(k, v);
         }
-
         return context;
     }
 
@@ -344,7 +352,6 @@ class Extender {
         return items;
     }
 
-
     private File linkEngine(List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File maincpp = new File(build, "main.cpp");
         File exe = new File(build, String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt));
@@ -368,6 +375,7 @@ class Extender {
         List<String> extLibPaths = new ArrayList<>(Arrays.asList(build.toString()));
         List<String> extFrameworks = new ArrayList<>();
         List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(build.toString()));
+        List<String> extJsLibs = new ArrayList<>();
 
         extLibs.addAll(Extender.collectFilesByName(build, platformConfig.stlibRe));
         for (File extDir : this.extDirs) {
@@ -380,6 +388,7 @@ class Extender {
 
             extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.shlibRe));
             extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.stlibRe));
+            extJsLibs.addAll(Extender.collectFilesByPath(libDir, JS_RE));
 
             extFrameworks.addAll(getFrameworks(extDir));
 
@@ -399,13 +408,15 @@ class Extender {
         }
 
         extLibs = ExtenderUtil.pruneItems( extLibs, getAppManifestItems(appManifest, platform, "includeLibs"), getAppManifestItems(appManifest, platform, "excludeLibs"));
+        extJsLibs = ExtenderUtil.pruneItems( extJsLibs, getAppManifestItems(appManifest, platform, "includeJsLibs"), getAppManifestItems(appManifest, platform, "excludeJsLibs"));
 
         Map<String, Object> context = context(manifestContext);
         context.put("src", mainObject);
         context.put("tgt", exe.getAbsolutePath());
-        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths));
+        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
 
-        context.put("engineLibs", ExtenderUtil.pruneItems( (List<String>)context.get("engineLibs"), getAppManifestItems(appManifest, platform, "includeLibs"), getAppManifestItems(appManifest, platform, "excludeLibs")) );
+        context.put("engineLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineLibs", new ArrayList<>()), getAppManifestItems(appManifest, platform, "includeLibs"), getAppManifestItems(appManifest, platform, "excludeLibs")) );
+        context.put("engineJsLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineJsLibs", new ArrayList<>()), getAppManifestItems(appManifest, platform, "includeJsLibs"), getAppManifestItems(appManifest, platform, "excludeJsLibs")) );
 
         String command = templateExecutor.execute(platformConfig.linkCmd, context);
         processExecutor.execute(command);
@@ -449,7 +460,8 @@ class Extender {
                 }
 
                 // Compile sources into class files
-                Map<String, Object> context = context(platformConfig.context);
+                HashMap<String, Object> empty = new HashMap<>();
+                Map<String, Object> context = context(empty);
                 context.put("classesDir", classesDir.getAbsolutePath());
                 context.put("classPath", classesDir.getAbsolutePath());
                 context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
@@ -457,7 +469,7 @@ class Extender {
                 processExecutor.execute(command);
 
                 // Collect all classes into a Jar file
-                context = context(platformConfig.context);
+                context = context(empty);
                 context.put("outputJar", outputJar.getAbsolutePath());
                 context.put("classesDir", classesDir.getAbsolutePath());
                 command = templateExecutor.execute(platformConfig.jarCmd, context);
@@ -612,7 +624,8 @@ class Extender {
             extJars.add(extraJar.getAbsolutePath());
         }
 
-        Map<String, Object> context = context(platformConfig.context);
+        HashMap<String, Object> empty = new HashMap<>();
+        Map<String, Object> context = context(empty);
         context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("jars", ExtenderUtil.pruneItems( extJars, getAppManifestItems(appManifest, platform, "includeJars"), getAppManifestItems(appManifest, platform, "excludeJars")));
         context.put("engineJars", ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), getAppManifestItems(appManifest, platform, "includeJars"), getAppManifestItems(appManifest, platform, "excludeJars")) );
