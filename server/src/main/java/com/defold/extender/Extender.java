@@ -525,6 +525,13 @@ class Extender {
             if (rJar != null) {
                 classPath += ":" + rJar.getAbsolutePath();
             }
+
+            // Get extension supplied Jar libraries
+            List<String> extJars = getJars(extDir);
+            for (String jarPath : extJars) {
+                classPath += ":" + jarPath;
+            }
+
             context.put("classPath", classPath);
             context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
             String command = templateExecutor.execute(platformConfig.javacCmd, context);
