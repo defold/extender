@@ -290,7 +290,7 @@ public class ExtenderTest {
     @Test
     public void testCollectJars() {
         List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), "(.+\\.jar)");
-        assertEquals(1, result.size());
+        assertEquals(2, result.size());
         assertTrue(result.get(0).endsWith("test-data/ext/lib/armv7-android/Dummy.jar"));
     }
 
