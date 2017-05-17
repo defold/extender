@@ -31,5 +31,5 @@ CompileLibsToExtension alib ext/lib
 CompileLibsToExtension alib ext2/lib
 CompileLibsToExtension blib ext2/lib
 
-
+(cd testproject_appmanifest && ./build.sh)
 

@@ -294,6 +294,13 @@ public class ExtenderTest {
     }
 
     @Test
+    public void testCollectJsFiles() {
+        List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/js-web"), Extender.JS_RE);
+        assertEquals(1, result.size());
+        assertTrue(result.get(0).endsWith("test-data/ext/lib/js-web/library_dummy.js"));
+    }
+
+    @Test
     public void testExcludeItems() throws IOException, InterruptedException, ExtenderException {
 
         File appManifestFile = new File("test-data/extendertest.app.manifest");
