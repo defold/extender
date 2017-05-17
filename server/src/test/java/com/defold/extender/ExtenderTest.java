@@ -303,9 +303,10 @@ public class ExtenderTest {
     @Test
     public void testExcludeItems() throws IOException, InterruptedException, ExtenderException {
 
+        File root = new File("test-data");
         File appManifestFile = new File("test-data/extendertest.app.manifest");
 
-        AppManifestConfiguration appManifest = Extender.loadYaml(appManifestFile, AppManifestConfiguration.class);
+        AppManifestConfiguration appManifest = Extender.loadYaml(root, appManifestFile, AppManifestConfiguration.class);
 
         assertTrue(appManifest != null);
 

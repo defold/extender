@@ -49,8 +49,10 @@ class Extender {
     private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
     Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException, ExtenderException {
+        this.extensionSource = extensionSource;
+
         // Read config from SDK
-        this.config = loadYaml(new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
+        this.config = Extender.loadYaml(this.extensionSource, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
         // Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory);
@@ -64,13 +66,12 @@ class Extender {
         if (appManifests.isEmpty()) {
             this.appManifest = new AppManifestConfiguration();
         } else {
-            this.appManifest = loadYaml(appManifests.get(0), AppManifestConfiguration.class);
+            this.appManifest = Extender.loadYaml(this.extensionSource, appManifests.get(0), AppManifestConfiguration.class);
         }
 
         this.platform = platform;
         this.sdk = sdk;
         this.platformConfig = config.platforms.get(platform);
-        this.extensionSource = extensionSource;
 
         Path buildPath = Paths.get(buildDirectory);
         Files.createDirectories(buildPath);
@@ -136,7 +137,7 @@ class Extender {
         return file;
     }
 
-    static <T> T loadYaml(File manifest, Class<T> type) throws IOException, ExtenderException {
+    static <T> T loadYaml(File root, File manifest, Class<T> type) throws IOException, ExtenderException {
         String yaml = FileUtils.readFileToString(manifest);
 
         if (yaml.contains("\t")) {
@@ -147,7 +148,7 @@ class Extender {
         try {
             return new Yaml().loadAs(yaml, type);
         } catch(YAMLException e) {
-            throw new ExtenderException(String.format("Error in file '%s': %s", manifest.getName(), e.toString()));
+            throw new ExtenderException(String.format("Error in file '%s': %s", ExtenderUtil.getRelativePath(root, manifest).toString(), e.toString()));
         }
     }
 
@@ -306,8 +307,14 @@ class Extender {
             srcFiles = FileUtils.listFiles(srcDir, null, true);
             srcFiles = Extender.filterFiles(srcFiles, platformConfig.sourceRe);
         }
+
+        if (srcFiles.isEmpty()) {
+            throw new ExtenderException(String.format("Extension '%s' has no source!", ExtenderUtil.getRelativePath(this.extensionSource, manifest) ));
+        }
+
         List<String> objs = new ArrayList<>();
 
+        // Compile C++ source into object files
         int i = 0;
         for (File src : srcFiles) {
             File o = compileFile(i, extDir, src, manifestContext);
@@ -315,6 +322,7 @@ class Extender {
             i++;
         }
 
+        // Create c++ library
         File lib = uniqueTmpFile("lib", ".a");
         Map<String, Object> context = context(manifestContext);
         context.put("tgt", lib);
@@ -572,7 +580,7 @@ class Extender {
         try {
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = loadYaml(manifest, ManifestConfiguration.class);
+                ManifestConfiguration manifestConfig = Extender.loadYaml(this.extensionSource, manifest, ManifestConfiguration.class);
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
@@ -655,14 +663,15 @@ class Extender {
 
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = loadYaml(manifest, ManifestConfiguration.class);
+                ManifestConfiguration manifestConfig = Extender.loadYaml(this.extensionSource, manifest, ManifestConfiguration.class);
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
                     manifestContext = getManifestContext(manifestConfig);
                 }
 
-                this.manifestValidator.validate(manifestConfig.name, manifestContext);
+                String relativePath = ExtenderUtil.getRelativePath(this.extensionSource, manifest);
+                this.manifestValidator.validate(relativePath, manifestContext);
 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 

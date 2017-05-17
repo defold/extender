@@ -31,7 +31,7 @@ class ExtensionManifestValidator {
             Object v = context.get(k);
 
             if (!ExtensionManifestValidator.isListOfStrings((List<Object>) v)) {
-                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s: %s (type %s)  (%s)", k, v.toString(), v.getClass().getCanonicalName(), extensionName));
+                throw new ExtenderException(String.format("Error in '%s': The context variables only support strings or lists of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
             }
 
             List<String> strings = (List<String>) v;
@@ -58,12 +58,12 @@ class ExtensionManifestValidator {
 
                 default:
                     // If the user has added a non supported name
-                    throw new ExtenderException(String.format("Manifest context variable unsupported in '%s': %s", extensionName, k));
+                    throw new ExtenderException(String.format("Error in '%s': Manifest context variable unsupported: %s", extensionName, k));
             }
 
             String s = ExtensionManifestValidator.whitelistCheck(patterns, strings);
             if (s != null) {
-                throw new ExtenderException(String.format("Invalid %s in extension '%s' - '%s': '%s'", type, extensionName, k, s));
+                throw new ExtenderException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
             }
         }
     }
