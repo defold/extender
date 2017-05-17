@@ -398,6 +398,69 @@ public class IntegrationTest {
         assertTrue(dexClasses.contains("Lcom/defold/Test;"));
     }
 
+    /*
+     * Test if a Java source can import classes specified in a supplied Jar file.
+     */
+    @Test
+    public void buildAndroidJavaJarDependency() throws IOException, ExtenderClientException, InterruptedException {
+
+        org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
+                configuration.platform.contains("android") &&
+                        (configuration.version.version.isGreaterThan(1, 2, 103) || configuration.version.version.isVersion(0, 0, 0) )
+        );
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/src/TestJar.java"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/JarDep.jar"));
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ZipFile zipFile = new ZipFile(destination);
+        ZipEntry classesDexEntry = zipFile.getEntry("classes.dex");
+        assertNotEquals(null, classesDexEntry);
+        assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
+
+
+        InputStream in = zipFile.getInputStream(classesDexEntry);
+        Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
+        Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Verify that classes.dex contains our Dummy class and our compiled Java class
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        Set<String> dexClasses = new HashSet<>();
+        for (ClassDef classDef: dexFile.getClasses()) {
+            dexClasses.add(classDef.getType());
+        }
+
+        assertTrue(dexClasses.contains("Lcom/defold/JarDep;"));
+        assertTrue(dexClasses.contains("Lcom/defold/Test;"));
+    }
     @Test
     public void buildAndroidRJar() throws IOException, ExtenderClientException, InterruptedException {
 
