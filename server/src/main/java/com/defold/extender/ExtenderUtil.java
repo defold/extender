@@ -1,5 +1,6 @@
 package com.defold.extender;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -66,8 +67,7 @@ class ExtenderUtil
         return items;
     }
 
-    static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns)
-    {
+    static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns) {
         List<String> includeItems = matchItems(input, includePatterns);
         List<String> items = excludeItems(input, excludePatterns);
         for( String item : includeItems) {
@@ -76,5 +76,9 @@ class ExtenderUtil
             }
         }
         return items;
+    }
+
+    static String getRelativePath(File base, File path) {
+        return base.toURI().relativize(path.toURI()).getPath();
     }
 }

@@ -5,7 +5,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockMultipartHttpServletRequest;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -226,7 +225,7 @@ public class ExtenderTest {
 
         List<String> c = Extender.mergeLists(Arrays.asList(a), Arrays.asList(b));
 
-        String[] expected = {"1", "2", "3", "4", "5"};
+        String[] expected = {"1", "2", "2", "3", "4", "3", "5", "4", "5"};
 
         assertArrayEquals(expected, c.toArray());
     }
@@ -247,7 +246,7 @@ public class ExtenderTest {
         Map<String, Object> result = Extender.mergeContexts(a, b);
 
         Map<String, Object> expected = new HashMap<>();
-        String[] expected_frameworks = {"a", "b", "c", "d"};
+        String[] expected_frameworks = {"a", "b", "b", "c", "a", "d"};
         expected.put("frameworks", Arrays.asList(expected_frameworks));
         String[] expected_defines = {"A", "B"};
         expected.put("defines", Arrays.asList(expected_defines));
@@ -281,7 +280,7 @@ public class ExtenderTest {
             assertArrayEquals(expected, result.toArray());
         }
         {
-            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86-osx"), "(.+).framework");
+            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86-osx"), Extender.FRAMEWORK_RE);
             String[] expected = {"blib"};
             assertArrayEquals(expected, result.toArray());
         }
@@ -289,18 +288,25 @@ public class ExtenderTest {
 
     @Test
     public void testCollectJars() {
-        List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), "(.+\\.jar)");
+        List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
         assertEquals(2, result.size());
         assertTrue(result.get(0).endsWith("test-data/ext/lib/armv7-android/Dummy.jar"));
     }
 
+    @Test
+    public void testCollectJsFiles() {
+        List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/js-web"), Extender.JS_RE);
+        assertEquals(1, result.size());
+        assertTrue(result.get(0).endsWith("test-data/ext/lib/js-web/library_dummy.js"));
+    }
 
     @Test
     public void testExcludeItems() throws IOException, InterruptedException, ExtenderException {
 
+        File root = new File("test-data");
         File appManifestFile = new File("test-data/extendertest.app.manifest");
 
-        AppManifestConfiguration appManifest = Extender.loadYaml(appManifestFile, AppManifestConfiguration.class);
+        AppManifestConfiguration appManifest = Extender.loadYaml(root, appManifestFile, AppManifestConfiguration.class);
 
         assertTrue(appManifest != null);
 

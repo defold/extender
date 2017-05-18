@@ -105,7 +105,7 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86-osx", "armv7-android"} ),
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86-osx", "armv7-android", "js-web"} ),
 
                 new DefoldVersion("8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", new Version(1, 2, 97), new String[] {"x86-osx"}),
                 new DefoldVersion("735ff76c8b1f93b3126ff223cd234d7ceb5b886d", new Version(1, 2, 98), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
@@ -113,6 +113,11 @@ public class IntegrationTest {
                 new DefoldVersion("1afccdb2cd42ca3bc7612a0496dfa6d434a8ebf9", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("1e53d81a6306962b64381195f081d442d033ead1", new Version(1, 2, 101), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("d530758af74c2800d0898c591cc7188cc4515476", new Version(1, 2, 102), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("d126b0348d27c684d020e0bd43fde0a2771746f0", new Version(1, 2, 103), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+
+                // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
+                // Then you can write your tests without waiting for the next release
+                //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),
         };
 
         for( int i = 0; i < versions.length; ++i )
@@ -198,15 +203,23 @@ public class IntegrationTest {
         assertEquals("Log should be of size zero if successful.", 0, log.length());
 
         ZipFile zipFile = new ZipFile(destination);
-
-        if (platform.endsWith("android")) {
-            assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
-        }
-        else if (platform.endsWith("ios") || platform.endsWith("osx")) {
-            assertNotEquals(null, zipFile.getEntry("dmengine"));
-        }
+        assertNotEquals(null, zipFile.getEntry( getEngineName(platform) ) );
 
         FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
+    }
+
+    private String getEngineName(String platform)
+    {
+        if (platform.endsWith("android")) {
+            return "libdmengine.so";
+        }
+        else if (platform.endsWith("ios") || platform.endsWith("osx")) {
+            return "dmengine";
+        }
+        else if (platform.endsWith("web")) {
+            return "dmengine.js";
+        }
+        return null;
     }
 
     @Test
@@ -254,20 +267,12 @@ public class IntegrationTest {
         ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
         assertTrue(cache.getCachedBuildFile(platform).exists());
 
-        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
-        assertEquals("Log should be of size zero if successful.", 0, log.length());
-
         ZipFile zipFile = new ZipFile(destination);
+        assertNotEquals(null, zipFile.getEntry( getEngineName(platform) ) );
 
         if (platform.endsWith("android")) {
-            /* Add this when we've made sure that all android builds create a classes.dex
-            if (configuration.runTestClassesDex) {
-                assertNotEquals(null, zipFile.getEntry("classes.dex"));
-            }*/
-            assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
-        }
-        else if (platform.endsWith("ios") || platform.endsWith("osx")) {
-            assertNotEquals(null, zipFile.getEntry("dmengine"));
+            // Add this when we've made sure that all android builds create a classes.dex
+            assertNotEquals(null, zipFile.getEntry("classes.dex"));
         }
 
         FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
