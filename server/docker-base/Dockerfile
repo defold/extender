@@ -130,6 +130,8 @@ ENV EMCC_SKIP_SANITY_CHECK 1
 # Add emscripten to the path
 ENV PATH ${PATH}:${EMSCRIPTEN_HOME}:${EMSCRIPTEN_HOME}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME}/node/4.1.1_64bit/bin:${EMSCRIPTEN_HOME}/emscripten/${EMSCRIPTEN_VERSION}
 
+# The "sed" command below removes the /TEMP_DIR line from the generated config
+# We replace it with a folder ow our own
 RUN \
   mkdir ${EMSCRIPTEN_SDK} && \
   wget -q -O - ${S3_URL}/emsdk-1.35.23-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK} && \
