@@ -6,6 +6,7 @@ import java.util.Map;
 
 class PlatformConfig {
 
+    public Map<String, String> env;
     public Map<String, Object> context = new HashMap<>();
     public String exePrefix;
     public String exeExt;

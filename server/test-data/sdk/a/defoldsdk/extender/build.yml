@@ -110,6 +110,8 @@ platforms:
     dxCmd: 'dx --dex --output {{classes_dex}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
 
   js-web:
+    env:
+        EM_CACHE:    "{{build_folder}}"
     context:
         engineJsLibs: []
         engineLibs: ["engine_main", "engine_foo"]

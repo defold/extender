@@ -10,7 +10,6 @@ RUN \
   echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
   apt-get install -y --no-install-recommends \
     oracle-java8-installer \
-    wine \
     gcc \
     g++ \
     libssl-dev \
@@ -70,16 +69,7 @@ ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
 
 RUN wget -q -O - ${S3_URL}/clang%2Bllvm-3.9.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
-# Windows
-ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files"
-
-RUN \
-  mkdir -p "/root/.wine/drive_c/windows/system32" && \
-  wget -P /usr/bin ${S3_URL}/prepreg-vc10-dx09-32.exe && \
-  ls /root/.wine/drive_c/windows/system32 && \
-  mkdir -p "${PROGRAM_FILES}" && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
-
+# Darwin
 RUN locale-gen en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
@@ -139,3 +129,105 @@ RUN \
   sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG} && \
   echo TEMP_DIR = \'/var/extender/builds\' >> ${EMSCRIPTEN_CONFIG} && \
   chmod -R 755 ${EMSCRIPTEN_HOME}
+
+
+# Windows
+#ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files"
+#ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files (x86)"
+
+# RUN \
+#   mkdir -p "/root/.wine/drive_c/windows/system32" && \
+#   wget -P /usr/bin ${S3_URL}/prepreg-vc10-dx09-32.exe && \
+#   ls /root/.wine/drive_c/windows/system32 && \
+#   mkdir -p "${PROGRAM_FILES}" && \
+#   wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
+
+RUN \
+  apt-get install apt-transport-https
+
+#ENV WINEARCH "win64"
+#ENV WINEPREFIX32 "/opt/.wine_32"
+#ENV WINEPREFIX64 "/opt/.wine_64"
+
+# According to some notes, wine 1.8 is needed for Visual Studio 2015, and Ubuntu 14 only has wine 1.4
+RUN \
+  wget https://dl.winehq.org/wine-builds/Release.key && \
+  apt-key add Release.key && \
+  rm Release.key && \
+  apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
+  dpkg --add-architecture i386 && \
+  apt-get update && \
+  apt-get install -y --install-recommends wine-devel
+
+ENV PATH ${PATH}:/opt/wine-devel/bin
+
+# xvfb allows you to run with a fake DISPLAY
+RUN \
+  apt-get install -y --install-recommends xvfb
+
+# RUN \
+#   apt-get install -y flex bison
+
+
+
+# RUN \
+#   mkdir /tmp/wine && \
+#   wget -q -O - https://dl.winehq.org/wine/source/2.x/wine-2.9.tar.xz | tar xJ -C /tmp/wine && \
+#   cd /tmp/wine/wine-2.9 && \
+#   ./configure --prefix=/usr/local --enable-win64 && \
+#   make -j8 && \
+#   make install && \
+#   make distclean
+
+
+# Need a recent winetricks to support vc2015
+# RUN \
+#   wget -q -O /opt/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
+#   chmod +x /opt/winetricks && \
+#   # mkdir -p $WINEPREFIX && \
+#   # chmod 755 $WINEPREFIX && \
+#   xvfb-run /opt/winetricks vcrun2015
+
+ENV PROGRAM_FILES "C:/Program Files (x86)"
+
+# Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat
+ENV VS140COMNTOOLS "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/Common7/Tools/"
+ENV VCINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/VC/"
+ENV VSINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/"
+ENV WindowsLibPath "${PROGRAM_FILES}/Windows Kits/8.1/References/CommonConfiguration/Neutral"
+ENV WindowsSdkDir "${PROGRAM_FILES}/Windows Kits/8.1/"
+ENV WindowsSDKLibVersion "winv6.3/"
+ENV WindowsSDKVersion "/"
+ENV WindowsSDK_ExecutablePath_x64 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/x64/"
+ENV WindowsSDK_ExecutablePath_x86 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
+
+# Grabbed the relevant paths from the Path variable
+ENV WINDOWS_PATH_64 "C:/Program Files (x86)/MSBuild/14.0/bin;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/IDE/;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN/x86_amd64;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/Tools;C:/WINDOWS/Microsoft.NET/Framework/v4.0.30319;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/VCPackages;C:/Program Files (x86)/HTML Help Workshop;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Team Tools/Performance Tools;C:/Program Files (x86)/Windows Kits/8.1/bin/x86;C:/Program Files (x86)/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
+ENV WINDOWS_PATH_32 "C:/Program Files (x86)/MSBuild/14.0/bin;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/IDE/;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/Tools;C:/WINDOWS/Microsoft.NET/Framework/v4.0.30319;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/VCPackages;C:/Program Files (x86)/HTML Help Workshop;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Team Tools/Performance Tools;C:/Program Files (x86)/Windows Kits/8.1/bin/x86;C:/Program Files (x86)/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
+
+ENV WINEDEBUG "-all"
+
+# Set the wine home to be in a folder that extender will own (Or you'll get the "wine: <path> is not owned by you")
+ENV WINEPREFIX "/var/extender/.wine"
+
+
+# # Create the registry file  / https://www.winehq.org/docs/wineusr-guide/environment-variables
+
+# # For some reason, this is needed for making sure that the TMP and TEMP folders are created
+# RUN \
+#   echo "Windows Registry Editor Version 5.00" > env.reg && \
+#   echo "[HKEY_CURRENT_USER\Environment]" >> env.reg && \
+#   #echo "\"PATH\"=\"$WINDOWS_PATH_32;C:\windows\system32\"" >> env.reg && \
+#   echo "\"PATH\"=\"C:\windows\system32\"" >> env.reg && \
+#   cat env.reg && \
+#   WINEPREFIX=$WINEPREFIX wine regedit env.reg
+
+# # 64
+# RUN \
+#   echo "Windows Registry Editor Version 5.00" > env.reg && \
+#   echo "[HKEY_CURRENT_USER\Environment]" >> env.reg && \
+#   echo "\"PATH\"=\"$WINDOWS_PATH_64\"" >> env.reg && \
+#   cat env.reg && \
+#   WINEPREFIX=$WINEPREFIX64 wine regedit env.reg
+
+

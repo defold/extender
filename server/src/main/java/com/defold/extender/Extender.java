@@ -54,8 +54,27 @@ class Extender {
         // Read config from SDK
         this.config = Extender.loadYaml(this.extensionSource, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
-        // Make sure the Emscripten compiler doesn't pollute the environment
+        this.platform = platform;
+        this.sdk = sdk;
+        this.platformConfig = config.platforms.get(platform);
+        
+        // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory);
+
+        if (this.platformConfig != null && this.platformConfig.env != null) {
+
+            HashMap<String, Object> envContext = new HashMap<>();
+            envContext.put("build_folder", buildDirectory);
+
+            Set<String> keys = this.platformConfig.env.keySet();
+            for (String k : keys) {
+                String v = this.platformConfig.env.get(k);
+                v = templateExecutor.execute(v, envContext);
+                System.out.println(String.format("ENV: %s : %s", k, v));
+
+                processExecutor.putEnv(k, v);
+            }
+        }
 
         Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
 
@@ -68,10 +87,6 @@ class Extender {
         } else {
             this.appManifest = Extender.loadYaml(this.extensionSource, appManifests.get(0), AppManifestConfiguration.class);
         }
-
-        this.platform = platform;
-        this.sdk = sdk;
-        this.platformConfig = config.platforms.get(platform);
 
         Path buildPath = Paths.get(buildDirectory);
         Files.createDirectories(buildPath);

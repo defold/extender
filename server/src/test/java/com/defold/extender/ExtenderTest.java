@@ -373,6 +373,20 @@ public class ExtenderTest {
             assertEquals( 1, items.size() );
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }
+    }
 
+    @Test
+    public void testProcessExecutor() throws IOException, InterruptedException {
+        List<String> args = ProcessExecutor.splitCommandLine("cl.exe --bepa=\"sdf\" \"hello sdfs\" -mext /I\"C:/Program Files (x86)/VC/include\"  /Ibuild /I\"Hello \\\"World\\\"\" -foo=\"monkey\" --apa=\"\\\"bepa\\\"\" ");
+
+        System.out.println("" + args.toString());
+
+        assertEquals(9, args.size());
+
+        args = ProcessExecutor.splitCommandLine("em++ -c -O3 -g  -fno-exceptions -s EXPORTED_FUNCTIONS=[\"_main\"]  -I/tmp/upload4981476789745724992/test-data/ext/include");
+
+        System.out.println("" + args.toString());
+
+        assertEquals(8, args.size());
     }
 }
