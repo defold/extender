@@ -100,11 +100,13 @@ public class ExtenderController {
 
             Extender extender = new Extender(platform, uploadDirectory, sdk, buildDirectory);
 
-            // Build and write output files to output stream
-            List<File> outputFiles = extender.build();
-            ZipUtils.zip(response.getOutputStream(), outputFiles);
-
-            extender.dispose();
+            try {
+                // Build and write output files to output stream
+                List<File> outputFiles = extender.build();
+                ZipUtils.zip(response.getOutputStream(), outputFiles);
+            } finally {
+                extender.dispose();
+            }
         } finally {
             // Delete temporary upload directory
             FileUtils.deleteDirectory(uploadDirectory);
