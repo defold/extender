@@ -5,7 +5,8 @@ RUN \
   mkdir -p /var/extender && \
   chown extender: /var/extender && \
   chown extender: $(readlink -f /usr/bin/java) && \
-  chmod +s $(readlink -f /usr/bin/java)
+  chmod +s $(readlink -f /usr/bin/java) && \
+  chown -R extender:extender ${WINEPREFIX}
 
 USER extender
 

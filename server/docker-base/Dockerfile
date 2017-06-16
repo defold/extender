@@ -145,10 +145,6 @@ RUN \
 RUN \
   apt-get install apt-transport-https
 
-#ENV WINEARCH "win64"
-#ENV WINEPREFIX32 "/opt/.wine_32"
-#ENV WINEPREFIX64 "/opt/.wine_64"
-
 # According to some notes, wine 1.8 is needed for Visual Studio 2015, and Ubuntu 14 only has wine 1.4
 RUN \
   wget https://dl.winehq.org/wine-builds/Release.key && \
@@ -160,33 +156,6 @@ RUN \
   apt-get install -y --install-recommends wine-devel
 
 ENV PATH ${PATH}:/opt/wine-devel/bin
-
-# xvfb allows you to run with a fake DISPLAY
-RUN \
-  apt-get install -y --install-recommends xvfb
-
-# RUN \
-#   apt-get install -y flex bison
-
-
-
-# RUN \
-#   mkdir /tmp/wine && \
-#   wget -q -O - https://dl.winehq.org/wine/source/2.x/wine-2.9.tar.xz | tar xJ -C /tmp/wine && \
-#   cd /tmp/wine/wine-2.9 && \
-#   ./configure --prefix=/usr/local --enable-win64 && \
-#   make -j8 && \
-#   make install && \
-#   make distclean
-
-
-# Need a recent winetricks to support vc2015
-# RUN \
-#   wget -q -O /opt/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
-#   chmod +x /opt/winetricks && \
-#   # mkdir -p $WINEPREFIX && \
-#   # chmod 755 $WINEPREFIX && \
-#   xvfb-run /opt/winetricks vcrun2015
 
 ENV PROGRAM_FILES "C:/Program Files (x86)"
 
@@ -210,24 +179,19 @@ ENV WINEDEBUG "-all"
 # Set the wine home to be in a folder that extender will own (Or you'll get the "wine: <path> is not owned by you")
 ENV WINEPREFIX "/var/extender/.wine"
 
+# Initialize
+# Setup symbolic links for folders to exist in the C:/ space
+# Also, for the installed packages, create symlinks without spaces in the paths!
+# Once we run wine, the folder is created for the root user, this needs to be chown'ed back to the extender user (see next Dockerfile
 
-# # Create the registry file  / https://www.winehq.org/docs/wineusr-guide/environment-variables
-
-# # For some reason, this is needed for making sure that the TMP and TEMP folders are created
-# RUN \
-#   echo "Windows Registry Editor Version 5.00" > env.reg && \
-#   echo "[HKEY_CURRENT_USER\Environment]" >> env.reg && \
-#   #echo "\"PATH\"=\"$WINDOWS_PATH_32;C:\windows\system32\"" >> env.reg && \
-#   echo "\"PATH\"=\"C:\windows\system32\"" >> env.reg && \
-#   cat env.reg && \
-#   WINEPREFIX=$WINEPREFIX wine regedit env.reg
-
-# # 64
-# RUN \
-#   echo "Windows Registry Editor Version 5.00" > env.reg && \
-#   echo "[HKEY_CURRENT_USER\Environment]" >> env.reg && \
-#   echo "\"PATH\"=\"$WINDOWS_PATH_64\"" >> env.reg && \
-#   cat env.reg && \
-#   WINEPREFIX=$WINEPREFIX64 wine regedit env.reg
-
+RUN \
+  mkdir -p ${WINEPREFIX} && \
+  wine cmd /c echo Initialized Wine folder && \
+  chmod -R 755 ${WINEPREFIX} && \
+  ln -s /tmp ${WINEPREFIX}/drive_c/tmp && \
+  ln -s ${WINEPREFIX}/drive_c/Program\ Files\ \(x86\) ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
+  mkdir ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
+  ln -s ${WINEPREFIX}/drive_c/ProgramFilesx86/Microsoft\ Visual\ Studio\ 14.0 ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0
 
