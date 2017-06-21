@@ -105,7 +105,7 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86-osx", "armv7-android", "js-web"} ),
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86-osx", "armv7-android", "js-web", "x86_64-win32"} ),
 
                 new DefoldVersion("8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", new Version(1, 2, 97), new String[] {"x86-osx"}),
                 new DefoldVersion("735ff76c8b1f93b3126ff223cd234d7ceb5b886d", new Version(1, 2, 98), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
@@ -171,7 +171,7 @@ public class IntegrationTest {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform))
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib")))
         );
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
@@ -208,8 +208,7 @@ public class IntegrationTest {
         FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 
-    private String getEngineName(String platform)
-    {
+    private String getEngineName(String platform) {
         if (platform.endsWith("android")) {
             return "libdmengine.so";
         }
@@ -219,7 +218,17 @@ public class IntegrationTest {
         else if (platform.endsWith("web")) {
             return "dmengine.js";
         }
+        else if (platform.endsWith("win32")) {
+            return "dmengine.exe";
+        }
         return null;
+    }
+
+    private String getLibName(String platform, String lib) {
+        if (platform.endsWith("win32")) {
+            return String.format("%s.lib", lib);
+        }
+        return String.format("lib%s.a", lib);
     }
 
     @Test
@@ -238,8 +247,8 @@ public class IntegrationTest {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext2/ext.manifest"),
                 new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
-                new FileExtenderResource(String.format("test-data/ext2/lib/%s/libalib.a", configuration.platform)),
-                new FileExtenderResource(String.format("test-data/ext2/lib/%s/libblib.a", configuration.platform))
+                new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
+                new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "blib")))
         );
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
@@ -461,6 +470,7 @@ public class IntegrationTest {
         assertTrue(dexClasses.contains("Lcom/defold/JarDep;"));
         assertTrue(dexClasses.contains("Lcom/defold/Test;"));
     }
+
     @Test
     public void buildAndroidRJar() throws IOException, ExtenderClientException, InterruptedException {
 
@@ -535,10 +545,10 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/testproject_appmanifest/_app/app.manifest"),
                 new FileExtenderResource("test-data/testproject_appmanifest/ext/ext.manifest"),
                 new FileExtenderResource("test-data/testproject_appmanifest/ext/src/test_ext.cpp"),
-                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
                 new FileExtenderResource("test-data/testproject_appmanifest/ext2/ext.manifest"),
                 new FileExtenderResource("test-data/testproject_appmanifest/ext2/src/test_ext.cpp"),
-                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext2/lib/%s/libblib.a", configuration.platform))
+                new FileExtenderResource(String.format("test-data/testproject_appmanifest/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "blib")))
         );
 
         if (isAndroid) {

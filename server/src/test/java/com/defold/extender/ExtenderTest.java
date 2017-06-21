@@ -18,14 +18,15 @@ public class ExtenderTest {
 
     @Test
     public void testExtender() throws IOException, InterruptedException, ExtenderException {
-        File uploadDir = new File("/tmp/tmpUpload");
+        File jobDir = new File("/tmp/tmpJob");
+        jobDir.mkdirs();
+        jobDir.deleteOnExit();
+        File uploadDir = new File(jobDir, "upload");
         uploadDir.mkdirs();
-        uploadDir.deleteOnExit();
-        File buildDir = new File("/tmp/tmpBuild");
+        File buildDir = new File(jobDir, "build");
         buildDir.mkdirs();
-        buildDir.deleteOnExit();
         File sdk = new File("test-data/sdk/a/defoldsdk");
-        Extender extender = new Extender("x86-osx", uploadDir, sdk, buildDir.getAbsolutePath());
+        Extender extender = new Extender("x86-osx", sdk, jobDir, uploadDir, buildDir);
 
         uploadDir.delete();
         assertTrue(true);
@@ -373,20 +374,5 @@ public class ExtenderTest {
             assertEquals( 1, items.size() );
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }
-    }
-
-    @Test
-    public void testProcessExecutor() throws IOException, InterruptedException {
-        List<String> args = ProcessExecutor.splitCommandLine("cl.exe --bepa=\"sdf\" \"hello sdfs\" -mext /I\"C:/Program Files (x86)/VC/include\"  /Ibuild /I\"Hello \\\"World\\\"\" -foo=\"monkey\" --apa=\"\\\"bepa\\\"\" ");
-
-        System.out.println("" + args.toString());
-
-        assertEquals(9, args.size());
-
-        args = ProcessExecutor.splitCommandLine("em++ -c -O3 -g  -fno-exceptions -s EXPORTED_FUNCTIONS=[\"_main\"]  -I/tmp/upload4981476789745724992/test-data/ext/include");
-
-        System.out.println("" + args.toString());
-
-        assertEquals(8, args.size());
     }
 }

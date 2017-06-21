@@ -34,9 +34,6 @@ public class ExtenderController {
 
     private final DefoldSdkService defoldSdkService;
 
-    @Value("${extender.build-location}")
-    String buildDirectory;
-
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService) {
         this.defoldSdkService = defoldSdkService;
@@ -69,7 +66,6 @@ public class ExtenderController {
             throws URISyntaxException, IOException, ExtenderException {
 
         if (defoldSdkService.isLocalSdkSupported()) {
-
             buildEngine(request, response, platform, null);
             return;
         }
@@ -84,7 +80,11 @@ public class ExtenderController {
                             @PathVariable("sdkVersion") String sdkVersion)
             throws ExtenderException, IOException, URISyntaxException {
 
-        File uploadDirectory = Files.createTempDirectory("upload").toFile();
+        File jobDirectory = Files.createTempDirectory("job").toFile();
+        File uploadDirectory = new File(jobDirectory, "upload");
+        uploadDirectory.mkdir();
+        File buildDirectory = new File(jobDirectory, "build");
+        buildDirectory.mkdir();
 
         try {
             validateFilenames(request);
@@ -98,16 +98,15 @@ public class ExtenderController {
                 sdk = defoldSdkService.getSdk(sdkVersion);
             }
 
-            Extender extender = new Extender(platform, uploadDirectory, sdk, buildDirectory);
+            Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
             // Build and write output files to output stream
             List<File> outputFiles = extender.build();
             ZipUtils.zip(response.getOutputStream(), outputFiles);
 
-            extender.dispose();
         } finally {
             // Delete temporary upload directory
-            FileUtils.deleteDirectory(uploadDirectory);
+            FileUtils.deleteDirectory(jobDirectory);
         }
     }
 

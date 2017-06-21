@@ -12,9 +12,6 @@ import org.yaml.snakeyaml.error.YAMLException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,8 +24,9 @@ class Extender {
     private final AppManifestConfiguration appManifest;
     private final String platform;
     private final File sdk;
-    private final File extensionSource;
-    private final File build;
+    private final File uploadDirectory;
+    private final File jobDirectory;
+    private final File buildDirectory;
     private final PlatformConfig platformConfig;
     private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
@@ -48,18 +46,22 @@ class Extender {
     private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
     private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
-    Extender(String platform, File extensionSource, File sdk, String buildDirectory) throws IOException, ExtenderException {
-        this.extensionSource = extensionSource;
+    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
+        this.jobDirectory = jobDirectory;
+        this.uploadDirectory = uploadDirectory;
+        this.buildDirectory = buildDirectory;
 
         // Read config from SDK
-        this.config = Extender.loadYaml(this.extensionSource, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
+        this.config = Extender.loadYaml(uploadDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
         this.platform = platform;
         this.sdk = sdk;
         this.platformConfig = config.platforms.get(platform);
         
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
-        processExecutor.putEnv("EM_CACHE", buildDirectory);
+        processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
+
+        processExecutor.setCwd(jobDirectory);
 
         if (this.platformConfig != null && this.platformConfig.env != null) {
 
@@ -70,13 +72,12 @@ class Extender {
             for (String k : keys) {
                 String v = this.platformConfig.env.get(k);
                 v = templateExecutor.execute(v, envContext);
-                System.out.println(String.format("ENV: %s : %s", k, v));
 
                 processExecutor.putEnv(k, v);
             }
         }
 
-        Collection<File> allFiles = FileUtils.listFiles(extensionSource, null, true);
+        Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
 
         List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
         if (appManifests.size() > 1 ) {
@@ -85,12 +86,8 @@ class Extender {
         if (appManifests.isEmpty()) {
             this.appManifest = new AppManifestConfiguration();
         } else {
-            this.appManifest = Extender.loadYaml(this.extensionSource, appManifests.get(0), AppManifestConfiguration.class);
+            this.appManifest = Extender.loadYaml(this.uploadDirectory, appManifests.get(0), AppManifestConfiguration.class);
         }
-
-        Path buildPath = Paths.get(buildDirectory);
-        Files.createDirectories(buildPath);
-        this.build = Files.createTempDirectory(buildPath, "build").toFile();
 
         if (this.platformConfig == null) {
             throw new ExtenderException(String.format("Unsupported platform %s", platform));
@@ -146,7 +143,16 @@ class Extender {
     private File uniqueTmpFile(String prefix, String suffix) {
         File file;
         do {
-            file = new File(build, prefix + UUID.randomUUID().toString() + suffix);
+            file = new File(buildDirectory, prefix + UUID.randomUUID().toString() + suffix);
+        } while (file.exists());
+
+        return file;
+    }
+
+    private File uniqueTmpFile(String pattern) {
+        File file;
+        do {
+            file = new File(buildDirectory, String.format(pattern, UUID.randomUUID().toString()));
         } while (file.exists());
 
         return file;
@@ -223,7 +229,7 @@ class Extender {
     @SuppressWarnings("unchecked")
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
-        context.put("dynamo_home", sdk.getAbsolutePath());
+        context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
         context.put("platform", this.platform);
 
         if (this.platform.contains("android")) {
@@ -288,15 +294,15 @@ class Extender {
 
     private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
-        includes.add(extDir.getAbsolutePath() + File.separator + "include");
-        File o = new File(build, String.format("%s_%d.o", src.getName(), index));
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(extDir, "include") ) );
+        File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
 
         List<String> frameworks = getFrameworks(extDir);
         List<String> frameworkPaths = getFrameworkPaths(extDir);
 
         Map<String, Object> context = context(manifestContext);
-        context.put("src", src);
-        context.put("tgt", o);
+        context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
 
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
@@ -307,8 +313,8 @@ class Extender {
     private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         Map<String, Object> context = context(manifestContext);
         File o = uniqueTmpFile("main_tmp", ".o");
-        context.put("src", maincpp);
-        context.put("tgt", o);
+        context.put("src", ExtenderUtil.getRelativePath(jobDirectory, maincpp));
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
         processExecutor.execute(command);
         return o;
@@ -324,7 +330,7 @@ class Extender {
         }
 
         if (srcFiles.isEmpty()) {
-            throw new ExtenderException(String.format("Extension '%s' has no source!", ExtenderUtil.getRelativePath(this.extensionSource, manifest) ));
+            throw new ExtenderException(String.format("Extension '%s' has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
         }
 
         List<String> objs = new ArrayList<>();
@@ -333,12 +339,17 @@ class Extender {
         int i = 0;
         for (File src : srcFiles) {
             File o = compileFile(i, extDir, src, manifestContext);
-            objs.add(o.getAbsolutePath());
+            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             i++;
         }
 
         // Create c++ library
-        File lib = uniqueTmpFile("lib", ".a");
+        File lib = null;
+        if (platformConfig.writeLibPattern != null) {
+            lib = uniqueTmpFile(platformConfig.writeLibPattern);
+        } else {
+            lib = uniqueTmpFile("lib", ".a"); // Deprecated, remove in a few versions
+        }
         Map<String, Object> context = context(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
@@ -376,8 +387,7 @@ class Extender {
     }
 
     private File linkEngine(List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-        File maincpp = new File(build, "main.cpp");
-        File exe = new File(build, String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt));
+        File maincpp = new File(buildDirectory , "main.cpp");
 
         List<String> extSymbols = new ArrayList<>();
         extSymbols.addAll(symbols);
@@ -386,7 +396,6 @@ class Extender {
 
         extSymbols = ExtenderUtil.pruneItems( extSymbols, getAppManifestItems(appManifest, platform, "includeSymbols"), getAppManifestItems(appManifest, platform, "excludeSymbols") );
         mainContext.put("symbols", ExtenderUtil.pruneItems( (List<String>)mainContext.get("symbols"), getAppManifestItems(appManifest, platform, "includeSymbols"), getAppManifestItems(appManifest, platform, "excludeSymbols")));
-
         mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
 
         String main = templateExecutor.execute(config.main, mainContext);
@@ -395,12 +404,12 @@ class Extender {
         File mainObject = compileMain(maincpp, manifestContext);
 
         List<String> extLibs = new ArrayList<>();
-        List<String> extLibPaths = new ArrayList<>(Arrays.asList(build.toString()));
+        List<String> extLibPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
         List<String> extFrameworks = new ArrayList<>();
-        List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(build.toString()));
+        List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
         List<String> extJsLibs = new ArrayList<>();
 
-        extLibs.addAll(Extender.collectFilesByName(build, platformConfig.stlibRe));
+        extLibs.addAll(Extender.collectFilesByName(buildDirectory, platformConfig.stlibRe));
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
 
@@ -433,23 +442,28 @@ class Extender {
         extLibs = ExtenderUtil.pruneItems( extLibs, getAppManifestItems(appManifest, platform, "includeLibs"), getAppManifestItems(appManifest, platform, "excludeLibs"));
         extJsLibs = ExtenderUtil.pruneItems( extJsLibs, getAppManifestItems(appManifest, platform, "includeJsLibs"), getAppManifestItems(appManifest, platform, "excludeJsLibs"));
 
-        Map<String, Object> context = context(manifestContext);
-        context.put("src", mainObject);
-        context.put("tgt", exe.getAbsolutePath());
-        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
+        File exe;
+        if (platformConfig.writeExePattern != null ) {
+            exe = new File(buildDirectory, platformConfig.writeExePattern);
+        } else {
+            exe = new File(buildDirectory, String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt)); // Legacy, remove in a few versions!
+        }
 
+        Map<String, Object> context = context(manifestContext);
+        context.put("src", ExtenderUtil.getRelativePath(jobDirectory, mainObject));
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
+        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
         context.put("engineLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineLibs", new ArrayList<>()), getAppManifestItems(appManifest, platform, "includeLibs"), getAppManifestItems(appManifest, platform, "excludeLibs")) );
         context.put("engineJsLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineJsLibs", new ArrayList<>()), getAppManifestItems(appManifest, platform, "includeJsLibs"), getAppManifestItems(appManifest, platform, "excludeJsLibs")) );
 
         String command = templateExecutor.execute(platformConfig.linkCmd, context);
         processExecutor.execute(command);
-
         return exe;
     }
 
     public File buildRJar() throws ExtenderException {
         try {
-            File rJavaDir = new File(extensionSource, "_app/rjava/");
+            File rJavaDir = new File(uploadDirectory, "_app/rjava/");
             if (rJavaDir.exists() && rJavaDir.isDirectory()) {
                 LOGGER.info("Building Android resources (R.java).");
 
@@ -515,7 +529,7 @@ class Extender {
 
         try {
 
-            LOGGER.info("Building Java sources with extension source {}", extensionSource);
+            LOGGER.info("Building Java sources with extension source {}", uploadDirectory);
 
             // Collect all Java source files
             File extDir = manifest.getParentFile();
@@ -595,7 +609,7 @@ class Extender {
         try {
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = Extender.loadYaml(this.extensionSource, manifest, ManifestConfiguration.class);
+                ManifestConfiguration manifestConfig = Extender.loadYaml(this.uploadDirectory, manifest, ManifestConfiguration.class);
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
@@ -637,14 +651,14 @@ class Extender {
     }
 
     public File buildClassesDex(List<File> extraJars) throws ExtenderException {
-        LOGGER.info("Building classes.dex with extension source {}", extensionSource);
+        LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
         // To support older versions of build.yml where dxCmd is not defined:
         if (platformConfig.dxCmd == null || platformConfig.dxCmd.isEmpty()) {
             return null;
         }
 
-        File classesDex = new File(build, "classes.dex");
+        File classesDex = new File(buildDirectory, "classes.dex");
 
         List<String> extJars = new ArrayList<>();
         for (File extDir : this.extDirs) {
@@ -671,21 +685,21 @@ class Extender {
     }
 
     File buildEngine() throws ExtenderException {
-        LOGGER.info("Building engine for platform {} with extension source {}", platform, extensionSource);
+        LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
             List<String> symbols = new ArrayList<>();
 
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = Extender.loadYaml(this.extensionSource, manifest, ManifestConfiguration.class);
+                ManifestConfiguration manifestConfig = Extender.loadYaml(this.uploadDirectory, manifest, ManifestConfiguration.class);
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
                     manifestContext = getManifestContext(manifestConfig);
                 }
 
-                String relativePath = ExtenderUtil.getRelativePath(this.extensionSource, manifest);
+                String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
                 this.manifestValidator.validate(relativePath, manifestContext);
 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
@@ -726,9 +740,5 @@ class Extender {
         outputFiles.add(exe);
 
         return outputFiles;
-    }
-
-    void dispose() throws IOException {
-        FileUtils.deleteDirectory(build);
     }
 }

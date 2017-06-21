@@ -1,21 +1,28 @@
 package com.defold.extender;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
     private final HashMap<String, String> env = new HashMap<>();
+    private File cwd = null;
 
     int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");
 
-        List<String> args = ProcessExecutor.splitCommandLine(command);
+        // To avoid an issue where an extra space was interpreted as an argument
+        List<String> args = Arrays.stream(command.split(" "))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+
         ProcessBuilder pb = new ProcessBuilder(args);
+        if (cwd != null ) {
+            pb.directory(cwd);
+        }
         pb.redirectErrorStream(true);
 
         Map<String, String> pbEnv = pb.environment();
@@ -48,29 +55,15 @@ class ProcessExecutor {
         return exitValue;
     }
 
-    // We have our own splitter to ensure we get proper command line splits for both unix/win paths
-    static List<String> splitCommandLine(String command) {
-        // https://regex101.com/r/U905Zh/3
-        Pattern pattern = Pattern.compile("\\S*?([\"'])(?:(?=(\\\\?))\\2.)*?\\1\\S*|\\S+");
-
-        List<String> args = new ArrayList<>();
-        Matcher matcher = pattern.matcher(command);
-
-        while(matcher.find()) {
-            args.add(command.substring(matcher.start(), matcher.end()));
-        }
-
-        if (args.isEmpty()) {
-            args.add(command);
-        }
-        return args;
-    }
-
     String getOutput() {
         return output.toString();
     }
 
     void putEnv(String key, String value) {
         env.put(key, value);
+    }
+
+    void setCwd(File cwd) {
+        this.cwd = cwd;
     }
 }

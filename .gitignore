@@ -3,6 +3,7 @@
 /.gradle
 /.idea
 /tmp
-server/test-data/sdk/**
+!server/test-data/sdk/
+server/test-data/sdk/*
 !server/test-data/sdk/a
 
