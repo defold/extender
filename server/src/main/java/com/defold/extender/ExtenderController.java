@@ -103,7 +103,6 @@ public class ExtenderController {
             // Build and write output files to output stream
             List<File> outputFiles = extender.build();
             ZipUtils.zip(response.getOutputStream(), outputFiles);
-
         } finally {
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);

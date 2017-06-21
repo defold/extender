@@ -35,9 +35,9 @@ class Extender {
     private List<File> extDirs = new ArrayList<>();
     private List<File> manifests = new ArrayList<>();
 
-    public static final String FRAMEWORK_RE = "(.+)\\.framework";
-    public static final String JAR_RE = "(.+\\.jar)";
-    public static final String JS_RE = "(.+\\.js)";
+    static final String FRAMEWORK_RE = "(.+)\\.framework";
+    static final String JAR_RE = "(.+\\.jar)";
+    static final String JS_RE = "(.+\\.js)";
 
     private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
     private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
@@ -56,7 +56,7 @@ class Extender {
 
         this.platform = platform;
         this.sdk = sdk;
-        this.platformConfig = config.platforms.get(platform);
+        this.platformConfig = getPlatformConfig();
         
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
@@ -89,15 +89,21 @@ class Extender {
             this.appManifest = Extender.loadYaml(this.uploadDirectory, appManifests.get(0), AppManifestConfiguration.class);
         }
 
-        if (this.platformConfig == null) {
-            throw new ExtenderException(String.format("Unsupported platform %s", platform));
-        }
-
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         this.extDirs = this.manifests.stream().map(File::getParentFile).collect(Collectors.toList());
+    }
+
+    private PlatformConfig getPlatformConfig() throws ExtenderException {
+        PlatformConfig platformConfig = config.platforms.get(platform);
+
+        if (platformConfig == null) {
+            throw new ExtenderException(String.format("Unsupported platform %s", platform));
+        }
+
+        return platformConfig;
     }
 
     // Does a regexp match on the filename for each file found in a directory
@@ -169,7 +175,7 @@ class Extender {
         try {
             return new Yaml().loadAs(yaml, type);
         } catch(YAMLException e) {
-            throw new ExtenderException(String.format("Error in file '%s': %s", ExtenderUtil.getRelativePath(root, manifest).toString(), e.toString()));
+            throw new ExtenderException(String.format("Error in file '%s': %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
         }
     }
 
@@ -320,7 +326,7 @@ class Extender {
         return o;
     }
 
-    private File buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
         File srcDir = new File(extDir, "src");
         Collection<File> srcFiles = new ArrayList<>();
@@ -355,7 +361,6 @@ class Extender {
         context.put("objs", objs);
         String command = templateExecutor.execute(platformConfig.libCmd, context);
         processExecutor.execute(command);
-        return lib;
     }
 
     static List<String> getAppManifestItems(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
@@ -461,7 +466,7 @@ class Extender {
         return exe;
     }
 
-    public File buildRJar() throws ExtenderException {
+    private File buildRJar() throws ExtenderException {
         try {
             File rJavaDir = new File(uploadDirectory, "_app/rjava/");
             if (rJavaDir.exists() && rJavaDir.isDirectory()) {
@@ -521,7 +526,7 @@ class Extender {
         return null;
     }
 
-    public File buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
+    private File buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
 
         if (platformConfig.javaSourceRe == null || platformConfig.javacCmd == null || platformConfig.jarCmd == null) {
             return null;
@@ -600,7 +605,7 @@ class Extender {
         }
     }
 
-    public List<File> buildJava(File rJar) throws ExtenderException {
+    private List<File> buildJava(File rJar) throws ExtenderException {
         List<File> builtJars = new ArrayList<>();
         if (rJar != null) {
             builtJars.add(rJar);
@@ -650,7 +655,7 @@ class Extender {
         return new HashMap<>();
     }
 
-    public File buildClassesDex(List<File> extraJars) throws ExtenderException {
+    private File buildClassesDex(List<File> extraJars) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
         // To support older versions of build.yml where dxCmd is not defined:
@@ -684,7 +689,7 @@ class Extender {
         return classesDex;
     }
 
-    File buildEngine() throws ExtenderException {
+    private File buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
