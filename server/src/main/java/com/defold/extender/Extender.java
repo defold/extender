@@ -689,6 +689,20 @@ class Extender {
         return classesDex;
     }
 
+    private void buildWin32Manifest(File exe, Map<String, Object> mergedExtensionContext) throws ExtenderException {
+        LOGGER.info("Adding manifest file to engine");
+
+        Map<String, Object> context = context(mergedExtensionContext);
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
+
+        String command = templateExecutor.execute(platformConfig.mtCmd, context);
+        try {
+            processExecutor.execute(command);
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+    }
+
     private File buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
@@ -722,7 +736,13 @@ class Extender {
                 mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, extensionContext);
             }
 
-            return linkEngine(symbols, mergedExtensionContext);
+            File exe = linkEngine(symbols, mergedExtensionContext);
+
+            if (platform.endsWith("win32")) {
+                buildWin32Manifest(exe, mergedExtensionContext);
+            }
+
+            return exe;
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }

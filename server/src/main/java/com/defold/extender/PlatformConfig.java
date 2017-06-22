@@ -22,6 +22,7 @@ class PlatformConfig {
     public String javacCmd;
     public String jarCmd;
     public String dxCmd;
+    public String mtCmd;
     public List<String> allowedLibs;
     public List<String> allowedFlags;
 }
