@@ -236,21 +236,18 @@ public class ExtenderTest {
         Map<String, Object> a = new HashMap<>();
         Map<String, Object> b = new HashMap<>();
 
-        String[] a_frameworks = {"a", "b", "b", "c"};
-        a.put("frameworks", Arrays.asList(a_frameworks));
-        String[] a_defines = {"A", "B"};
-        a.put("defines", Arrays.asList(a_defines));
+        a.put("frameworks", Arrays.asList("a", "b", "b", "c"));
+        a.put("defines", Arrays.asList("A", "B"));
 
-        String[] b_frameworks = {"a", "d"};
-        b.put("frameworks", Arrays.asList(b_frameworks));
+        b.put("frameworks", Arrays.asList("a", "d"));
+        b.put("symbols", Arrays.asList("S1"));
 
         Map<String, Object> result = Extender.mergeContexts(a, b);
 
         Map<String, Object> expected = new HashMap<>();
-        String[] expected_frameworks = {"a", "b", "b", "c", "a", "d"};
-        expected.put("frameworks", Arrays.asList(expected_frameworks));
-        String[] expected_defines = {"A", "B"};
-        expected.put("defines", Arrays.asList(expected_defines));
+        expected.put("frameworks", Arrays.asList("a", "b", "b", "c", "a", "d"));
+        expected.put("defines", Arrays.asList("A", "B"));
+        expected.put("symbols", Arrays.asList("S1"));
 
         assertEquals(expected, result);
     }

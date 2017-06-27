@@ -3,6 +3,7 @@ package com.defold.extender;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -80,5 +81,20 @@ class ExtenderUtil
 
     static String getRelativePath(File base, File path) {
         return base.toURI().relativize(path.toURI()).getPath();
+    }
+
+    static void debugPrint(Map<String, Object> map, int indent) {
+
+        for (String key : map.keySet()) {
+            Object v = map.get(key);
+            if (v instanceof Map) {
+                debugPrint((Map<String, Object>)v, indent+1);
+            } else {
+                for (int i = 0; i < indent; ++i) {
+                    System.out.print("  ");
+                }
+                System.out.println(String.format("%s:\t%s", key, v.toString() ) );
+            }
+        }
     }
 }

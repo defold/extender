@@ -199,20 +199,25 @@ class Extender {
 
         Set<String> keys = extensionContext.keySet();
         for (String k : keys) {
-            Object v1 = context.get(k);
+            Object v1 = context.getOrDefault(k, null);
             Object v2 = extensionContext.get(k);
 
-            if (!v1.getClass().equals(v2.getClass())) {
+            if (v1 != null && !v1.getClass().equals(v2.getClass())) {
                 throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
             }
             if (!Extender.isListOfStrings((List<Object>) v2)) {
                 throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
             }
 
-            if (v1 instanceof List) {
+            if (v1 != null && v1 instanceof List) {
                 v1 = Extender.mergeLists((List<String>) v1, (List<String>) v2);
             }
-            context.put(k, v1);
+
+            if (v1 != null) {
+                context.put(k, v1);
+            } else {
+                context.put(k, v2);
+            }
         }
         return context;
     }
@@ -235,8 +240,6 @@ class Extender {
     @SuppressWarnings("unchecked")
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
-        context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
-        context.put("platform", this.platform);
 
         if (this.platform.contains("android")) {
             context.put("android_ndk_path", ANDROID_NDK_PATH);
@@ -247,7 +250,12 @@ class Extender {
             context.put("android_sysroot", ANDROID_SYSROOT_PATH);
         }
 
-        context.putAll(Extender.mergeContexts(platformConfig.context, manifestContext));
+        context = Extender.mergeContexts(context, platformConfig.context);
+        context = Extender.mergeContexts(context, manifestContext);
+
+        // Should not be allowed to be overridden by manifests
+        context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
+        context.put("platform", this.platform);
 
         Set<String> keys = context.keySet();
         for (String k : keys) {
