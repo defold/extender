@@ -132,16 +132,6 @@ RUN \
 
 
 # Windows
-#ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files"
-#ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files (x86)"
-
-# RUN \
-#   mkdir -p "/root/.wine/drive_c/windows/system32" && \
-#   wget -P /usr/bin ${S3_URL}/prepreg-vc10-dx09-32.exe && \
-#   ls /root/.wine/drive_c/windows/system32 && \
-#   mkdir -p "${PROGRAM_FILES}" && \
-#   wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
-
 RUN \
   apt-get install apt-transport-https
 
@@ -159,7 +149,7 @@ ENV PATH ${PATH}:/opt/wine-devel/bin
 
 ENV PROGRAM_FILES "C:/Program Files (x86)"
 
-# Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat
+# Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat (Can probably be trimmed further)
 ENV VS140COMNTOOLS "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/Common7/Tools/"
 ENV VCINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/VC/"
 ENV VSINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/"
@@ -170,19 +160,16 @@ ENV WindowsSDKVersion "/"
 ENV WindowsSDK_ExecutablePath_x64 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/x64/"
 ENV WindowsSDK_ExecutablePath_x86 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
 
-# Grabbed the relevant paths from the Path variable
-ENV WINDOWS_PATH_64 "C:/Program Files (x86)/MSBuild/14.0/bin;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/IDE/;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN/x86_amd64;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/Tools;C:/WINDOWS/Microsoft.NET/Framework/v4.0.30319;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/VCPackages;C:/Program Files (x86)/HTML Help Workshop;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Team Tools/Performance Tools;C:/Program Files (x86)/Windows Kits/8.1/bin/x86;C:/Program Files (x86)/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
-ENV WINDOWS_PATH_32 "C:/Program Files (x86)/MSBuild/14.0/bin;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/IDE/;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/Tools;C:/WINDOWS/Microsoft.NET/Framework/v4.0.30319;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/VCPackages;C:/Program Files (x86)/HTML Help Workshop;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Team Tools/Performance Tools;C:/Program Files (x86)/Windows Kits/8.1/bin/x86;C:/Program Files (x86)/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
-
+# Disable all debug messages
 ENV WINEDEBUG "-all"
 
 # Set the wine home to be in a folder that extender will own (Or you'll get the "wine: <path> is not owned by you")
 ENV WINEPREFIX "/var/extender/.wine"
 
-# Initialize
+# Initialize Wine (also see next Dockerfile)
 # Setup symbolic links for folders to exist in the C:/ space
 # Also, for the installed packages, create symlinks without spaces in the paths!
-# Once we run wine, the folder is created for the root user, this needs to be chown'ed back to the extender user (see next Dockerfile
+# Once we run wine, the folder is created for the root user, this needs to be chown'ed back to the extender user (see next Dockerfile)
 
 RUN \
   mkdir -p ${WINEPREFIX} && \
