@@ -1,4 +1,12 @@
 
+# How to build on Windows
+# * Make a shared directory between OSX/Win32 for test-data in Parallels Desktop
+# * On the windows machine, open an msys terminal
+# * Change directory to the new drive (E.g. X:  "cd x:") which was mounted for you by Parallels Desktop
+# * Run "sh build-libs.sh"
+# All files should be named and copied automatically by this script
+
+
 source ./compile.sh
 
 # Find all .cpp files in a folder and make a lib of each of them
@@ -24,7 +32,7 @@ function Copy {
 CompileLibsToExtension enginelibs engineext/lib
 
 # # copy these into the "a" sdk
-cp -v -r engineext/lib/ sdk/a/defoldsdk/lib
+cp -v -r engineext/lib/ sdk/a/defoldsdk/
 rm -rf ./engineext
 
 CompileLibsToExtension alib ext/lib

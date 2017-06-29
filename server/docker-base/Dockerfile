@@ -10,7 +10,6 @@ RUN \
   echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
   apt-get install -y --no-install-recommends \
     oracle-java8-installer \
-    wine \
     gcc \
     g++ \
     libssl-dev \
@@ -70,16 +69,7 @@ ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
 
 RUN wget -q -O - ${S3_URL}/clang%2Bllvm-3.9.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
-# Windows
-ENV PROGRAM_FILES "/root/.wine/drive_c/Program Files"
-
-RUN \
-  mkdir -p "/root/.wine/drive_c/windows/system32" && \
-  wget -P /usr/bin ${S3_URL}/prepreg-vc10-dx09-32.exe && \
-  ls /root/.wine/drive_c/windows/system32 && \
-  mkdir -p "${PROGRAM_FILES}" && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-10.0.tar.gz | tar xz -C "${PROGRAM_FILES}"
-
+# Darwin
 RUN locale-gen en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
@@ -139,3 +129,57 @@ RUN \
   sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG} && \
   echo TEMP_DIR = \'/var/extender/builds\' >> ${EMSCRIPTEN_CONFIG} && \
   chmod -R 755 ${EMSCRIPTEN_HOME}
+
+
+# Windows
+RUN \
+  apt-get install apt-transport-https
+
+# According to some notes, wine 1.8 is needed for Visual Studio 2015, and Ubuntu 14 only has wine 1.4
+RUN \
+  wget https://dl.winehq.org/wine-builds/Release.key && \
+  apt-key add Release.key && \
+  rm Release.key && \
+  apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
+  dpkg --add-architecture i386 && \
+  apt-get update && \
+  apt-get install -y --install-recommends wine-devel
+
+ENV PATH ${PATH}:/opt/wine-devel/bin
+
+ENV PROGRAM_FILES "C:/Program Files (x86)"
+
+# Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat (Can probably be trimmed further)
+ENV VS140COMNTOOLS "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/Common7/Tools/"
+ENV VCINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/VC/"
+ENV VSINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/"
+ENV WindowsLibPath "${PROGRAM_FILES}/Windows Kits/8.1/References/CommonConfiguration/Neutral"
+ENV WindowsSdkDir "${PROGRAM_FILES}/Windows Kits/8.1/"
+ENV WindowsSDKLibVersion "winv6.3/"
+ENV WindowsSDKVersion "/"
+ENV WindowsSDK_ExecutablePath_x64 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/x64/"
+ENV WindowsSDK_ExecutablePath_x86 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
+
+# Disable all debug messages
+ENV WINEDEBUG "-all"
+
+# Set the wine home to be in a folder that extender will own (Or you'll get the "wine: <path> is not owned by you")
+ENV WINEPREFIX "/var/extender/.wine"
+
+# Initialize Wine (also see next Dockerfile)
+# Setup symbolic links for folders to exist in the C:/ space
+# Also, for the installed packages, create symlinks without spaces in the paths!
+# Once we run wine, the folder is created for the root user, this needs to be chown'ed back to the extender user (see next Dockerfile)
+
+RUN \
+  mkdir -p ${WINEPREFIX} && \
+  wine cmd /c echo Initialized Wine folder && \
+  chmod -R 755 ${WINEPREFIX} && \
+  ln -s /tmp ${WINEPREFIX}/drive_c/tmp && \
+  ln -s ${WINEPREFIX}/drive_c/Program\ Files\ \(x86\) ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
+  mkdir ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
+  ln -s ${WINEPREFIX}/drive_c/ProgramFilesx86/Microsoft\ Visual\ Studio\ 14.0 ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0
+

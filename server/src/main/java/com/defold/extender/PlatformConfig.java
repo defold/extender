@@ -6,9 +6,12 @@ import java.util.Map;
 
 class PlatformConfig {
 
+    public Map<String, String> env;
     public Map<String, Object> context = new HashMap<>();
-    public String exePrefix;
-    public String exeExt;
+    public String exePrefix; // deprecated
+    public String exeExt; // deprecated
+    public String writeLibPattern;
+    public String writeExePattern;
     public String shlibRe;
     public String stlibRe;
     public String sourceRe;
@@ -19,6 +22,7 @@ class PlatformConfig {
     public String javacCmd;
     public String jarCmd;
     public String dxCmd;
+    public String mtCmd;
     public List<String> allowedLibs;
     public List<String> allowedFlags;
 }

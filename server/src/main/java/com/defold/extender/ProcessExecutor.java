@@ -1,16 +1,15 @@
 package com.defold.extender;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
     private final HashMap<String, String> env = new HashMap<>();
+    private File cwd = null;
 
     int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");
@@ -21,6 +20,9 @@ class ProcessExecutor {
                 .collect(Collectors.toList());
 
         ProcessBuilder pb = new ProcessBuilder(args);
+        if (cwd != null ) {
+            pb.directory(cwd);
+        }
         pb.redirectErrorStream(true);
 
         Map<String, String> pbEnv = pb.environment();
@@ -59,5 +61,9 @@ class ProcessExecutor {
 
     void putEnv(String key, String value) {
         env.put(key, value);
+    }
+
+    void setCwd(File cwd) {
+        this.cwd = cwd;
     }
 }

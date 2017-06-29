@@ -18,14 +18,15 @@ public class ExtenderTest {
 
     @Test
     public void testExtender() throws IOException, InterruptedException, ExtenderException {
-        File uploadDir = new File("/tmp/tmpUpload");
+        File jobDir = new File("/tmp/tmpJob");
+        jobDir.mkdirs();
+        jobDir.deleteOnExit();
+        File uploadDir = new File(jobDir, "upload");
         uploadDir.mkdirs();
-        uploadDir.deleteOnExit();
-        File buildDir = new File("/tmp/tmpBuild");
+        File buildDir = new File(jobDir, "build");
         buildDir.mkdirs();
-        buildDir.deleteOnExit();
         File sdk = new File("test-data/sdk/a/defoldsdk");
-        Extender extender = new Extender("x86-osx", uploadDir, sdk, buildDir.getAbsolutePath());
+        Extender extender = new Extender("x86-osx", sdk, jobDir, uploadDir, buildDir);
 
         uploadDir.delete();
         assertTrue(true);
@@ -235,21 +236,18 @@ public class ExtenderTest {
         Map<String, Object> a = new HashMap<>();
         Map<String, Object> b = new HashMap<>();
 
-        String[] a_frameworks = {"a", "b", "b", "c"};
-        a.put("frameworks", Arrays.asList(a_frameworks));
-        String[] a_defines = {"A", "B"};
-        a.put("defines", Arrays.asList(a_defines));
+        a.put("frameworks", Arrays.asList("a", "b", "b", "c"));
+        a.put("defines", Arrays.asList("A", "B"));
 
-        String[] b_frameworks = {"a", "d"};
-        b.put("frameworks", Arrays.asList(b_frameworks));
+        b.put("frameworks", Arrays.asList("a", "d"));
+        b.put("symbols", Arrays.asList("S1"));
 
         Map<String, Object> result = Extender.mergeContexts(a, b);
 
         Map<String, Object> expected = new HashMap<>();
-        String[] expected_frameworks = {"a", "b", "b", "c", "a", "d"};
-        expected.put("frameworks", Arrays.asList(expected_frameworks));
-        String[] expected_defines = {"A", "B"};
-        expected.put("defines", Arrays.asList(expected_defines));
+        expected.put("frameworks", Arrays.asList("a", "b", "b", "c", "a", "d"));
+        expected.put("defines", Arrays.asList("A", "B"));
+        expected.put("symbols", Arrays.asList("S1"));
 
         assertEquals(expected, result);
     }
@@ -373,6 +371,5 @@ public class ExtenderTest {
             assertEquals( 1, items.size() );
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }
-
     }
 }
