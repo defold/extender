@@ -75,6 +75,7 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
+# The old install flow (Kept for backwards compatibility until all builds are done using darwin12)
 RUN \
   apt-get update && \
   apt-get install -y git && \
@@ -93,16 +94,48 @@ RUN \
   make install && \
   apt-get remove -y git
 
-# Right now, the package contains iPhoneOS.sdk, in the future, we want iPhoneOS9.3.sdk
+# The updated install flow
+RUN \
+  apt-get update && \
+  apt-get install -y git cmake && \
+  cd /tmp && \
+  TPAPITMP=/tmp/tpapi && \
+  mkdir $TPAPITMP && \
+  git clone https://github.com/tpoechtrager/apple-libtapi.git && \
+  cd apple-libtapi && \
+  INSTALLPREFIX=$TPAPITMP ./build.sh && \
+  ./install.sh && \
+  git clone https://github.com/tpoechtrager/cctools-port.git && \
+  cd cctools-port/cctools && \
+  git checkout 22ebe727a5cdc21059d45313cf52b4882157f6f0 && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  ./autogen.sh && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  make -j8 && \
+  make install && \
+  apt-get remove -y git cmake
+
+
+# Keeping iOS 9.3 and MaxOSX 10.11 around for a few weeks (should also remove iPhoneOS.sdk folder)
 RUN \
   wget -q -O - ${S3_URL}/iPhoneOS9.3.sdk.tar.gz | tar xz -C /opt && \
   mv /opt/iPhoneOS.sdk /opt/iPhoneOS9.3.sdk && \
-  ln -s /opt/iPhoneOS9.3.sdk /opt/iPhoneOS.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
+  mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
   wget -q -O - ${S3_URL}/MacOSX10.11.sdk.tar.gz | tar xz -C /opt && \
+  mv /opt/MacOSX.sdk /opt/MacOSX10.11.sdk && \
+  wget -q -O - ${S3_URL}/MacOSX10.12.sdk.tar.gz | tar xz -C /opt && \
+  mv /opt/MacOSX.sdk /opt/MacOSX10.12.sdk && \
+  ln -s /opt/iPhoneOS9.3.sdk /opt/iPhoneOS.sdk && \
+  ln -s /opt/MacOSX10.11.sdk /opt/MacOSX.sdk && \
   ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil && \
-  ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin11-clang && \
-  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin11-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin11-clang-ar
+  ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin12-clang && \
+  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin12-clang && \
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin12-clang-ar
+
 
 # EMSCRIPTEN
 RUN apt-get install -y --no-install-recommends python2.7 && \
