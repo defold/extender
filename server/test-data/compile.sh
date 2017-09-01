@@ -15,6 +15,8 @@ EMAR=$DYNAMO_HOME/ext/bin/emsdk_portable/emscripten/1.35.0/emar
 WIN32_CL=cl.exe
 WIN32_LIB=lib.exe
 
+LINUX_GCC=/usr/bin/g++
+LINUX_AR=/usr/bin/ar
 
 
 function RemoveTarget {
@@ -147,6 +149,31 @@ function CompileWindows {
 	done
 }
 
+function CompileLinux {
+	local name=$1
+	local src=$2
+	local targetdir=$3
+
+	archs=( "x86" "x86_64")
+	for arch in "${archs[@]}"
+	do
+		local archname=$arch-linux
+		local flags=""
+		if [ "$arch" == "x86" ]; then
+			flags="-m32"
+		fi
+
+		local target=$targetdir/$archname/lib$name.a
+		
+		RemoveTarget $target
+		mkdir -p $(dirname $target)
+
+		$LINUX_GCC $flags -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
+		$LINUX_AR rcs $target /tmp/$name-$archname.o
+
+		echo Wrote $target
+	done
+}
 
 function Compile {
 	local name=$1
@@ -161,5 +188,8 @@ function Compile {
 	fi
 	if [ "$(uname)" == "MINGW32_NT-6.2" ]; then
 		CompileWindows $name $src $targetdir
+	fi
+	if [ "$(uname)" == "Linux" ]; then
+		CompileLinux $name $src $targetdir
 	fi
 }
