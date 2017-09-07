@@ -15,7 +15,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 docker tag "$SRC_REPOSITORY" "$DEST_REPOSITORY"
 
 # Login Docker to AWS ECR
-eval $(aws ecr get-login)
+eval $(aws ecr get-login --no-include-email)
 
 # Push image
 docker push "$DEST_REPOSITORY"
