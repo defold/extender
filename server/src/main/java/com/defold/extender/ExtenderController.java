@@ -92,7 +92,7 @@ public class ExtenderController {
 
             // Get SDK
             File sdk;
-            if (sdkVersion == null || System.getenv("DYNAMO_HOME") != null) {
+            if (sdkVersion == null) {
                 sdk = defoldSdkService.getLocalSdk();
             } else {
                 sdk = defoldSdkService.getSdk(sdkVersion);
