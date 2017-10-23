@@ -3,6 +3,7 @@ package com.defold.extender.client;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.ByteArrayBody;
@@ -15,7 +16,6 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 public class ExtenderClient {
-
     private final String extenderBaseUrl;
     private ExtenderClientCache cache;
 
@@ -23,23 +23,26 @@ public class ExtenderClient {
     public static final String extensionFilename = "ext.manifest";
     public static final Pattern extensionPattern = Pattern.compile(extensionFilename);
 
-    /** Creates a local build cache
-     * @param extenderBaseUrl   The build server url (e.g. https://build.defold.com)
-     * @param cacheDir          A directory where the cache files are located (it must exist beforehand)
+    /**
+     * Creates a local build cache
+     *
+     * @param extenderBaseUrl The build server url (e.g. https://build.defold.com)
+     * @param cacheDir        A directory where the cache files are located (it must exist beforehand)
      */
     public ExtenderClient(String extenderBaseUrl, File cacheDir) throws IOException {
         this.extenderBaseUrl = extenderBaseUrl;
         this.cache = new ExtenderClientCache(cacheDir);
     }
 
-    /** Builds a new engine given a platform and an sdk version plus source files.
+    /**
+     * Builds a new engine given a platform and an sdk version plus source files.
      * The result is a .zip file
      *
-     * @param platform      E.g. "arm64-ios", "armv7-android", "x86_64-osx"
-     * @param sdkVersion    Sha1 of defold version
-     * @param sourceResources   List of resources that should be build on server (.cpp, .a, etc)
-     * @param destination   The output where the returned zip file is copied
-     * @param log           A log file
+     * @param platform        E.g. "arm64-ios", "armv7-android", "x86_64-osx"
+     * @param sdkVersion      Sha1 of defold version
+     * @param sourceResources List of resources that should be build on server (.cpp, .a, etc)
+     * @param destination     The output where the returned zip file is copied
+     * @param log             A log file
      * @throws ExtenderClientException
      */
     public void build(String platform, String sdkVersion, List<ExtenderResource> sourceResources, File destination, File log) throws ExtenderClientException {
@@ -87,5 +90,16 @@ public class ExtenderClient {
 
     private static final String getRelativePath(File base, File path) {
         return base.toURI().relativize(path.toURI()).getPath();
+    }
+
+    public boolean health() throws IOException {
+
+        HttpClient client = new DefaultHttpClient();
+        HttpResponse response = client.execute(new HttpGet(extenderBaseUrl));
+
+        if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+            return true;
+        }
+        return false;
     }
 }
