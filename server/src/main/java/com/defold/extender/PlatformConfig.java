@@ -25,4 +25,5 @@ class PlatformConfig {
     public String mtCmd;
     public List<String> allowedLibs;
     public List<String> allowedFlags;
+    public List<String> allowedSymbols;
 }

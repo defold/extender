@@ -68,6 +68,17 @@ class ExtenderUtil
         return items;
     }
 
+    static public List<String> mergeLists(List<String> l1, List<String> l2) {
+        List<String> items = new ArrayList<>();
+        if (l1 != null) {
+            items.addAll(l1);
+        }
+        if (l2 != null) {
+            items.addAll(l2);
+        }
+        return items;
+    }
+
     static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns) {
         List<String> includeItems = matchItems(input, includePatterns);
         List<String> items = excludeItems(input, excludePatterns);

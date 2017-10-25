@@ -22,6 +22,7 @@ class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
     private final AppManifestConfiguration appManifest;
+    private final String appManifestPath;
     private final String platform;
     private final File sdk;
     private final File uploadDirectory;
@@ -84,12 +85,17 @@ class Extender {
             throw new ExtenderException("Only one app.manifest allowed!");
         }
         if (appManifests.isEmpty()) {
+            this.appManifestPath = "";
             this.appManifest = new AppManifestConfiguration();
         } else {
+            this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
             this.appManifest = Extender.loadYaml(this.uploadDirectory, appManifests.get(0), AppManifestConfiguration.class);
         }
 
-        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
+        List<String> allowedLibs = ExtenderUtil.mergeLists(this.platformConfig.allowedLibs, (List<String>) this.config.context.getOrDefault("allowedLibs", new ArrayList<String>()) );
+        List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
+
+        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedLibs, allowedSymbols);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -717,6 +723,15 @@ class Extender {
         try {
             List<String> symbols = new ArrayList<>();
 
+            Map<String, Object> appManifestContext = new HashMap<>();
+            if (this.appManifest.platforms.containsKey("common")) {
+                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get("common").context);
+            }
+            if (this.appManifest.platforms.containsKey(this.platform)) {
+                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get(this.platform).context);
+            }
+            this.manifestValidator.validate(this.appManifestPath, appManifestContext);
+
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
                 ManifestConfiguration manifestConfig = Extender.loadYaml(this.uploadDirectory, manifest, ManifestConfiguration.class);
@@ -742,6 +757,13 @@ class Extender {
             for (String k : keys) {
                 Map<String, Object> extensionContext = manifestConfigs.get(k);
                 mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, extensionContext);
+            }
+
+            if (this.appManifest.platforms.containsKey("common")) {
+                mergedExtensionContext = mergeContexts(mergedExtensionContext, this.appManifest.platforms.get("common").context);
+            }
+            if (this.appManifest.platforms.containsKey(this.platform)) {
+                mergedExtensionContext = mergeContexts(mergedExtensionContext, this.appManifest.platforms.get(this.platform).context);
             }
 
             File exe = linkEngine(symbols, mergedExtensionContext);

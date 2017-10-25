@@ -12,13 +12,15 @@ class ExtensionManifestValidator {
     private final List<Pattern> allowedLibs = new ArrayList<>();
     private final List<Pattern> allowedFlags = new ArrayList<>();
     private final List<Pattern> allowedDefines = new ArrayList<>();
+    private final List<Pattern> allowedSymbols = new ArrayList<>();
 
-    ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedLibs) {
+    ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedLibs, List<String> allowedSymbols) {
         this.allowedDefines.add(WhitelistConfig.compile(whitelistConfig.defineRe));
 
         TemplateExecutor templateExecutor = new TemplateExecutor();
         ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedFlags, this.allowedFlags);
         ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedLibs, this.allowedLibs);
+        ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedSymbols, this.allowedSymbols);
     }
 
     private static boolean isListOfStrings(List<Object> list) {
@@ -44,6 +46,7 @@ class ExtensionManifestValidator {
                     break;
 
                 case "libs":
+                case "engineLibs":
                 case "frameworks":
                 case "weakFrameworks":
                     patterns = allowedLibs;
@@ -55,6 +58,17 @@ class ExtensionManifestValidator {
                     patterns = allowedFlags;
                     type = "flag";
                     break;
+
+                case "symbols":
+                    patterns = this.allowedSymbols;
+                    type = "symbol";
+                    break;
+
+                case "excludeLibs":
+                case "excludeJars":
+                case "excludeJsLibs":
+                case "excludeSymbols":
+                    continue; // no need to whitelist
 
                 default:
                     // If the user has added a non supported name
