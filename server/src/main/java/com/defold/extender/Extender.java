@@ -22,6 +22,7 @@ class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
     private final AppManifestConfiguration appManifest;
+    private final String appManifestPath;
     private final String platform;
     private final File sdk;
     private final File uploadDirectory;
@@ -84,12 +85,19 @@ class Extender {
             throw new ExtenderException("Only one app.manifest allowed!");
         }
         if (appManifests.isEmpty()) {
+            this.appManifestPath = "";
             this.appManifest = new AppManifestConfiguration();
         } else {
+            this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
             this.appManifest = Extender.loadYaml(this.uploadDirectory, appManifests.get(0), AppManifestConfiguration.class);
         }
 
-        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedLibs);
+        // The allowed libs/symbols are the union of the values from the different "levels": "context: allowedLibs: [...]" + "context: platforms: arm64-osx: allowedLibs: [...]"
+        List<String> allowedLibs = ExtenderUtil.mergeLists(this.platformConfig.allowedLibs, (List<String>) this.config.context.getOrDefault("allowedLibs", new ArrayList<String>()) );
+        List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
+
+        // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
+        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedLibs, allowedSymbols);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -717,6 +725,17 @@ class Extender {
         try {
             List<String> symbols = new ArrayList<>();
 
+            // Merge the different levels in the app manifest into one context
+            Map<String, Object> appManifestContext = new HashMap<>();
+            if (this.appManifest.platforms.containsKey("common")) {
+                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get("common").context);
+            }
+            if (this.appManifest.platforms.containsKey(this.platform)) {
+                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get(this.platform).context);
+            }
+            // Make sure the user hasn't input anything invalid in the manifest
+            this.manifestValidator.validate(this.appManifestPath, appManifestContext);
+
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
                 ManifestConfiguration manifestConfig = Extender.loadYaml(this.uploadDirectory, manifest, ManifestConfiguration.class);
@@ -743,6 +762,9 @@ class Extender {
                 Map<String, Object> extensionContext = manifestConfigs.get(k);
                 mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, extensionContext);
             }
+
+            // The final link context is a merge of the app manifest and the extension contexts
+            mergedExtensionContext = mergeContexts(mergedExtensionContext, appManifestContext);
 
             File exe = linkEngine(symbols, mergedExtensionContext);
 
