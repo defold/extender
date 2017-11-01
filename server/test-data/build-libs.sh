@@ -31,14 +31,16 @@ function Copy {
 
 CompileLibsToExtension enginelibs engineext/lib
 
-# # copy these into the "a" sdk
+# copy these into the "a" sdk
 mkdir -p sdk/a/defoldsdk/lib
-cp -v -r engineext/lib/ sdk/a/defoldsdk/lib
+cp -v -r engineext/lib sdk/a/defoldsdk/
 rm -rf ./engineext
 
-# # The sdk's has different naming
+# The sdk's has different naming
 mv sdk/a/defoldsdk/lib/x86-osx sdk/a/defoldsdk/lib/darwin
 mv sdk/a/defoldsdk/lib/x86_64-osx sdk/a/defoldsdk/lib/x86_64-darwin
+
+mv sdk/a/defoldsdk/lib/x86-linux sdk/a/defoldsdk/lib/linux
 
 # Need these folders as well (empty is fine)
 mkdir -p sdk/a/defoldsdk/ext/lib/darwin

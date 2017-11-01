@@ -1,5 +1,6 @@
 FROM ubuntu:16.04
 
+
 # Base stuff
 RUN \
   dpkg --add-architecture i386 && \
@@ -27,43 +28,14 @@ RUN \
   rm -rf /var/lib/apt/lists/* && \
   rm -rf /var/cache/oracle-jdk8-installer
 
-# Android SDK/NDK
-ENV ANDROID_ROOT /opt/android
-ENV ANDROID_SDK_FILENAME android-sdk_r24.3.3-linux.tgz
-ENV ANDROID_SDK_URL http://dl.google.com/android/${ANDROID_SDK_FILENAME}
-ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
-ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 
-ENV ANDROID_NDK_VERSION 10e
-ENV ANDROID_NDK_API_VERSION 14
-ENV ANDROID_TARGET_API_LEVEL 23
-ENV ANDROID_MIN_API_LEVEL 9
-ENV ANDROID_GCC_VERSION 4.8
-ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
-ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/tmp/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
-ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
-ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
-ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
-ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
-ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
-ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_ROOT}/android-sdk/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
+# Add extender user
+RUN  useradd -r -u 2222 extender && \
+  mkdir -p /var/extender && \
+  chown extender: /var/extender && \
+  chown extender: $(readlink -f /usr/bin/java) && \
+  chmod +s $(readlink -f /usr/bin/java)
 
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
-
-ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
-ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
-
-RUN mkdir -p cd ${ANDROID_ROOT} && \
-    cd ${ANDROID_ROOT} && \
-    wget -q -O - ${ANDROID_SDK_URL} | tar -zxvf - && \
-    echo y | android update sdk --no-ui -a --filter tools,platform-tools,android-${ANDROID_TARGET_API_LEVEL},build-tools-${ANDROID_BUILD_TOOLS_VERSION} && \
-    ln -s android-sdk-linux android-sdk && \
-    wget -q ${ANDROID_NDK_URL} && \
-    chmod +x ${ANDROID_NDK_FILENAME} && \
-    unzip ${ANDROID_NDK_FILENAME} && \
-    chmod +r -R ${ANDROID_ROOT} && \
-    rm ${ANDROID_NDK_FILENAME} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 
 ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
 
@@ -119,6 +91,10 @@ RUN \
   apt-get remove -y git cmake
 
 
+# 
+# iOS + OSX
+#
+
 # Keeping iOS 9.3 and MaxOSX 10.11 around for a few weeks (should also remove iPhoneOS.sdk folder)
 RUN \
   wget -q -O - ${S3_URL}/iPhoneOS9.3.sdk.tar.gz | tar xz -C /opt && \
@@ -136,8 +112,10 @@ RUN \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin12-clang && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin12-clang-ar
 
-
+#
 # EMSCRIPTEN
+#
+
 RUN apt-get install -y --no-install-recommends python2.7 && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python2
@@ -163,8 +141,10 @@ RUN \
   echo TEMP_DIR = \'/var/extender/builds\' >> ${EMSCRIPTEN_CONFIG} && \
   chmod -R 755 ${EMSCRIPTEN_HOME}
 
-
+#
 # Windows
+#
+
 RUN \
   apt-get install apt-transport-https
 
@@ -204,6 +184,8 @@ ENV WINEPREFIX "/var/extender/.wine"
 # Also, for the installed packages, create symlinks without spaces in the paths!
 # Once we run wine, the folder is created for the root user, this needs to be chown'ed back to the extender user (see next Dockerfile)
 
+USER extender
+
 RUN \
   mkdir -p ${WINEPREFIX} && \
   wine cmd /c echo Initialized Wine folder && \
@@ -216,3 +198,65 @@ RUN \
   wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
   ln -s ${WINEPREFIX}/drive_c/ProgramFilesx86/Microsoft\ Visual\ Studio\ 14.0 ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0
 
+USER root
+
+RUN apt-get update && \
+    apt-get install -y \
+    gcc-multilib \
+    g++-multilib
+
+#
+# Android SDK/NDK
+#
+ENV ANDROID_ROOT /opt/android
+ENV ANDROID_TOOLS_FILENAME sdk-tools-linux-3859397.zip
+ENV ANDROID_TOOLS_URL https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
+
+ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
+ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
+
+ENV ANDROID_NDK_VERSION 10e
+ENV ANDROID_NDK_API_VERSION 14
+ENV ANDROID_TARGET_API_LEVEL 23
+ENV ANDROID_MIN_API_LEVEL 9
+ENV ANDROID_GCC_VERSION 4.8
+ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
+ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/tmp/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
+ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
+ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
+ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
+ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
+ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
+ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
+
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
+
+ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
+ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
+
+RUN mkdir -p ${ANDROID_HOME} && \
+    cd ${ANDROID_ROOT} && \
+    wget -q ${ANDROID_NDK_URL} && \
+    chmod +x ${ANDROID_NDK_FILENAME} && \
+    unzip -q ${ANDROID_NDK_FILENAME} && \
+    chmod +r -R ${ANDROID_ROOT} && \
+    rm ${ANDROID_NDK_FILENAME} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} && \
+    cd ${ANDROID_HOME} && \
+    echo ${ANDROID_TOOLS_URL} && \
+    wget ${ANDROID_TOOLS_URL} && \
+    unzip -q ${ANDROID_TOOLS_FILENAME} && \
+    rm ${ANDROID_TOOLS_FILENAME} && \
+    chown -R extender: ${ANDROID_HOME}
+
+# The sdk manager wants user access folder
+USER extender
+RUN cd ${ANDROID_HOME} && \
+    echo y | ./tools/bin/sdkmanager --verbose "tools" "platform-tools" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" && \
+    # make sure it exists!
+    ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx
+
+# Remove the rights again from the extender user
+USER root
+RUN cd ${ANDROID_HOME} && \
+    chown -R root: ${ANDROID_HOME}
