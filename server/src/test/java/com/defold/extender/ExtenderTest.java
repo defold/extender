@@ -286,9 +286,20 @@ public class ExtenderTest {
 
     @Test
     public void testCollectJars() {
-        List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
-        assertEquals(2, result.size());
-        assertTrue(result.get(0).endsWith("test-data/ext/lib/armv7-android/Dummy.jar"));
+        List<String> paths = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
+        assertEquals(2, paths.size());
+
+        String[] suffixes = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar"};
+
+        for (String suffix : suffixes) {
+            boolean exists = false;
+            for (String path : paths) {
+                if (path.endsWith(suffix)) {
+                    exists = true;
+                }
+            }
+            assertTrue(exists);
+        }
     }
 
     @Test

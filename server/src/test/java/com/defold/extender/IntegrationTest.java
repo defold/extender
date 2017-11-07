@@ -141,7 +141,23 @@ public class IntegrationTest {
         System.out.println(processExecutor.getOutput());
 
         // Wait for server to start in container.
-        Thread.sleep(7000);
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+
+        for (int i  = 0; i < 100; i++) {
+
+            try {
+                if (extenderClient.health()) {
+                    System.out.println("Server started!");
+                    break;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            System.out.println("Waiting for server to start...");
+            Thread.sleep(2000);
+        }
+
     }
 
     @AfterClass
