@@ -17,6 +17,7 @@ public class InfluxDBMetricWriter implements GaugeWriter {
     private final String databaseName;
     private final String reportingHostname;
     private final String reportingEnvironment;
+    private final String reportingService;
 
     private InfluxDBMetricWriter(Builder builder) {
         this.influxDB = builder.influxDB;
@@ -26,6 +27,7 @@ public class InfluxDBMetricWriter implements GaugeWriter {
         this.influxDB.setLogLevel( builder.logLevel);
         this.reportingHostname = builder.reportingHostname;
         this.reportingEnvironment = builder.reportingEnvironment;
+        this.reportingService = builder.reportingService;
     }
 
     @Override
@@ -35,6 +37,7 @@ public class InfluxDBMetricWriter implements GaugeWriter {
                 .addField( "value", value.getValue())
                 .tag("hostname", reportingHostname)
                 .tag("environment", reportingEnvironment)
+                .tag("service", reportingService)
                 .build();
         this.influxDB.write( this.databaseName, null, point);
     }
@@ -48,6 +51,7 @@ public class InfluxDBMetricWriter implements GaugeWriter {
         private InfluxDB.LogLevel logLevel = InfluxDB.LogLevel.BASIC;
         private String reportingHostname;
         private String reportingEnvironment;
+        private String reportingService;
 
         Builder(InfluxDB influxDB) {
             this.influxDB = influxDB;
@@ -80,6 +84,11 @@ public class InfluxDBMetricWriter implements GaugeWriter {
 
         Builder withReportingEnvironment(String reportingEnvironment) {
             this.reportingEnvironment = reportingEnvironment;
+            return this;
+        }
+
+        Builder withReportingService(String reportingService) {
+            this.reportingService = reportingService;
             return this;
         }
     }

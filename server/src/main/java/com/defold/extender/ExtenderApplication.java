@@ -60,7 +60,8 @@ public class ExtenderApplication {
                     .withDatabaseName(dbName)
                     .withBatchActions(500)
                     .withReportingEnvironment(environmentString)
-                    .withReportingHostname(hostName);
+                    .withReportingHostname(hostName)
+                    .withReportingService("Extender");
 
             return builder.build();
         } catch (Exception e) {
