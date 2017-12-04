@@ -5,7 +5,6 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -104,6 +103,15 @@ public class ExtenderController {
             List<File> outputFiles = extender.build();
             ZipUtils.zip(response.getOutputStream(), outputFiles);
         } finally {
+            // Run top and log result
+            ProcessExecutor processExecutor = new ProcessExecutor();
+            try {
+                processExecutor.execute("top -b -n 1 -o %MEM");
+                LOGGER.info(processExecutor.getOutput());
+            } catch (InterruptedException e) {
+                LOGGER.warn("Failed to run top after build.");
+            }
+
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
         }
