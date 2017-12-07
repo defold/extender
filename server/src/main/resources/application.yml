@@ -18,10 +18,14 @@ endpoints:
   enabled: false
   health:
     enabled: true
-    sensitive: true
+    sensitive: false
 
 # Suppress info-logging from metrics reporting client
 logging.level.okhttp3.OkHttpClient: WARN
+
+management:
+  health.diskspace.path: /
+  health.diskspace.threshold: 524288000 #500mb
 
 ---
 
