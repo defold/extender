@@ -5,5 +5,5 @@ RUN chown extender: app.jar
 
 USER extender
 
-ENTRYPOINT ["java","-Xmx1G","-jar","/app.jar"]
+ENTRYPOINT ["java","-Xmx500m","-jar","/app.jar"]
 EXPOSE 9000
