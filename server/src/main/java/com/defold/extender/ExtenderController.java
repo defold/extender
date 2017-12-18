@@ -5,6 +5,8 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.actuate.metrics.GaugeService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -32,10 +34,12 @@ public class ExtenderController {
     private static final Pattern FILENAME_RE = Pattern.compile("^([A-Za-z0-9_ ](?:[A-Za-z0-9_+\\-/ ]|(?:\\.[A-Za-z0-9_+\\-/ ]))+)$");
 
     private final DefoldSdkService defoldSdkService;
+    private final GaugeService gaugeService;
 
     @Autowired
-    public ExtenderController(DefoldSdkService defoldSdkService) {
+    public ExtenderController(DefoldSdkService defoldSdkService, @Qualifier("gaugeService") GaugeService gaugeService) {
         this.defoldSdkService = defoldSdkService;
+        this.gaugeService = gaugeService;
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -86,8 +90,13 @@ public class ExtenderController {
         buildDirectory.mkdir();
 
         try {
+            Timer timer = new Timer();
+            timer.start();
+
             validateFilenames(request);
             receiveUpload(request, uploadDirectory);
+
+            gaugeService.submit("job.receive",  timer.start());
 
             // Get SDK
             File sdk;
@@ -97,11 +106,16 @@ public class ExtenderController {
                 sdk = defoldSdkService.getSdk(sdkVersion);
             }
 
+            gaugeService.submit("job.sdkDownload",  timer.start());
+
             Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
             // Build and write output files to output stream
             List<File> outputFiles = extender.build();
+            gaugeService.submit("job.build." + platform,  timer.start());
+
             ZipUtils.zip(response.getOutputStream(), outputFiles);
+            gaugeService.submit("job.write",  timer.start());
         } finally {
             // Run top and log result
             ProcessExecutor processExecutor = new ProcessExecutor();
