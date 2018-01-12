@@ -1,5 +1,7 @@
-FROM ubuntu:16.04
-
+# To solve the PID1 zombie process issue
+# http://phusion.github.io/baseimage-docker/
+# It derives from ubuntu:16.04
+FROM phusion/baseimage:0.9.22
 
 # Base stuff
 RUN \
