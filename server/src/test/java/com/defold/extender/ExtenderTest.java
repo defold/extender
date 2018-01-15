@@ -289,10 +289,10 @@ public class ExtenderTest {
         List<String> paths = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
         assertEquals(4, paths.size());
 
-        String[] paths = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar",
-                        "test-data/ext/lib/armv7-android/VeryLarge1.jar", "test-data/ext/lib/armv7-android/VeryLarge2.jar"};
+        String[] endings = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar",
+                            "test-data/ext/lib/armv7-android/VeryLarge1.jar", "test-data/ext/lib/armv7-android/VeryLarge2.jar"};
 
-        for (String p : paths) {
+        for (String p : endings) {
             boolean exists = false;
             for (String path : paths) {
                 if (path.endsWith(p)) {
