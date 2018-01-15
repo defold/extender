@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -108,4 +109,46 @@ class ExtenderUtil
             }
         }
     }
+
+    static File[] listFilesMatching(File dir, String regex) {
+        if(!dir.isDirectory()) {
+            throw new IllegalArgumentException(dir+" is no directory.");
+        }
+        final Pattern p = Pattern.compile(regex);
+        return dir.listFiles(new FileFilter(){
+            @Override
+            public boolean accept(File file) {
+                return p.matcher(file.getName()).matches();
+            }
+        });
+    }
+
+    static List<String> getAppManifestItems(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
+        List<String> items = new ArrayList<>();
+
+        if( manifest == null || manifest.platforms == null )
+            return items;
+
+        if (manifest.platforms.containsKey("common")) {
+            Object v = manifest.platforms.get("common").context.get(name);
+            if( v != null ) {
+                if (!Extender.isListOfStrings((List<Object>) v)) {
+                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
+                }
+                items.addAll((List<String>) v);
+            }
+        }
+
+        if (manifest.platforms.containsKey(platform)) {
+            Object v = manifest.platforms.get(platform).context.get(name);
+            if( v != null ) {
+                if (!Extender.isListOfStrings((List<Object>) v)) {
+                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
+                }
+                items.addAll((List<String>) v);
+            }
+        }
+        return items;
+    }
+
 }

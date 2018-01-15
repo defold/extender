@@ -321,15 +321,15 @@ public class ExtenderTest {
 
         // Make sure it handles platforms
         {
-            List<String> items = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> items = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
             assertTrue( items.contains("SymbolA") );
             assertTrue( items.contains("SymbolB") );
             assertFalse( items.contains("SymbolC") );
         }
 
         {
-            List<String> includePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "includeSymbols");
-            List<String> excludePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> includePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "includeSymbols");
+            List<String> excludePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
             List<String> allItems = new ArrayList<>();
             allItems.add("SymbolA");
             allItems.add("SymbolB");

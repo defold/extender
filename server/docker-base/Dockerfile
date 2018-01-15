@@ -254,9 +254,8 @@ RUN mkdir -p ${ANDROID_HOME} && \
 # The sdk manager wants user access folder
 USER extender
 RUN cd ${ANDROID_HOME} && \
-    echo y | ./tools/bin/sdkmanager --verbose "tools" "platform-tools" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" && \
-    # make sure it exists!
-    ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx
+    echo y | ./tools/bin/sdkmanager --verbose "tools" "platform-tools" "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" && \
+    ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
 
 # Remove the rights again from the extender user
 USER root
