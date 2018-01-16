@@ -131,7 +131,7 @@ platforms:
     libCmd:         'arm-linux-androideabi-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     javacCmd:       'javac -source 1.6 -target 1.6 -d {{classesDir}} -classpath {{classPath}} @{{sourcesListFile}}'
     jarCmd:         'jar cvf {{outputJar}} -C {{classesDir}} .'
-    dxCmd:          'dx --dex --output {{classes_dex}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
+    dxCmd:          'dx --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
 
   js-web:
     env:
