@@ -146,7 +146,8 @@ public class IntegrationTest {
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
 
-        for (int i  = 0; i < 100; i++) {
+        int count = 100;
+        for (int i  = 0; i < count; i++) {
 
             try {
                 if (extenderClient.health()) {
@@ -154,7 +155,9 @@ public class IntegrationTest {
                     break;
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                if (i == count-1) {
+                    e.printStackTrace();
+                }
             }
             System.out.println("Waiting for server to start...");
             Thread.sleep(2000);
@@ -230,16 +233,13 @@ public class IntegrationTest {
         if (platform.endsWith("android")) {
             return "libdmengine.so";
         }
-        else if (platform.endsWith("ios") || platform.endsWith("osx")) {
-            return "dmengine";
-        }
         else if (platform.endsWith("web")) {
             return "dmengine.js";
         }
         else if (platform.endsWith("win32")) {
             return "dmengine.exe";
         }
-        return null;
+        return "dmengine";
     }
 
     private String getLibName(String platform, String lib) {
@@ -369,7 +369,7 @@ public class IntegrationTest {
 
         org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
                 configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 116) || configuration.version.version.isVersion(0, 0, 0) )
+                        (configuration.version.version.isGreaterThan(1, 2, 119) || configuration.version.version.isVersion(0, 0, 0) )
         );
 
         clearCache();
