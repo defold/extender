@@ -58,7 +58,7 @@ class Extender {
         this.platform = platform;
         this.sdk = sdk;
         this.platformConfig = getPlatformConfig();
-        
+
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
 
@@ -379,34 +379,6 @@ class Extender {
         processExecutor.execute(command);
     }
 
-    static List<String> getAppManifestItems(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
-        List<String> items = new ArrayList<>();
-
-        if( manifest == null || manifest.platforms == null )
-            return items;
-
-        if (manifest.platforms.containsKey("common")) {
-            Object v = manifest.platforms.get("common").context.get(name);
-            if( v != null ) {
-                if (!Extender.isListOfStrings((List<Object>) v)) {
-                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
-                }
-                items.addAll((List<String>) v);
-            }
-        }
-
-        if (manifest.platforms.containsKey(platform)) {
-            Object v = manifest.platforms.get(platform).context.get(name);
-            if( v != null ) {
-                if (!Extender.isListOfStrings((List<Object>) v)) {
-                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
-                }
-                items.addAll((List<String>) v);
-            }
-        }
-        return items;
-    }
-
     private File linkEngine(List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File maincpp = new File(buildDirectory , "main.cpp");
 
@@ -415,8 +387,8 @@ class Extender {
 
         Map<String, Object> mainContext = context(manifestContext);
 
-        extSymbols = ExtenderUtil.pruneItems( extSymbols, getAppManifestItems(appManifest, platform, "includeSymbols"), getAppManifestItems(appManifest, platform, "excludeSymbols") );
-        mainContext.put("symbols", ExtenderUtil.pruneItems( (List<String>)mainContext.get("symbols"), getAppManifestItems(appManifest, platform, "includeSymbols"), getAppManifestItems(appManifest, platform, "excludeSymbols")));
+        extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeSymbols"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeSymbols") );
+        mainContext.put("symbols", ExtenderUtil.pruneItems( (List<String>)mainContext.get("symbols"), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeSymbols"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeSymbols")));
         mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
 
         String main = templateExecutor.execute(config.main, mainContext);
@@ -460,8 +432,8 @@ class Extender {
             }
         }
 
-        extLibs = ExtenderUtil.pruneItems( extLibs, getAppManifestItems(appManifest, platform, "includeLibs"), getAppManifestItems(appManifest, platform, "excludeLibs"));
-        extJsLibs = ExtenderUtil.pruneItems( extJsLibs, getAppManifestItems(appManifest, platform, "includeJsLibs"), getAppManifestItems(appManifest, platform, "excludeJsLibs"));
+        extLibs = ExtenderUtil.pruneItems( extLibs, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeLibs"));
+        extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJsLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJsLibs"));
 
         File exe;
         if (platformConfig.writeExePattern != null ) {
@@ -474,8 +446,8 @@ class Extender {
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, mainObject));
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
-        context.put("engineLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineLibs", new ArrayList<>()), getAppManifestItems(appManifest, platform, "includeLibs"), getAppManifestItems(appManifest, platform, "excludeLibs")) );
-        context.put("engineJsLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineJsLibs", new ArrayList<>()), getAppManifestItems(appManifest, platform, "includeJsLibs"), getAppManifestItems(appManifest, platform, "excludeJsLibs")) );
+        context.put("engineLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineLibs", new ArrayList<>()), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeLibs")) );
+        context.put("engineJsLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineJsLibs", new ArrayList<>()), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJsLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJsLibs")) );
 
         String command = templateExecutor.execute(platformConfig.linkCmd, context);
         processExecutor.execute(command);
@@ -671,12 +643,12 @@ class Extender {
         return new HashMap<>();
     }
 
-    private File buildClassesDex(List<File> extraJars) throws ExtenderException {
+    private File[] buildClassesDex(List<File> extraJars) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
         // To support older versions of build.yml where dxCmd is not defined:
         if (platformConfig.dxCmd == null || platformConfig.dxCmd.isEmpty()) {
-            return null;
+            return new File[0];
         }
 
         File classesDex = new File(buildDirectory, "classes.dex");
@@ -692,8 +664,9 @@ class Extender {
         HashMap<String, Object> empty = new HashMap<>();
         Map<String, Object> context = context(empty);
         context.put("classes_dex", classesDex.getAbsolutePath());
-        context.put("jars", ExtenderUtil.pruneItems( extJars, getAppManifestItems(appManifest, platform, "includeJars"), getAppManifestItems(appManifest, platform, "excludeJars")));
-        context.put("engineJars", ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), getAppManifestItems(appManifest, platform, "includeJars"), getAppManifestItems(appManifest, platform, "excludeJars")) );
+        context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
+        context.put("jars", ExtenderUtil.pruneItems( extJars, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJars"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJars")));
+        context.put("engineJars", ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJars"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJars")) );
 
         String command = templateExecutor.execute(platformConfig.dxCmd, context);
         try {
@@ -702,7 +675,8 @@ class Extender {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
 
-        return classesDex;
+        File[] classes = ExtenderUtil.listFilesMatching(buildDirectory, "^classes(|[0-9]+)\\.dex$");
+        return classes;
     }
 
     private void buildWin32Manifest(File exe, Map<String, Object> mergedExtensionContext) throws ExtenderException {
@@ -785,9 +759,9 @@ class Extender {
             File rJar = buildRJar();
             List<File> extraJars = buildJava(rJar);
 
-            File classesDex = buildClassesDex(extraJars);
-            if (classesDex != null) {
-                outputFiles.add(classesDex);
+            File[] classesDex = buildClassesDex(extraJars);
+            if (classesDex.length > 0) {
+                outputFiles.addAll(Arrays.asList(classesDex));
             }
         }
 

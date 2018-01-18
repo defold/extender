@@ -287,15 +287,17 @@ public class ExtenderTest {
     @Test
     public void testCollectJars() {
         List<String> paths = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
-        assertEquals(2, paths.size());
+        assertEquals(4, paths.size());
 
-        String[] suffixes = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar"};
+        String[] endings = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar",
+                            "test-data/ext/lib/armv7-android/VeryLarge1.jar", "test-data/ext/lib/armv7-android/VeryLarge2.jar"};
 
-        for (String suffix : suffixes) {
+        for (String p : endings) {
             boolean exists = false;
             for (String path : paths) {
-                if (path.endsWith(suffix)) {
+                if (path.endsWith(p)) {
                     exists = true;
+                    break;
                 }
             }
             assertTrue(exists);
@@ -321,15 +323,15 @@ public class ExtenderTest {
 
         // Make sure it handles platforms
         {
-            List<String> items = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> items = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
             assertTrue( items.contains("SymbolA") );
             assertTrue( items.contains("SymbolB") );
             assertFalse( items.contains("SymbolC") );
         }
 
         {
-            List<String> includePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "includeSymbols");
-            List<String> excludePatterns = Extender.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> includePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "includeSymbols");
+            List<String> excludePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
             List<String> allItems = new ArrayList<>();
             allItems.add("SymbolA");
             allItems.add("SymbolB");

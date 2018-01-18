@@ -105,7 +105,7 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86-osx", "armv7-android", "js-web", "x86_64-win32"} ),
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32"} ),
 
                 new DefoldVersion("8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", new Version(1, 2, 97), new String[] {"x86-osx"}),
                 new DefoldVersion("735ff76c8b1f93b3126ff223cd234d7ceb5b886d", new Version(1, 2, 98), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
@@ -114,6 +114,7 @@ public class IntegrationTest {
                 new DefoldVersion("1e53d81a6306962b64381195f081d442d033ead1", new Version(1, 2, 101), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("d530758af74c2800d0898c591cc7188cc4515476", new Version(1, 2, 102), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("d126b0348d27c684d020e0bd43fde0a2771746f0", new Version(1, 2, 103), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
+                new DefoldVersion("2406775912d235d2579cfe723ab4dbcea2ca77ca", new Version(1, 2, 119), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -144,7 +145,8 @@ public class IntegrationTest {
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
 
-        for (int i  = 0; i < 100; i++) {
+        int count = 100;
+        for (int i  = 0; i < count; i++) {
 
             try {
                 if (extenderClient.health()) {
@@ -152,7 +154,9 @@ public class IntegrationTest {
                     break;
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                if (i == count-1) {
+                    e.printStackTrace();
+                }
             }
             System.out.println("Waiting for server to start...");
             Thread.sleep(2000);
@@ -228,16 +232,13 @@ public class IntegrationTest {
         if (platform.endsWith("android")) {
             return "libdmengine.so";
         }
-        else if (platform.endsWith("ios") || platform.endsWith("osx")) {
-            return "dmengine";
-        }
         else if (platform.endsWith("web")) {
             return "dmengine.js";
         }
         else if (platform.endsWith("win32")) {
             return "dmengine.exe";
         }
-        return null;
+        return "dmengine";
     }
 
     private String getLibName(String platform, String lib) {
@@ -359,7 +360,68 @@ public class IntegrationTest {
             dexClasses.add(classDef.getType());
         }
 
-        assertTrue(dexClasses.contains("Lcom/svenandersson/dummy/Dummy;"));
+        assertTrue(dexClasses.contains("Lcom/defold/dummy/Dummy;"));
+    }
+
+    @Test
+    public void buildAndroidCheckClassesMultiDex() throws IOException, ExtenderClientException, InterruptedException {
+
+        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
+                configuration.platform.contains("android") &&
+                        (configuration.version.version.isGreaterThan(1, 2, 119) || configuration.version.version.isVersion(0, 0, 0) )
+        );
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge1.jar"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge2.jar"));
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ZipFile zipFile = new ZipFile(destination);
+        ZipEntry classesDexEntry = zipFile.getEntry("classes.dex");
+        assertNotEquals(null, classesDexEntry);
+        assertNotEquals(null, zipFile.getEntry("libdmengine.so"));
+
+
+        InputStream in = zipFile.getInputStream(classesDexEntry);
+        Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
+        Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Verify that classes.dex contains our Dummy class
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        Set<String> dexClasses = new HashSet<>();
+        for (ClassDef classDef: dexFile.getClasses()) {
+            dexClasses.add(classDef.getType());
+        }
+
+        assertTrue(dexClasses.contains("Lcom/defold/dummy/Dummy;"));
     }
 
     @Test
@@ -419,7 +481,7 @@ public class IntegrationTest {
             dexClasses.add(classDef.getType());
         }
 
-        assertTrue(dexClasses.contains("Lcom/svenandersson/dummy/Dummy;"));
+        assertTrue(dexClasses.contains("Lcom/defold/dummy/Dummy;"));
         assertTrue(dexClasses.contains("Lcom/defold/Test;"));
     }
 
