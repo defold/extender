@@ -112,7 +112,7 @@ class ExtenderUtil
 
     static File[] listFilesMatching(File dir, String regex) {
         if(!dir.isDirectory()) {
-            throw new IllegalArgumentException(dir+" is no directory.");
+            throw new IllegalArgumentException(dir+" is not a directory.");
         }
         final Pattern p = Pattern.compile(regex);
         return dir.listFiles(new FileFilter(){

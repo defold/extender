@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# DEBUG
-# Dump embedded resources:
-# /Users/mathiaswesterdahl/android//android-sdk/build-tools/23.0.2/aapt d resources AndroidNativeExt/AndroidNativeExt.apk 
+# This script is for regenerating Dummy.jar, and VeryLarge1 and VeryLarge2.jar
+# Usage: cd to this directory and run this script, and it should regenerate those files for you.
 
 if [ "$ANDROID_HOME" == "" ]; then
     echo "No ANDROID_HOME environment variable set!"
@@ -10,23 +9,12 @@ if [ "$ANDROID_HOME" == "" ]; then
 fi
 
 BUILD=./build
-#AAPT=$ANDROID_HOME/build-tools/23.0.2/aapt
 
 PACKAGE_NAME=com/defold/dummy
 
 ANDROID_JAR=$DYNAMO_HOME/ext/share/java/android.jar
 
-# local to this project
-#RESOURCE_DIR1=../androidnative/res/android/res
-#RESOURCE_DIR2=../androidnative/res/armv7-android/res
-
-
 mkdir -p $BUILD
-
-#ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s %s -F %s -m -J %s %s' % (aapt, manifest, android_jar, res_args, ap_, r_java_gen_dir, extra_packages_cmd))
-
-#$AAPT package --no-crunch -f --debug-mode --auto-add-overlay -M AndroidManifest.xml -I $ANDROID_JAR -S $RESOURCE_DIR1 -S $RESOURCE_DIR2 -J $BUILD
-
 
 # Dummy.jar
 javac  -source 1.6 -target 1.6  -cp .  com/defold/dummy/Dummy.java
