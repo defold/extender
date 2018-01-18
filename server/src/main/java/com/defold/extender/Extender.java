@@ -648,7 +648,7 @@ class Extender {
 
         // To support older versions of build.yml where dxCmd is not defined:
         if (platformConfig.dxCmd == null || platformConfig.dxCmd.isEmpty()) {
-            return null;
+            return new File[0];
         }
 
         File classesDex = new File(buildDirectory, "classes.dex");
