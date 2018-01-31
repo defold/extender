@@ -53,7 +53,7 @@ class Extender {
         this.buildDirectory = buildDirectory;
 
         // Read config from SDK
-        this.config = Extender.loadYaml(uploadDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
+        this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
         this.platform = platform;
         this.sdk = sdk;
@@ -89,7 +89,7 @@ class Extender {
             this.appManifest = new AppManifestConfiguration();
         } else {
             this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
-            this.appManifest = Extender.loadYaml(this.uploadDirectory, appManifests.get(0), AppManifestConfiguration.class);
+            this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
         }
 
         // The allowed libs/symbols are the union of the values from the different "levels": "context: allowedLibs: [...]" + "context: platforms: arm64-osx: allowedLibs: [...]"
@@ -172,18 +172,23 @@ class Extender {
         return file;
     }
 
+    private static int countLines(String str){
+       String[] lines = str.split("\r\n|\r|\n");
+       return lines.length;
+    }
+
     static <T> T loadYaml(File root, File manifest, Class<T> type) throws IOException, ExtenderException {
         String yaml = FileUtils.readFileToString(manifest);
 
         if (yaml.contains("\t")) {
-            throw new ExtenderException("Manifest files (ext.manifest) are YAML files and cannot contain tabs. " +
-                    "Indentation should be done with spaces.");
+            int numLines = 1 + countLines(yaml.substring(0, yaml.indexOf("\t")));
+            throw new ExtenderException(String.format("%s:%d: error: Manifest files are YAML files and cannot contain tabs. Indentation should be done with spaces.", ExtenderUtil.getRelativePath(root, manifest), numLines));
         }
 
         try {
             return new Yaml().loadAs(yaml, type);
         } catch(YAMLException e) {
-            throw new ExtenderException(String.format("Error in file '%s': %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
+            throw new ExtenderException(String.format("%s:1: error: %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
         }
     }
 
@@ -602,7 +607,7 @@ class Extender {
         try {
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = Extender.loadYaml(this.uploadDirectory, manifest, ManifestConfiguration.class);
+                ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
@@ -712,7 +717,7 @@ class Extender {
 
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = Extender.loadYaml(this.uploadDirectory, manifest, ManifestConfiguration.class);
+                ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
