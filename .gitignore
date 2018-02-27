@@ -1,12 +1,25 @@
 **/build
 **/classes
-/.gradle
-/.idea
 /tmp
 /debugsdk
-.DS_Store
 *.class
 !server/test-data/sdk/
 server/test-data/sdk/*
 !server/test-data/sdk/a
 
+# IntelliJ IDEA
+/.idea
+/*.iml
+/*.ipr
+/*.iws
+
+# Eclipse
+/.classpath
+/.project
+/.settings
+
+# Gradle
+/.gradle
+
+# Mac
+.DS_Store
