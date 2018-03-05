@@ -77,6 +77,7 @@ RUN \
   mkdir $TPAPITMP && \
   git clone https://github.com/tpoechtrager/apple-libtapi.git && \
   cd apple-libtapi && \
+  git checkout 19694a572cd9c0f6452a8e214682e74197370934 && \
   INSTALLPREFIX=$TPAPITMP ./build.sh && \
   ./install.sh && \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
@@ -93,22 +94,20 @@ RUN \
   apt-get remove -y git cmake
 
 
-# 
+#
 # iOS + OSX
 #
+# For package instructions, see README_IOS.md
 
-# Keeping iOS 9.3 and MaxOSX 10.11 around for a few weeks (should also remove iPhoneOS.sdk folder)
+# Keeping iOS 10.3 and MacOSX10.2 around for a few sprints
 RUN \
-  wget -q -O - ${S3_URL}/iPhoneOS9.3.sdk.tar.gz | tar xz -C /opt && \
-  mv /opt/iPhoneOS.sdk /opt/iPhoneOS9.3.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt && \
   wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
   mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
-  wget -q -O - ${S3_URL}/MacOSX10.11.sdk.tar.gz | tar xz -C /opt && \
-  mv /opt/MacOSX.sdk /opt/MacOSX10.11.sdk && \
+  wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C /opt && \
+  mv /opt/MacOSX.sdk /opt/MacOSX10.13.sdk && \
   wget -q -O - ${S3_URL}/MacOSX10.12.sdk.tar.gz | tar xz -C /opt && \
   mv /opt/MacOSX.sdk /opt/MacOSX10.12.sdk && \
-  ln -s /opt/iPhoneOS9.3.sdk /opt/iPhoneOS.sdk && \
-  ln -s /opt/MacOSX10.11.sdk /opt/MacOSX.sdk && \
   ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil && \
   ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin12-clang && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin12-clang && \
@@ -118,7 +117,8 @@ RUN \
 # EMSCRIPTEN
 #
 
-RUN apt-get install -y --no-install-recommends python2.7 && \
+RUN apt-get autoclean && \
+  apt-get install -y --no-install-recommends python2.7 && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python2
 
@@ -148,6 +148,7 @@ RUN \
 #
 
 RUN \
+  apt-get update && \
   apt-get install apt-transport-https
 
 # According to some notes, wine 1.8 is needed for Visual Studio 2015, and Ubuntu 14 only has wine 1.4
