@@ -102,6 +102,7 @@ RUN \
 # Keeping iOS 10.3 and MacOSX10.2 around for a few sprints
 RUN \
   wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt && \
+  mv /opt/iPhoneOS.sdk /opt/iPhoneOS11.2.sdk && \
   wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
   mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
   wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C /opt && \
