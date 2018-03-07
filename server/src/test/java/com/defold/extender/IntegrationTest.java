@@ -106,15 +106,10 @@ public class IntegrationTest {
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32"} ),
-
-                new DefoldVersion("8e1d5f8a8a0e1734c9e873ec72b56bea53f25d87", new Version(1, 2, 97), new String[] {"x86-osx"}),
-                new DefoldVersion("735ff76c8b1f93b3126ff223cd234d7ceb5b886d", new Version(1, 2, 98), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
-                new DefoldVersion("0d7f8b51658bee90cb38f3d651b3ba072394afed", new Version(1, 2, 99), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
-                new DefoldVersion("1afccdb2cd42ca3bc7612a0496dfa6d434a8ebf9", new Version(1, 2, 100), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
-                new DefoldVersion("1e53d81a6306962b64381195f081d442d033ead1", new Version(1, 2, 101), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
-                new DefoldVersion("d530758af74c2800d0898c591cc7188cc4515476", new Version(1, 2, 102), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
-                new DefoldVersion("d126b0348d27c684d020e0bd43fde0a2771746f0", new Version(1, 2, 103), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86-osx", "x86_64-osx"}),
                 new DefoldVersion("2406775912d235d2579cfe723ab4dbcea2ca77ca", new Version(1, 2, 119), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux"}),
+                new DefoldVersion("fce7921da858a71876773c75920b74310ca7ac1f", new Version(1, 2, 120), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
+                new DefoldVersion("fce7921da858a71876773c75920b74310ca7ac1f", new Version(1, 2, 121), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
+                new DefoldVersion("fce7921da858a71876773c75920b74310ca7ac1f", new Version(1, 2, 122), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -177,55 +172,6 @@ public class IntegrationTest {
         if (cachedBuild.exists())
             cachedBuild.delete();
         assertFalse(cachedBuild.exists());
-    }
-
-    @Test
-    public void buildEngineOLD() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeFalse("Too new sdk - skipping", configuration.version.version.isGreaterThan(1, 2, 100) );
-
-        clearCache();
-
-        File cacheDir = new File("build");
-        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
-        List<ExtenderResource> sourceFiles = Lists.newArrayList(
-                new FileExtenderResource("test-data/ext/ext.manifest"),
-                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource(String.format("test-data/ext/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib")))
-        );
-        File destination = Files.createTempFile("dmengine", ".zip").toFile();
-        File log = Files.createTempFile("dmengine", ".log").toFile();
-
-        String platform = configuration.platform;
-        String sdkVersion = configuration.version.sha1;
-
-        try {
-            extenderClient.build(
-                    platform,
-                    sdkVersion,
-                    sourceFiles,
-                    destination,
-                    log
-            );
-        } catch (ExtenderClientException e) {
-            System.out.println("ERROR LOG:");
-            System.out.println(new String(Files.readAllBytes(log.toPath())));
-            throw e;
-        }
-
-        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
-        assertEquals("Log should be of size zero if successful.", 0, log.length());
-
-        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
-        assertTrue(cache.getCachedBuildFile(platform).exists());
-
-        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
-        assertEquals("Log should be of size zero if successful.", 0, log.length());
-
-        ZipFile zipFile = new ZipFile(destination);
-        assertNotEquals(null, zipFile.getEntry( getEngineName(platform) ) );
-
-        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 
     private String getEngineName(String platform) {

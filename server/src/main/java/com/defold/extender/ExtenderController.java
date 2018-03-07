@@ -117,15 +117,6 @@ public class ExtenderController {
             ZipUtils.zip(response.getOutputStream(), outputFiles);
             gaugeService.submit("job.write",  timer.start());
         } finally {
-            // Run top and log result
-            ProcessExecutor processExecutor = new ProcessExecutor();
-            try {
-                processExecutor.execute("top -b -n 1 -o %MEM");
-                LOGGER.info(processExecutor.getOutput());
-            } catch (InterruptedException e) {
-                LOGGER.warn("Failed to run top after build.");
-            }
-
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
         }
