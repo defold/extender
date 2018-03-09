@@ -152,7 +152,7 @@ RUN \
   apt-get update && \
   apt-get install apt-transport-https
 
-# According to some notes, wine 1.8 is needed for Visual Studio 2015, and Ubuntu 14 only has wine 1.4
+# Installation notes: https://wiki.winehq.org/Ubuntu
 RUN \
   wget https://dl.winehq.org/wine-builds/Release.key && \
   apt-key add Release.key && \
@@ -160,9 +160,9 @@ RUN \
   apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
   dpkg --add-architecture i386 && \
   apt-get update && \
-  apt-get install -y --install-recommends wine-devel
+  apt-get install -y --install-recommends wine-stable
 
-ENV PATH ${PATH}:/opt/wine-devel/bin
+ENV PATH ${PATH}:/opt/wine-stable/bin
 
 ENV PROGRAM_FILES "C:/Program Files (x86)"
 
