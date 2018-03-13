@@ -3,7 +3,7 @@
 Extender is a build server that builds native extensions of the Defold engine.
 
 ## Development
-This describes how to run the build server locally. 
+This describes how to run the build server locally.
 
 ### Prerequisites
 * Make sure you have [Docker](https://www.docker.com) installed.
@@ -17,31 +17,47 @@ _NOTE:_ The first time you build it will take a while. After that Docker cache w
 * Then, start a container based on that image by running: `./server/scripts/run.sh`.
 
 ### Stop
-* Just hit `Ctrl-C`. 
+* Just hit `Ctrl-C`.
 
 ### Debug
 
 #### Docker container
 
 * When the container is running, then run `./server/scripts/debug.sh`. It connects to the container
- and executes bash. 
- 
+ and executes bash.
+
 ## Operations
 
 The Extender service runs on [AWS EC2 Container Service](https://aws.amazon.com/ecs/), which is
 a platform for operating Docker containers running on EC2 instances. It runs in the cluster called
- prod-eu-west1. 
- 
+ prod-eu-west1.
+
  _NOTE: The EC2 instances in that cluster (prod-eu-west1) has been configured to run Docker containers with
-  a root volume bigger than the default (30G instead of 10G) in order to handle downloaded SDK:s and 
-  temporary build files. The volume size has been increased by a script provided as user data in the 
-  launch configuration of the auto-scaling group managing the cluster instances._ 
-  
+  a root volume bigger than the default (30G instead of 10G) in order to handle downloaded SDK:s and
+  temporary build files. The volume size has been increased by a script provided as user data in the
+  launch configuration of the auto-scaling group managing the cluster instances._
+
 ### Releasing
   The service is released by:
   1. Checkout the code that you would like to release: `git checkout master && git pull`
   1. Run `./server/scripts/build.sh`
   This will build the service and create a new Docker image.
   1. Run `./server/scripts/publish.sh`
-  This will create a new task definition on AWS ECS and update the service to run this new version. The new 
-  version will be rolled out without any downtime of the service. 
+
+  This will create a new task definition on AWS ECS and update the service to run this new version. The new
+  version will be rolled out without any downtime of the service.
+
+### Common issues
+
+#### No space left
+
+The docker build area is set to 64GB. The area filling up will manifest itself as suddenly failing, where it previously succeeded.
+Then try building again, and you might see an error like:
+
+    mkdir: cannot create directory ‘/var/extender/.wine’: No space left on device
+
+You can solve this by removing the cached data:
+
+    $ rm ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/Docker.qcow2
+
+and then restart Docker, and build again.
