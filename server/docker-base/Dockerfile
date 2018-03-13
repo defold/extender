@@ -41,7 +41,9 @@ RUN  useradd -r -u 2222 extender && \
 
 ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
 
-RUN wget -q -O - ${S3_URL}/clang%2Bllvm-3.9.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+# These packages are downloaded from here: http://releases.llvm.org/download.html
+# and then uploaded as-is to S3
+RUN wget -q -O - ${S3_URL}/clang%2Bllvm-4.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -50,6 +52,7 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # The old install flow (Kept for backwards compatibility until all builds are done using darwin12)
+# Reference for relating between version numbers: https://en.wikipedia.org/wiki/Darwin_(operating_system)
 RUN \
   apt-get update && \
   apt-get install -y git && \
@@ -135,7 +138,7 @@ ENV EMCC_SKIP_SANITY_CHECK 1
 ENV PATH ${PATH}:${EMSCRIPTEN_HOME}:${EMSCRIPTEN_HOME}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME}/node/4.1.1_64bit/bin:${EMSCRIPTEN_HOME}/emscripten/${EMSCRIPTEN_VERSION}
 
 # The "sed" command below removes the /TEMP_DIR line from the generated config
-# We replace it with a folder ow our own
+# We replace it with a folder of our own
 RUN \
   mkdir ${EMSCRIPTEN_SDK} && \
   wget -q -O - ${S3_URL}/emsdk-1.35.23-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK} && \
