@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import com.defold.extender.services.DefoldSdkService;
 import org.apache.commons.io.FileUtils;
+import org.eclipse.jetty.io.EofException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -96,7 +97,7 @@ public class ExtenderController {
             validateFilenames(request);
             receiveUpload(request, uploadDirectory);
 
-            gaugeService.submit("job.receive",  timer.start());
+            gaugeService.submit("job.receive", timer.start());
 
             // Get SDK
             File sdk;
@@ -106,16 +107,18 @@ public class ExtenderController {
                 sdk = defoldSdkService.getSdk(sdkVersion);
             }
 
-            gaugeService.submit("job.sdkDownload",  timer.start());
+            gaugeService.submit("job.sdkDownload", timer.start());
 
             Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
             // Build and write output files to output stream
             List<File> outputFiles = extender.build();
-            gaugeService.submit("job.build." + platform,  timer.start());
+            gaugeService.submit("job.build." + platform, timer.start());
 
             ZipUtils.zip(response.getOutputStream(), outputFiles);
-            gaugeService.submit("job.write",  timer.start());
+            gaugeService.submit("job.write", timer.start());
+        } catch(EofException e) {
+            throw new ExtenderException("Client closed connection prematurely, build aborted");
         } finally {
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
