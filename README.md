@@ -23,8 +23,9 @@ _NOTE:_ The first time you build it will take a while. After that Docker cache w
 
 #### Docker container
 
-* When the container is running, then run `./server/scripts/debug.sh`. It connects to the container
- and executes bash.
+* When the container is running, then run `./server/scripts/debug.sh`. It connects to the container and executes bash.
+
+* In detail: [Debugging](./README_DEBUGGING.md)
 
 ## Operations
 
