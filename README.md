@@ -44,5 +44,21 @@ a platform for operating Docker containers running on EC2 instances. It runs in 
   1. Run `./server/scripts/build.sh`
   This will build the service and create a new Docker image.
   1. Run `./server/scripts/publish.sh`
+
   This will create a new task definition on AWS ECS and update the service to run this new version. The new
   version will be rolled out without any downtime of the service.
+
+### Common issues
+
+#### No space left
+
+The docker build area is set to 64GB. The area filling up will manifest itself as suddenly failing, where it previously succeeded.
+Then try building again, and you might see an error like:
+
+    mkdir: cannot create directory ‘/var/extender/.wine’: No space left on device
+
+You can solve this by removing the cached data:
+
+    $ rm ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/Docker.qcow2
+
+and then restart Docker, and build again.
