@@ -1,14 +1,14 @@
 package com.defold.extender;
 
-class ExtenderException extends Exception {
+public class ExtenderException extends Exception {
     private final String output;
 
-    ExtenderException(String output) {
+    public ExtenderException(String output) {
         super(output);
         this.output = output;
     }
 
-    ExtenderException(Exception e, String output) {
+    public ExtenderException(Exception e, String output) {
         super(e);
         this.output = output;
     }
