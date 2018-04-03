@@ -1,5 +1,7 @@
 package com.defold.extender.services;
 
+import com.defold.extender.ExtenderException;
+
 import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.boot.actuate.metrics.CounterService;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -21,7 +24,7 @@ public class DefoldSDKServiceTest {
 
     @Test
     @Ignore("SDK too large to download on every test round.")
-    public void t() throws IOException, URISyntaxException {
+    public void t() throws IOException, URISyntaxException, ExtenderException {
         DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, mock(CounterService.class), mock(GaugeService.class));
         File sdk = defoldSdkService.getSdk("d420fc812558aa30f592907cf57a87d24c5c7569");
         System.out.println(sdk.getCanonicalFile());
@@ -29,7 +32,7 @@ public class DefoldSDKServiceTest {
 
     @Test
     @Ignore("SDK too large to download on every test round.")
-    public void onlyStoreTheNewest() throws IOException, URISyntaxException {
+    public void onlyStoreTheNewest() throws IOException, URISyntaxException, ExtenderException {
         int cacheSize = 3;
         DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", cacheSize, mock(CounterService.class), mock(GaugeService.class));
 
@@ -51,5 +54,23 @@ public class DefoldSDKServiceTest {
         assertTrue(collect.contains("b84ad18944f11460513c4e624428b3d299e2540e"));
         assertTrue(collect.contains("bfe93c1d3c17aba433676caef9ae119c3580fd00"));
         assertTrue(collect.contains("65074af87ccb9276d24279b8bd0d898d4ce21a1f"));
+    }
+
+    @Test
+    public void testGetSDK() throws IOException, URISyntaxException, ExtenderException {
+        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, mock(CounterService.class), mock(GaugeService.class));
+
+        File dir = new File("/tmp/defoldsdk/notexist");
+        assertFalse(Files.exists(dir.toPath()));
+
+        {
+            boolean thrown = false;
+            try {
+                defoldSdkService.getSdk("notexist");
+            } catch (ExtenderException e) {
+                thrown = true;
+            }
+            assertTrue(thrown);
+        }
     }
 }

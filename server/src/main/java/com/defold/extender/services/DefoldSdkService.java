@@ -1,5 +1,6 @@
 package com.defold.extender.services;
 
+import com.defold.extender.ExtenderException;
 import com.defold.extender.ZipUtils;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.metrics.CounterService;
 import org.springframework.boot.actuate.metrics.GaugeService;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
@@ -48,7 +50,7 @@ public class DefoldSdkService {
         this.dynamoHome = System.getenv("DYNAMO_HOME") != null ? new File(System.getenv("DYNAMO_HOME")) : null;
     }
 
-    public File getSdk(String hash) throws IOException, URISyntaxException {
+    public File getSdk(String hash) throws IOException, URISyntaxException, ExtenderException {
         long methodStart = System.currentTimeMillis();
 
         // Define SDK directory for this version
@@ -65,6 +67,9 @@ public class DefoldSdkService {
 
             // Connect and copy to file
             try (ClientHttpResponse response = request.execute()) {
+                if (response.getStatusCode() != HttpStatus.OK) {
+                    throw new ExtenderException(String.format("The given sdk does not exist: %s (%s)", hash, response.getStatusCode().toString()));
+                }
                 InputStream body = response.getBody();
                 ZipUtils.unzip(body, sdkDirectory.toPath());
             }
