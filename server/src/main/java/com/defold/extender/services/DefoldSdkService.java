@@ -59,7 +59,6 @@ public class DefoldSdkService {
         // If directory does not exist, create it and download SDK
         if (!Files.exists(sdkDirectory.toPath())) {
             LOGGER.info("Downloading Defold SDK version {} ...", hash);
-            Files.createDirectories(sdkDirectory.toPath());
 
             URL url = new URL(String.format(REMOTE_SDK_URL_PATTERN, hash));
             ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
@@ -70,6 +69,8 @@ public class DefoldSdkService {
                 if (response.getStatusCode() != HttpStatus.OK) {
                     throw new ExtenderException(String.format("The given sdk does not exist: %s (%s)", hash, response.getStatusCode().toString()));
                 }
+
+                Files.createDirectories(sdkDirectory.toPath());
                 InputStream body = response.getBody();
                 ZipUtils.unzip(body, sdkDirectory.toPath());
             }
