@@ -205,7 +205,6 @@ class Extender {
         return list.stream().allMatch(o -> o instanceof String);
     }
 
-
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
     static Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(originalContext);
@@ -215,14 +214,20 @@ class Extender {
             Object v1 = context.getOrDefault(k, null);
             Object v2 = extensionContext.get(k);
 
-            if (v1 != null && !v1.getClass().equals(v2.getClass())) {
-                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
-            }
-            if (!Extender.isListOfStrings((List<Object>) v2)) {
-                throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
+            if (v1 == null && v2 == null) {
+                // Simply skip keys that hold no values at all
+                context.remove(k);
+                continue;
             }
 
-            if (v1 != null && v1 instanceof List) {
+            if (v1 != null && v2 != null && !v1.getClass().equals(v2.getClass())) {
+                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
+            }
+            if (v2 != null && v2 instanceof List && !Extender.isListOfStrings((List<Object>) v2)) {
+                throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
+            }
+
+            if (v1 != null && v2 != null && v1 instanceof List) {
                 v1 = Extender.mergeLists((List<String>) v1, (List<String>) v2);
             }
 
@@ -357,7 +362,7 @@ class Extender {
         }
 
         if (srcFiles.isEmpty()) {
-            throw new ExtenderException(String.format("Extension '%s' has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
+            throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
         }
 
         List<String> objs = new ArrayList<>();
