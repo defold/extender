@@ -9,6 +9,7 @@ extender:
 
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
+spring.http.multipart.enabled: false
 
 # Don't check for templates on startup.
 spring.mustache.check-template-location: false
@@ -42,6 +43,7 @@ extender:
 
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
+spring.http.multipart.enabled: false
 
 # Don't check for templates on startup.
 spring.mustache.check-template-location: false
