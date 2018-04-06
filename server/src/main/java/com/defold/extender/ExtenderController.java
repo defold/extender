@@ -129,8 +129,6 @@ public class ExtenderController {
             throw new ExtenderException("Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
             throw new ExtenderException("Bad request: " + e.getMessage());
-        } catch(IOException e) {
-            throw new ExtenderException("IOException: " + e.getMessage());
         } finally {
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
@@ -174,9 +172,18 @@ public class ExtenderController {
                     throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
                 }
 
-                Files.createDirectories(file.getParentFile().toPath());
+                try {
+                    Files.createDirectories(file.getParentFile().toPath());
+                } catch(IOException e) {
+                    LOGGER.error("IOException: " + e.getMessage());
+                    throw new ExtenderException("Failed to create upload folder: " + file.getParentFile().toPath());
+                }
+
                 try (InputStream inputStream = item.openStream()) {
                     Files.copy(inputStream, file.toPath());
+                } catch(IOException e) {
+                    LOGGER.error("Failed to write file to disc: " + e.getMessage());
+                    throw new ExtenderException("Failed to write file to disc: " + file.toPath());
                 }
 
                 count++;
