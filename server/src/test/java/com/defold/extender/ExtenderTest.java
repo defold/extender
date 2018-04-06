@@ -1,10 +1,20 @@
 package com.defold.extender;
 
+import org.apache.commons.fileupload.FileUploadException;
+import org.apache.commons.io.FileUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockMultipartHttpServletRequest;
-import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
+import org.springframework.mock.web.DelegatingServletInputStream;
+import org.springframework.mock.web.MockMultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,9 +22,12 @@ import java.nio.file.Files;
 import java.util.*;
 
 import static org.junit.Assert.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.fileUpload;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ExtenderTest {
+
+    File uploadDirectory = null;
 
     @Test
     public void testExtender() throws IOException, InterruptedException, ExtenderException {
@@ -32,25 +45,56 @@ public class ExtenderTest {
         assertTrue(true);
     }
 
-    @Test
-    public void testReceiveFiles() throws IOException, InterruptedException, ExtenderException {
+    public static HttpServletRequest createMultipartHttpRequest(List<MockMultipartFile> files) throws IOException {
 
-        MockMultipartHttpServletRequestBuilder builder;
-        MockHttpServletRequest request;
-        File uploadDirectory;
+        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+        for (MockMultipartFile f : files) {
+            builder.addBinaryBody(f.getName(), f.getBytes(), ContentType.APPLICATION_OCTET_STREAM, f.getName());
+        }
+        HttpEntity entity = builder.build();
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        entity.writeTo(os);
+        ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
+
+        HttpServletRequest mockRequest = mock(HttpServletRequest.class);
+        when(mockRequest.getMethod()).thenReturn("POST");
+        when(mockRequest.getContentType()).thenReturn(entity.getContentType().getValue());
+        when(mockRequest.getContentLength()).thenReturn((int)entity.getContentLength());
+        when(mockRequest.getInputStream()).thenReturn(new DelegatingServletInputStream(is));
+
+        return mockRequest;
+    }
+
+    @Before
+    public void setUp() throws IOException {
+        this.uploadDirectory = Files.createTempDirectory("upload").toFile();
+        this.uploadDirectory.deleteOnExit();
+    }
+
+    @After
+    public void tearDown() throws IOException {
+        if (this.uploadDirectory != null) {
+            FileUtils.deleteDirectory(this.uploadDirectory);
+            this.uploadDirectory = null;
+        }
+    }
+
+    @Test
+    public void testReceiveFiles() throws IOException, FileUploadException, InterruptedException, ExtenderException {
+        HttpServletRequest request;
         String filename;
         String expectedContent;
 
         // Should be fine
-        uploadDirectory = Files.createTempDirectory("upload").toFile();
-        uploadDirectory.deleteOnExit();
-        builder = fileUpload("/tmpUpload");
         filename = "include/test.h";
         expectedContent = "//ABcdEFgh";
-        builder.file(filename, expectedContent.getBytes());
-        request = builder.buildRequest(null);
+
+        List<MockMultipartFile> files = new ArrayList<>();
+        files.add(new MockMultipartFile(filename, expectedContent.getBytes()));
+        request = createMultipartHttpRequest(files);
         {
-            ExtenderController.receiveUpload((MockMultipartHttpServletRequest) request, uploadDirectory);
+            ExtenderController.receiveUpload(request, uploadDirectory);
             File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename);
             file.deleteOnExit();
             assertTrue(file.exists());
@@ -59,17 +103,16 @@ public class ExtenderTest {
         }
 
         // Mustn't upload files outside of the folder!
-        uploadDirectory = Files.createTempDirectory("upload").toFile();
-        uploadDirectory.deleteOnExit();
-        builder = fileUpload("/tmpUpload");
         filename = "../include/test.h";
         expectedContent = "//invalidfile";
-        builder.file(filename, expectedContent.getBytes());
-        request = builder.buildRequest(null);
+
+        files = new ArrayList<>();
+        files.add(new MockMultipartFile(filename, expectedContent.getBytes()));
+        request = createMultipartHttpRequest(files);
         {
             boolean thrown = false;
             try {
-                ExtenderController.receiveUpload((MockMultipartHttpServletRequest) request, uploadDirectory);
+                ExtenderController.receiveUpload(request, uploadDirectory);
             } catch (ExtenderException e) {
                 thrown = true;
             }
@@ -79,15 +122,14 @@ public class ExtenderTest {
         }
 
         // Should be fine (Windows back slashes)
-        uploadDirectory = Files.createTempDirectory("upload").toFile();
-        uploadDirectory.deleteOnExit();
-        builder = fileUpload("/tmpUpload");
         filename = "src/foo/bar/test.cpp";
         expectedContent = "//ABcdEFgh";
-        builder.file("src\\foo\\bar\\test.cpp", expectedContent.getBytes());
-        request = builder.buildRequest(null);
+
+        files = new ArrayList<>();
+        files.add(new MockMultipartFile("src\\foo\\bar\\test.cpp", expectedContent.getBytes()));
+        request = createMultipartHttpRequest(files);
         {
-            ExtenderController.receiveUpload((MockMultipartHttpServletRequest) request, uploadDirectory);
+            ExtenderController.receiveUpload(request, uploadDirectory);
             File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename);
             file.deleteOnExit();
             assertTrue(file.exists());
@@ -98,16 +140,11 @@ public class ExtenderTest {
 
     @Test
     public void testValidateFilenames() throws IOException, InterruptedException, ExtenderException {
-        MockMultipartHttpServletRequestBuilder builder;
-
         // Should be fine
-        builder = fileUpload("/tmpUpload");
-        builder.file("include/test.h", "// test.h".getBytes());
-        MockHttpServletRequest request = builder.buildRequest(null);
         {
             boolean thrown = false;
             try {
-                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+                ExtenderController.validateFilename("include/test.h");
             } catch (ExtenderException e) {
                 thrown = true;
             }
@@ -115,13 +152,10 @@ public class ExtenderTest {
         }
 
         // Should be fine
-        builder = fileUpload("/tmpUpload");
-        builder.file("include/test+framework.h", "// test.h".getBytes());
-        request = builder.buildRequest(null);
         {
             boolean thrown = false;
             try {
-                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+                ExtenderController.validateFilename("include/test+framework.h");
             } catch (ExtenderException e) {
                 thrown = true;
             }
@@ -129,13 +163,10 @@ public class ExtenderTest {
         }
 
         // Should be fine
-        builder = fileUpload("/tmpUpload");
-        builder.file("src/test.c++", "// test".getBytes());
-        request = builder.buildRequest(null);
         {
             boolean thrown = false;
             try {
-                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+                ExtenderController.validateFilename("src/test.c++");
             } catch (ExtenderException e) {
                 thrown = true;
             }
@@ -143,13 +174,10 @@ public class ExtenderTest {
         }
 
         // Should throw error
-        builder = fileUpload("/tmpUpload");
-        builder.file("+foobar.h", "// test".getBytes());
-        request = builder.buildRequest(null);
         {
             boolean thrown = false;
             try {
-                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+                ExtenderController.validateFilename("+foobar.h");
             } catch (ExtenderException e) {
                 thrown = true;
             }
@@ -157,13 +185,10 @@ public class ExtenderTest {
         }
 
         // Should throw error
-        builder = fileUpload("/tmpUpload");
-        builder.file("include/foo;echo foo;.h", "// trying to sneak in an echo command".getBytes());
-        request = builder.buildRequest(null);
         {
             boolean thrown = false;
             try {
-                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+                ExtenderController.validateFilename("include/foo;echo foo;.h"); // trying to sneak in an echo command"
             } catch (ExtenderException e) {
                 thrown = true;
             }
@@ -171,13 +196,10 @@ public class ExtenderTest {
         }
 
         // Should throw error
-        builder = fileUpload("/tmpUpload");
-        builder.file("../../etc/passwd", "// trying to sneak in a new system file".getBytes());
-        request = builder.buildRequest(null);
         {
             boolean thrown = false;
             try {
-                ExtenderController.validateFilenames((MockMultipartHttpServletRequest) request);
+                ExtenderController.validateFilename("../../etc/passwd"); // trying to sneak in a new system file
             } catch (ExtenderException e) {
                 thrown = true;
             }

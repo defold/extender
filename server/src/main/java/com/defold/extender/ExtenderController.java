@@ -1,6 +1,10 @@
 package com.defold.extender;
 
 import com.defold.extender.services.DefoldSdkService;
+import org.apache.commons.fileupload.FileItemIterator;
+import org.apache.commons.fileupload.FileItemStream;
+import org.apache.commons.fileupload.FileUploadException;
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.io.EofException;
 import org.slf4j.Logger;
@@ -13,9 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
@@ -23,7 +26,6 @@ import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +38,8 @@ public class ExtenderController {
 
     private final DefoldSdkService defoldSdkService;
     private final GaugeService gaugeService;
+
+    private static final int MAX_PACKAGE_SIZE = 512 * 1024*1024; // The max size of any upload package
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService, @Qualifier("gaugeService") GaugeService gaugeService) {
@@ -65,7 +69,7 @@ public class ExtenderController {
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
-    public void buildEngineLocal(MultipartHttpServletRequest request, HttpServletResponse response,
+    public void buildEngineLocal(HttpServletRequest request, HttpServletResponse response,
                                  @PathVariable("platform") String platform)
             throws URISyntaxException, IOException, ExtenderException {
 
@@ -78,11 +82,16 @@ public class ExtenderController {
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
-    public void buildEngine(MultipartHttpServletRequest request,
+    public void buildEngine(HttpServletRequest request,
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersion)
             throws ExtenderException, IOException, URISyntaxException {
+
+        boolean isMultipart = ServletFileUpload.isMultipartContent(request);
+        if (!isMultipart) {
+            throw new ExtenderException("The request must be a multi part request");
+        }
 
         File jobDirectory = Files.createTempDirectory("job").toFile();
         File uploadDirectory = new File(jobDirectory, "upload");
@@ -94,7 +103,6 @@ public class ExtenderController {
             Timer timer = new Timer();
             timer.start();
 
-            validateFilenames(request);
             receiveUpload(request, uploadDirectory);
 
             gaugeService.submit("job.receive", timer.start());
@@ -119,21 +127,11 @@ public class ExtenderController {
             gaugeService.submit("job.write", timer.start());
         } catch(EofException e) {
             throw new ExtenderException("Client closed connection prematurely, build aborted");
+        } catch(FileUploadException e) {
+            throw new ExtenderException("Bad request: " + e.getMessage());
         } finally {
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
-        }
-    }
-
-    static void validateFilenames(MultipartHttpServletRequest request) throws ExtenderException {
-        Set<String> keys = request.getMultiFileMap().keySet();
-
-        for (String key : keys) {
-            MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
-            Matcher m = ExtenderController.FILENAME_RE.matcher(multipartFile.getName());
-            if (!m.matches()) {
-                throw new ExtenderException(String.format("Filename '%s' is invalid or contains invalid characters", multipartFile.getName()));
-            }
         }
     }
 
@@ -143,24 +141,49 @@ public class ExtenderController {
         return filePath.startsWith(parentPath);
     }
 
-    static void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException, ExtenderException {
-        Set<String> keys = request.getMultiFileMap().keySet();
+    static void validateFilename(String path) throws ExtenderException {
+        Matcher m = ExtenderController.FILENAME_RE.matcher(path);
+        if (!m.matches()) {
+            throw new ExtenderException(String.format("Filename '%s' is invalid or contains invalid characters", path));
+        }
+    }
 
-        for (String key : keys) {
-            MultipartFile multipartFile = request.getMultiFileMap().getFirst(key);
+    static void receiveUpload(HttpServletRequest request, File uploadDirectory) throws IOException, FileUploadException, ExtenderException {
+        if (request.getContentLength() > MAX_PACKAGE_SIZE ) {
+            throw new ExtenderException(String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLength(), MAX_PACKAGE_SIZE));
+        }
 
-            // translate it into a valid filename
-            String name = multipartFile.getName().replace('\\', File.separatorChar);
-            File file = new File(uploadDirectory, name);
+        // Create a new file upload handler
+        ServletFileUpload upload = new ServletFileUpload();
 
-            if (!isRelativePath(uploadDirectory, file)) {
-                throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", multipartFile.getName()));
+        // Parse the request
+        FileItemIterator iter = upload.getItemIterator(request);
+        int count = 0;
+        while (iter.hasNext()) {
+            FileItemStream item = iter.next();
+            String name = item.getName().replace('\\', File.separatorChar);
+            if (!item.isFormField()) {
+
+                validateFilename(name);
+
+                File file = new File(uploadDirectory, name);
+
+                if (!isRelativePath(uploadDirectory, file)) { // in case the name contains "../"
+                    throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
+                }
+
+                Files.createDirectories(file.getParentFile().toPath());
+
+                try (InputStream inputStream = item.openStream()) {
+                    Files.copy(inputStream, file.toPath());
+                }
+
+                count++;
             }
+        }
 
-            Files.createDirectories(file.getParentFile().toPath());
-            try (InputStream inputStream = multipartFile.getInputStream()) {
-                Files.copy(inputStream, file.toPath());
-            }
+        if (count == 0) {
+            throw new ExtenderException("The build request contained no files!");
         }
     }
 }
