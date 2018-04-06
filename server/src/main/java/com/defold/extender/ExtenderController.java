@@ -172,18 +172,10 @@ public class ExtenderController {
                     throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
                 }
 
-                try {
-                    Files.createDirectories(file.getParentFile().toPath());
-                } catch(IOException e) {
-                    LOGGER.error("IOException: " + e.getMessage());
-                    throw new ExtenderException("Failed to create upload folder: " + file.getParentFile().toPath());
-                }
+                Files.createDirectories(file.getParentFile().toPath());
 
                 try (InputStream inputStream = item.openStream()) {
                     Files.copy(inputStream, file.toPath());
-                } catch(IOException e) {
-                    LOGGER.error("Failed to write file to disc: " + e.getMessage());
-                    throw new ExtenderException("Failed to write file to disc: " + file.toPath());
                 }
 
                 count++;
