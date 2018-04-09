@@ -17,6 +17,7 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PreDestroy;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,13 +82,7 @@ public class DefoldSdkService {
                     .list(baseSdkDirectory)
                     .sorted(lastModifiedComparator.reversed())
                     .skip(cacheSize)
-                    .forEach(p -> {
-                        try {
-                            FileUtils.deleteDirectory(p.toFile());
-                        } catch (IOException e) {
-                            LOGGER.error("Failed to delete old SDK at " + p.toAbsolutePath().toString(), e);
-                        }
-                    });
+                    .forEach(this::deleteCachedSdk);
 
             counterService.increment("counter.service.sdk.get.download");
         }
@@ -107,5 +102,24 @@ public class DefoldSdkService {
 
     public boolean isLocalSdkSupported() {
         return dynamoHome != null;
+    }
+
+    private void deleteCachedSdk(Path path) {
+        try {
+            FileUtils.deleteDirectory(path.toFile());
+        } catch (IOException e) {
+            LOGGER.error("Failed to delete cached SDK at " + path.toAbsolutePath().toString(), e);
+        }
+    }
+
+    @PreDestroy
+    @SuppressWarnings("unused")
+    public void destroy() {
+        LOGGER.info("Cleaning up SDK cache");
+        try {
+            Files.list(baseSdkDirectory).forEach(this::deleteCachedSdk);
+        } catch(IOException e) {
+            LOGGER.warn("Failed to list SDK cache directory: " + e.getMessage());
+        }
     }
 }

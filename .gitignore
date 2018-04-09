@@ -1,5 +1,6 @@
 **/build
 **/classes
+/client/.buildcache
 /tmp
 /debugsdk
 *.class
@@ -12,6 +13,7 @@ server/test-data/sdk/*
 /*.iml
 /*.ipr
 /*.iws
+/server/out
 
 # Eclipse
 /.classpath
