@@ -269,3 +269,26 @@ USER root
 RUN cd ${ANDROID_HOME} && \
     chown -R root: ${ANDROID_HOME}
 
+# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
+# so we solve the bulk by making the suffixes lowercase
+RUN find $WINEPREFIX -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
+RUN find $WINEPREFIX -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+
+# and the rest are manually copied
+RUN (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib && cp oldnames.lib OLDNAMES.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib && cp delayimp.lib Delayimp.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp Uuid.lib uuid.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp WinMM.lib winmm.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp OpenGL32.lib opengl32.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp GlU32.lib glu32.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp Psapi.lib psapi.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp Uuid.lib uuid.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp WinMM.lib winmm.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp OpenGL32.lib opengl32.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp GlU32.lib glu32.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp Psapi.lib psapi.lib) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared && cp driverspecs.h DriverSpecs.h) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h)

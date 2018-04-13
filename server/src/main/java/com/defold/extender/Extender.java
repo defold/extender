@@ -690,13 +690,15 @@ class Extender {
     }
 
     private void buildWin32Manifest(File exe, Map<String, Object> mergedExtensionContext) throws ExtenderException {
-        LOGGER.info("Adding manifest file to engine");
-
         Map<String, Object> context = context(mergedExtensionContext);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
 
         String command = templateExecutor.execute(platformConfig.mtCmd, context);
+        if (command.equals("")) {
+            return;
+        }
         try {
+            LOGGER.info("Adding manifest file to engine");
             processExecutor.execute(command);
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
