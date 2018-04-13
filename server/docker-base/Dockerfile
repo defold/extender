@@ -43,7 +43,7 @@ ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
 
 # These packages are downloaded from here: http://releases.llvm.org/download.html
 # and then uploaded as-is to S3
-RUN wget -q -O - ${S3_URL}/clang%2Bllvm-4.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+RUN wget -q -O - ${S3_URL}/clang%2Bllvm-5.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -115,7 +115,9 @@ RUN \
   ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil && \
   ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin12-clang && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin12-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin12-clang-ar
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin12-clang-ar && \
+  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
 
 #
 # EMSCRIPTEN
@@ -266,3 +268,4 @@ RUN cd ${ANDROID_HOME} && \
 USER root
 RUN cd ${ANDROID_HOME} && \
     chown -R root: ${ANDROID_HOME}
+
