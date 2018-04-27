@@ -24,7 +24,7 @@
           "awslogs-group": "prod-logs",
           "awslogs-region": "eu-west-1",
           "awslogs-stream-prefix": "extender",
-          "awslogs-datetime-format": "%Y-%m-%d %H:%M:%S.%L"
+          "awslogs-datetime-format": "%Y-%m-%d %H:%M:%S"
         }
       }
     }
