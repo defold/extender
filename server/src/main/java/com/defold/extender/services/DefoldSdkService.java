@@ -25,15 +25,13 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 
 @Service
 public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
     private static final String REMOTE_SDK_URL_PATTERN = "http://d.defold.com/archive/%s/engine/defoldsdk.zip";
-    private static final List<String> KEEP_SDK_DIRECTORIES = Collections.singletonList("a");
+    private static final String TEST_SDK_DIRECTORY = "a";
 
     private final Path baseSdkDirectory;
     private final File dynamoHome;
@@ -108,16 +106,10 @@ public class DefoldSdkService {
     }
 
     private void deleteCachedSdk(Path path) {
-        final String directoryToDelete = path.toAbsolutePath().toString();
-
-        if (KEEP_SDK_DIRECTORIES.contains(directoryToDelete)) {
-            return;
-        }
-
         try {
             FileUtils.deleteDirectory(path.toFile());
         } catch (IOException e) {
-            LOGGER.error("Failed to delete cached SDK at " + directoryToDelete, e);
+            LOGGER.error("Failed to delete cached SDK at " + path.toAbsolutePath().toString(), e);
         }
     }
 
@@ -126,7 +118,9 @@ public class DefoldSdkService {
     public void destroy() {
         LOGGER.info("Cleaning up SDK cache");
         try {
-            Files.list(baseSdkDirectory).forEach(this::deleteCachedSdk);
+            Files.list(baseSdkDirectory)
+                    .filter(path -> ! path.endsWith(TEST_SDK_DIRECTORY))
+                    .forEach(this::deleteCachedSdk);
         } catch(IOException e) {
             LOGGER.warn("Failed to list SDK cache directory: " + e.getMessage());
         }
