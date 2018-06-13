@@ -1,6 +1,9 @@
 
-subprojects {
+plugins {
+    id 'com.github.ben-manes.versions' version '0.17.0'
+}
 
+subprojects {
     repositories {
         mavenCentral()
     }
@@ -9,4 +12,17 @@ subprojects {
 wrapper {
     gradleVersion = '4.8'
     distributionType = Wrapper.DistributionType.ALL
+}
+
+dependencyUpdates.resolutionStrategy = {
+    componentSelection { rules ->
+        rules.all { ComponentSelection selection ->
+            boolean rejected = ['alpha', 'beta', 'rc', 'cr', 'm'].any { qualifier ->
+                selection.candidate.version ==~ /(?i).*[.-]${qualifier}[.\d-]*/
+            }
+            if (rejected) {
+                selection.reject('Release candidate')
+            }
+        }
+    }
 }
