@@ -31,6 +31,7 @@ import java.util.Comparator;
 public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
     private static final String REMOTE_SDK_URL_PATTERN = "http://d.defold.com/archive/%s/engine/defoldsdk.zip";
+    private static final String TEST_SDK_DIRECTORY = "a";
 
     private final Path baseSdkDirectory;
     private final File dynamoHome;
@@ -117,7 +118,9 @@ public class DefoldSdkService {
     public void destroy() {
         LOGGER.info("Cleaning up SDK cache");
         try {
-            Files.list(baseSdkDirectory).forEach(this::deleteCachedSdk);
+            Files.list(baseSdkDirectory)
+                    .filter(path -> ! path.endsWith(TEST_SDK_DIRECTORY))
+                    .forEach(this::deleteCachedSdk);
         } catch(IOException e) {
             LOGGER.warn("Failed to list SDK cache directory: " + e.getMessage());
         }

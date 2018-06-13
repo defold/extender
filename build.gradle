@@ -5,3 +5,8 @@ subprojects {
         mavenCentral()
     }
 }
+
+wrapper {
+    gradleVersion = '4.8'
+    distributionType = Wrapper.DistributionType.ALL
+}
