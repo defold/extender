@@ -35,6 +35,8 @@ spring:
 
 server:
     port: 9000
+    jetty:
+        http.timeout: 60000
 
 extender:
     sdk-location: /var/extender/sdk
