@@ -1,16 +1,20 @@
 package com.defold.extender;
 
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.autoconfigure.ExportMetricWriter;
 import org.springframework.boot.actuate.endpoint.MetricsEndpoint;
 import org.springframework.boot.actuate.endpoint.MetricsEndpointMetricReader;
 import org.springframework.boot.actuate.metrics.writer.GaugeWriter;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.embedded.jetty.JettyEmbeddedServletContainerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
@@ -20,12 +24,16 @@ import java.net.UnknownHostException;
 
 @SpringBootApplication
 public class ExtenderApplication {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderApplication.class);
+
     private final Environment environment;
+    private final int idleTimeout;
 
     @Autowired
-    public ExtenderApplication(Environment environment) {
+    public ExtenderApplication(Environment environment, @Value("${server.jetty.http.timeout}") int idleTimeout) {
         this.environment = environment;
+        this.idleTimeout = idleTimeout;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -73,5 +81,16 @@ public class ExtenderApplication {
     @Bean
     public MetricsEndpointMetricReader metricsEndpointMetricReader(MetricsEndpoint metricsEndpoint) {
         return new MetricsEndpointMetricReader(metricsEndpoint);
+    }
+
+    // Spring Boot only supports a subset of Jetty configuration props, so configure idle timeout programatically
+    @Bean
+    public JettyEmbeddedServletContainerFactory jettyEmbeddedServletContainerFactory() {
+        final JettyEmbeddedServletContainerFactory factory = new JettyEmbeddedServletContainerFactory();
+        factory.addServerCustomizers((Server server) -> {
+            final QueuedThreadPool threadPool = server.getBean(QueuedThreadPool.class);
+            threadPool.setIdleTimeout(idleTimeout);
+        });
+        return factory;
     }
 }
