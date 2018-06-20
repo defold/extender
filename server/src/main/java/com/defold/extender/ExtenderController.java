@@ -106,6 +106,7 @@ public class ExtenderController {
             receiveUpload(request, uploadDirectory);
 
             gaugeService.submit("job.receive", timer.start());
+            gaugeService.submit("job.requestSize", request.getContentLength());
 
             // Get SDK
             File sdk;
@@ -119,11 +120,19 @@ public class ExtenderController {
 
             Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
-            // Build and write output files to output stream
+            // Build engine
             List<File> outputFiles = extender.build();
             gaugeService.submit("job.build." + platform, timer.start());
 
-            ZipUtils.zip(response.getOutputStream(), outputFiles);
+            // Zip files
+            String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
+            File zipFile = ZipUtils.zip(outputFiles, zipFilename);
+            gaugeService.submit("job.zip", timer.start());
+            gaugeService.submit("job.zipSize", zipFile.length());
+
+            // Write zip file to response
+            FileUtils.copyFile(zipFile, response.getOutputStream());
+            response.flushBuffer();
             gaugeService.submit("job.write", timer.start());
         } catch(EofException e) {
             throw new ExtenderException("Client closed connection prematurely, build aborted");
