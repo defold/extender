@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -36,15 +37,25 @@ public class ZipUtils {
         }
     }
 
-    public static void zip(OutputStream outputStream, List<File> files) throws IOException {
+    public static void zip(OutputStream outputStream, List<File> filesToZip) throws IOException {
         ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
 
-        for (File file : files) {
+        for (File file : filesToZip) {
             zipOutputStream.putNextEntry(new ZipEntry(file.getName()));
             Files.copy(file.toPath(), zipOutputStream);
             zipOutputStream.closeEntry();
         }
 
         zipOutputStream.finish();
+    }
+
+    public static File zip(List<File> filesToZip, final String zipFilename) throws IOException {
+        File zipFile = new File(zipFilename);
+
+        try (FileOutputStream fileOutputStream = new FileOutputStream(zipFile)) {
+            ZipUtils.zip(fileOutputStream, filesToZip);
+        }
+
+        return zipFile;
     }
 }

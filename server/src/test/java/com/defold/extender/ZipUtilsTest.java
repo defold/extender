@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class ZipUtilsTest {
 
@@ -31,5 +33,26 @@ public class ZipUtilsTest {
         ZipUtils.unzip(new FileInputStream(destinationFile.toFile()), targetDirectory);
 
         assertEquals(2, targetDirectory.toFile().listFiles().length);
+    }
+
+    @Test
+    public void zipFilesToFile() throws IOException {
+        File targetDirectory = Files.createTempDirectory("test").toFile();
+        String zipFilename = targetDirectory.getAbsolutePath() + "/archive.zip";
+
+        Path sourceFile1 = Files.createTempFile("zipTest", "tmp");
+        Path sourceFile2 = Files.createTempFile("zipTest", "tmp");
+
+        List<File> files = new ArrayList<>();
+        files.add(sourceFile1.toFile());
+        files.add(sourceFile2.toFile());
+
+        File zipFile = ZipUtils.zip(files, zipFilename);
+        File[] filesInTarget = targetDirectory.listFiles();
+
+        assertNotNull(filesInTarget);
+        assertEquals(1, filesInTarget.length);
+        assertEquals(zipFile.length(), filesInTarget[0].length());
+        assertTrue(filesInTarget[0].length() > 0);
     }
 }
