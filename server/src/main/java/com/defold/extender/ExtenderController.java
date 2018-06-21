@@ -136,7 +136,7 @@ public class ExtenderController {
         } catch(FileUploadException e) {
             throw new ExtenderException("Bad request: " + e.getMessage());
         } catch(Exception e) {
-            LOGGER.error("Exception while building or sending response - metrics: " + metricsWriter);
+            LOGGER.error("Exception while building or sending response - SDK: " + sdkVersion + " , metrics: " + metricsWriter);
             throw e;
         } finally {
             // Delete temporary upload directory

@@ -15,11 +15,15 @@ public class MetricsWriter {
 
     private final Map<String,Long> metrics = new TreeMap<>();
 
-    public MetricsWriter(final GaugeService gaugeService) {
+    public MetricsWriter(GaugeService gaugeService, Timer timer) {
         this.gaugeService = gaugeService;
+        this.timer = timer;
 
-        this.timer = new Timer();
         this.timer.start();
+    }
+
+    public MetricsWriter(final GaugeService gaugeService) {
+        this(gaugeService, new Timer());
     }
 
     private void addMetric(final String name, final long value) {
