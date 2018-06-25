@@ -1,4 +1,12 @@
 
+# Debugging with defoldsdk.zip
+
+There is a debug script that you can run to download a specific SDK version, or the latest one.
+
+    $ ./server/scripts/debug_defoldsdk.py [<sha1>]
+
+This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It also sets the environment variable `DYNAMO_HOME` and then starts the extender server.
+
 
 # Debugging individual command lines
 
