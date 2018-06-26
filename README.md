@@ -6,10 +6,12 @@ Extender is a build server that builds native extensions of the Defold engine.
 This describes how to run the build server locally.
 
 ### Prerequisites
-* Make sure you have [Docker](https://www.docker.com) installed.
+* Make sure you have [Docker](https://www.docker.com) installed and running.
 
 ### Build
 * First, build the Extender Docker image by running: `./server/scripts/build.sh`
+
+To speed things up, tests can be disabled by opening `./server/scripts/build.sh` and adding `-x test` to the last line.
 
 _NOTE:_ The first time you build it will take a while. After that Docker cache will speed it up.
 

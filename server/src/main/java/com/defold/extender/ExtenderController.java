@@ -1,5 +1,6 @@
 package com.defold.extender;
 
+import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
@@ -99,13 +100,11 @@ public class ExtenderController {
         File buildDirectory = new File(jobDirectory, "build");
         buildDirectory.mkdir();
 
+        MetricsWriter metricsWriter = new MetricsWriter(gaugeService);
+
         try {
-            Timer timer = new Timer();
-            timer.start();
-
             receiveUpload(request, uploadDirectory);
-
-            gaugeService.submit("job.receive", timer.start());
+            metricsWriter.measureReceivedRequest(request);
 
             // Get SDK
             File sdk;
@@ -114,21 +113,31 @@ public class ExtenderController {
             } else {
                 sdk = defoldSdkService.getSdk(sdkVersion);
             }
-
-            gaugeService.submit("job.sdkDownload", timer.start());
+            metricsWriter.measureSdkDownload();
 
             Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
-            // Build and write output files to output stream
+            // Build engine
             List<File> outputFiles = extender.build();
-            gaugeService.submit("job.build." + platform, timer.start());
+            metricsWriter.measureEngineBuild(platform);
 
-            ZipUtils.zip(response.getOutputStream(), outputFiles);
-            gaugeService.submit("job.write", timer.start());
+            // Zip files
+            String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
+            File zipFile = ZipUtils.zip(outputFiles, zipFilename);
+            metricsWriter.measureZipFiles(zipFile);
+
+            // Write zip file to response
+            FileUtils.copyFile(zipFile, response.getOutputStream());
+            response.flushBuffer();
+            metricsWriter.measureSentResponse();
+
         } catch(EofException e) {
             throw new ExtenderException("Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
             throw new ExtenderException("Bad request: " + e.getMessage());
+        } catch(Exception e) {
+            LOGGER.error("Exception while building or sending response - SDK: " + sdkVersion + " , metrics: " + metricsWriter);
+            throw e;
         } finally {
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);

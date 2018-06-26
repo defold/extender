@@ -4,6 +4,7 @@ import com.defold.extender.client.*;
 import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.jf.dexlib2.DexFileFactory;
+import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.junit.AfterClass;
@@ -300,7 +301,7 @@ public class IntegrationTest {
         Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
 
         // Verify that classes.dex contains our Dummy class
-        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
         Set<String> dexClasses = new HashSet<>();
         for (ClassDef classDef: dexFile.getClasses()) {
             dexClasses.add(classDef.getType());
@@ -361,7 +362,7 @@ public class IntegrationTest {
         Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
 
         // Verify that classes.dex contains our Dummy class
-        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
         Set<String> dexClasses = new HashSet<>();
         for (ClassDef classDef: dexFile.getClasses()) {
             dexClasses.add(classDef.getType());
@@ -421,7 +422,7 @@ public class IntegrationTest {
         Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
 
         // Verify that classes.dex contains our Dummy class and our compiled Java class
-        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
         Set<String> dexClasses = new HashSet<>();
         for (ClassDef classDef: dexFile.getClasses()) {
             dexClasses.add(classDef.getType());
@@ -485,7 +486,7 @@ public class IntegrationTest {
         Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
 
         // Verify that classes.dex contains our Dummy class and our compiled Java class
-        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
         Set<String> dexClasses = new HashSet<>();
         for (ClassDef classDef: dexFile.getClasses()) {
             dexClasses.add(classDef.getType());
@@ -545,7 +546,7 @@ public class IntegrationTest {
         Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
 
         // Verify that classes.dex contains our Dummy class and our compiled Java class
-        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), 19 ); // api level
+        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
         Set<String> dexClasses = new HashSet<>();
         for (ClassDef classDef: dexFile.getClasses()) {
             dexClasses.add(classDef.getType());
