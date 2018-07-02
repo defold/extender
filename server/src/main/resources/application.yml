@@ -8,7 +8,7 @@ extender:
     build-location: /var/extender/builds
     server:
         http:
-            idle-timeout: 60000
+            idle-timeout: 600000
 
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
@@ -45,7 +45,7 @@ extender:
     build-location: /var/extender/builds
     server:
         http:
-            idle-timeout: 60000
+            idle-timeout: 600000
 
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
