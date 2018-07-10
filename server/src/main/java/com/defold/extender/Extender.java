@@ -55,9 +55,27 @@ class Extender {
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
+        // Read the app manifest from the upload folder
+        Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
+        List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
+        if (appManifests.size() > 1 ) {
+            throw new ExtenderException("Only one app.manifest allowed!");
+        }
+        if (appManifests.isEmpty()) {
+            this.appManifestPath = "";
+            this.appManifest = new AppManifestConfiguration();
+        } else {
+            this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
+            this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+        }
+
+        //
         this.platform = platform;
         this.sdk = sdk;
-        this.platformConfig = getPlatformConfig();
+        this.platformConfig = getPlatformConfig(platform);
+
+        System.out.println("MAWE: this.platformConfig:");
+        ExtenderUtil.debugPrint(this.platformConfig.context, 1);
 
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
@@ -78,20 +96,6 @@ class Extender {
             }
         }
 
-        Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
-
-        List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
-        if (appManifests.size() > 1 ) {
-            throw new ExtenderException("Only one app.manifest allowed!");
-        }
-        if (appManifests.isEmpty()) {
-            this.appManifestPath = "";
-            this.appManifest = new AppManifestConfiguration();
-        } else {
-            this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
-            this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
-        }
-
         // The allowed libs/symbols are the union of the values from the different "levels": "context: allowedLibs: [...]" + "context: platforms: arm64-osx: allowedLibs: [...]"
         List<String> allowedLibs = ExtenderUtil.mergeLists(this.platformConfig.allowedLibs, (List<String>) this.config.context.getOrDefault("allowedLibs", new ArrayList<String>()) );
         List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
@@ -104,7 +108,7 @@ class Extender {
         this.extDirs = this.manifests.stream().map(File::getParentFile).collect(Collectors.toList());
     }
 
-    private PlatformConfig getPlatformConfig() throws ExtenderException {
+    private PlatformConfig getPlatformConfig(String platform) throws ExtenderException {
         PlatformConfig platformConfig = config.platforms.get(platform);
 
         if (platformConfig == null) {
@@ -703,20 +707,35 @@ class Extender {
         }
     }
 
+    /** Merges the different levels in the app manifest into one context
+     * @param manifest  The app manifest
+     * @param platform  The platform
+     * @return The resource, or null if not found
+    */
+    public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform) throws ExtenderException {
+        Map<String, Object> appManifestContext = new HashMap<>();
+
+        if( manifest == null )
+            return appManifestContext;
+
+        if (manifest.platforms.containsKey("common")) {
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
+        }
+        if (manifest.platforms.containsKey(platform)) {
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
+        }
+
+        return appManifestContext;
+    }
+
     private File buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
             List<String> symbols = new ArrayList<>();
 
-            // Merge the different levels in the app manifest into one context
-            Map<String, Object> appManifestContext = new HashMap<>();
-            if (this.appManifest.platforms.containsKey("common")) {
-                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get("common").context);
-            }
-            if (this.appManifest.platforms.containsKey(this.platform)) {
-                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get(this.platform).context);
-            }
+            final Map<String, Object> appManifestContext = Extender.getAppManifestContext(this.appManifest, platform);
+
             // Make sure the user hasn't input anything invalid in the manifest
             this.manifestValidator.validate(this.appManifestPath, appManifestContext);
 
@@ -748,7 +767,7 @@ class Extender {
             }
 
             // The final link context is a merge of the app manifest and the extension contexts
-            mergedExtensionContext = mergeContexts(mergedExtensionContext, appManifestContext);
+            mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, appManifestContext);
 
             File exe = linkEngine(symbols, mergedExtensionContext);
 

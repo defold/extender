@@ -449,4 +449,25 @@ public class ExtenderTest {
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }
     }
+    @Test
+    public void testAppManifestContext() throws IOException, InterruptedException, ExtenderException {
+
+        File root = new File("test-data");
+        File appManifestFile = new File("test-data/extendertest.app.manifest");
+
+        AppManifestConfiguration appManifest = Extender.loadYaml(root, appManifestFile, AppManifestConfiguration.class);
+
+        assertTrue(appManifest != null);
+
+        Map<String, Object> context = Extender.getAppManifestContext(appManifest, "x86-osx");
+
+        ExtenderUtil.debugPrint(context, 0);
+
+        List<String> expectedItems = new ArrayList<>();
+        expectedItems.add("-fno-exceptions"); // common
+        expectedItems.add("-fno-rtti"); // x86-osx
+
+        assertEquals( expectedItems, context.get("flags") );
+    }
+
 }
