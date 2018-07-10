@@ -67,7 +67,7 @@ class ExtensionManifestValidator {
                 case "excludeJars":
                 case "excludeJsLibs":
                 case "excludeSymbols":
-                case "use-wine":
+                case "use-clang":
                     continue; // no need to whitelist
 
                 default:

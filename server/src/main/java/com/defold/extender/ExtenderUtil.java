@@ -3,6 +3,7 @@ package com.defold.extender;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -123,35 +124,28 @@ class ExtenderUtil
         });
     }
 
-    static List<String> getAppManifestItems(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
-        List<String> items = new ArrayList<>();
+    /** Merges the different levels in the app manifest into one context
+     * @param manifest  The app manifest
+     * @param platform  The platform
+     * @return The resource, or null if not found
+     */
+    public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform) throws ExtenderException {
+        Map<String, Object> appManifestContext = new HashMap<>();
 
-        if( manifest == null || manifest.platforms == null )
-            return items;
+        if( manifest == null )
+            return appManifestContext;
 
         if (manifest.platforms.containsKey("common")) {
-            Object v = manifest.platforms.get("common").context.get(name);
-            if( v != null ) {
-                if (!Extender.isListOfStrings((List<Object>) v)) {
-                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
-                }
-                items.addAll((List<String>) v);
-            }
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
+        }
+        if (manifest.platforms.containsKey(platform)) {
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
         }
 
-        if (manifest.platforms.containsKey(platform)) {
-            Object v = manifest.platforms.get(platform).context.get(name);
-            if( v != null ) {
-                if (!Extender.isListOfStrings((List<Object>) v)) {
-                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
-                }
-                items.addAll((List<String>) v);
-            }
-        }
-        return items;
+        return appManifestContext;
     }
 
-    static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform) {
+    static List<String> getAppManifestItems(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
         List<String> items = new ArrayList<>();
 
         if( manifest == null || manifest.platforms == null )

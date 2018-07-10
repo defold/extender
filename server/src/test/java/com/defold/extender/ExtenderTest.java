@@ -459,7 +459,7 @@ public class ExtenderTest {
 
         assertTrue(appManifest != null);
 
-        Map<String, Object> context = Extender.getAppManifestContext(appManifest, "x86-osx");
+        Map<String, Object> context = ExtenderUtil.getAppManifestContext(appManifest, "x86-osx");
 
         List<String> expectedItems = new ArrayList<>();
         expectedItems.add("-fno-exceptions"); // common

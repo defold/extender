@@ -32,6 +32,7 @@ class Extender {
     private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
+    private final Map<String, Object> appManifestContext;
 
     private List<File> extDirs = new ArrayList<>();
     private List<File> manifests = new ArrayList<>();
@@ -72,7 +73,21 @@ class Extender {
         //
         this.platform = platform;
         this.sdk = sdk;
-        this.platformConfig = getPlatformConfig(platform);
+
+        String alternatePlatform = platform;
+        if (this.platform.endsWith("win32")) {
+            Boolean use_clang = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "use-clang");
+            if (use_clang == null) {
+                use_clang = false;
+            }
+            if (!use_clang) {
+                alternatePlatform = platform.replace("win32", "wine32");
+            }
+        }
+
+        this.platformConfig = getPlatformConfig(alternatePlatform);
+        this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform);
+        LOGGER.info("Using context for platform: " + alternatePlatform);
 
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
@@ -99,6 +114,9 @@ class Extender {
 
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedLibs, allowedSymbols);
+
+        // Make sure the user hasn't input anything invalid in the manifest
+        this.manifestValidator.validate(this.appManifestPath, appManifestContext);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -706,37 +724,11 @@ class Extender {
         }
     }
 
-    /** Merges the different levels in the app manifest into one context
-     * @param manifest  The app manifest
-     * @param platform  The platform
-     * @return The resource, or null if not found
-    */
-    public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform) throws ExtenderException {
-        Map<String, Object> appManifestContext = new HashMap<>();
-
-        if( manifest == null )
-            return appManifestContext;
-
-        if (manifest.platforms.containsKey("common")) {
-            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
-        }
-        if (manifest.platforms.containsKey(platform)) {
-            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
-        }
-
-        return appManifestContext;
-    }
-
     private File buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
             List<String> symbols = new ArrayList<>();
-
-            final Map<String, Object> appManifestContext = Extender.getAppManifestContext(this.appManifest, platform);
-
-            // Make sure the user hasn't input anything invalid in the manifest
-            this.manifestValidator.validate(this.appManifestPath, appManifestContext);
 
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
@@ -753,6 +745,9 @@ class Extender {
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 
                 symbols.add(manifestConfig.name);
+
+                // Apply any global settings to the context
+                manifestContext = Extender.mergeContexts(manifestContext, appManifestContext);
 
                 buildExtension(manifest, manifestContext);
             }
