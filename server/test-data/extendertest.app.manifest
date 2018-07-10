@@ -1,9 +1,11 @@
 platforms:
     common:
         context:
+            flags:          ["-fno-exceptions"]
             excludeSymbols: ["SymbolA"]
     x86-osx:
         context:
+            flags:          ["-fno-rtti"]
             excludeSymbols: ["SymbolB"]
     x86-win32:
         context:
