@@ -43,7 +43,7 @@ ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
 
 # These packages are downloaded from here: http://releases.llvm.org/download.html
 # and then uploaded as-is to S3
-RUN wget -q -O - ${S3_URL}/clang%2Bllvm-5.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+RUN wget -q -O - ${S3_URL}/clang%2Bllvm-6.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -275,20 +275,12 @@ RUN find $WINEPREFIX -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]
 # Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
 RUN find $WINEPREFIX -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
 
-# and the rest are manually copied
+# and the rest are manually copied (or made lower case)
 RUN (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
     (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib && cp oldnames.lib OLDNAMES.lib) && \
     (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
     (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib && cp delayimp.lib Delayimp.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp Uuid.lib uuid.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp WinMM.lib winmm.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp OpenGL32.lib opengl32.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp GlU32.lib glu32.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && cp Psapi.lib psapi.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp Uuid.lib uuid.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp WinMM.lib winmm.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp OpenGL32.lib opengl32.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp GlU32.lib glu32.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && cp Psapi.lib psapi.lib) && \
     (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared && cp driverspecs.h DriverSpecs.h) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h)
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
+    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
