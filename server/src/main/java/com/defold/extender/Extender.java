@@ -74,9 +74,6 @@ class Extender {
         this.sdk = sdk;
         this.platformConfig = getPlatformConfig(platform);
 
-        System.out.println("MAWE: this.platformConfig:");
-        ExtenderUtil.debugPrint(this.platformConfig.context, 1);
-
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
 

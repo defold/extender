@@ -461,8 +461,6 @@ public class ExtenderTest {
 
         Map<String, Object> context = Extender.getAppManifestContext(appManifest, "x86-osx");
 
-        ExtenderUtil.debugPrint(context, 0);
-
         List<String> expectedItems = new ArrayList<>();
         expectedItems.add("-fno-exceptions"); // common
         expectedItems.add("-fno-rtti"); // x86-osx
