@@ -1,13 +1,18 @@
 
 
-ANDROID_GCC=$ANDROID_NDK/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-g++
-ANDROID_AR=$ANDROID_NDK/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-ar
+eval ANDROID_NDK=$ANDROID_NDK
+ANDROID_GCC=${ANDROID_NDK}/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-g++
+ANDROID_AR=${ANDROID_NDK}/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-ar
 
-IOS_GCC=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++
-IOS_AR=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar
+IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/clang++
+IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/ar
+IOS_MIN_VERSION=6.0
+IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS11.2.sdk
 
-OSX_GCC=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++
-OSX_AR=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar
+OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/clang++
+OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/ar
+OSX_MIN_VERSION=10.7
+OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX10.13.sdk
 
 EMCC=$DYNAMO_HOME/ext/bin/emsdk_portable/emscripten/1.35.0/em++
 EMAR=$DYNAMO_HOME/ext/bin/emsdk_portable/emscripten/1.35.0/emar
@@ -31,7 +36,7 @@ function CompileAndroid {
 	local name=$1
 	local src=$2
 	local targetdir=$3
-	
+
 	archs=("armv7")
 	for arch in "${archs[@]}"
 	do
@@ -40,8 +45,9 @@ function CompileAndroid {
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
-		
-		$ANDROID_GCC -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -fno-exceptions -funwind-tables $src -c -o /tmp/$name-$archname.o
+
+		$ANDROID_GCC -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fno-strict-aliasing -finline-limit=64 -fno-exceptions -funwind-tables $src -c -o /tmp/$name-$archname.o
+		$CMD
 		$ANDROID_AR rcs $target /tmp/$name-$archname.o
 		echo Wrote $target
 	done
@@ -58,11 +64,11 @@ function CompileiOS {
 	do
 		local archname=$arch-ios
 		local target=$targetdir/$archname/lib$name.a
-		
+
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$IOS_GCC -arch $arch -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
+		$IOS_GCC -arch $arch -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions -miphoneos-version-min=${IOS_MIN_VERSION} -isysroot ${IOS_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
 		$IOS_AR rcs $target /tmp/$name-$archname.o
 
 		echo Wrote $target
@@ -83,11 +89,11 @@ function CompileOSX {
 		fi
 
 		local target=$targetdir/$archname/lib$name.a
-		
+
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$OSX_GCC -arch $arch -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
+		$OSX_GCC -arch $arch -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions -mmacosx-version-min=${OSX_MIN_VERSION} -isysroot ${OSX_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
 		$OSX_AR rcs $target /tmp/$name-$archname.o
 
 		echo Wrote $target
@@ -104,7 +110,7 @@ function CompileHTML5 {
 	do
 		local archname=$arch-web
 		local target=$targetdir/$archname/lib$name.a
-		
+
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
@@ -125,7 +131,7 @@ function CompileWindows {
 	do
 		local archname=$arch-win32
 		local target=$targetdir/$archname/$name.lib
-		
+
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
@@ -164,7 +170,7 @@ function CompileLinux {
 		fi
 
 		local target=$targetdir/$archname/lib$name.a
-		
+
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 

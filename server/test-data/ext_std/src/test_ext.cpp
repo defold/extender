@@ -1,16 +1,3 @@
-#include <stdio.h>
-
-
-extern "C"
-{
-	void Test()
-	{
-        printf("Hello Test\n");
-        printf("10 + 20 = %d\n", blib_add(10, 20));
-        printf("10 * 20 = %d\n", blib_mul(10, 20));
-	}
-}
-
 
 // myextension.cpp
 // Extension lib defines
@@ -19,50 +6,42 @@ extern "C"
 
 // include the Defold SDK
 #include <dmsdk/sdk.h>
+#include <string>
+#include <stdio.h>
+#include "std.h"
 
-static int Rot13(lua_State* L)
+std::string Test(const std::string& a, const std::string& b)
 {
-    int top = lua_gettop(L);
+    return a + b;
+}
 
+// Combines two strings
+static int Combine(lua_State* L)
+{
     // Check and get parameter string from stack
-    const char* str = luaL_checkstring(L, 1);
+    const char* str1 = luaL_checkstring(L, 1);
+    const char* str2 = luaL_checkstring(L, 2);
 
-    // Allocate new string
-    int len = strlen(str);
-    char *rot = (char *) malloc(len + 1);
+    if (str1 && str2)
+    {
+        std::string a = str1;
+        std::string b = str2;
+        std::string out;
+        dmStdTest::Combine(a, b, out);
 
-    // Iterate over the parameter string and create rot13 string
-    for(int i = 0; i <= len; i++) {
-        const char c = str[i];
-        if((c >= 'A' && c <= 'M') || (c >= 'a' && c <= 'm')) {
-            // Between A-M just add 13 to the char.
-            rot[i] = c + 13;
-        } else if((c >= 'N' && c <= 'Z') || (c >= 'n' && c <= 'z')) {
-            // If rolling past 'Z' which happens below 'M', wrap back (subtract 13)
-            rot[i] = c - 13;
-        } else {
-            // Leave character intact
-            rot[i] = c;
-        }
+        lua_pushlstring(L, out.c_str(), out.size());
+        return 1;
     }
+    std::string c = Test("Hello", "World");
 
-    // Put the rotated string on the stack
-    lua_pushstring(L, rot);
-
-    // Free string memory. Lua has a copy by now.
-    free(rot);
-
-    // Assert that there is one item on the stack.
-    assert(top + 1 == lua_gettop(L));
-
-    // Return 1 item
+    lua_pushlstring(L, c.c_str(), c.size());
     return 1;
 }
 
 // Functions exposed to Lua
 static const luaL_reg Module_methods[] =
 {
-    {"rot13", Rot13},
+    {"combine", Combine},
     {0, 0}
 };
 

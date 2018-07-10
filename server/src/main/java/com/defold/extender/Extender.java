@@ -76,12 +76,16 @@ class Extender {
 
         String alternatePlatform = platform;
         if (this.platform.endsWith("win32")) {
-            Boolean use_clang = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "use-clang");
-            if (use_clang == null) {
-                use_clang = false;
-            }
-            if (!use_clang) {
-                alternatePlatform = platform.replace("win32", "wine32");
+            // Detect if the SDK supports the alternate build path
+            PlatformConfig alternateConfig = getPlatformConfig(platform.replace("win32", "wine32"));
+            if (alternateConfig != null) {
+                Boolean use_clang = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "use-clang");
+                if (use_clang == null) {
+                    use_clang = false;
+                }
+                if (!use_clang) {
+                    alternatePlatform = platform.replace("win32", "wine32");
+                }
             }
         }
 
