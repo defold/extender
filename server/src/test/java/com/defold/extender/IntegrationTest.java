@@ -107,10 +107,10 @@ public class IntegrationTest {
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32"} ),
-                new DefoldVersion("2406775912d235d2579cfe723ab4dbcea2ca77ca", new Version(1, 2, 119), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux"}),
-                new DefoldVersion("fce7921da858a71876773c75920b74310ca7ac1f", new Version(1, 2, 120), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
-                new DefoldVersion("fce7921da858a71876773c75920b74310ca7ac1f", new Version(1, 2, 121), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
-                new DefoldVersion("fce7921da858a71876773c75920b74310ca7ac1f", new Version(1, 2, 122), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
+                new DefoldVersion("30b201abdb7224683a3b3de2a02b22946dbbd427", new Version(1, 2, 129), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
+                new DefoldVersion("3abf70ee10dfb24e43529ff2e7ffbf1905ef5c19", new Version(1, 2, 130), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
+                new DefoldVersion("091e7e02ce492d3c4e493324b9db57d40df69e95", new Version(1, 2, 131), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
+                new DefoldVersion("09410355c1baf7e474e46cbc2d252f67f673e1dc", new Version(1, 2, 132), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -213,6 +213,61 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
                 new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
                 new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "blib")))
+        );
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println("ERROR LOG:");
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+        assertTrue(cache.getCachedBuildFile(platform).exists());
+
+        ZipFile zipFile = new ZipFile(destination);
+        assertNotEquals(null, zipFile.getEntry( getEngineName(platform) ) );
+
+        if (platform.endsWith("android")) {
+            // Add this when we've made sure that all android builds create a classes.dex
+            assertNotEquals(null, zipFile.getEntry("classes.dex"));
+        }
+
+        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
+    }
+
+    @Test
+    public void buildExtensionStdLib() throws IOException, ExtenderClientException {
+
+        boolean isSupported = configuration.version.version.isGreaterThan(0, 0, 0);
+        if (!isSupported)
+            return;
+
+        clearCache();
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext_std/_app/app.manifest"),
+                new FileExtenderResource("test-data/ext_std/ext.manifest"),
+                new FileExtenderResource("test-data/ext_std/include/std.h"),
+                new FileExtenderResource("test-data/ext_std/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/ext_std/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "std")))
         );
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();

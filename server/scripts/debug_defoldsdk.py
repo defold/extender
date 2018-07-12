@@ -59,6 +59,8 @@ if __name__ == '__main__':
 		d = sha1 = get_latest_version()
 		sha1 = d.get('sha1', None)
 		print("Latest version is %s : %s" % (d.get('version', ''), sha1))
+	else:
+		sha1 = sys.argv[1]
 
 	if sha1 is None:
 		Usage()

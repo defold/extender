@@ -3,7 +3,7 @@ platforms:
         context:
             flags:          ["-fno-exceptions"]
             excludeSymbols: ["SymbolA"]
-    x86-osx:
+    x86_64-osx:
         context:
             flags:          ["-fno-rtti"]
             excludeSymbols: ["SymbolB"]
