@@ -3,6 +3,7 @@ package com.defold.extender;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -123,6 +124,27 @@ class ExtenderUtil
         });
     }
 
+    /** Merges the different levels in the app manifest into one context
+     * @param manifest  The app manifest
+     * @param platform  The platform
+     * @return The resource, or null if not found
+     */
+    public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform) throws ExtenderException {
+        Map<String, Object> appManifestContext = new HashMap<>();
+
+        if( manifest == null )
+            return appManifestContext;
+
+        if (manifest.platforms.containsKey("common")) {
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
+        }
+        if (manifest.platforms.containsKey(platform)) {
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
+        }
+
+        return appManifestContext;
+    }
+
     static List<String> getAppManifestItems(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
         List<String> items = new ArrayList<>();
 
@@ -151,4 +173,31 @@ class ExtenderUtil
         return items;
     }
 
+    static Object getAppManifestObject(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
+        if( manifest == null || manifest.platforms == null )
+            return null;
+
+        if (manifest.platforms.containsKey("common")) {
+            Object v = manifest.platforms.get("common").context.get(name);
+            if( v != null ) {
+                return v;
+            }
+        }
+
+        if (manifest.platforms.containsKey(platform)) {
+            Object v = manifest.platforms.get(platform).context.get(name);
+            if( v != null ) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    static Boolean getAppManifestBoolean(AppManifestConfiguration manifest, String platform, String name, Boolean default) throws ExtenderException {
+        Boolean b = (Boolean)getAppManifestObject(manifest, platform, name);
+        if (b instanceof Boolean) {
+            return b;
+        }
+        return default;
+    }
 }

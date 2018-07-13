@@ -32,6 +32,7 @@ class Extender {
     private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
+    private final Map<String, Object> appManifestContext;
 
     private List<File> extDirs = new ArrayList<>();
     private List<File> manifests = new ArrayList<>();
@@ -55,9 +56,42 @@ class Extender {
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
+        // Read the app manifest from the upload folder
+        Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
+        List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
+        if (appManifests.size() > 1 ) {
+            throw new ExtenderException("Only one app.manifest allowed!");
+        }
+        if (appManifests.isEmpty()) {
+            this.appManifestPath = "";
+            this.appManifest = new AppManifestConfiguration();
+        } else {
+            this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
+            this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+        }
+
         this.platform = platform;
         this.sdk = sdk;
-        this.platformConfig = getPlatformConfig();
+
+        String alternatePlatform = platform;
+        if (this.platform.endsWith("win32")) {
+            // Detect if the SDK supports the alternate build path
+            try {
+                PlatformConfig alternateConfig = getPlatformConfig(platform.replace("win32", "wine32"));
+                if (alternateConfig != null) {
+                    Boolean use_clang = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "use-clang", false);
+                    if (!use_clang) {
+                        alternatePlatform = platform.replace("win32", "wine32");
+                    }
+                }
+            } catch (ExtenderException e) {
+                // Pass
+            }
+        }
+
+        this.platformConfig = getPlatformConfig(alternatePlatform);
+        this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform);
+        LOGGER.info("Using context for platform: " + alternatePlatform);
 
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
         processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
@@ -78,20 +112,6 @@ class Extender {
             }
         }
 
-        Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
-
-        List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
-        if (appManifests.size() > 1 ) {
-            throw new ExtenderException("Only one app.manifest allowed!");
-        }
-        if (appManifests.isEmpty()) {
-            this.appManifestPath = "";
-            this.appManifest = new AppManifestConfiguration();
-        } else {
-            this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
-            this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
-        }
-
         // The allowed libs/symbols are the union of the values from the different "levels": "context: allowedLibs: [...]" + "context: platforms: arm64-osx: allowedLibs: [...]"
         List<String> allowedLibs = ExtenderUtil.mergeLists(this.platformConfig.allowedLibs, (List<String>) this.config.context.getOrDefault("allowedLibs", new ArrayList<String>()) );
         List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
@@ -99,12 +119,15 @@ class Extender {
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedLibs, allowedSymbols);
 
+        // Make sure the user hasn't input anything invalid in the manifest
+        this.manifestValidator.validate(this.appManifestPath, appManifestContext);
+
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         this.extDirs = this.manifests.stream().map(File::getParentFile).collect(Collectors.toList());
     }
 
-    private PlatformConfig getPlatformConfig() throws ExtenderException {
+    private PlatformConfig getPlatformConfig(String platform) throws ExtenderException {
         PlatformConfig platformConfig = config.platforms.get(platform);
 
         if (platformConfig == null) {
@@ -690,13 +713,15 @@ class Extender {
     }
 
     private void buildWin32Manifest(File exe, Map<String, Object> mergedExtensionContext) throws ExtenderException {
-        LOGGER.info("Adding manifest file to engine");
-
         Map<String, Object> context = context(mergedExtensionContext);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
 
         String command = templateExecutor.execute(platformConfig.mtCmd, context);
+        if (command.equals("")) {
+            return;
+        }
         try {
+            LOGGER.info("Adding manifest file to engine");
             processExecutor.execute(command);
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
@@ -708,17 +733,6 @@ class Extender {
 
         try {
             List<String> symbols = new ArrayList<>();
-
-            // Merge the different levels in the app manifest into one context
-            Map<String, Object> appManifestContext = new HashMap<>();
-            if (this.appManifest.platforms.containsKey("common")) {
-                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get("common").context);
-            }
-            if (this.appManifest.platforms.containsKey(this.platform)) {
-                appManifestContext = mergeContexts(appManifestContext, this.appManifest.platforms.get(this.platform).context);
-            }
-            // Make sure the user hasn't input anything invalid in the manifest
-            this.manifestValidator.validate(this.appManifestPath, appManifestContext);
 
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
@@ -736,6 +750,9 @@ class Extender {
 
                 symbols.add(manifestConfig.name);
 
+                // Apply any global settings to the context
+                manifestContext = Extender.mergeContexts(manifestContext, appManifestContext);
+
                 buildExtension(manifest, manifestContext);
             }
 
@@ -748,7 +765,7 @@ class Extender {
             }
 
             // The final link context is a merge of the app manifest and the extension contexts
-            mergedExtensionContext = mergeContexts(mergedExtensionContext, appManifestContext);
+            mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, appManifestContext);
 
             File exe = linkEngine(symbols, mergedExtensionContext);
 

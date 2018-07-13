@@ -39,7 +39,7 @@ public class ExtenderTest {
         File buildDir = new File(jobDir, "build");
         buildDir.mkdirs();
         File sdk = new File("test-data/sdk/a/defoldsdk");
-        Extender extender = new Extender("x86-osx", sdk, jobDir, uploadDir, buildDir);
+        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir);
 
         uploadDir.delete();
         assertTrue(true);
@@ -337,12 +337,12 @@ public class ExtenderTest {
     public void testCollectLibraries() {
         // The folder contains a library and a text file
         {
-            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86-osx"), "lib(.+).a");
+            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), "lib(.+).a");
             String[] expected = {"alib"};
             assertArrayEquals(expected, result.toArray());
         }
         {
-            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86-osx"), Extender.FRAMEWORK_RE);
+            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), Extender.FRAMEWORK_RE);
             String[] expected = {"blib"};
             assertArrayEquals(expected, result.toArray());
         }
@@ -387,15 +387,15 @@ public class ExtenderTest {
 
         // Make sure it handles platforms
         {
-            List<String> items = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> items = ExtenderUtil.getAppManifestItems(appManifest, "x86_64-osx", "excludeSymbols");
             assertTrue( items.contains("SymbolA") );
             assertTrue( items.contains("SymbolB") );
             assertFalse( items.contains("SymbolC") );
         }
 
         {
-            List<String> includePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "includeSymbols");
-            List<String> excludePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86-osx", "excludeSymbols");
+            List<String> includePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86_64-osx", "includeSymbols");
+            List<String> excludePatterns = ExtenderUtil.getAppManifestItems(appManifest, "x86_64-osx", "excludeSymbols");
             List<String> allItems = new ArrayList<>();
             allItems.add("SymbolA");
             allItems.add("SymbolB");
@@ -449,4 +449,23 @@ public class ExtenderTest {
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }
     }
+    @Test
+    public void testAppManifestContext() throws IOException, InterruptedException, ExtenderException {
+
+        File root = new File("test-data");
+        File appManifestFile = new File("test-data/extendertest.app.manifest");
+
+        AppManifestConfiguration appManifest = Extender.loadYaml(root, appManifestFile, AppManifestConfiguration.class);
+
+        assertTrue(appManifest != null);
+
+        Map<String, Object> context = ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx");
+
+        List<String> expectedItems = new ArrayList<>();
+        expectedItems.add("-fno-exceptions"); // common
+        expectedItems.add("-fno-rtti"); // x86-osx
+
+        assertEquals( expectedItems, context.get("flags") );
+    }
+
 }

@@ -18,7 +18,7 @@ function CompileLibsToExtension {
 	do
 		local name=$(basename $file)
 		name="${name%.*}"
-		echo $name $file 
+		echo $name $file
 		Compile $name $file $extension
 	done
 }
@@ -49,6 +49,7 @@ mkdir -p sdk/a/defoldsdk/ext/lib/x86_64-darwin
 CompileLibsToExtension alib ext/lib
 CompileLibsToExtension alib ext2/lib
 CompileLibsToExtension blib ext2/lib
+CompileLibsToExtension stdlib ext_std/lib
 
 (cd testproject_appmanifest && ./build.sh)
 

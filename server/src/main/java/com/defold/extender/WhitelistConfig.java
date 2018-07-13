@@ -14,7 +14,7 @@ class WhitelistConfig {
         context.put("arg", "[a-zA-Z][a-zA-Z0-9-_]+");
         context.put("comma_separated_arg", "[a-zA-Z][a-zA-Z0-9-_]+");
         context.put("number", "[0-9]+");
-        context.put("warning", "[a-zA-Z][a-zA-Z0-9-_]+");
+        context.put("warning", "[a-zA-Z][a-zA-Z0-9-_+]+");
     }
 
     static Pattern compile(String re) {

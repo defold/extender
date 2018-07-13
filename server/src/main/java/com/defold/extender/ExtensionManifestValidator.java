@@ -32,11 +32,10 @@ class ExtensionManifestValidator {
         for (String k : keys) {
             Object v = context.get(k);
 
-            if (!ExtensionManifestValidator.isListOfStrings((List<Object>) v)) {
+            if (v instanceof List && !ExtensionManifestValidator.isListOfStrings((List<Object>) v)) {
                 throw new ExtenderException(String.format("Error in '%s': The context variables only support strings or lists of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
             }
 
-            List<String> strings = (List<String>) v;
             List<Pattern> patterns;
             String type;
             switch (k) {
@@ -68,6 +67,7 @@ class ExtensionManifestValidator {
                 case "excludeJars":
                 case "excludeJsLibs":
                 case "excludeSymbols":
+                case "use-clang":
                     continue; // no need to whitelist
 
                 default:
@@ -75,9 +75,12 @@ class ExtensionManifestValidator {
                     throw new ExtenderException(String.format("Error in '%s': Manifest context variable unsupported: %s", extensionName, k));
             }
 
-            String s = ExtensionManifestValidator.whitelistCheck(patterns, strings);
-            if (s != null) {
-                throw new ExtenderException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
+            if (v instanceof List) {
+                List<String> strings = (List<String>) v;
+                String s = ExtensionManifestValidator.whitelistCheck(patterns, strings);
+                if (s != null) {
+                    throw new ExtenderException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
+                }
             }
         }
     }
