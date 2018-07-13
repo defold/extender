@@ -193,11 +193,11 @@ class ExtenderUtil
         return null;
     }
 
-    static Boolean getAppManifestBoolean(AppManifestConfiguration manifest, String platform, String name) throws ExtenderException {
+    static Boolean getAppManifestBoolean(AppManifestConfiguration manifest, String platform, String name, Boolean default) throws ExtenderException {
         Boolean b = (Boolean)getAppManifestObject(manifest, platform, name);
         if (b instanceof Boolean) {
             return b;
         }
-        return null;
+        return default;
     }
 }

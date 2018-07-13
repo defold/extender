@@ -70,7 +70,6 @@ class Extender {
             this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
         }
 
-        //
         this.platform = platform;
         this.sdk = sdk;
 
@@ -80,10 +79,7 @@ class Extender {
             try {
                 PlatformConfig alternateConfig = getPlatformConfig(platform.replace("win32", "wine32"));
                 if (alternateConfig != null) {
-                    Boolean use_clang = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "use-clang");
-                    if (use_clang == null) {
-                        use_clang = false;
-                    }
+                    Boolean use_clang = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "use-clang", false);
                     if (!use_clang) {
                         alternatePlatform = platform.replace("win32", "wine32");
                     }

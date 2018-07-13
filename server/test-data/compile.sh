@@ -234,36 +234,6 @@ function CompileLinux {
 	done
 }
 
-
-function CompileLinuxOnDarwin {
-	local name=$1
-	local src=$2
-	local targetdir=$3
-
-	archs=( "x86" "x86_64")
-	for arch in "${archs[@]}"
-	do
-		local archname=$arch-linux
-		local flags="-target x86_64-pc-linux-gnu -m64"
-		if [ "$arch" == "x86" ]; then
-			flags="-target i386-pc-linux-gnu -m32"
-		fi
-
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
-
-		RemoveTarget $target
-		mkdir -p $(dirname $target)
-
-		local INCLUDES="-I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/include -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/winrt -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/um -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/shared"
-
-		$LINUX_GCC $flags -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
-		$LINUX_AR rcs $target /tmp/$name-$archname.o
-
-		echo Wrote $target
-	done
-}
-
 function Compile {
 	set -e
 	local name=$1
@@ -276,7 +246,6 @@ function Compile {
 		CompileAndroid $name $src $targetdir
 		CompileHTML5 $name $src $targetdir
 		CompileWindowsOnDarwin $name $src $targetdir
-		#CompileLinuxOnDarwin $name $src $targetdir
 	fi
 	if [ "$(uname)" == "MINGW32_NT-6.2" ]; then
 		CompileWindows $name $src $targetdir
