@@ -153,9 +153,11 @@ RUN \
 # Windows
 #
 
+# windres: Allows for generating .res files that can be used during linking
 RUN \
   apt-get update && \
-  apt-get install apt-transport-https
+  apt-get install -y apt-transport-https mingw-w64 && \
+  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
 
 # Installation notes: https://wiki.winehq.org/Ubuntu
 RUN \
