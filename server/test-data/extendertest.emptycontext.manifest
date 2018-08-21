@@ -1,0 +1,5 @@
+# Leaving the context empty will leave a null pointer
+platforms:
+    x86_64-osx:
+        context:
+
