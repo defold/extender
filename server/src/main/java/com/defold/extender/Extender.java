@@ -412,7 +412,7 @@ class Extender {
         processExecutor.execute(command);
     }
 
-    private File linkEngine(List<String> symbols, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private File linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
         File maincpp = new File(buildDirectory , "main.cpp");
 
         List<String> extSymbols = new ArrayList<>();
@@ -475,8 +475,14 @@ class Extender {
             exe = new File(buildDirectory, String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt)); // Legacy, remove in a few versions!
         }
 
+        List<String> objects = new ArrayList<>();
+        objects.add(ExtenderUtil.getRelativePath(jobDirectory, mainObject));
+        if (resourceFile != null) { // For Win32 targets
+            objects.add(ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
+        }
+
         Map<String, Object> context = context(manifestContext);
-        context.put("src", ExtenderUtil.getRelativePath(jobDirectory, mainObject));
+        context.put("src", objects);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
         context.put("engineLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineLibs", new ArrayList<>()), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeLibs")) );
@@ -712,20 +718,23 @@ class Extender {
         return classes;
     }
 
-    private void buildWin32Manifest(File exe, Map<String, Object> mergedExtensionContext) throws ExtenderException {
+    private File buildWin32Resources(Map<String, Object> mergedExtensionContext) throws ExtenderException {
         Map<String, Object> context = context(mergedExtensionContext);
-        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
+        File resourceFile = new File(buildDirectory, "dmengine.res");
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
 
-        String command = templateExecutor.execute(platformConfig.mtCmd, context);
+        String command = templateExecutor.execute(platformConfig.windresCmd, context);
         if (command.equals("")) {
-            return;
+            return null;
         }
         try {
-            LOGGER.info("Adding manifest file to engine");
+            LOGGER.info("Creating .res file");
             processExecutor.execute(command);
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
+
+        return resourceFile;
     }
 
     private File buildEngine() throws ExtenderException {
@@ -767,11 +776,12 @@ class Extender {
             // The final link context is a merge of the app manifest and the extension contexts
             mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, appManifestContext);
 
-            File exe = linkEngine(symbols, mergedExtensionContext);
-
+            File resourceFile = null;
             if (platform.endsWith("win32")) {
-                buildWin32Manifest(exe, mergedExtensionContext);
+                resourceFile = buildWin32Resources(mergedExtensionContext);
             }
+
+            File exe = linkEngine(symbols, mergedExtensionContext, resourceFile);
 
             return exe;
         } catch (IOException | InterruptedException e) {
