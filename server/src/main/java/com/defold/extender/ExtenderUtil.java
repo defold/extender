@@ -132,7 +132,7 @@ class ExtenderUtil
     public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform) throws ExtenderException {
         Map<String, Object> appManifestContext = new HashMap<>();
 
-        if( manifest == null )
+        if (manifest == null || manifest.platforms == null)
             return appManifestContext;
 
         if (manifest.platforms.containsKey("common")) {

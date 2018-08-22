@@ -379,7 +379,7 @@ public class ExtenderTest {
     public void testExcludeItems() throws IOException, InterruptedException, ExtenderException {
 
         File root = new File("test-data");
-        File appManifestFile = new File("test-data/extendertest.app.manifest");
+        File appManifestFile = new File("test-data/extendertest.appmanifest");
 
         AppManifestConfiguration appManifest = Extender.loadYaml(root, appManifestFile, AppManifestConfiguration.class);
 
@@ -450,10 +450,10 @@ public class ExtenderTest {
         }
     }
     @Test
-    public void testAppManifestContext() throws IOException, InterruptedException, ExtenderException {
+    public void testAppManifestContext() throws IOException, ExtenderException {
 
         File root = new File("test-data");
-        File appManifestFile = new File("test-data/extendertest.app.manifest");
+        File appManifestFile = new File("test-data/extendertest.appmanifest");
 
         AppManifestConfiguration appManifest = Extender.loadYaml(root, appManifestFile, AppManifestConfiguration.class);
 
@@ -468,4 +468,23 @@ public class ExtenderTest {
         assertEquals( expectedItems, context.get("flags") );
     }
 
+    @Test
+    public void testGetAppmanifest() throws IOException, ExtenderException {
+        File root = new File("test-data");
+
+        AppManifestConfiguration appManifest = Extender.loadYaml(root, new File("test-data/extendertest.platformnull.appmanifest"), AppManifestConfiguration.class);
+        // previous issue was that it threw a null pointer exception
+        ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx");
+    }
+
+    @Test
+    public void testGetManifestContext() throws IOException, ExtenderException {
+        File root = new File("test-data");
+        Configuration config = Extender.loadYaml(root, new File("test-data/sdk/a/defoldsdk/extender/build.yml"), Configuration.class);
+
+        ManifestConfiguration manifestConfig = Extender.loadYaml(root, new File("test-data/extendertest.emptycontext.manifest"), ManifestConfiguration.class);
+        // previous issue was that it returned a null pointer
+        Map<String, Object> manifestContext = Extender.getManifestContext("x86_64-osx", config, manifestConfig);
+        assertNotEquals(null, manifestContext);
+    }
 }

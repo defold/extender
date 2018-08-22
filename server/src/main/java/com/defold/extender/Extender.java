@@ -645,7 +645,7 @@ class Extender {
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
-                    manifestContext = getManifestContext(manifestConfig);
+                    manifestContext = getManifestContext(platform, config, manifestConfig);
                 }
 
                 this.manifestValidator.validate(manifestConfig.name, manifestContext);
@@ -665,8 +665,8 @@ class Extender {
         return builtJars;
     }
 
-    private Map<String, Object> getManifestContext(ManifestConfiguration manifestConfig) throws ExtenderException {
-        ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(this.platform);
+    public static Map<String, Object> getManifestContext(String platform, Configuration config, ManifestConfiguration manifestConfig) throws ExtenderException {
+        ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(platform);
 
         // Check that the manifest only contains valid platforms
         Set<String> allowedPlatforms = config.platforms.keySet();
@@ -676,7 +676,7 @@ class Extender {
             throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()));
         }
 
-        if (manifestPlatformConfig != null) {
+        if (manifestPlatformConfig != null && manifestPlatformConfig.context != null) {
             return manifestPlatformConfig.context;
         }
         return new HashMap<>();
@@ -749,7 +749,7 @@ class Extender {
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
-                    manifestContext = getManifestContext(manifestConfig);
+                    manifestContext = getManifestContext(platform, config, manifestConfig);
                 }
 
                 String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
