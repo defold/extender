@@ -10,9 +10,7 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.regex.Pattern;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class ExtensionManifestValidatorTest {
 
@@ -133,5 +131,22 @@ public class ExtensionManifestValidatorTest {
             }
         }
         assertTrue(thrown);
+    }
+
+    @Test
+    public void testAllowedLibs() {
+        String[] allowedLibsTemplatesArray = new String[]{"(\\w[\\w\\.-]+)"};
+        List<String> allowedLibs = Arrays.asList(allowedLibsTemplatesArray);
+
+        TemplateExecutor templateExecutor = new TemplateExecutor();
+
+        WhitelistConfig whitelistConfig = new WhitelistConfig();
+        List<Pattern> patterns = new ArrayList<>();
+        ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedLibs, patterns);
+
+        List<String> l = new ArrayList<>();
+        l.add("Crypt32");
+        String s = ExtensionManifestValidator.whitelistCheck(patterns, l);
+        assertEquals(null, s);
     }
 }

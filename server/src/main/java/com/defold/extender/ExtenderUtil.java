@@ -200,4 +200,42 @@ class ExtenderUtil
         }
         return default_value;
     }
+
+    // Does a regexp match on the filename for each file found in a directory
+    static public List<String> collectFilesByName(File dir, String re) {
+        List<String> result = new ArrayList<>();
+        if (re == null) {
+            return result;
+        }
+        Pattern p = Pattern.compile(re);
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
+            for (File f : files) {
+                Matcher m = p.matcher(f.getName());
+                if (m.matches()) {
+                    result.add(m.group(1));
+                }
+            }
+        }
+        return result;
+    }
+
+    // Does a regexp match on the absolute path for each file found in a directory
+    static public List<String> collectFilesByPath(File dir, String re) {
+        List<String> result = new ArrayList<>();
+        if (re == null) {
+            return result;
+        }
+        Pattern p = Pattern.compile(re);
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
+            for (File f : files) {
+                Matcher m = p.matcher(f.getAbsolutePath());
+                if (m.matches()) {
+                    result.add(m.group(1));
+                }
+            }
+        }
+        return result;
+    }
 }

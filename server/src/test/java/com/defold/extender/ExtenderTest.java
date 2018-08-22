@@ -337,12 +337,12 @@ public class ExtenderTest {
     public void testCollectLibraries() {
         // The folder contains a library and a text file
         {
-            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), "lib(.+).a");
+            List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), "lib(.+).a");
             String[] expected = {"alib"};
             assertArrayEquals(expected, result.toArray());
         }
         {
-            List<String> result = Extender.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), Extender.FRAMEWORK_RE);
+            List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), Extender.FRAMEWORK_RE);
             String[] expected = {"blib"};
             assertArrayEquals(expected, result.toArray());
         }
@@ -350,7 +350,7 @@ public class ExtenderTest {
 
     @Test
     public void testCollectJars() {
-        List<String> paths = Extender.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
+        List<String> paths = ExtenderUtil.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
         assertEquals(4, paths.size());
 
         String[] endings = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar",
@@ -370,7 +370,7 @@ public class ExtenderTest {
 
     @Test
     public void testCollectJsFiles() {
-        List<String> result = Extender.collectFilesByPath(new File("test-data/ext/lib/js-web"), Extender.JS_RE);
+        List<String> result = ExtenderUtil.collectFilesByPath(new File("test-data/ext/lib/js-web"), Extender.JS_RE);
         assertEquals(1, result.size());
         assertTrue(result.get(0).endsWith("test-data/ext/lib/js-web/library_dummy.js"));
     }
