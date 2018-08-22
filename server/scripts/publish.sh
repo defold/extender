@@ -2,6 +2,16 @@
 
 set -e
 
+function check_git_status {
+	VALUE=$(git ls-files -m)
+	if [ ! "$VALUE" == "" ]; then
+		echo "YOU HAVE \033[0;31mUNCOMMITTED CHANGES\033[0m!"
+		exit 1
+	fi
+}
+check_git_status
+
+
 SRC_REPOSITORY="extender/extender:latest"
 VERSION=$(date "+%Y%m%d_%H%M")
 DEST_REPOSITORY="378120250811.dkr.ecr.eu-west-1.amazonaws.com/extender:$VERSION"
