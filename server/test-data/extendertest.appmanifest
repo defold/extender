@@ -9,4 +9,9 @@ platforms:
             excludeSymbols: ["SymbolB"]
     x86-win32:
         context:
+            use-clang: true
+            excludeSymbols: ["SymbolC"]
+    x86_64-win32:
+        context:
+            use-clang: true
             excludeSymbols: ["SymbolC"]

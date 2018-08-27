@@ -1,10 +1,6 @@
 package com.defold.extender;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -13,6 +9,8 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 public class ZipUtils {
+
+    private static int bufferSize = 128 * 1024;
 
     public static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
         try (ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
@@ -28,7 +26,7 @@ public class ZipUtils {
                     if (!parentDir.exists()) {
                         Files.createDirectories(parentDir.toPath());
                     }
-                    Files.copy(zipInputStream, entryTargetFile.toPath());
+                    extractFile(zipInputStream, entryTargetFile);
                 }
 
                 zipInputStream.closeEntry();
@@ -57,5 +55,15 @@ public class ZipUtils {
         }
 
         return zipFile;
+    }
+
+    private static void extractFile(ZipInputStream zipIn, File file) throws IOException {
+        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(file));
+        byte[] bytesIn = new byte[ZipUtils.bufferSize];
+        int read = 0;
+        while ((read = zipIn.read(bytesIn)) != -1) {
+            bos.write(bytesIn, 0, read);
+        }
+        bos.close();
     }
 }

@@ -7,9 +7,8 @@ import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -34,6 +33,10 @@ public class IntegrationTest {
     private static final int EXTENDER_PORT = 9000;
 
     private TestConfiguration configuration;
+    private long startTime;
+
+    @Rule
+    public TestName name = new TestName();
 
     static {
         LoggingSystem.get(ClassLoader.getSystemClassLoader()).setLogLevel(Logger.ROOT_LOGGER_NAME, LogLevel.INFO);
@@ -107,10 +110,10 @@ public class IntegrationTest {
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32"} ),
-                new DefoldVersion("30b201abdb7224683a3b3de2a02b22946dbbd427", new Version(1, 2, 129), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
                 new DefoldVersion("3abf70ee10dfb24e43529ff2e7ffbf1905ef5c19", new Version(1, 2, 130), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
                 new DefoldVersion("091e7e02ce492d3c4e493324b9db57d40df69e95", new Version(1, 2, 131), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
-                new DefoldVersion("09410355c1baf7e474e46cbc2d252f67f673e1dc", new Version(1, 2, 132), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
+                new DefoldVersion("7b2c2c019d6fa106f78e2e98cd3009a21d4095aa", new Version(1, 2, 133), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("b2ef3a19802728e76adf84d51d02e11d636791a3", new Version(1, 2, 134), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -137,6 +140,8 @@ public class IntegrationTest {
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
+        long startTime = System.currentTimeMillis();
+
         // Wait for server to start in container.
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
@@ -146,7 +151,7 @@ public class IntegrationTest {
 
             try {
                 if (extenderClient.health()) {
-                    System.out.println("Server started!");
+                    System.out.println(String.format("Server started after %f seconds!", (System.currentTimeMillis() - startTime) / 1000.f));
                     break;
                 }
             } catch (IOException e) {
@@ -167,7 +172,19 @@ public class IntegrationTest {
         System.out.println(processExecutor.getOutput());
     }
 
-    private void clearCache()
+
+    @Before
+    public void recordStartTime() {
+        startTime = System.currentTimeMillis();
+    }
+
+    @After
+    public void recordEndTime() {
+        System.out.println(String.format("Test %s took: %.2f seconds", name.getMethodName(), (System.currentTimeMillis() - startTime) / 1000.f));
+    }
+
+    @Before
+    public void clearCache()
     {
         File cachedBuild = new File(String.format("build/%s/build.zip", configuration.platform));
         if (cachedBuild.exists())
@@ -198,17 +215,13 @@ public class IntegrationTest {
     @Test
     public void buildEngine() throws IOException, ExtenderClientException {
 
-        boolean isAndroid = configuration.platform.contains("android");
-        // The bug in question is related to library dependency order. (i.e. getting "undefined reference to X")
-        boolean hasAndroidBug = isAndroid && (configuration.version.version.isGreaterThan(0, 0, 0) && configuration.version.version.isLessThan(1, 2, 101) );
-
-        org.junit.Assume.assumeFalse("Has android bug - skipping", hasAndroidBug );
-
+        System.out.println("buildEngine clear cache");
         clearCache();
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext2/_app/app.manifest"),
                 new FileExtenderResource("test-data/ext2/ext.manifest"),
                 new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
                 new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
