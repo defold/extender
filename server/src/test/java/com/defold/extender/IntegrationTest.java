@@ -214,8 +214,6 @@ public class IntegrationTest {
 
     @Test
     public void buildEngine() throws IOException, ExtenderClientException {
-
-        System.out.println("buildEngine clear cache");
         clearCache();
 
         File cacheDir = new File("build");
