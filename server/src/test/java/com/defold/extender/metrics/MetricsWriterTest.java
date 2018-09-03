@@ -45,10 +45,12 @@ public class MetricsWriterTest {
 
     @Test
     public void measureSdkDownload() {
-        metricsWriter.measureSdkDownload();
+        String sdkVersion = "sdk-sha1";
+        metricsWriter.measureSdkDownload(sdkVersion);
 
-        verify(gaugeService, times(1)).submit(any(String.class), any(Double.class));
+        verify(gaugeService, times(2)).submit(any(String.class), any(Double.class));
         verify(gaugeService).submit("job.sdkDownload", 12345L);
+        verify(gaugeService).submit("job.sdk." + sdkVersion, 1);
     }
 
     @Test
@@ -77,5 +79,23 @@ public class MetricsWriterTest {
 
         verify(gaugeService, times(1)).submit(any(String.class), any(Double.class));
         verify(gaugeService).submit("job.write", 12345L);
+    }
+
+    @Test
+    public void measureCacheUpload() {
+        metricsWriter.measureCacheUpload(987234L);
+
+        verify(gaugeService, times(2)).submit(any(String.class), any(Double.class));
+        verify(gaugeService).submit("job.cache.upload", 12345L);
+        verify(gaugeService).submit("job.cache.uploadSize", 987234L);
+    }
+
+    @Test
+    public void measureCacheDownload() {
+        metricsWriter.measureCacheDownload(987234L);
+
+        verify(gaugeService, times(2)).submit(any(String.class), any(Double.class));
+        verify(gaugeService).submit("job.cache.download", 12345L);
+        verify(gaugeService).submit("job.cache.downloadSize", 987234L);
     }
 }

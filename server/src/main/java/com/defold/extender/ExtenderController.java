@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
+import com.defold.extender.services.DataStoreService;
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
@@ -39,13 +40,15 @@ public class ExtenderController {
 
     private final DefoldSdkService defoldSdkService;
     private final GaugeService gaugeService;
+    private final DataStoreService dataStoreService;
 
     private static final int MAX_PACKAGE_SIZE = 512 * 1024*1024; // The max size of any upload package
 
     @Autowired
-    public ExtenderController(DefoldSdkService defoldSdkService, @Qualifier("gaugeService") GaugeService gaugeService) {
+    public ExtenderController(DefoldSdkService defoldSdkService, DataStoreService dataStoreService, @Qualifier("gaugeService") GaugeService gaugeService) {
         this.defoldSdkService = defoldSdkService;
         this.gaugeService = gaugeService;
+        this.dataStoreService = dataStoreService;
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -110,10 +113,15 @@ public class ExtenderController {
             File sdk;
             if (sdkVersion == null || System.getenv("DYNAMO_HOME") != null) {
                 sdk = defoldSdkService.getLocalSdk();
+                sdkVersion = "local";
             } else {
                 sdk = defoldSdkService.getSdk(sdkVersion);
             }
-            metricsWriter.measureSdkDownload();
+            metricsWriter.measureSdkDownload(sdkVersion);
+
+            // Download the cached files from file server
+            long totalCacheDownloadSize = dataStoreService.downloadFilesFromCache(uploadDirectory);
+            metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
             Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
@@ -129,12 +137,17 @@ public class ExtenderController {
             // Write zip file to response
             FileUtils.copyFile(zipFile, response.getOutputStream());
             response.flushBuffer();
+            response.getOutputStream().close(); // No need for the user to wait for our upload to the cache
             metricsWriter.measureSentResponse();
 
+            // Wait for the key-value server to cache the files
+            long totalUploadSize = dataStoreService.uploadFilesToCache(uploadDirectory);
+            metricsWriter.measureCacheUpload(totalUploadSize);
+
         } catch(EofException e) {
-            throw new ExtenderException("Client closed connection prematurely, build aborted");
+            throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
-            throw new ExtenderException("Bad request: " + e.getMessage());
+            throw new ExtenderException(e, "Bad request: " + e.getMessage());
         } catch(Exception e) {
             LOGGER.error("Exception while building or sending response - SDK: " + sdkVersion + " , metrics: " + metricsWriter);
             throw e;

@@ -9,6 +9,9 @@ extender:
     server:
         http:
             idle-timeout: 600000
+    data-store:
+        url: "http://localhost:9017"
+        file-size-threshold:    110000
 
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
@@ -46,6 +49,9 @@ extender:
     server:
         http:
             idle-timeout: 600000
+    data-store:
+        url: "http://localhost:9017"
+        file-size-threshold:    110000
 
 spring.http.multipart.max-file-size: 500mb
 spring.http.multipart.max-request-size: 500mb
