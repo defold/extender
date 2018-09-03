@@ -68,6 +68,11 @@ class Extender {
         } else {
             this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
             this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+
+            // To avoid null pointers later on
+            if (this.appManifest.platforms.get(platform).context == null) {
+                this.appManifest.platforms.get(platform).context = new HashMap<String, Object>();
+            }
         }
 
         this.platform = platform;
