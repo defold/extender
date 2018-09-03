@@ -86,5 +86,7 @@ public class DataStoreServiceTest {
         assertTrue(collect.contains("file2"));
         assertTrue(collect.contains("file3"));
         assertTrue(collect.contains(DataStoreService.FILE_CACHE_INFO_FILE));
+
+        FileUtils.deleteDirectory(tmpDownloadDir);
     }
 }

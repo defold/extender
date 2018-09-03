@@ -140,10 +140,6 @@ public class ExtenderController {
             response.getOutputStream().close(); // No need for the user to wait for our upload to the cache
             metricsWriter.measureSentResponse();
 
-            // Wait for the key-value server to cache the files
-            long totalUploadSize = dataStoreService.uploadFilesToCache(uploadDirectory);
-            metricsWriter.measureCacheUpload(totalUploadSize);
-
         } catch(EofException e) {
             throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
@@ -152,6 +148,10 @@ public class ExtenderController {
             LOGGER.error("Exception while building or sending response - SDK: " + sdkVersion + " , metrics: " + metricsWriter);
             throw e;
         } finally {
+            // Regardless of success/fail status, we want to cache the uploaded files
+            long totalUploadSize = dataStoreService.uploadFilesToCache(uploadDirectory);
+            metricsWriter.measureCacheUpload(totalUploadSize);
+
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
         }
