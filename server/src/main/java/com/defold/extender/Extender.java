@@ -726,11 +726,16 @@ class Extender {
 
                 // Apply any global settings to the context
                 manifestContext = Extender.mergeContexts(manifestContext, appManifestContext);
+                manifestContext.put("extension_name", manifestConfig.name);
+                manifestContext.put("extension_name_upper", manifestConfig.name.toUpperCase());
 
                 buildExtension(manifest, manifestContext);
             }
 
             Map<String, Object> mergedExtensionContext = Extender.createEmptyContext(platformConfig.context);
+
+            mergedExtensionContext.put("extension_name", "");
+            mergedExtensionContext.put("extension_name_upper", "");
 
             Set<String> keys = manifestConfigs.keySet();
             for (String k : keys) {

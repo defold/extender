@@ -1,0 +1,8 @@
+platforms:
+    x86-win32:
+        context:
+            use-clang: true
+
+    x86_64-win32:
+        context:
+            use-clang: true

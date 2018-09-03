@@ -11,3 +11,11 @@ platforms:
     armv7-android:
         context:
             excludeJars: ["(.*)/Dummy1.jar"]
+
+    x86_64-win32:
+        context:
+            use-clang: true
+
+    x86-win32:
+        context:
+            use-clang: true
