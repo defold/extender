@@ -85,13 +85,13 @@ class ExtensionManifestValidator {
         }
     }
 
-    private static void expandPatterns(TemplateExecutor executor, Map<String, Object> context, List<String> vars, List<Pattern> out) {
+    public static void expandPatterns(TemplateExecutor executor, Map<String, Object> context, List<String> vars, List<Pattern> out) {
         for (String s : vars) {
             out.add(WhitelistConfig.compile(executor.execute(s, context)));
         }
     }
 
-    static String whitelistCheck(List<Pattern> patterns, List<String> l) {
+    public static String whitelistCheck(List<Pattern> patterns, List<String> l) {
         for (String s : l) {
             boolean matched = false;
             for (Pattern p : patterns) {

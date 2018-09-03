@@ -142,46 +142,6 @@ class Extender {
         return platformConfig;
     }
 
-    // Does a regexp match on the filename for each file found in a directory
-    static List<String> collectFilesByName(File dir, String re) {
-        List<String> libs = new ArrayList<>();
-        if (re == null) {
-            return libs;
-        }
-        Pattern p = Pattern.compile(re);
-        if (dir.exists()) {
-            File[] files = dir.listFiles();
-            for (File f : files) {
-                Matcher m = p.matcher(f.getName());
-                if (m.matches()) {
-                    libs.add(m.group(1));
-                }
-
-            }
-        }
-        return libs;
-    }
-
-    // Does a regexp match on the absolute path for each file found in a directory
-    static List<String> collectFilesByPath(File dir, String re) {
-        List<String> libs = new ArrayList<>();
-        if (re == null) {
-            return libs;
-        }
-        Pattern p = Pattern.compile(re);
-        if (dir.exists()) {
-            File[] files = dir.listFiles();
-            for (File f : files) {
-                Matcher m = p.matcher(f.getAbsolutePath());
-                if (m.matches()) {
-                    libs.add(m.group(1));
-                }
-
-            }
-        }
-        return libs;
-    }
-
     private File uniqueTmpFile(String prefix, String suffix) {
         File file;
         do {
@@ -318,10 +278,10 @@ class Extender {
 
     private List<String> getFrameworks(File extDir) {
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(Extender.collectFilesByName(new File(extDir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
+        frameworks.addAll(ExtenderUtil.collectFilesByName(new File(extDir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
         String[] platformParts = this.platform.split("-");
         if (platformParts.length == 2) {
-            frameworks.addAll(Extender.collectFilesByName(new File(extDir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
+            frameworks.addAll(ExtenderUtil.collectFilesByName(new File(extDir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
         }
         return frameworks;
     }
@@ -344,10 +304,10 @@ class Extender {
 
     private List<String> getJars(File extDir) {
         List<String> jars = new ArrayList<>();
-        jars.addAll(Extender.collectFilesByPath(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
+        jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
         String[] platformParts = this.platform.split("-");
         if (platformParts.length == 2) {
-            jars.addAll(Extender.collectFilesByPath(new File(extDir, "lib" + File.separator + platformParts[1]), JAR_RE)); // e.g. "android"
+            jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + platformParts[1]), JAR_RE)); // e.g. "android"
         }
         return jars;
     }
@@ -440,7 +400,7 @@ class Extender {
         List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
         List<String> extJsLibs = new ArrayList<>();
 
-        extLibs.addAll(Extender.collectFilesByName(buildDirectory, platformConfig.stlibRe));
+        extLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.stlibRe));
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
 
@@ -449,9 +409,9 @@ class Extender {
                 extFrameworkPaths.add(libDir.toString());
             }
 
-            extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.shlibRe));
-            extLibs.addAll(Extender.collectFilesByName(libDir, platformConfig.stlibRe));
-            extJsLibs.addAll(Extender.collectFilesByPath(libDir, JS_RE));
+            extLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.shlibRe));
+            extLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.stlibRe));
+            extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libDir, JS_RE));
 
             extFrameworks.addAll(getFrameworks(extDir));
 
@@ -464,8 +424,8 @@ class Extender {
                     extFrameworkPaths.add(libCommonDir.toString());
                 }
 
-                extLibs.addAll(Extender.collectFilesByName(libCommonDir, platformConfig.shlibRe));
-                extLibs.addAll(Extender.collectFilesByName(libCommonDir, platformConfig.stlibRe));
+                extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.shlibRe));
+                extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.stlibRe));
                 extFrameworkPaths.addAll(getFrameworkPaths(extDir));
             }
         }
