@@ -70,6 +70,9 @@ class Extender {
             this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
 
             // To avoid null pointers later on
+            if (this.appManifest.platforms.get(platform) == null) {
+                this.appManifest.platforms.put(platform, new AppManifestPlatformConfig());
+            }
             if (this.appManifest.platforms.get(platform).context == null) {
                 this.appManifest.platforms.get(platform).context = new HashMap<String, Object>();
             }
