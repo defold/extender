@@ -81,7 +81,7 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testReceiveFiles() throws IOException, FileUploadException, InterruptedException, ExtenderException {
+    public void testReceiveFiles() throws IOException, FileUploadException, ExtenderException {
         HttpServletRequest request;
         String filename;
         String expectedContent;
@@ -138,77 +138,31 @@ public class ExtenderTest {
         }
     }
 
-    @Test
-    public void testValidateFilenames() throws IOException, InterruptedException, ExtenderException {
-        // Should be fine
-        {
-            boolean thrown = false;
-            try {
-                ExtenderController.validateFilename("include/test.h");
-            } catch (ExtenderException e) {
-                thrown = true;
-            }
-            assertFalse(thrown);
+    static private boolean testPath(String path) {
+        boolean thrown = false;
+        try {
+            ExtenderController.validateFilename(path);
+        } catch (ExtenderException e) {
+            thrown = true;
         }
-
-        // Should be fine
-        {
-            boolean thrown = false;
-            try {
-                ExtenderController.validateFilename("include/test+framework.h");
-            } catch (ExtenderException e) {
-                thrown = true;
-            }
-            assertFalse(thrown);
-        }
-
-        // Should be fine
-        {
-            boolean thrown = false;
-            try {
-                ExtenderController.validateFilename("src/test.c++");
-            } catch (ExtenderException e) {
-                thrown = true;
-            }
-            assertFalse(thrown);
-        }
-
-        // Should throw error
-        {
-            boolean thrown = false;
-            try {
-                ExtenderController.validateFilename("+foobar.h");
-            } catch (ExtenderException e) {
-                thrown = true;
-            }
-            assertTrue(thrown);
-        }
-
-        // Should throw error
-        {
-            boolean thrown = false;
-            try {
-                ExtenderController.validateFilename("include/foo;echo foo;.h"); // trying to sneak in an echo command"
-            } catch (ExtenderException e) {
-                thrown = true;
-            }
-            assertTrue(thrown);
-        }
-
-        // Should throw error
-        {
-            boolean thrown = false;
-            try {
-                ExtenderController.validateFilename("../../etc/passwd"); // trying to sneak in a new system file
-            } catch (ExtenderException e) {
-                thrown = true;
-            }
-            assertTrue(thrown);
-        }
+        return !thrown;
     }
 
     @Test
-    public void testFilterFiles() throws IOException, InterruptedException, ExtenderException {
+    public void testValidateFilenames() {
+        // Should be fine
+        assertTrue(testPath("include/test.h"));
+        assertTrue(testPath("include/test+framework.h"));
+        assertTrue(testPath("src/test.c++"));
+        assertTrue(testPath("src/icon@2x.png"));
+        // Should throw error
+        assertFalse(testPath("+foobar.h"));
+        assertFalse(testPath("include/foo;echo foo;.h")); // trying to sneak in an echo command
+        assertFalse(testPath("../../etc/passwd")); // trying to sneak in a new system file
+    }
+
+    @Test
+    public void testFilterFiles() {
 
         String[] arr = {
                 "a.cpp", "a.inl", "a.h",
@@ -242,7 +196,7 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testMergeList() throws IOException, InterruptedException, ExtenderException {
+    public void testMergeList() {
         String[] a = {"1", "2", "2", "3", "4"};
         String[] b = {"3", "5", "4", "5"};
 
@@ -254,7 +208,7 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testMergeContext() throws IOException, InterruptedException, ExtenderException {
+    public void testMergeContext() throws ExtenderException {
         {
             Map<String, Object> a = new HashMap<>();
             Map<String, Object> b = new HashMap<>();
