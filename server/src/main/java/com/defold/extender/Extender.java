@@ -808,13 +808,6 @@ class Extender {
         File exe = buildEngine();
         outputFiles.add(exe);
 
-        if (platform.endsWith("win32")) {
-            File pdb = new File(exe.getParentFile(), "dmengine.pdb");
-            if (pdb.exists()) {
-                outputFiles.add(pdb);
-            }
-        }
-
         return outputFiles;
     }
 }
