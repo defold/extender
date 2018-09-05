@@ -34,8 +34,8 @@ class Extender {
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private final Map<String, Object> appManifestContext;
 
-    private List<File> extDirs = new ArrayList<>();
-    private List<File> manifests = new ArrayList<>();
+    private List<File> extDirs;
+    private List<File> manifests;
 
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
@@ -47,6 +47,8 @@ class Extender {
     private static final String ANDROID_STL_ARCH_INCLUDE_PATH = System.getenv("ANDROID_STL_ARCH_INCLUDE");
     private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
     private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
+
+    private final boolean useWine; // During the transition period
 
     Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
@@ -96,6 +98,8 @@ class Extender {
                 // Pass
             }
         }
+
+        this.useWine = alternatePlatform.contains("wine32");
 
         this.platformConfig = getPlatformConfig(alternatePlatform);
         this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform);
@@ -380,6 +384,23 @@ class Extender {
         processExecutor.execute(command);
     }
 
+    private List<String> patchLibs(List<String> libs) {
+        if (libs == null) {
+            return new ArrayList<>();
+        }
+        if (!this.useWine) {
+            return libs;
+        }
+        List<String> modifiedLibs = new ArrayList<>();
+        for( String lib : libs) {
+            if (!lib.toLowerCase().endsWith(".lib")) {
+                lib = lib + ".lib";
+            }
+            modifiedLibs.add(lib);
+        }
+        return modifiedLibs;
+    }
+
     private File linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
         File maincpp = new File(buildDirectory , "main.cpp");
 
@@ -456,7 +477,16 @@ class Extender {
         context.put("engineLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineLibs", new ArrayList<>()), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeLibs")) );
         context.put("engineJsLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineJsLibs", new ArrayList<>()), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJsLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJsLibs")) );
 
+        // WINE->clang transition pt1: in the transition period from link.exe -> lld, we want to make sure we can write "foo" as opposed to "foo.lib"
+        context.put("libs", patchLibs((List<String>) context.get("libs")));
+        context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
+        context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
+
         String command = templateExecutor.execute(platformConfig.linkCmd, context);
+
+        // WINE->clang transition pt2: Replace any redundant ".lib.lib"
+        command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
+
         processExecutor.execute(command);
         return exe;
     }

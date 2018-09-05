@@ -172,24 +172,29 @@ public class IntegrationTest {
         System.out.println(processExecutor.getOutput());
     }
 
-
     @Before
-    public void recordStartTime() {
-        startTime = System.currentTimeMillis();
-    }
-
-    @After
-    public void recordEndTime() {
-        System.out.println(String.format("Test %s took: %.2f seconds", name.getMethodName(), (System.currentTimeMillis() - startTime) / 1000.f));
-    }
-
-    @Before
-    public void clearCache()
+    public void beforeTest()
     {
         File cachedBuild = new File(String.format("build/%s/build.zip", configuration.platform));
         if (cachedBuild.exists())
             cachedBuild.delete();
         assertFalse(cachedBuild.exists());
+
+        startTime = System.currentTimeMillis();
+    }
+
+    @After
+    public void afterTest()
+    {
+        File buildDir = new File("build" + File.separator + configuration.version.sha1);
+        if (buildDir.exists()) {
+            try {
+                FileUtils.deleteDirectory(buildDir);
+            } catch (IOException e) {
+            }
+        }
+
+        System.out.println(String.format("Test %s took: %.2f seconds", name.getMethodName(), (System.currentTimeMillis() - startTime) / 1000.f));
     }
 
     private String getEngineName(String platform) {
@@ -214,8 +219,6 @@ public class IntegrationTest {
 
     @Test
     public void buildEngine() throws IOException, ExtenderClientException {
-        clearCache();
-
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
@@ -258,8 +261,6 @@ public class IntegrationTest {
             // Add this when we've made sure that all android builds create a classes.dex
             assertNotEquals(null, zipFile.getEntry("classes.dex"));
         }
-
-        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 
     @Test
@@ -268,8 +269,6 @@ public class IntegrationTest {
         boolean isSupported = configuration.version.version.isGreaterThan(0, 0, 0);
         if (!isSupported)
             return;
-
-        clearCache();
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
@@ -313,8 +312,6 @@ public class IntegrationTest {
             // Add this when we've made sure that all android builds create a classes.dex
             assertNotEquals(null, zipFile.getEntry("classes.dex"));
         }
-
-        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
     }
 
     @Test
@@ -324,8 +321,6 @@ public class IntegrationTest {
                 configuration.platform.contains("android") &&
                         (configuration.version.version.isGreaterThan(1, 2, 100) || configuration.version.version.isVersion(0, 0, 0) )
         );
-
-        clearCache();
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
@@ -383,8 +378,6 @@ public class IntegrationTest {
                 configuration.platform.contains("android") &&
                         (configuration.version.version.isGreaterThan(1, 2, 119) || configuration.version.version.isVersion(0, 0, 0) )
         );
-
-        clearCache();
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
@@ -444,8 +437,6 @@ public class IntegrationTest {
                 configuration.platform.contains("android") &&
                         (configuration.version.version.isGreaterThan(1, 2, 102) || configuration.version.version.isVersion(0, 0, 0) )
         );
-
-        clearCache();
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
@@ -509,8 +500,6 @@ public class IntegrationTest {
                         (configuration.version.version.isGreaterThan(1, 2, 103) || configuration.version.version.isVersion(0, 0, 0) )
         );
 
-        clearCache();
-
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
@@ -570,8 +559,6 @@ public class IntegrationTest {
                         (configuration.version.version.isGreaterThan(1, 2, 102) || configuration.version.version.isVersion(0, 0, 0) )
         );
 
-        clearCache();
-
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
@@ -628,8 +615,6 @@ public class IntegrationTest {
 
         boolean isAndroid = configuration.platform.contains("android");
 
-        clearCache();
-
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
@@ -669,7 +654,46 @@ public class IntegrationTest {
 
         assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
         assertEquals("Log should be of size zero if successful.", 0, log.length());
+    }
 
-        FileUtils.deleteDirectory(new File("build" + File.separator + sdkVersion));
+    @Test
+    public void buildLinkWithoutDotLib() throws IOException, ExtenderClientException {
+
+        org.junit.Assume.assumeTrue("This test is for Win32", configuration.platform.contains("win32"));
+
+        File cacheDir = new File("build");
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext3/ext.manifest"),
+                new FileExtenderResource("test-data/ext3/src/extension.cpp")
+        );
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        String platform = configuration.platform;
+        String sdkVersion = configuration.version.sha1;
+
+        try {
+            extenderClient.build(
+                    platform,
+                    sdkVersion,
+                    sourceFiles,
+                    destination,
+                    log
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println("ERROR LOG:");
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertEquals("Log should be of size zero if successful.", 0, log.length());
+
+        ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
+        assertTrue(cache.getCachedBuildFile(platform).exists());
+
+        ZipFile zipFile = new ZipFile(destination);
+        assertNotEquals(null, zipFile.getEntry( getEngineName(platform) ) );
     }
 }
