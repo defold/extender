@@ -1,6 +1,7 @@
 context:
     dynamo_home: '/Users/chmu/tmp/dynamo-home'
     frameworks: ["Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "Foundation", "AppKit", "Carbon"]
+    defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/ext/include']
     symbols: ["FooSymbol"]
 

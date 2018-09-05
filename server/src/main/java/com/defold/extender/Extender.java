@@ -270,6 +270,9 @@ class Extender {
         context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
         context.put("platform", this.platform);
 
+        context.put("extension_name", "");
+        context.put("extension_name_upper", "");
+
         Set<String> keys = context.keySet();
         for (String k : keys) {
             Object v = context.get(k);
