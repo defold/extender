@@ -659,7 +659,8 @@ public class IntegrationTest {
     @Test
     public void buildLinkWithoutDotLib() throws IOException, ExtenderClientException {
 
-        org.junit.Assume.assumeTrue("This test is for Win32", configuration.platform.contains("win32"));
+        org.junit.Assume.assumeTrue("This test is for Win32", configuration.platform.contains("win32") &&
+                (configuration.version.version.isGreaterThan(1, 2, 134) || configuration.version.version.isVersion(0, 0, 0) ));
 
         File cacheDir = new File("build");
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
