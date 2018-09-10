@@ -46,6 +46,7 @@ dependencies {
     compile('commons-chain:commons-chain:1.2')
     compile('org.springframework.boot:spring-boot-starter-actuator')
     compile('org.influxdb:influxdb-java:2.10')
+    compile('com.googlecode.json-simple:json-simple:1.1.1')
 
     testCompile('junit:junit:4.+')
     testCompile('org.springframework:spring-test')

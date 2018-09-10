@@ -9,6 +9,10 @@
 server/test-data/sdk/*
 !server/test-data/sdk/a
 
+# C++
+/**/*.o
+/**/*.pdb
+
 # IntelliJ IDEA
 /.idea
 /*.iml

@@ -36,8 +36,9 @@ public class MetricsWriter {
         addMetric("job.requestSize", request.getContentLength());
     }
 
-    public void measureSdkDownload() {
+    public void measureSdkDownload(String sdk) {
         addMetric("job.sdkDownload", timer.start());
+        addMetric("job.sdk." + sdk, 1);
     }
 
     public void measureEngineBuild(final String platform) {
@@ -51,6 +52,16 @@ public class MetricsWriter {
 
     public void measureSentResponse() {
         addMetric("job.write", timer.start());
+    }
+
+    public void measureCacheUpload(long uploadSize) {
+        addMetric("job.cache.upload", timer.start());
+        addMetric("job.cache.uploadSize", uploadSize);
+    }
+
+    public void measureCacheDownload(long downloadSize) {
+        addMetric("job.cache.download", timer.start());
+        addMetric("job.cache.downloadSize", downloadSize);
     }
 
     @Override
