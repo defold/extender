@@ -119,7 +119,6 @@ class Extender {
             for (String k : keys) {
                 String v = this.platformConfig.env.get(k);
                 v = templateExecutor.execute(v, envContext);
-
                 processExecutor.putEnv(k, v);
             }
         }
@@ -270,8 +269,8 @@ class Extender {
         context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
         context.put("platform", this.platform);
 
-        context.put("extension_name", "");
-        context.put("extension_name_upper", "");
+        context.put("extension_name", manifestContext.getOrDefault("extension_name", "UNKNOWN"));
+        context.put("extension_name_upper", manifestContext.getOrDefault("extension_name_upper", "UNKNOWN"));
 
         Set<String> keys = context.keySet();
         for (String k : keys) {
@@ -341,6 +340,8 @@ class Extender {
     }
 
     private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+        manifestContext.put("extension_name", "ENGINE_MAIN");
+        manifestContext.put("extension_name_upper", "ENGINE_MAIN");
         Map<String, Object> context = context(manifestContext);
         File o = uniqueTmpFile("main_tmp", ".o");
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, maincpp));
@@ -769,9 +770,6 @@ class Extender {
             }
 
             Map<String, Object> mergedExtensionContext = Extender.createEmptyContext(platformConfig.context);
-
-            mergedExtensionContext.put("extension_name", "");
-            mergedExtensionContext.put("extension_name_upper", "");
 
             Set<String> keys = manifestConfigs.keySet();
             for (String k : keys) {
