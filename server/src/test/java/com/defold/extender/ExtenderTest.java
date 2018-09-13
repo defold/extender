@@ -459,7 +459,7 @@ public class ExtenderTest {
 
         assertTrue(appManifest != null);
 
-        Map<String, Object> context = ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx");
+        Map<String, Object> context = ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx", null);
 
         List<String> expectedItems = new ArrayList<>();
         expectedItems.add("-fno-exceptions"); // common
@@ -474,7 +474,7 @@ public class ExtenderTest {
 
         AppManifestConfiguration appManifest = Extender.loadYaml(root, new File("test-data/extendertest.platformnull.appmanifest"), AppManifestConfiguration.class);
         // previous issue was that it threw a null pointer exception
-        ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx");
+        ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx", null);
     }
 
     @Test
@@ -486,5 +486,31 @@ public class ExtenderTest {
         // previous issue was that it returned a null pointer
         Map<String, Object> manifestContext = Extender.getManifestContext("x86_64-osx", config, manifestConfig);
         assertNotEquals(null, manifestContext);
+    }
+
+    @Test
+    public void testAppManifestContextWithVariant() throws IOException, ExtenderException {
+
+        File root = new File("test-data");
+        File appManifestFile = new File("test-data/extendertest.appmanifest");
+        File baseManifestFile = new File("test-data/headless.appmanifest");
+
+        AppManifestConfiguration appManifest = Extender.loadYaml(root, appManifestFile, AppManifestConfiguration.class);
+        assertTrue(appManifest != null);
+
+        AppManifestConfiguration baseManifest = Extender.loadYaml(root, baseManifestFile, AppManifestConfiguration.class);
+        assertTrue(baseManifest != null);
+
+        Map<String, Object> context = ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx", baseManifest);
+
+        List<String> expectedItems = new ArrayList<>();
+        expectedItems.add("DefaultSoundDevice"); // base x86-osx
+        expectedItems.add("AudioDecoderWav"); // base x86-osx
+        expectedItems.add("AudioDecoderStbVorbis"); // base x86-osx
+        expectedItems.add("AudioDecoderTremolo"); // base x86-osx
+        expectedItems.add("SymbolA"); // common
+        expectedItems.add("SymbolB"); // x86_64-osx
+
+        assertEquals( expectedItems, context.get("excludeSymbols") );
     }
 }

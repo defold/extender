@@ -127,14 +127,23 @@ class ExtenderUtil
     /** Merges the different levels in the app manifest into one context
      * @param manifest  The app manifest
      * @param platform  The platform
+     * @param optionalBaseVariantManifest The base manifest (optional)
      * @return The resource, or null if not found
      */
-    public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform) throws ExtenderException {
+    public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform, AppManifestConfiguration optionalBaseVariantManifest) throws ExtenderException {
         Map<String, Object> appManifestContext = new HashMap<>();
 
         if (manifest == null || manifest.platforms == null)
             return appManifestContext;
 
+        if (optionalBaseVariantManifest != null) {
+            if (optionalBaseVariantManifest.platforms.containsKey("common")) {
+                appManifestContext = Extender.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get("common").context);
+            }
+            if (optionalBaseVariantManifest.platforms.containsKey(platform)) {
+                appManifestContext = Extender.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get(platform).context);
+            }
+        }
         if (manifest.platforms.containsKey("common")) {
             appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
         }

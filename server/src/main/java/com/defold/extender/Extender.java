@@ -64,6 +64,8 @@ class Extender {
         if (appManifests.size() > 1 ) {
             throw new ExtenderException("Only one app.manifest allowed!");
         }
+        AppManifestConfiguration baseVariantManifest = null;
+
         if (appManifests.isEmpty()) {
             this.appManifestPath = "";
             this.appManifest = new AppManifestConfiguration();
@@ -77,6 +79,17 @@ class Extender {
             }
             if (this.appManifest.platforms.get(platform).context == null) {
                 this.appManifest.platforms.get(platform).context = new HashMap<String, Object>();
+            }
+
+            if (!this.appManifest.__base_variant.isEmpty())
+            {
+                File baseVariantFile = new File(sdk.getPath() + "/extender/variants/" + this.appManifest.__base_variant + ".appmanifest");
+                if (!baseVariantFile.exists()) {
+                    throw new ExtenderException("Base variant " + this.appManifest.__base_variant + " not found!");
+                }
+                LOGGER.info("Using base variant: " + this.appManifest.__base_variant);
+
+                baseVariantManifest = Extender.loadYaml(this.jobDirectory, baseVariantFile, AppManifestConfiguration.class);
             }
         }
 
@@ -102,7 +115,7 @@ class Extender {
         this.useWine = alternatePlatform.contains("wine32");
 
         this.platformConfig = getPlatformConfig(alternatePlatform);
-        this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform);
+        this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform, baseVariantManifest);
         LOGGER.info("Using context for platform: " + alternatePlatform);
 
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
