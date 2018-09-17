@@ -1,15 +1,6 @@
 context:
     baseVariant: debug
 platforms:
-    common:
-        context:
-
-    x86-osx:
-        context:
-
-    armv7-android:
-        context:
-
     x86_64-win32:
         context:
             use-clang: true
