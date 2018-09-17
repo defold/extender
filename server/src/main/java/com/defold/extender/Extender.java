@@ -71,7 +71,14 @@ class Extender {
             this.appManifest = new AppManifestConfiguration();
         } else {
             this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
-            this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+            AppManifestConfiguration appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+            
+            this.appManifest = (appManifest != null) ? appManifest : new AppManifestConfiguration();
+
+            // An empty manifest file will yield a null-pointer for this.appManifest.platforms
+            if (this.appManifest.platforms == null) {
+                this.appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
+            }
 
             // To avoid null pointers later on
             if (this.appManifest.platforms.get(platform) == null) {
