@@ -73,9 +73,11 @@ class Extender {
             this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
             AppManifestConfiguration appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
             
+            // An completely empty manifest will yield a null pointer in result from Extender.loadYaml
             this.appManifest = (appManifest != null) ? appManifest : new AppManifestConfiguration();
 
-            // An empty manifest file will yield a null-pointer for this.appManifest.platforms
+            // An manifest with no platform keyword will yield a null-pointer for this.appManifest.platforms
+            // This happens if we get a manifest with just the __base_variant keyword given.
             if (this.appManifest.platforms == null) {
                 this.appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
             }
