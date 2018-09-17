@@ -504,12 +504,12 @@ public class ExtenderTest {
         Map<String, Object> context = ExtenderUtil.getAppManifestContext(appManifest, "x86_64-osx", baseManifest);
 
         List<String> expectedItems = new ArrayList<>();
-        expectedItems.add("SymbolA"); // common
-        expectedItems.add("SymbolB"); // x86_64-osx
         expectedItems.add("DefaultSoundDevice"); // base x86-osx
         expectedItems.add("AudioDecoderWav"); // base x86-osx
         expectedItems.add("AudioDecoderStbVorbis"); // base x86-osx
         expectedItems.add("AudioDecoderTremolo"); // base x86-osx
+        expectedItems.add("SymbolA"); // common
+        expectedItems.add("SymbolB"); // x86_64-osx
 
         assertEquals( expectedItems, context.get("excludeSymbols") );
     }
