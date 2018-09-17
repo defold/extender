@@ -133,16 +133,15 @@ class ExtenderUtil
     public static Map<String, Object> getAppManifestContext(AppManifestConfiguration manifest, String platform, AppManifestConfiguration optionalBaseVariantManifest) throws ExtenderException {
         Map<String, Object> appManifestContext = new HashMap<>();
 
-        if (manifest == null || manifest.platforms == null)
-            return appManifestContext;
-
-        if (manifest.platforms.containsKey("common")) {
-            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
+        if (manifest != null && manifest.platforms != null) {
+            if (manifest.platforms.containsKey("common")) {
+                appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
+            }
+            if (manifest.platforms.containsKey(platform)) {
+                appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
+            }
         }
-        if (manifest.platforms.containsKey(platform)) {
-            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
-        }
-        if (optionalBaseVariantManifest != null) {
+        if (optionalBaseVariantManifest != null && optionalBaseVariantManifest.platforms != null) {
             if (optionalBaseVariantManifest.platforms.containsKey("common")) {
                 appManifestContext = Extender.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get("common").context);
             }
