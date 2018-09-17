@@ -136,6 +136,12 @@ class ExtenderUtil
         if (manifest == null || manifest.platforms == null)
             return appManifestContext;
 
+        if (manifest.platforms.containsKey("common")) {
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
+        }
+        if (manifest.platforms.containsKey(platform)) {
+            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
+        }
         if (optionalBaseVariantManifest != null) {
             if (optionalBaseVariantManifest.platforms.containsKey("common")) {
                 appManifestContext = Extender.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get("common").context);
@@ -143,12 +149,6 @@ class ExtenderUtil
             if (optionalBaseVariantManifest.platforms.containsKey(platform)) {
                 appManifestContext = Extender.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get(platform).context);
             }
-        }
-        if (manifest.platforms.containsKey("common")) {
-            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
-        }
-        if (manifest.platforms.containsKey(platform)) {
-            appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
         }
 
         return appManifestContext;

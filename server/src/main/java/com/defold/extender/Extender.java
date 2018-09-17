@@ -37,6 +37,7 @@ class Extender {
     private List<File> extDirs;
     private List<File> manifests;
 
+    static final String BASE_VARIANT_KEYWORD = "baseVariant";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
@@ -77,7 +78,7 @@ class Extender {
             this.appManifest = (appManifest != null) ? appManifest : new AppManifestConfiguration();
 
             // An manifest with no platform keyword will yield a null-pointer for this.appManifest.platforms
-            // This happens if we get a manifest with just the __base_variant keyword given.
+            // This happens if we get a manifest with just the context keyword given.
             if (this.appManifest.platforms == null) {
                 this.appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
             }
@@ -90,13 +91,14 @@ class Extender {
                 this.appManifest.platforms.get(platform).context = new HashMap<String, Object>();
             }
 
-            if (!this.appManifest.__base_variant.isEmpty())
+            if (this.appManifest.context != null && this.appManifest.context.get(BASE_VARIANT_KEYWORD) instanceof String)
             {
-                File baseVariantFile = new File(sdk.getPath() + "/extender/variants/" + this.appManifest.__base_variant + ".appmanifest");
+                String baseVariant = (String)this.appManifest.context.get(BASE_VARIANT_KEYWORD);
+                File baseVariantFile = new File(sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
                 if (!baseVariantFile.exists()) {
-                    throw new ExtenderException("Base variant " + this.appManifest.__base_variant + " not found!");
+                    throw new ExtenderException("Base variant " + baseVariant + " not found!");
                 }
-                LOGGER.info("Using base variant: " + this.appManifest.__base_variant);
+                LOGGER.info("Using base variant: " + baseVariant);
 
                 baseVariantManifest = Extender.loadYaml(this.jobDirectory, baseVariantFile, AppManifestConfiguration.class);
             }

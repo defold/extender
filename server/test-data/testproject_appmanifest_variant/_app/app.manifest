@@ -1,4 +1,5 @@
-__base_variant: debug
+context:
+    baseVariant: debug
 platforms:
     common:
         context:
