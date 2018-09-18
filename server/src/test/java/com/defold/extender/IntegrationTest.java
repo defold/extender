@@ -450,4 +450,20 @@ public class IntegrationTest {
 
         doBuild(sourceFiles);
     }
+
+    @Test
+    public void buildEngineAppManifestVariant() throws IOException, ExtenderClientException {
+        // Testing that the variant parameter can be parse and processed properly.
+        // This test requires that we have a debug.appmanifest present in the SDK and only
+        // our test data SDK currently has that, so we can only test it on that version
+
+        if (!configuration.platform.equals("a")) {
+            return;
+        }
+
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/testproject_appmanifest_variant/_app/app.manifest"));
+
+        doBuild(sourceFiles);
+    }
 }

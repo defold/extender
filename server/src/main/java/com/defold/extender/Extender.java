@@ -37,6 +37,7 @@ class Extender {
     private List<File> extDirs;
     private List<File> manifests;
 
+    static final String BASE_VARIANT_KEYWORD = "baseVariant";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
@@ -64,12 +65,23 @@ class Extender {
         if (appManifests.size() > 1 ) {
             throw new ExtenderException("Only one app.manifest allowed!");
         }
+        AppManifestConfiguration baseVariantManifest = null;
+
         if (appManifests.isEmpty()) {
             this.appManifestPath = "";
             this.appManifest = new AppManifestConfiguration();
         } else {
             this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
-            this.appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+            AppManifestConfiguration appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+            
+            // An completely empty manifest will yield a null pointer in result from Extender.loadYaml
+            this.appManifest = (appManifest != null) ? appManifest : new AppManifestConfiguration();
+
+            // An manifest with no platform keyword will yield a null-pointer for this.appManifest.platforms
+            // This happens if we get a manifest with just the context keyword given.
+            if (this.appManifest.platforms == null) {
+                this.appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
+            }
 
             // To avoid null pointers later on
             if (this.appManifest.platforms.get(platform) == null) {
@@ -77,6 +89,18 @@ class Extender {
             }
             if (this.appManifest.platforms.get(platform).context == null) {
                 this.appManifest.platforms.get(platform).context = new HashMap<String, Object>();
+            }
+
+            if (this.appManifest.context != null && this.appManifest.context.get(BASE_VARIANT_KEYWORD) instanceof String)
+            {
+                String baseVariant = (String)this.appManifest.context.get(BASE_VARIANT_KEYWORD);
+                File baseVariantFile = new File(sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
+                if (!baseVariantFile.exists()) {
+                    throw new ExtenderException("Base variant " + baseVariant + " not found!");
+                }
+                LOGGER.info("Using base variant: " + baseVariant);
+
+                baseVariantManifest = Extender.loadYaml(this.jobDirectory, baseVariantFile, AppManifestConfiguration.class);
             }
         }
 
@@ -102,7 +126,7 @@ class Extender {
         this.useWine = alternatePlatform.contains("wine32");
 
         this.platformConfig = getPlatformConfig(alternatePlatform);
-        this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform);
+        this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform, baseVariantManifest);
         LOGGER.info("Using context for platform: " + alternatePlatform);
 
         // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
