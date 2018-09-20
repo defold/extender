@@ -25,6 +25,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.List;
@@ -155,6 +156,30 @@ public class ExtenderController {
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
         }
+    }
+
+    @RequestMapping(method = RequestMethod.POST, value = "/query")
+    public void queryFiles(HttpServletRequest request,
+                            HttpServletResponse response) throws ExtenderException {
+        System.out.println("REQUEST INCOMING!");
+        InputStream input = null;
+        OutputStream output = null;
+        try {
+            input = request.getInputStream();
+        } catch (IOException e) {
+            LOGGER.error("Failed to get input stream: " + e.getMessage());
+            throw new ExtenderException(e, "Failed to get input stream: " + e.getMessage());
+        }
+
+        try {
+            output = response.getOutputStream();
+        } catch (IOException e) {
+            LOGGER.error("Failed to get output stream: " + e.getMessage());
+            throw new ExtenderException(e, "Failed to get output stream: " + e.getMessage());
+        }
+
+        response.setContentType("application/json");
+        dataStoreService.queryCache(input, output);
     }
 
     static private boolean isRelativePath(File parent, File file) throws IOException {

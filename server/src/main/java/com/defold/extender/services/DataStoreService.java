@@ -83,6 +83,10 @@ public class DataStoreService {
         totalUploadSize += uploadSize;
     }
 
+    public boolean isCached(String key) {
+        return false;
+    }
+
     // Step through all files in the directory and try to cache them onto the key-value server
     public long uploadFilesToCache(File directory) throws IOException {
         totalUploadSize = 0;
@@ -118,6 +122,22 @@ public class DataStoreService {
         Files.copy(in, dst.toPath());
     }
 
+    static public JSONObject readJson(InputStream input) throws ExtenderException {
+        JSONParser parser = new JSONParser();
+        JSONObject jsonObject = null;
+        try {
+            BufferedReader streamReader = new BufferedReader(new InputStreamReader(input, "UTF-8"));
+            Object obj = parser.parse(streamReader);
+            jsonObject = (JSONObject) obj;
+        } catch (ParseException e) {
+            throw new ExtenderException(e, "Failed to parse json: " + e.getMessage());
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to create reader from response input stream: " + e.getMessage());
+        }
+
+        return jsonObject;
+    }
+
     // Step through the entries in the json and download them from the key-value server
     public long downloadFilesFromCache(File directory) throws IOException, ExtenderException{
         File cacheInfoFile = new File(directory, FILE_CACHE_INFO_FILE);
@@ -126,14 +146,7 @@ public class DataStoreService {
         }
         LOGGER.info("Downloading cached files");
 
-        JSONParser parser = new JSONParser();
-        JSONObject jsonObject = null;
-        try {
-            Object obj = parser.parse(new FileReader(cacheInfoFile));
-            jsonObject = (JSONObject) obj;
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
+        final JSONObject jsonObject = readJson(new FileInputStream(cacheInfoFile));
 
         long count = 0;
 
@@ -166,5 +179,34 @@ public class DataStoreService {
         }
 
         return count;
+    }
+
+    /** Reads a json file which contains entry for each file, with corresponding checksum (sha256)
+    * It modified the json object with cache status, and then writes the result to another file
+    */
+    public void queryCache(InputStream input, OutputStream output) throws ExtenderException {
+        JSONObject jsonObject = readJson(input);
+        JSONArray msg = (JSONArray) jsonObject.get("files");
+        Iterator<JSONObject> iterator = msg.iterator();
+        while (iterator.hasNext()) {
+            JSONObject o = iterator.next();
+            String path = (String)o.get("path");
+            String key = (String)o.get("key");
+            if (path == null) {
+                throw new ExtenderException("Corrupt json, missing 'path' field");
+            }
+            if (key == null) {
+                throw new ExtenderException("Corrupt json, missing 'key' field");
+            }
+
+            o.put("cached", isCached(key));
+        }
+
+        try {
+            String json = jsonObject.toJSONString();
+            output.write(json.getBytes(), 0, json.length());
+        } catch (IOException e) {
+            throw new ExtenderException("Failed to write result json: " + e.getMessage());
+        }
     }
 }

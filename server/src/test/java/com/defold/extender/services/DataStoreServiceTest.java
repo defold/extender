@@ -10,10 +10,13 @@ import org.mockito.Mockito;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -88,5 +91,64 @@ public class DataStoreServiceTest {
         assertTrue(collect.contains(DataStoreService.FILE_CACHE_INFO_FILE));
 
         FileUtils.deleteDirectory(tmpDownloadDir);
+    }
+
+    private class CacheFileItem {
+        String path;
+        String key;
+        boolean cached;
+        public CacheFileItem(String path, String key, boolean cached) {
+            this.path = path;
+            this.key = key;
+            this.cached = cached;
+        }
+    }
+    private void verifyCacheResult(List<CacheFileItem> expectedFiles, JSONObject jsonObject) {
+        JSONArray msg = (JSONArray) jsonObject.get("files");
+        Iterator<JSONObject> iterator = msg.iterator();
+        while (iterator.hasNext()) {
+            JSONObject o = iterator.next();
+            String path = (String)o.get("path");
+            String key = (String)o.get("key");
+            boolean cached = (boolean)o.get("cached");
+            assertNotNull(path);
+            assertNotNull(key);
+            assertNotNull(cached);
+
+            boolean found = false;
+            for (CacheFileItem item : expectedFiles) {
+                if (item.path.equals(path)) {
+                    found = true;
+                    assertEquals(item.key, key);
+                    assertEquals(item.cached, cached);
+                    break;
+                }
+            }
+
+            assertTrue(found);
+        }
+    }
+
+    @Test
+    public void testQuery() throws IOException, ExtenderException {
+        DataStoreService dataStoreService = new DataStoreService(url, maxFileSize);
+        DataStoreService dataStoreServiceSpy = Mockito.spy(dataStoreService);
+        Mockito.when(dataStoreServiceSpy.isCached("2b414ebf2f1734b3705990f21d1cf348495591c6b530e5cb3053738a461bdce7")).thenReturn(true);
+
+        FileInputStream input = new FileInputStream(new File("test-data/query1/" + DataStoreService.FILE_CACHE_INFO_FILE));
+        ByteArrayOutputStream output = new ByteArrayOutputStream(256 * 1024);
+
+        dataStoreServiceSpy.queryCache(input, output);
+
+        InputStream jsonStream = new ByteArrayInputStream(output.toByteArray());
+        JSONObject json = DataStoreService.readJson(jsonStream);
+
+        System.out.println("RESULT: " + json.toJSONString());
+
+        List<CacheFileItem> expectedFiles = new ArrayList<>();
+        expectedFiles.add(new CacheFileItem("a.txt", "9f51adb73a7fea871dcaef6838ce776853212af6ce42d0cc9ce5221d69f8af0f", false));
+        expectedFiles.add(new CacheFileItem("b.txt", "2b414ebf2f1734b3705990f21d1cf348495591c6b530e5cb3053738a461bdce7", true));
+
+        verifyCacheResult(expectedFiles, json);
     }
 }
