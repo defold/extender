@@ -181,8 +181,10 @@ public class DataStoreService {
         return count;
     }
 
-    /** Reads a json file which contains entry for each file, with corresponding checksum (sha256)
-    * It modified the json object with cache status, and then writes the result to another file
+    /** Reads a json file which contains an entry for each file, with corresponding checksum (sha256)
+    * It modifies the json with the cache status for that file, and then writes the result to another json output file
+    *   "files": [{"path": "a/b", "key": "<sha256>"}] ->
+    *   "files": [{"path": "a/b", "key": "<sha256>", "cached": true/false}]
     */
     public void queryCache(InputStream input, OutputStream output) throws ExtenderException {
         JSONObject jsonObject = readJson(input);
