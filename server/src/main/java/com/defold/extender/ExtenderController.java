@@ -161,7 +161,6 @@ public class ExtenderController {
     @RequestMapping(method = RequestMethod.POST, value = "/query")
     public void queryFiles(HttpServletRequest request,
                             HttpServletResponse response) throws ExtenderException {
-        System.out.println("REQUEST INCOMING!");
         InputStream input = null;
         OutputStream output = null;
         try {
