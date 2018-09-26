@@ -45,6 +45,12 @@ a platform for operating Docker containers running on EC2 instances. It runs in 
   1. Checkout the code that you would like to release: `git checkout master && git pull`
   1. Run `./server/scripts/build.sh`
   This will build the service and create a new Docker image.
+  1. Create a git tag with increasing number:
+
+      $ git tag -a v1.0.28 -m "informative message"
+
+      $ git push origin --tags
+  1. Create a release on github: Name: <date>, use the new tag, write an informative description of the relevant changes
   1. Run `./server/scripts/publish.sh`
 
   This will create a new task definition on AWS ECS and update the service to run this new version. The new
