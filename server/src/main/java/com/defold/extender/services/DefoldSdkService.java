@@ -5,7 +5,6 @@ import com.defold.extender.ZipUtils;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.metrics.CounterService;
@@ -26,7 +25,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 
 @Service
@@ -54,24 +52,6 @@ public class DefoldSdkService {
         this.dynamoHome = System.getenv("DYNAMO_HOME") != null ? new File(System.getenv("DYNAMO_HOME")) : null;
     }
 
-    // Helper function to move the SDK directories
-    public static void Move(Path source, Path target) {
-        try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            // If the target path suddenly exists, and the source path still exists,
-            // then we failed with the atomic move, and we assume another job succeeded with the download
-            if (Files.exists(source) && Files.exists(target)) {
-                LOGGER.info("Defold SDK version {} was downloaded by another job in the meantime", source.toString());
-                try {
-                    FileUtils.deleteDirectory(source.toFile());
-                } catch (IOException e2) {
-                    LOGGER.error("Failed to delete temp sdk directory {}: {}", source.toString(), e2.getMessage());
-                }
-            }
-        }
-    }
-
     public File getSdk(String hash) throws IOException, URISyntaxException, ExtenderException {
         long methodStart = System.currentTimeMillis();
 
@@ -92,13 +72,9 @@ public class DefoldSdkService {
                     throw new ExtenderException(String.format("The given sdk does not exist: %s (%s)", hash, response.getStatusCode().toString()));
                 }
 
-                File tmpSdkDirectory = Files.createTempDirectory(baseSdkDirectory, hash).toFile(); // Either moved or deleted later by Move()
-
-                Files.createDirectories(tmpSdkDirectory.toPath());
+                Files.createDirectories(sdkDirectory.toPath());
                 InputStream body = response.getBody();
-                ZipUtils.unzip(body, tmpSdkDirectory.toPath());
-
-                Move(tmpSdkDirectory.toPath(), sdkDirectory.toPath());
+                ZipUtils.unzip(body, sdkDirectory.toPath());
             }
 
             // Delete old SDK:s
