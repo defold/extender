@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import sun.misc.BASE64Encoder;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -63,7 +62,7 @@ public class DataStoreService {
         }
 
         byte[] hash = digest.digest();
-        return new BASE64Encoder().encode(hash);
+        return new java.math.BigInteger(1, hash).toString(16);
     }
 
     private long upload(File file) throws ExtenderException {
@@ -126,9 +125,7 @@ public class DataStoreService {
         JSONParser parser = new JSONParser();
         JSONObject jsonObject = null;
         try {
-            BufferedReader streamReader = new BufferedReader(new InputStreamReader(input, "UTF-8"));
-            Object obj = parser.parse(streamReader);
-            jsonObject = (JSONObject) obj;
+            jsonObject = (JSONObject) parser.parse(new InputStreamReader(input, "UTF-8"));
         } catch (ParseException e) {
             throw new ExtenderException(e, "Failed to parse json: " + e.getMessage());
         } catch (IOException e) {
@@ -154,6 +151,12 @@ public class DataStoreService {
         Iterator<JSONObject> iterator = msg.iterator();
         while (iterator.hasNext()) {
             JSONObject o = iterator.next();
+
+            // If the file was cached on the data store server, we need to download it
+            boolean cached = (boolean)o.get("cached");
+            if (!cached) {
+                continue; // It wasn't cached, to the client has uploaded it instead
+            }
             String path = (String)o.get("path");
             String key = (String)o.get("key");
             if (path == null) {
@@ -178,6 +181,7 @@ public class DataStoreService {
             ++count;
         }
 
+        LOGGER.info(String.format("Downloaded %d files", count));
         return count;
     }
 
@@ -205,7 +209,7 @@ public class DataStoreService {
         }
 
         try {
-            String json = jsonObject.toJSONString();
+            String json = jsonObject.toJSONString().replace("\\/", "/");
             output.write(json.getBytes(), 0, json.length());
         } catch (IOException e) {
             throw new ExtenderException("Failed to write result json: " + e.getMessage());
