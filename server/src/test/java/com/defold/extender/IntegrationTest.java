@@ -259,7 +259,6 @@ public class IntegrationTest {
     @Test
     public void buildEngine() throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
-                new FileExtenderResource("test-data/ext2/_app/app.manifest"),
                 new FileExtenderResource("test-data/ext2/ext.manifest"),
                 new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
                 new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
@@ -273,7 +272,6 @@ public class IntegrationTest {
     public void buildExtensionStdLib() throws IOException, ExtenderClientException {
         org.junit.Assume.assumeTrue("Only implemented for actual sdk's", configuration.version.version.isGreaterThan(0, 0, 0));
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
-                new FileExtenderResource("test-data/ext_std/_app/app.manifest"),
                 new FileExtenderResource("test-data/ext_std/ext.manifest"),
                 new FileExtenderResource("test-data/ext_std/include/std.h"),
                 new FileExtenderResource("test-data/ext_std/src/test_ext.cpp"),
