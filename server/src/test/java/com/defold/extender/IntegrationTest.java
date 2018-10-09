@@ -110,10 +110,10 @@ public class IntegrationTest {
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32"} ),
-                new DefoldVersion("091e7e02ce492d3c4e493324b9db57d40df69e95", new Version(1, 2, 131), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
                 new DefoldVersion("7b2c2c019d6fa106f78e2e98cd3009a21d4095aa", new Version(1, 2, 133), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
                 new DefoldVersion("b2ef3a19802728e76adf84d51d02e11d636791a3", new Version(1, 2, 134), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
                 new DefoldVersion("1b90c9a905d634b766b467e3536458b9210ec812", new Version(1, 2, 135), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("73eff22b4a099297d9ddeee69645f170b147e894", new Version(1, 2, 139), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release

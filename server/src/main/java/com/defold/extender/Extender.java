@@ -129,8 +129,27 @@ class Extender {
         this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform, baseVariantManifest);
         LOGGER.info("Using context for platform: " + alternatePlatform);
 
-        // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
-        processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
+        // Setup specific Emscripten env variables
+        if (platform.contains("web")) {
+
+            // Fallback to legacy 1.35.23 version if not set in build.yml
+            String emVersion = (String)this.platformConfig.context.get("emversion");
+            if (emVersion == null) {
+                emVersion = "1.35.23";
+            }
+
+            LOGGER.info("Using Emscripten version: " + emVersion);
+
+            String emVersionUnderscore = emVersion.replace(".", "_");
+            String systemEnv = System.getenv("PATH");
+            String emscriptenPathEnv = System.getenv("EMSCRIPTEN_PATH_" + emVersionUnderscore);
+            processExecutor.putEnv("PATH", systemEnv + ":" + emscriptenPathEnv);
+            processExecutor.putEnv("EMSCRIPTEN_HOME", System.getenv("EMSCRIPTEN_HOME_" + emVersionUnderscore));
+            processExecutor.putEnv("EM_CONFIG", System.getenv("EMSCRIPTEN_CONFIG_" + emVersionUnderscore));
+
+            // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
+            processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
+        }
 
         processExecutor.setCwd(jobDirectory);
 

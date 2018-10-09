@@ -128,26 +128,46 @@ RUN apt-get autoclean && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python2
 
-ENV EMSCRIPTEN_SDK /opt/emsdk
-ENV EMSCRIPTEN_HOME ${EMSCRIPTEN_SDK}/bin/emsdk_portable
-ENV EMSCRIPTEN_CONFIG ${EMSCRIPTEN_HOME}/.emscripten
-# This should really be a version number in the future, but it was somehow built with "master" as the folder name
-ENV EMSCRIPTEN_VERSION master
-# Where the embedded config file ends up
-ENV EM_CONFIG ${EMSCRIPTEN_CONFIG}
 ENV EMCC_SKIP_SANITY_CHECK 1
-# Add emscripten to the path
-ENV PATH ${PATH}:${EMSCRIPTEN_HOME}:${EMSCRIPTEN_HOME}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME}/node/4.1.1_64bit/bin:${EMSCRIPTEN_HOME}/emscripten/${EMSCRIPTEN_VERSION}
 
-# The "sed" command below removes the /TEMP_DIR line from the generated config
-# We replace it with a folder of our own
+## Emscripten 1.38.12
+ENV EMSCRIPTEN_SDK_1_38_12 /opt/emsdk_1.38.12
+ENV EMSCRIPTEN_HOME_1_38_12 ${EMSCRIPTEN_SDK_1_38_12}/bin/emsdk_portable
+ENV EMSCRIPTEN_CONFIG_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}/.emscripten
+
 RUN \
-  mkdir ${EMSCRIPTEN_SDK} && \
-  wget -q -O - ${S3_URL}/emsdk-1.35.23-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK} && \
-  ${EMSCRIPTEN_HOME}/emsdk activate --embedded && \
-  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG} && \
-  echo TEMP_DIR = \'/var/extender/builds\' >> ${EMSCRIPTEN_CONFIG} && \
-  chmod -R 755 ${EMSCRIPTEN_HOME}
+  mkdir ${EMSCRIPTEN_SDK_1_38_12} && \
+  wget -q -O - ${S3_URL}/emsdk-1.38.12-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_38_12} && \
+  ${EMSCRIPTEN_HOME_1_38_12}/emsdk activate sdk-1.38.12-64bit --embedded && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_1_38_12}
+
+# Setup a special env variable that will be prefixed to PATH if requested version is 1.38.12
+ENV EMSCRIPTEN_PATH_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}:${EMSCRIPTEN_HOME_1_38_12}/clang/e1.38.12_64bit:${EMSCRIPTEN_HOME_1_38_12}/node/8.9.1_64bit/bin:${EMSCRIPTEN_HOME_1_38_12}/emscripten/1.38.12
+
+## Emscripten 1.35.23 - Needs to be installed and activated last
+ENV EMSCRIPTEN_SDK_1_35_23 /opt/emsdk_1.35.23
+ENV EMSCRIPTEN_HOME_1_35_23 ${EMSCRIPTEN_SDK_1_35_23}/bin/emsdk_portable
+ENV EMSCRIPTEN_CONFIG_1_35_23 ${EMSCRIPTEN_HOME_1_35_23}/.emscripten
+
+# Add old 1.35.23 emscripten to the env PATH, it will be used by default since older SDKs doesn't have the emversion key in build.yml.
+ENV PATH ${PATH}:${EMSCRIPTEN_HOME_1_35_23}:${EMSCRIPTEN_HOME_1_35_23}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME_1_35_23}/node/4.1.1_64bit/bin:${EMSCRIPTEN_HOME_1_35_23}/emscripten/master
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK_1_35_23} && \
+  wget -q -O - ${S3_URL}/emsdk-1.35.23-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_35_23} && \
+  ${EMSCRIPTEN_HOME_1_35_23}/emsdk activate --embedded && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_1_35_23}
+
+# We use the same temp directory for both versions.
+ENV EMSCRIPTEN_TEMP_DIR /var/extender/ems_temp
+RUN mkdir -p ${EMSCRIPTEN_TEMP_DIR}
+RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR}
+# The "sed" command below removes the /TEMP_DIR line from the generated configs
+# We replace it with a folder of our own
+RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_35_23} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_35_23} && \
+  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_38_12}
 
 #
 # Windows
