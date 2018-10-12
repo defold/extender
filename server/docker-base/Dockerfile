@@ -134,6 +134,7 @@ ENV EMCC_SKIP_SANITY_CHECK 1
 ENV EMSCRIPTEN_SDK_1_38_12 /opt/emsdk_1.38.12
 ENV EMSCRIPTEN_HOME_1_38_12 ${EMSCRIPTEN_SDK_1_38_12}/bin/emsdk_portable
 ENV EMSCRIPTEN_CONFIG_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}/.emscripten
+ENV EMSCRIPTEN_BIN_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}/emscripten/1.38.12
 
 RUN \
   mkdir ${EMSCRIPTEN_SDK_1_38_12} && \
@@ -142,15 +143,20 @@ RUN \
   chmod -R 755 ${EMSCRIPTEN_HOME_1_38_12}
 
 # Setup a special env variable that will be prefixed to PATH if requested version is 1.38.12
-ENV EMSCRIPTEN_PATH_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}:${EMSCRIPTEN_HOME_1_38_12}/clang/e1.38.12_64bit:${EMSCRIPTEN_HOME_1_38_12}/node/8.9.1_64bit/bin:${EMSCRIPTEN_HOME_1_38_12}/emscripten/1.38.12
+ENV EMSCRIPTEN_PATH_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}:${EMSCRIPTEN_HOME_1_38_12}/clang/e1.38.12_64bit:${EMSCRIPTEN_HOME_1_38_12}/node/8.9.1_64bit/bin:${EMSCRIPTEN_BIN_1_38_12}
 
 ## Emscripten 1.35.23 - Needs to be installed and activated last
 ENV EMSCRIPTEN_SDK_1_35_23 /opt/emsdk_1.35.23
 ENV EMSCRIPTEN_HOME_1_35_23 ${EMSCRIPTEN_SDK_1_35_23}/bin/emsdk_portable
 ENV EMSCRIPTEN_CONFIG_1_35_23 ${EMSCRIPTEN_HOME_1_35_23}/.emscripten
+ENV EMSCRIPTEN_BIN_1_35_23 ${EMSCRIPTEN_HOME_1_35_23}/emscripten/master
 
 # Add old 1.35.23 emscripten to the env PATH, it will be used by default since older SDKs doesn't have the emversion key in build.yml.
-ENV PATH ${PATH}:${EMSCRIPTEN_HOME_1_35_23}:${EMSCRIPTEN_HOME_1_35_23}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME_1_35_23}/node/4.1.1_64bit/bin:${EMSCRIPTEN_HOME_1_35_23}/emscripten/master
+# We are also setting up default variables for the config path and emscripten home for 1.35.23.
+# This can be removed once we remove 1.35.23 version support.
+ENV PATH ${PATH}:${EMSCRIPTEN_HOME_1_35_23}:${EMSCRIPTEN_HOME_1_35_23}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME_1_35_23}/node/4.1.1_64bit/bin:${EMSCRIPTEN_BIN_1_35_23}
+ENV EM_CONFIG ${EMSCRIPTEN_CONFIG_1_35_23}
+ENV EMSCRIPTEN_HOME ${EMSCRIPTEN_HOME_1_35_23}
 
 RUN \
   mkdir ${EMSCRIPTEN_SDK_1_35_23} && \
