@@ -4,68 +4,62 @@ server:
 
 extender:
     sdk-location: /var/extender/sdk
-    sdk-cache-size: 10 # Slightly bigger than production in order to not remove version controlled SDK
+    # Slightly bigger than production in order to not remove version controlled SDK
+    sdk-cache-size: 10
     build-location: /var/extender/builds
     server:
         http:
             idle-timeout: 600000
     data-store:
         url: "http://localhost:9017"
-        file-size-threshold:    110000
+        file-size-threshold: 110000
 
-spring.http.multipart.max-file-size: 500mb
-spring.http.multipart.max-request-size: 500mb
-spring.http.multipart.enabled: false
+spring:
+    http:
+        multipart:
+            enabled: false
+            max-file-size: 500mb
+            max-request-size: 500mb
+    # Don't check for templates on startup
+    mustache:
+        check-template-location: false
 
-# Don't check for templates on startup.
-spring.mustache.check-template-location: false
-
-# All management endpoints except simple health status are disabled for security reasons.
+# All management endpoints except simple health status are disabled for security reasons
 endpoints:
-  enabled: false
-  health:
-    enabled: true
-    sensitive: false
+    enabled: false
+    health:
+        enabled: true
+        sensitive: false
 
 # Suppress info-logging from metrics reporting client
 logging.level.okhttp3.OkHttpClient: WARN
 
 management:
-  health.diskspace.path: /
-  health.diskspace.threshold: 524288000 #500mb
+    health:
+        diskspace:
+            path: /
+            threshold: 524288000 #500mb
 
 ---
 
 spring:
-  profiles: production
-
-server:
-    port: 9000
+    profiles: stage
 
 extender:
-    sdk-location: /var/extender/sdk
     sdk-cache-size: 5
-    build-location: /var/extender/builds
-    server:
-        http:
-            idle-timeout: 600000
-    data-store:
-        url: "http://localhost:9017"
-        file-size-threshold:    110000
 
-spring.http.multipart.max-file-size: 500mb
-spring.http.multipart.max-request-size: 500mb
-spring.http.multipart.enabled: false
-
-# Don't check for templates on startup.
-spring.mustache.check-template-location: false
-
-# All management endpoints except simple health status are disabled for security reasons.
 endpoints:
-  enabled: false
-  health:
-    enabled: true
-    sensitive: true
+    health:
+        sensitive: true
 
-# Suppress info-logging from metrics reporting client
-logging.level.okhttp3.OkHttpClient: WARN
+---
+
+spring:
+    profiles: production
+
+extender:
+    sdk-cache-size: 5
+
+endpoints:
+    health:
+        sensitive: true

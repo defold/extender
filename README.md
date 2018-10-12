@@ -7,6 +7,11 @@ This describes how to run the build server locally.
 
 ### Prerequisites
 * Make sure you have [Docker](https://www.docker.com) installed and running.
+* Clone this repo with the _recurse-submodules_ parameter:
+  * git clone --recurse-submodules <repo>
+* If you have already cloned the repo, you can init and fetch the submodule like this:
+  * git submodule init
+  * git submodule update
 
 ### Build
 * First, build the Extender Docker image by running: `./server/scripts/build.sh`
