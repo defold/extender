@@ -63,6 +63,10 @@ class ProcessExecutor {
         env.put(key, value);
     }
 
+    Map<String, String> getEnv() {
+        return env;
+    }
+
     void setCwd(File cwd) {
         this.cwd = cwd;
     }

@@ -129,9 +129,6 @@ class Extender {
         this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform, baseVariantManifest);
         LOGGER.info("Using context for platform: " + alternatePlatform);
 
-        // LEGACY: Make sure the Emscripten compiler doesn't pollute the environment
-        processExecutor.putEnv("EM_CACHE", buildDirectory.toString());
-
         processExecutor.setCwd(jobDirectory);
 
         if (this.platformConfig != null && this.platformConfig.env != null) {
@@ -139,11 +136,22 @@ class Extender {
             HashMap<String, Object> envContext = new HashMap<>();
             envContext.put("build_folder", buildDirectory);
 
+            // Make system env variables available for the template execution below.
+            for (Map.Entry<String, String> sysEnvEntry : System.getenv().entrySet()) {
+                envContext.put("env." + sysEnvEntry.getKey(), sysEnvEntry.getValue());
+            }
+
             Set<String> keys = this.platformConfig.env.keySet();
             for (String k : keys) {
                 String v = this.platformConfig.env.get(k);
                 v = templateExecutor.execute(v, envContext);
                 processExecutor.putEnv(k, v);
+            }
+
+            // Get all "custom" env variables for this process executor and make it available
+            // for commands later on.
+            for (Map.Entry<String, String> envEntry : processExecutor.getEnv().entrySet()) {
+                this.platformConfig.context.put("env." + envEntry.getKey(), envEntry.getValue());
             }
         }
 
