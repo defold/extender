@@ -12,6 +12,7 @@ class PlatformConfig {
     public String exeExt; // deprecated
     public String writeLibPattern;
     public String writeExePattern;
+    public String zipContentPattern;
     public String shlibRe;
     public String stlibRe;
     public String sourceRe;
