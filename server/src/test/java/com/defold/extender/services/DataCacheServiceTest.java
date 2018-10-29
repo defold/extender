@@ -1,6 +1,11 @@
 package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.cache.CacheEntry;
+import com.defold.extender.cache.file.CacheFileParser;
+import com.defold.extender.cache.file.CacheFileWriter;
+import com.defold.extender.cache.CacheKeyGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.FileUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -10,30 +15,28 @@ import org.mockito.Mockito;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
-public class DataStoreServiceTest {
+public class DataCacheServiceTest {
 
-    private static final String url = "http://localhost/fake";
     private static final int maxFileSize = 8 * 1024;
-
 
     @Test
     public void testDownloadNoCacheInfoFile() throws IOException, ExtenderException {
-        DataStoreService dataStoreService = new DataStoreService(url, maxFileSize);
+        DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(), new CacheFileWriter(),
+                "S3", "defold-extender-s3-test", maxFileSize);
 
         File tmpDir = Files.createTempDirectory("extenderTest").toFile();
         tmpDir.deleteOnExit();
 
-        long numFilesDownloaded = dataStoreService.downloadFilesFromCache(tmpDir);
+        long numFilesDownloaded = dataCacheService.getCachedFiles(tmpDir);
         assertEquals(0, numFilesDownloaded);
     }
 
@@ -44,8 +47,9 @@ public class DataStoreServiceTest {
 
     @Test
     public void testDownload() throws IOException, ExtenderException {
-        DataStoreService dataStoreService = new DataStoreService(url, maxFileSize);
-        DataStoreService spy = spy(dataStoreService);
+        DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(), new CacheFileWriter(),
+                "S3", "defold-extender-s3-test", maxFileSize);
+        DataCacheService spy = spy(dataCacheService);
 
         File tmpDownloadDir = Files.createTempDirectory("extenderTest").toFile();
 
@@ -72,14 +76,14 @@ public class DataStoreServiceTest {
             root.put("files", files);
 
             String json = root.toJSONString();
-            File file = new File(tmpDownloadDir, DataStoreService.FILE_CACHE_INFO_FILE);
+            File file = new File(tmpDownloadDir, DataCacheService.FILE_CACHE_INFO_FILE);
             FileUtils.writeStringToFile(file, json, Charset.forName("UTF-8"));
 
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        long numFilesDownloaded = spy.downloadFilesFromCache(tmpDownloadDir);
+        long numFilesDownloaded = spy.getCachedFiles(tmpDownloadDir);
         assertEquals(3, numFilesDownloaded);
 
         List<String> collect = Files.walk(tmpDownloadDir.toPath()).filter(Files::isRegularFile).map(path -> path.toFile().getName()).collect(Collectors.toList());
@@ -88,67 +92,38 @@ public class DataStoreServiceTest {
         assertTrue(collect.contains("file1"));
         assertTrue(collect.contains("file2"));
         assertTrue(collect.contains("file3"));
-        assertTrue(collect.contains(DataStoreService.FILE_CACHE_INFO_FILE));
+        assertTrue(collect.contains(DataCacheService.FILE_CACHE_INFO_FILE));
 
         FileUtils.deleteDirectory(tmpDownloadDir);
     }
 
-    private class CacheFileItem {
-        String path;
-        String key;
-        boolean cached;
-        public CacheFileItem(String path, String key, boolean cached) {
-            this.path = path;
-            this.key = key;
-            this.cached = cached;
-        }
-    }
-    private void verifyCacheResult(List<CacheFileItem> expectedFiles, JSONObject jsonObject) {
-        JSONArray msg = (JSONArray) jsonObject.get("files");
-        Iterator<JSONObject> iterator = msg.iterator();
-        while (iterator.hasNext()) {
-            JSONObject o = iterator.next();
-            String path = (String)o.get("path");
-            String key = (String)o.get("key");
-            boolean cached = (boolean)o.get("cached");
-            assertNotNull(path);
-            assertNotNull(key);
-            assertNotNull(cached);
-
-            boolean found = false;
-            for (CacheFileItem item : expectedFiles) {
-                if (item.path.equals(path)) {
-                    found = true;
-                    assertEquals(item.key, key);
-                    assertEquals(item.cached, cached);
-                    break;
-                }
-            }
-
-            assertTrue(found);
-        }
-    }
-
     @Test
     public void testQuery() throws IOException, ExtenderException {
-        DataStoreService dataStoreService = new DataStoreService(url, maxFileSize);
-        DataStoreService dataStoreServiceSpy = Mockito.spy(dataStoreService);
-        Mockito.when(dataStoreServiceSpy.isCached("2b414ebf2f1734b3705990f21d1cf348495591c6b530e5cb3053738a461bdce7")).thenReturn(true);
+        CacheFileParser parser = new CacheFileParser();
+        DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), parser, new CacheFileWriter(),
+                "S3", "defold-extender-s3-test", maxFileSize);
+        DataCacheService dataCacheServiceSpy = Mockito.spy(dataCacheService);
+        Mockito.when(dataCacheServiceSpy.isCached("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=")).thenReturn(true);
 
-        FileInputStream input = new FileInputStream(new File("test-data/query1/" + DataStoreService.FILE_CACHE_INFO_FILE));
+        FileInputStream input = new FileInputStream(new File("test-data/query1/" + DataCacheService.FILE_CACHE_INFO_FILE));
         ByteArrayOutputStream output = new ByteArrayOutputStream(256 * 1024);
 
-        dataStoreServiceSpy.queryCache(input, output);
+        dataCacheServiceSpy.queryCache(input, output);
 
         InputStream jsonStream = new ByteArrayInputStream(output.toByteArray());
-        JSONObject json = DataStoreService.readJson(jsonStream);
+        List<CacheEntry> entries = parser.parse(jsonStream);
 
-        System.out.println("RESULT: " + json.toJSONString());
+        assertEquals(2, entries.size());
 
-        List<CacheFileItem> expectedFiles = new ArrayList<>();
-        expectedFiles.add(new CacheFileItem("a.txt", "9f51adb73a7fea871dcaef6838ce776853212af6ce42d0cc9ce5221d69f8af0f", false));
-        expectedFiles.add(new CacheFileItem("b.txt", "2b414ebf2f1734b3705990f21d1cf348495591c6b530e5cb3053738a461bdce7", true));
+        CacheEntry entry1 = entries.get(0);
+        assertEquals("dir/test1.txt", entry1.getPath());
+        assertEquals("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=", entry1.getKey());
+        assertTrue(entry1.isCached());
 
-        verifyCacheResult(expectedFiles, json);
+        CacheEntry entry2 = entries.get(1);
+        assertEquals("dir/test2.txt", entry2.getPath());
+        assertEquals("sP8bj1xw4xwbBaetvug4PDzHuK8ukoKiJdc9EVXgc28=", entry2.getKey());
+        assertFalse(entry1.isCached());
     }
 }
+

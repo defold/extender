@@ -2,7 +2,7 @@ package com.defold.extender;
 
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
-import com.defold.extender.services.DataStoreService;
+import com.defold.extender.services.DataCacheService;
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
@@ -41,15 +41,15 @@ public class ExtenderController {
 
     private final DefoldSdkService defoldSdkService;
     private final GaugeService gaugeService;
-    private final DataStoreService dataStoreService;
+    private final DataCacheService dataCacheService;
 
     private static final int MAX_PACKAGE_SIZE = 512 * 1024*1024; // The max size of any upload package
 
     @Autowired
-    public ExtenderController(DefoldSdkService defoldSdkService, DataStoreService dataStoreService, @Qualifier("gaugeService") GaugeService gaugeService) {
+    public ExtenderController(DefoldSdkService defoldSdkService, DataCacheService dataCacheService, @Qualifier("gaugeService") GaugeService gaugeService) {
         this.defoldSdkService = defoldSdkService;
         this.gaugeService = gaugeService;
-        this.dataStoreService = dataStoreService;
+        this.dataCacheService = dataCacheService;
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -121,7 +121,7 @@ public class ExtenderController {
             metricsWriter.measureSdkDownload(sdkVersion);
 
             // Download the cached files from file server
-            long totalCacheDownloadSize = dataStoreService.downloadFilesFromCache(uploadDirectory);
+            long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
             metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
             Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
@@ -150,7 +150,7 @@ public class ExtenderController {
             throw e;
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
-            long totalUploadSize = dataStoreService.uploadFilesToCache(uploadDirectory);
+            long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(totalUploadSize);
 
             // Delete temporary upload directory
@@ -178,7 +178,12 @@ public class ExtenderController {
         }
 
         response.setContentType("application/json");
-        dataStoreService.queryCache(input, output);
+
+        try {
+            dataCacheService.queryCache(input, output);
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to query cache");
+        }
     }
 
     static private boolean isRelativePath(File parent, File file) throws IOException {
