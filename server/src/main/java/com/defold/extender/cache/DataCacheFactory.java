@@ -12,8 +12,8 @@ public class DataCacheFactory {
     private final String storeType;
     private final String bucketName;
 
-    public DataCacheFactory(@Value("${extender.cache-store.type}") String storeType,
-                            @Value("${extender.cache-store.s3.bucket}") String bucketName) {
+    public DataCacheFactory(@Value("${extender.cache.type}") String storeType,
+                            @Value("${extender.cache.s3.bucket}") String bucketName) {
         this.storeType = storeType;
         this.bucketName = bucketName;
     }

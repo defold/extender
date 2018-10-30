@@ -42,7 +42,7 @@ public class DataCacheService {
                      final CacheFileParser cacheFileParser,
                      final CacheFileWriter cacheFileWriter,
                      final DataCacheFactory dataCacheFactory,
-                     @Value("${extender.cache-store.file-size-threshold}") int fileSizeThreshold) {
+                     @Value("${extender.cache.file-size-threshold}") int fileSizeThreshold) {
 
         this.cacheKeyGenerator = cacheKeyGenerator;
         this.cacheFileParser = cacheFileParser;
