@@ -2,11 +2,11 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.cache.CacheEntry;
+import com.defold.extender.cache.DataCacheFactory;
 import com.defold.extender.cache.file.CacheFileParser;
 import com.defold.extender.cache.file.CacheFileWriter;
 import com.defold.extender.cache.CacheKeyGenerator;
 import com.defold.extender.cache.DataCache;
-import com.defold.extender.cache.S3DataCache;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,13 +30,10 @@ public class DataCacheService {
 
     static final String FILE_CACHE_INFO_FILE = "ne-cache-info.json";
 
-    private static final String STORE_TYPE_S3 = "S3";
-    private static final String STORE_TYPE_LOCAL = "LOCAL";
-
     private final CacheKeyGenerator cacheKeyGenerator;
     private final CacheFileParser cacheFileParser;
     private final CacheFileWriter cacheFileWriter;
-    private final DataCache cacheStore;
+    private final DataCache dataCache;
 
     private int fileSizeThreshold;
 
@@ -44,26 +41,18 @@ public class DataCacheService {
     DataCacheService(final CacheKeyGenerator cacheKeyGenerator,
                      final CacheFileParser cacheFileParser,
                      final CacheFileWriter cacheFileWriter,
-                     @Value("${extender.cache-store.type}") String storeType,
-                     @Value("${extender.cache-store.s3.bucket}") String bucketName,
+                     final DataCacheFactory dataCacheFactory,
                      @Value("${extender.cache-store.file-size-threshold}") int fileSizeThreshold) {
 
         this.cacheKeyGenerator = cacheKeyGenerator;
         this.cacheFileParser = cacheFileParser;
         this.cacheFileWriter = cacheFileWriter;
         this.fileSizeThreshold = fileSizeThreshold;
-
-        if (STORE_TYPE_S3.equals(storeType)) {
-            cacheStore = new S3DataCache(bucketName);
-        } else if (STORE_TYPE_LOCAL.equals(storeType)) {
-            throw new IllegalArgumentException("Local cache store is not implemented!");
-        } else {
-            throw new IllegalArgumentException(String.format("No cache store of type %s implemented!", storeType));
-        }
+        this.dataCache = dataCacheFactory.createCache();
     }
 
-    boolean isCached(final String key) {
-        return cacheStore.exists(key);
+    private boolean isCached(final String key) {
+        return dataCache.exists(key);
     }
 
     public long cacheFiles(final File directory) throws IOException {
@@ -72,6 +61,7 @@ public class DataCacheService {
         final AtomicLong totalbytesCached = new AtomicLong();
         Files.walk(directory.toPath())
                 .filter(Files::isRegularFile)
+                .filter(path -> ! FILE_CACHE_INFO_FILE.equals(path.getFileName().toString()))
                 .forEach(path -> {
                     try {
                         totalbytesCached.addAndGet(upload(path.toFile()));
@@ -83,16 +73,16 @@ public class DataCacheService {
     }
 
     private long upload(File file) throws IOException {
-        // Check the size of the file
+        // Skip small files
         if (file.length() < fileSizeThreshold) {
             LOGGER.debug(String.format("[cache] %s - SKIPPED", file.getName()));
             return 0;
         }
 
-        String key = cacheKeyGenerator.generate(file);
+        final String key = cacheKeyGenerator.generate(file);
 
         LOGGER.debug(String.format("[cache] %s - %s", file.getName(), key));
-        cacheStore.put(key, file);
+        dataCache.put(key, file);
 
         return file.length();
     }
@@ -156,8 +146,8 @@ public class DataCacheService {
         return file.getParentFile().exists() || file.getParentFile().mkdirs();
     }
 
-    void downloadFile(String key, File destination) throws IOException {
-        try (InputStream inputStream = cacheStore.get(key)) {
+    private void downloadFile(String key, File destination) throws IOException {
+        try (InputStream inputStream = dataCache.get(key)) {
             Files.copy(
                     inputStream,
                     destination.toPath(),

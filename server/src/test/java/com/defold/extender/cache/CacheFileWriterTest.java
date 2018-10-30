@@ -12,12 +12,12 @@ import static org.junit.Assert.*;
 public class CacheFileWriterTest {
 
     private static final CacheEntry[] ENTRIES = {
-            new CacheEntry("foo/bar.jar", "675fef8ef8", true),
-            new CacheEntry("dir/asdf.zip", "234bc895fe73", false)
+            new CacheEntry("675fef8ef8", "foo/bar.jar", true),
+            new CacheEntry("234bc895fe73", "dir/asdf.zip", false)
     };
 
-    private static final String JSON = "{\"files\":[{\"key\":\"foo/bar.jar\",\"path\":\"675fef8ef8\",\"cached\":true}," +
-            "{\"key\":\"dir/asdf.zip\",\"path\":\"234bc895fe73\",\"cached\":false}]}";
+    private static final String JSON = "{\"files\":[{\"key\":\"675fef8ef8\",\"path\":\"foo/bar.jar\",\"cached\":true}," +
+            "{\"key\":\"234bc895fe73\",\"path\":\"dir/asdf.zip\",\"cached\":false}]}";
 
     @Test
     public void write() throws Exception {

@@ -14,7 +14,7 @@ public class CacheFileParserTest {
     @Test
     public void parseFile() throws Exception {
         CacheFileParser parser = new CacheFileParser();
-        File file = new File(ClassLoader.getSystemResource("ne-cache-info.json").toURI());
+        File file = new File(ClassLoader.getSystemResource("upload/ne-cache-info.json").toURI());
         List<CacheEntry> entries = parser.parse(file);
 
         assertEquals(2, entries.size());
@@ -24,14 +24,14 @@ public class CacheFileParserTest {
         assertEquals("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=", entry1.getKey());
 
         CacheEntry entry2 = entries.get(1);
-        assertEquals("dir/test2.txt", entry2.getPath());
+        assertEquals("dir2/test2.txt", entry2.getPath());
         assertEquals("sP8bj1xw4xwbBaetvug4PDzHuK8ukoKiJdc9EVXgc28=", entry2.getKey());
     }
 
     @Test
     public void parseInputStream() throws Exception {
         CacheFileParser parser = new CacheFileParser();
-        File file = new File(ClassLoader.getSystemResource("ne-cache-info.json").toURI());
+        File file = new File(ClassLoader.getSystemResource("upload/ne-cache-info.json").toURI());
         List<CacheEntry> entries = parser.parse(new FileInputStream(file));
 
         assertEquals(2, entries.size());
@@ -41,7 +41,7 @@ public class CacheFileParserTest {
         assertEquals("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=", entry1.getKey());
 
         CacheEntry entry2 = entries.get(1);
-        assertEquals("dir/test2.txt", entry2.getPath());
+        assertEquals("dir2/test2.txt", entry2.getPath());
         assertEquals("sP8bj1xw4xwbBaetvug4PDzHuK8ukoKiJdc9EVXgc28=", entry2.getKey());
     }
 }

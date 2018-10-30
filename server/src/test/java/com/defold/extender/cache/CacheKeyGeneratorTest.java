@@ -18,11 +18,11 @@ public class CacheKeyGeneratorTest {
 
     @Test
     public void generateKeyForFile() throws IOException, URISyntaxException {
-        assertEquals("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=", generate("dir/test1.txt"));
+        assertEquals("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=", generate("upload/dir/test1.txt"));
     }
 
     @Test
     public void generateKeyForAnotherFile() throws IOException, URISyntaxException {
-        assertEquals("sP8bj1xw4xwbBaetvug4PDzHuK8ukoKiJdc9EVXgc28=", generate("dir/test2.txt"));
+        assertEquals("sP8bj1xw4xwbBaetvug4PDzHuK8ukoKiJdc9EVXgc28=", generate("upload/dir2/test2.txt"));
     }
 }

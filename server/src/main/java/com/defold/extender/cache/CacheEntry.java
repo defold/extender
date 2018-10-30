@@ -6,7 +6,11 @@ public class CacheEntry {
     private String path;
     private boolean cached;
 
-    CacheEntry(final String key, final String path, final boolean cached) {
+    @SuppressWarnings("unused")
+    CacheEntry() {
+    }
+
+    public CacheEntry(final String key, final String path, final boolean cached) {
         this.key = key;
         this.path = path;
         this.cached = cached;

@@ -55,7 +55,6 @@ dependencies {
     compile('org.apache.commons:commons-lang3:3.8.1')
     compile('org.springframework.boot:spring-boot-starter-actuator')
     compile('org.influxdb:influxdb-java:2.10')
-    compile('com.googlecode.json-simple:json-simple:1.1.1')
     compile('com.amazonaws:aws-java-sdk-s3:1.11.438')
 
     testCompile('junit:junit:4.12')
