@@ -1,15 +1,14 @@
 package com.defold.extender.cache;
 
 import org.springframework.stereotype.Service;
-import sun.misc.BASE64Encoder;
 
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 
 @Service
 public class CacheKeyGenerator {
@@ -28,8 +27,7 @@ public class CacheKeyGenerator {
             }
         }
 
-        return new BigInteger(1, digest.digest()).toString(16);
-        //return new BASE64Encoder().encode(digest.digest());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
     }
 
     private MessageDigest getDigest() {

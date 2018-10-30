@@ -2,11 +2,13 @@
   "files": [
     {
       "path": "dir/test1.txt",
-      "key": "LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs="
+      "key": "LYwvbZeMohcStfbeNsnTH6jpak-l2P-LAYjfuefBcbs",
+      "cached": true
     },
     {
       "path": "dir2/test2.txt",
-      "key": "sP8bj1xw4xwbBaetvug4PDzHuK8ukoKiJdc9EVXgc28="
+      "key": "fzthrrNKjqFcZ1_92qavam-90DHtl4bcsrNbNRoTKzE",
+      "cached": true
     }
   ]
 }

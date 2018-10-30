@@ -8,12 +8,14 @@ import com.defold.extender.cache.DataCacheFactory;
 import com.defold.extender.cache.file.CacheFileParser;
 import com.defold.extender.cache.file.CacheFileWriter;
 import com.defold.extender.cache.CacheKeyGenerator;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.io.*;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,7 +28,35 @@ public class DataCacheServiceTest {
     private static final int fileThreshold = 5;
 
     @Test
-    public void testCachingFiles() throws IOException, URISyntaxException {
+    @Ignore
+    public void testUploadingToS3Cache() throws Exception {
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(),
+                new CacheFileWriter(), new DataCacheFactory("S3", "defold-extender-cache-dev"), fileThreshold);
+
+        File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
+        dataCacheService.cacheFiles(uploadDirectory);
+    }
+
+    @Test
+    @Ignore
+    public void testDownloadingFromS3Cache() throws Exception {
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(),
+                new CacheFileWriter(), new DataCacheFactory("S3", "defold-extender-cache-dev"), fileThreshold);
+
+        final File uploadDirectory = Files.createTempDirectory("extenderTest").toFile();
+        final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
+        final File targetInfoFile = new File(uploadDirectory.getPath() + "/" + DataCacheService.FILE_CACHE_INFO_FILE);
+
+        // Copy cache info file to upload directory
+        Files.copy(sourceInfoFile.toPath(), targetInfoFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+        dataCacheService.getCachedFiles(uploadDirectory);
+
+        System.out.println(">>> Upload directory: " + uploadDirectory.getAbsolutePath());
+    }
+
+    @Test
+    public void testCachingFiles() throws Exception {
         final DataCache dataCache = mock(DataCache.class);
 
         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
@@ -115,7 +145,7 @@ public class DataCacheServiceTest {
         CacheFileParser parser = new CacheFileParser();
 
         DataCache dataCacheMock = mock(DataCache.class);
-        when(dataCacheMock.exists("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=")).thenReturn(true);
+        when(dataCacheMock.exists("LYwvbZeMohcStfbeNsnTH6jpak-l2P-LAYjfuefBcbs")).thenReturn(true);
 
         DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         when(dataCacheFactory.createCache()).thenReturn(dataCacheMock);
@@ -135,12 +165,12 @@ public class DataCacheServiceTest {
 
         CacheEntry entry1 = entries.get(0);
         assertEquals("dir/test1.txt", entry1.getPath());
-        assertEquals("LYwvbZeMohcStfbeNsnTH6jpak+l2P+LAYjfuefBcbs=", entry1.getKey());
+        assertEquals("LYwvbZeMohcStfbeNsnTH6jpak-l2P-LAYjfuefBcbs", entry1.getKey());
         assertTrue(entry1.isCached());
 
         CacheEntry entry2 = entries.get(1);
         assertEquals("dir2/test2.txt", entry2.getPath());
-        assertEquals("sP8bj1xw4xwbBaetvug4PDzHuK8ukoKiJdc9EVXgc28=", entry2.getKey());
+        assertEquals("fzthrrNKjqFcZ1_92qavam-90DHtl4bcsrNbNRoTKzE", entry2.getKey());
         assertFalse(entry2.isCached());
     }
 }
