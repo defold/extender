@@ -45,6 +45,7 @@ class ExtensionManifestValidator {
                     break;
 
                 case "libs":
+                case "dynamicLibs":
                 case "engineLibs":
                 case "frameworks":
                 case "weakFrameworks":
