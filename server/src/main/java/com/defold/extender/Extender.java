@@ -10,6 +10,7 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.*;
@@ -437,7 +438,7 @@ class Extender {
         return modifiedLibs;
     }
 
-    private File linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
+    private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
         File maincpp = new File(buildDirectory , "main.cpp");
 
         List<String> extSymbols = new ArrayList<>();
@@ -493,12 +494,11 @@ class Extender {
         extLibs = ExtenderUtil.pruneItems( extLibs, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeLibs"));
         extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJsLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJsLibs"));
 
-        File exe;
-        if (platformConfig.writeExePattern != null ) {
-            exe = new File(buildDirectory, platformConfig.writeExePattern);
-        } else {
-            exe = new File(buildDirectory, String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt)); // Legacy, remove in a few versions!
+        String writeExePattern = platformConfig.writeExePattern;
+        if (writeExePattern == null ) {
+            writeExePattern = String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt); // Legacy, remove in a few versions!
         }
+        File exe = new File(buildDirectory, writeExePattern);
 
         List<String> objects = new ArrayList<>();
         objects.add(ExtenderUtil.getRelativePath(jobDirectory, mainObject));
@@ -524,7 +524,22 @@ class Extender {
         command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
 
         processExecutor.execute(command);
-        return exe;
+
+        // Collect output/binaries
+        String zipContentPattern = platformConfig.zipContentPattern;
+        if (zipContentPattern == null) {
+            zipContentPattern = writeExePattern;
+        }
+
+        final Pattern p = Pattern.compile(zipContentPattern);
+        List<File> exes = Arrays.asList(buildDirectory.listFiles(new FileFilter(){
+            @Override
+            public boolean accept(File file) {
+                return p.matcher(file.getName()).matches();
+            }
+        }));
+
+        return exes;
     }
 
     private File buildRJar() throws ExtenderException {
@@ -771,7 +786,7 @@ class Extender {
         return resourceFile;
     }
 
-    private File buildEngine() throws ExtenderException {
+    private List<File> buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
@@ -817,9 +832,9 @@ class Extender {
                 resourceFile = buildWin32Resources(mergedExtensionContext);
             }
 
-            File exe = linkEngine(symbols, mergedExtensionContext, resourceFile);
+            List<File> exes = linkEngine(symbols, mergedExtensionContext, resourceFile);
 
-            return exe;
+            return exes;
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
@@ -838,8 +853,7 @@ class Extender {
             }
         }
 
-        File exe = buildEngine();
-        outputFiles.add(exe);
+        outputFiles.addAll(buildEngine());
 
         return outputFiles;
     }

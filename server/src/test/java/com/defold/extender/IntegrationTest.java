@@ -109,7 +109,7 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32"} ),
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
                 new DefoldVersion("7b2c2c019d6fa106f78e2e98cd3009a21d4095aa", new Version(1, 2, 133), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
                 new DefoldVersion("b2ef3a19802728e76adf84d51d02e11d636791a3", new Version(1, 2, 134), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
                 new DefoldVersion("1b90c9a905d634b766b467e3536458b9210ec812", new Version(1, 2, 135), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
@@ -196,17 +196,20 @@ public class IntegrationTest {
         System.out.println(String.format("Test %s took: %.2f seconds", name.getMethodName(), (System.currentTimeMillis() - startTime) / 1000.f));
     }
 
-    private String getEngineName(String platform) {
+    private String[] getEngineNames(String platform) {
         if (platform.endsWith("android")) {
-            return "libdmengine.so";
+            return new String[]{"libdmengine.so"};
         }
-        else if (platform.endsWith("web")) {
-            return "dmengine.js";
+        else if (platform.equals("js-web")) {
+            return new String[]{"dmengine.js"};
+        }
+        else if (platform.equals("wasm-web")) {
+            return new String[]{"dmengine.js", "dmengine.wasm"};
         }
         else if (platform.endsWith("win32")) {
-            return "dmengine.exe";
+            return new String[]{"dmengine.exe"};
         }
-        return "dmengine";
+        return new String[]{"dmengine"};
     }
 
     private String getLibName(String platform, String lib) {
@@ -246,7 +249,10 @@ public class IntegrationTest {
         assertTrue(cache.getCachedBuildFile(configuration.platform).exists());
 
         ZipFile zipFile = new ZipFile(destination);
-        assertNotEquals(null, zipFile.getEntry( getEngineName(configuration.platform) ) );
+        String[] expectedEngineNames = getEngineNames(configuration.platform);
+        for (String engineName : expectedEngineNames) {
+            assertNotEquals(null, zipFile.getEntry( engineName ) );
+        }
 
         if (configuration.platform.endsWith("android")) {
             // Add this when we've made sure that all android builds create a classes.dex
