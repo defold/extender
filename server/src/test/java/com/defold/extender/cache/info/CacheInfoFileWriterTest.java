@@ -1,6 +1,6 @@
-package com.defold.extender.cache;
+package com.defold.extender.cache.info;
 
-import com.defold.extender.cache.file.CacheInfoFileWriter;
+import com.defold.extender.cache.CacheEntry;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;

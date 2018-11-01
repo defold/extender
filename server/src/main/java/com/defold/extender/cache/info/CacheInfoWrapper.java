@@ -1,4 +1,4 @@
-package com.defold.extender.cache.file;
+package com.defold.extender.cache.info;
 
 import com.defold.extender.cache.CacheEntry;
 import com.fasterxml.jackson.annotation.JsonProperty;
