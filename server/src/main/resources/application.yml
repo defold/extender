@@ -14,6 +14,8 @@ extender:
         enabled: true
         type: LOCAL
         file-size-threshold: 110000
+        local:
+            basedir: /var/extender/cache/data
 
 spring:
     http:

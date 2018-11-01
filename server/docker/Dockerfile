@@ -3,6 +3,10 @@ FROM extender-base
 ADD extender-0.1.0.jar app.jar
 RUN chown extender: app.jar
 
+# Extender data cache
+RUN mkdir -p /var/extender/cache/data && \
+    chown -R extender: /var/extender/cache
+
 # Create a daemon script for the extender (Execute the internal command as the extender user)
 RUN mkdir -p /etc/service/extender && \
 	echo "#!/bin/sh" > /etc/service/extender/run && \
