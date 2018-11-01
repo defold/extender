@@ -3,8 +3,8 @@ package com.defold.extender.services;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.cache.CacheEntry;
 import com.defold.extender.cache.DataCacheFactory;
-import com.defold.extender.cache.file.CacheFileParser;
-import com.defold.extender.cache.file.CacheFileWriter;
+import com.defold.extender.cache.file.CacheInfoFileParser;
+import com.defold.extender.cache.file.CacheInfoFileWriter;
 import com.defold.extender.cache.CacheKeyGenerator;
 import com.defold.extender.cache.DataCache;
 import org.apache.commons.lang3.StringUtils;
@@ -31,22 +31,22 @@ public class DataCacheService {
     static final String FILE_CACHE_INFO_FILE = "ne-cache-info.json";
 
     private final CacheKeyGenerator cacheKeyGenerator;
-    private final CacheFileParser cacheFileParser;
-    private final CacheFileWriter cacheFileWriter;
+    private final CacheInfoFileParser cacheInfoFileParser;
+    private final CacheInfoFileWriter cacheInfoFileWriter;
     private final DataCache dataCache;
 
     private int fileSizeThreshold;
 
     @Autowired
     DataCacheService(final CacheKeyGenerator cacheKeyGenerator,
-                     final CacheFileParser cacheFileParser,
-                     final CacheFileWriter cacheFileWriter,
+                     final CacheInfoFileParser cacheInfoFileParser,
+                     final CacheInfoFileWriter cacheInfoFileWriter,
                      final DataCacheFactory dataCacheFactory,
                      @Value("${extender.cache.file-size-threshold}") int fileSizeThreshold) {
 
         this.cacheKeyGenerator = cacheKeyGenerator;
-        this.cacheFileParser = cacheFileParser;
-        this.cacheFileWriter = cacheFileWriter;
+        this.cacheInfoFileParser = cacheInfoFileParser;
+        this.cacheInfoFileWriter = cacheInfoFileWriter;
         this.fileSizeThreshold = fileSizeThreshold;
         this.dataCache = dataCacheFactory.createCache();
     }
@@ -97,7 +97,7 @@ public class DataCacheService {
         }
         LOGGER.info("Downloading cached files");
 
-        List<CacheEntry> cacheEntries = cacheFileParser.parse(cacheInfoFile);
+        List<CacheEntry> cacheEntries = cacheInfoFileParser.parse(cacheInfoFile);
         int numCachedFiles = 0;
 
         for (CacheEntry entry : cacheEntries) {
@@ -128,10 +128,10 @@ public class DataCacheService {
 
     private void verifyCacheEntry(CacheEntry entry) throws ExtenderException {
         if (StringUtils.isBlank(entry.getPath())) {
-            throw new ExtenderException("Corrupt json, missing 'path' field");
+            throw new ExtenderException("Corrupt cache info JSON file, missing 'path' field");
         }
         if (StringUtils.isBlank(entry.getKey())) {
-            throw new ExtenderException("Corrupt json, missing 'key' field");
+            throw new ExtenderException("Corrupt cache info JSON file, missing 'key' field");
         }
     }
 
@@ -162,16 +162,16 @@ public class DataCacheService {
      *   "files": [{"path": "a/b", "key": "<sha256>", "cached": true/false}]
      */
     public void queryCache(InputStream input, OutputStream output) throws IOException, ExtenderException {
-        List<CacheEntry> cacheEntries = cacheFileParser.parse(input);
+        List<CacheEntry> cacheEntries = cacheInfoFileParser.parse(input);
         for (CacheEntry entry : cacheEntries) {
             verifyCacheEntry(entry);
             entry.setCached(isCached(entry.getKey()));
         }
 
         try {
-            cacheFileWriter.write(cacheEntries, output);
+            cacheInfoFileWriter.write(cacheEntries, output);
         } catch (IOException e) {
-            throw new ExtenderException("Failed to write result json: " + e.getMessage());
+            throw new ExtenderException(e, "Failed to write cache info JSON file");
         }
     }
 }

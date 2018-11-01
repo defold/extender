@@ -1,6 +1,6 @@
 package com.defold.extender.cache;
 
-import com.defold.extender.cache.file.CacheFileWriter;
+import com.defold.extender.cache.file.CacheInfoFileWriter;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -9,7 +9,7 @@ import java.util.Arrays;
 
 import static org.junit.Assert.*;
 
-public class CacheFileWriterTest {
+public class CacheInfoFileWriterTest {
 
     private static final CacheEntry[] ENTRIES = {
             new CacheEntry("675fef8ef8", "foo/bar.jar", true),
@@ -21,10 +21,10 @@ public class CacheFileWriterTest {
 
     @Test
     public void write() throws Exception {
-        CacheFileWriter cacheFileWriter = new CacheFileWriter();
+        CacheInfoFileWriter cacheInfoFileWriter = new CacheInfoFileWriter();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        cacheFileWriter.write(Arrays.asList(ENTRIES), outputStream);
+        cacheInfoFileWriter.write(Arrays.asList(ENTRIES), outputStream);
 
         ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
         byte[] buffer = new byte[inputStream.available()];

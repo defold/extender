@@ -5,16 +5,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
-class CacheWrapper {
+class CacheInfoWrapper {
 
     @JsonProperty("files")
     private List<CacheEntry> entries;
 
     @SuppressWarnings("unused")
-    CacheWrapper() {
+    CacheInfoWrapper() {
     }
 
-    CacheWrapper(List<CacheEntry> entries) {
+    CacheInfoWrapper(List<CacheEntry> entries) {
         this.entries = entries;
     }
 

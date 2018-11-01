@@ -5,8 +5,8 @@ import com.defold.extender.TestUtils;
 import com.defold.extender.cache.CacheEntry;
 import com.defold.extender.cache.DataCache;
 import com.defold.extender.cache.DataCacheFactory;
-import com.defold.extender.cache.file.CacheFileParser;
-import com.defold.extender.cache.file.CacheFileWriter;
+import com.defold.extender.cache.file.CacheInfoFileParser;
+import com.defold.extender.cache.file.CacheInfoFileWriter;
 import com.defold.extender.cache.CacheKeyGenerator;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -30,8 +30,8 @@ public class DataCacheServiceTest {
     @Test
     @Ignore
     public void testUploadingToS3Cache() throws Exception {
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(),
-                new CacheFileWriter(), new DataCacheFactory("S3", "defold-extender-cache-dev"), fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
+                new CacheInfoFileWriter(), new DataCacheFactory("S3", "", "defold-extender-cache-dev"), fileThreshold);
 
         File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
         dataCacheService.cacheFiles(uploadDirectory);
@@ -40,8 +40,8 @@ public class DataCacheServiceTest {
     @Test
     @Ignore
     public void testDownloadingFromS3Cache() throws Exception {
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(),
-                new CacheFileWriter(), new DataCacheFactory("S3", "defold-extender-cache-dev"), fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
+                new CacheInfoFileWriter(), new DataCacheFactory("S3", "", "defold-extender-cache-dev"), fileThreshold);
 
         final File uploadDirectory = Files.createTempDirectory("extenderTest").toFile();
         final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
@@ -62,8 +62,8 @@ public class DataCacheServiceTest {
         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         when(dataCacheFactory.createCache()).thenReturn(dataCache);
 
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(),
-                mock(CacheFileWriter.class), dataCacheFactory, fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
+                mock(CacheInfoFileWriter.class), dataCacheFactory, fileThreshold);
 
         File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
         dataCacheService.cacheFiles(uploadDirectory);
@@ -82,10 +82,10 @@ public class DataCacheServiceTest {
     @Test
     public void testDownloadNoCacheInfoFile() throws IOException, ExtenderException {
         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
-        final CacheFileParser cacheFileParser = mock(CacheFileParser.class);
+        final CacheInfoFileParser cacheInfoFileParser = mock(CacheInfoFileParser.class);
 
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), cacheFileParser,
-                new CacheFileWriter(), dataCacheFactory, fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), cacheInfoFileParser,
+                new CacheInfoFileWriter(), dataCacheFactory, fileThreshold);
 
         final File tmpDir = Files.createTempDirectory("extenderTest").toFile();
         tmpDir.deleteOnExit();
@@ -95,7 +95,7 @@ public class DataCacheServiceTest {
         assertEquals(0, numFilesDownloaded);
 
         // Cache file parser should not be invoked
-        verify(cacheFileParser, never()).parse(any(File.class));
+        verify(cacheInfoFileParser, never()).parse(any(File.class));
     }
 
     @Test
@@ -110,8 +110,8 @@ public class DataCacheServiceTest {
         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         when(dataCacheFactory.createCache()).thenReturn(dataCache);
 
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheFileParser(),
-                mock(CacheFileWriter.class), dataCacheFactory, fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
+                mock(CacheInfoFileWriter.class), dataCacheFactory, fileThreshold);
         final DataCacheService spy = spy(dataCacheService);
 
         // Create an empty test directory
@@ -119,9 +119,9 @@ public class DataCacheServiceTest {
         tmpDownloadDir.deleteOnExit();
 
         // Write with an info file to the test directory root
-        final CacheFileWriter cacheFileWriter = new CacheFileWriter();
+        final CacheInfoFileWriter cacheInfoFileWriter = new CacheInfoFileWriter();
         File fileCacheInfoFile = new File(tmpDownloadDir, DataCacheService.FILE_CACHE_INFO_FILE);
-        cacheFileWriter.write(Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), new FileOutputStream(fileCacheInfoFile));
+        cacheInfoFileWriter.write(Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), new FileOutputStream(fileCacheInfoFile));
 
         int numFilesDownloaded = spy.getCachedFiles(tmpDownloadDir);
 
@@ -142,7 +142,7 @@ public class DataCacheServiceTest {
 
     @Test
     public void testQuery() throws IOException, ExtenderException, URISyntaxException {
-        CacheFileParser parser = new CacheFileParser();
+        CacheInfoFileParser parser = new CacheInfoFileParser();
 
         DataCache dataCacheMock = mock(DataCache.class);
         when(dataCacheMock.exists("LYwvbZeMohcStfbeNsnTH6jpak-l2P-LAYjfuefBcbs")).thenReturn(true);
@@ -151,7 +151,7 @@ public class DataCacheServiceTest {
         when(dataCacheFactory.createCache()).thenReturn(dataCacheMock);
 
         DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), parser,
-                new CacheFileWriter(), dataCacheFactory, fileThreshold);
+                new CacheInfoFileWriter(), dataCacheFactory, fileThreshold);
 
         FileInputStream input = new FileInputStream(new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI()));
         ByteArrayOutputStream output = new ByteArrayOutputStream();

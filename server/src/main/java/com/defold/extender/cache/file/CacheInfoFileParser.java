@@ -10,17 +10,17 @@ import java.io.InputStream;
 import java.util.List;
 
 @Service
-public class CacheFileParser {
+public class CacheInfoFileParser {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
     public List<CacheEntry> parse(final File file) throws IOException {
-        CacheWrapper wrapper = objectMapper.readerFor(CacheWrapper.class).readValue(file);
+        CacheInfoWrapper wrapper = objectMapper.readerFor(CacheInfoWrapper.class).readValue(file);
         return wrapper.getEntries();
     }
 
     public List<CacheEntry> parse(final InputStream inputStream) throws IOException {
-        CacheWrapper wrapper = objectMapper.readerFor(CacheWrapper.class).readValue(inputStream);
+        CacheInfoWrapper wrapper = objectMapper.readerFor(CacheInfoWrapper.class).readValue(inputStream);
         return wrapper.getEntries();
     }
 }

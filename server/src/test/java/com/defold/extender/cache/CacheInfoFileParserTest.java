@@ -1,6 +1,6 @@
 package com.defold.extender.cache;
 
-import com.defold.extender.cache.file.CacheFileParser;
+import com.defold.extender.cache.file.CacheInfoFileParser;
 import org.junit.Test;
 
 import java.io.File;
@@ -9,11 +9,11 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-public class CacheFileParserTest {
+public class CacheInfoFileParserTest {
 
     @Test
     public void parseFile() throws Exception {
-        CacheFileParser parser = new CacheFileParser();
+        CacheInfoFileParser parser = new CacheInfoFileParser();
         File file = new File(ClassLoader.getSystemResource("upload/ne-cache-info.json").toURI());
         List<CacheEntry> entries = parser.parse(file);
 
@@ -30,7 +30,7 @@ public class CacheFileParserTest {
 
     @Test
     public void parseInputStream() throws Exception {
-        CacheFileParser parser = new CacheFileParser();
+        CacheInfoFileParser parser = new CacheInfoFileParser();
         File file = new File(ClassLoader.getSystemResource("upload/ne-cache-info.json").toURI());
         List<CacheEntry> entries = parser.parse(new FileInputStream(file));
 

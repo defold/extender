@@ -12,9 +12,7 @@ extender:
             idle-timeout: 600000
     cache:
         enabled: true
-        type: S3
-        s3:
-            bucket: defold-extender-cache-dev
+        type: LOCAL
         file-size-threshold: 110000
 
 spring:
@@ -46,11 +44,25 @@ management:
 ---
 
 spring:
+    profiles: dev-s3
+
+extender:
+    cache:
+        type: S3
+        s3:
+            bucket: defold-extender-cache-dev
+
+---
+
+spring:
     profiles: stage
 
 extender:
     sdk-cache-size: 5
-
+    cache:
+        type: S3
+        s3:
+            bucket: defold-extender-cache-stage
 endpoints:
     health:
         sensitive: true
@@ -62,6 +74,10 @@ spring:
 
 extender:
     sdk-cache-size: 5
+    cache:
+        type: S3
+        s3:
+            bucket: defold-extender-cache-prod
 
 endpoints:
     health:

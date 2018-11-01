@@ -9,11 +9,11 @@ import java.io.OutputStream;
 import java.util.List;
 
 @Service
-public class CacheFileWriter {
+public class CacheInfoFileWriter {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
     public void write(List<CacheEntry> entries, OutputStream outputStream) throws IOException {
-        objectMapper.writer().writeValue(outputStream, new CacheWrapper(entries));
+        objectMapper.writer().writeValue(outputStream, new CacheInfoWrapper(entries));
     }
 }

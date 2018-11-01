@@ -32,13 +32,12 @@ public class S3DataCache implements DataCache {
     }
 
     @Override
-    public String put(final String key, final File file) {
+    public void put(final String key, final File file) {
         PutObjectRequest request = new PutObjectRequest(bucketName, key, file);
         ObjectMetadata metadata = new ObjectMetadata();
         //metadata.setContentType("plain/text");
         //metadata.addUserMetadata("x-amz-meta-title", "someTitle");
         request.setMetadata(metadata);
-        final PutObjectResult putObjectResult = s3Client.putObject(request);
-        return putObjectResult.getETag();
+        s3Client.putObject(request);
     }
 }
