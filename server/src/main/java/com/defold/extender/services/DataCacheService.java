@@ -93,6 +93,7 @@ public class DataCacheService {
 
         // Support older editors that don't supply a cache info file
         if (!cacheInfoFile.exists()) {
+            LOGGER.info("No cache info file found, skipping cache");
             return 0;
         }
         LOGGER.info("Downloading cached files");
