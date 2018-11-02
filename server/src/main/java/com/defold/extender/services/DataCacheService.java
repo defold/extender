@@ -146,8 +146,12 @@ public class DataCacheService {
         return file.getParentFile().exists() || file.getParentFile().mkdirs();
     }
 
-    private void downloadFile(String key, File destination) throws IOException {
+    private void downloadFile(String key, File destination) throws ExtenderException, IOException {
         try (InputStream inputStream = dataCache.get(key)) {
+            if (inputStream == null) {
+                throw new ExtenderException(String.format("Cache object with key '%s' was not found", key));
+            }
+
             Files.copy(
                     inputStream,
                     destination.toPath(),
@@ -161,8 +165,15 @@ public class DataCacheService {
      *   "files": [{"path": "a/b", "key": "<sha256>"}] ->
      *   "files": [{"path": "a/b", "key": "<sha256>", "cached": true/false}]
      */
-    public void queryCache(InputStream input, OutputStream output) throws IOException, ExtenderException {
-        List<CacheEntry> cacheEntries = cacheInfoFileParser.parse(input);
+    public void queryCache(InputStream input, OutputStream output) throws ExtenderException {
+        final List<CacheEntry> cacheEntries;
+
+        try {
+            cacheEntries = cacheInfoFileParser.parse(input);
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to parse cache info JSON: " + keepFirstLineInMessage(e.getMessage()));
+        }
+
         for (CacheEntry entry : cacheEntries) {
             verifyCacheEntry(entry);
             entry.setCached(isCached(entry.getKey()));
@@ -171,7 +182,12 @@ public class DataCacheService {
         try {
             cacheInfoFileWriter.write(cacheEntries, output);
         } catch (IOException e) {
-            throw new ExtenderException(e, "Failed to write cache info JSON file");
+            throw new ExtenderException(e, "Failed to write cache info JSON: " + keepFirstLineInMessage(e.getMessage()));
         }
+    }
+
+    // Jackson has a lot of verbose information in its exception message
+    private String keepFirstLineInMessage(final String message) {
+        return message.split("(\r\n|\r|\n)", -1)[0];
     }
 }

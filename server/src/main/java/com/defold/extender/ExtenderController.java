@@ -159,10 +159,9 @@ public class ExtenderController {
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/query")
-    public void queryFiles(HttpServletRequest request,
-                            HttpServletResponse response) throws ExtenderException {
-        InputStream input = null;
-        OutputStream output = null;
+    public void queryFiles(HttpServletRequest request, HttpServletResponse response) throws ExtenderException {
+        InputStream input;
+        OutputStream output;
         try {
             input = request.getInputStream();
         } catch (IOException e) {
@@ -179,11 +178,7 @@ public class ExtenderController {
 
         response.setContentType("application/json");
 
-        try {
-            dataCacheService.queryCache(input, output);
-        } catch (IOException e) {
-            throw new ExtenderException(e, "Failed to query cache");
-        }
+        dataCacheService.queryCache(input, output);
     }
 
     static private boolean isRelativePath(File parent, File file) throws IOException {
