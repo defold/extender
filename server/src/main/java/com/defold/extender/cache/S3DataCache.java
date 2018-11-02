@@ -23,7 +23,7 @@ public class S3DataCache implements DataCache {
     @Override
     public InputStream get(final String key) {
         S3Object s3Object = s3Client.getObject(new GetObjectRequest(bucketName, key));
-        return s3Object.getObjectContent();
+        return s3Object != null ? s3Object.getObjectContent() : null;
     }
 
     @Override
