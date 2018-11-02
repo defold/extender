@@ -8,14 +8,19 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
-public class SimpleDiskDataCache implements DataCache {
+public class LocalDiskDataCache implements DataCache {
 
     private final File baseDirectory;
 
-    public SimpleDiskDataCache(final String baseDirectory) throws IOException {
+    public LocalDiskDataCache(final Path baseDirectory) {
+        this.baseDirectory = baseDirectory.toFile();
+    }
+
+    public LocalDiskDataCache(final String baseDirectory) throws IOException {
         this.baseDirectory = StringUtils.isNotBlank(baseDirectory)
                 ? new File(pruneLastSlashInDirectory(baseDirectory))
                 : createTemporaryDirectory();
@@ -27,7 +32,7 @@ public class SimpleDiskDataCache implements DataCache {
         try {
             return new FileInputStream(path);
         } catch(FileNotFoundException e) {
-            throw new IllegalArgumentException("Cached file not found: " + path);
+            return null;
         }
     }
 

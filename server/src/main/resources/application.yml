@@ -16,6 +16,8 @@ extender:
         file-size-threshold: 110000
         local:
             basedir: /var/extender/cache/data
+        s3:
+            bucket: defold-extender-cache-dev
 
 spring:
     http:
@@ -51,8 +53,6 @@ spring:
 extender:
     cache:
         type: S3
-        s3:
-            bucket: defold-extender-cache-dev
 
 ---
 

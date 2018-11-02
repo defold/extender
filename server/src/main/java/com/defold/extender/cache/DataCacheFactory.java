@@ -28,7 +28,7 @@ public class DataCacheFactory {
             return new S3DataCache(bucketName);
         } else if (STORE_TYPE_LOCAL.equals(storeType)) {
             try {
-                return new SimpleDiskDataCache(baseDirectory);
+                return new LocalDiskDataCache(baseDirectory);
             } catch (IOException e) {
                 throw new IllegalArgumentException("Illegal base directory for local disk cache: " + baseDirectory, e);
             }
