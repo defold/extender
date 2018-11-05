@@ -111,7 +111,7 @@ public class DataCacheService {
 
             File destination = new File(directory, entry.getPath());
             makeParentDirectories(destination);
-            downloadFile(entry.getKey(), destination);
+            downloadFile(entry, destination);
 
             if (! destination.exists()) {
                 throw new ExtenderException(String.format("Failed downloading '%s' (%s) from cache",
@@ -147,10 +147,10 @@ public class DataCacheService {
         return file.getParentFile().exists() || file.getParentFile().mkdirs();
     }
 
-    private void downloadFile(String key, File destination) throws ExtenderException, IOException {
-        try (InputStream inputStream = dataCache.get(key)) {
+    private void downloadFile(CacheEntry entry, File destination) throws ExtenderException, IOException {
+        try (InputStream inputStream = dataCache.get(entry.getKey())) {
             if (inputStream == null) {
-                throw new ExtenderException(String.format("Cache object with key '%s' was not found", key));
+                throw new ExtenderException(String.format("Cache object %s (%s) was not found", entry.getPath(), entry.getKey()));
             }
 
             Files.copy(
@@ -178,6 +178,10 @@ public class DataCacheService {
         for (CacheEntry entry : cacheEntries) {
             verifyCacheEntry(entry);
             entry.setCached(isCached(entry.getKey()));
+
+            if (entry.isCached()) {
+                touchCacheEntry(entry);
+            }
         }
 
         try {
@@ -185,6 +189,10 @@ public class DataCacheService {
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to write cache info JSON: " + keepFirstLineInMessage(e.getMessage()));
         }
+    }
+
+    private void touchCacheEntry(CacheEntry entry) {
+        dataCache.touch(entry.getKey());
     }
 
     // Jackson has a lot of verbose information in its exception message

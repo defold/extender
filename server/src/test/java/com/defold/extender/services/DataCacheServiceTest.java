@@ -39,6 +39,20 @@ public class DataCacheServiceTest {
 
     @Test
     @Ignore
+    public void testQueryS3Cache() throws Exception {
+        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
+                new CacheInfoFileWriter(), new DataCacheFactory("S3", "", "defold-extender-cache-dev"), fileThreshold);
+
+        final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        dataCacheService.queryCache(new FileInputStream(sourceInfoFile), outputStream);
+
+        System.out.println(">>> JSON:\n" + new String(outputStream.toByteArray()));
+    }
+
+    @Test
+    @Ignore
     public void testDownloadingFromS3Cache() throws Exception {
         final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
                 new CacheInfoFileWriter(), new DataCacheFactory("S3", "", "defold-extender-cache-dev"), fileThreshold);

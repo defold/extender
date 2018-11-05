@@ -7,5 +7,6 @@ import java.io.InputStream;
 public interface DataCache {
     InputStream get(String key);
     boolean exists(String key);
+    void touch(String key);
     void put(String key, File file) throws IOException;
 }

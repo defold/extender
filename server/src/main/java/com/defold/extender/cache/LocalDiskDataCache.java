@@ -42,6 +42,11 @@ public class LocalDiskDataCache implements DataCache {
     }
 
     @Override
+    public void touch(String key) {
+        // Cache object expiry not implemented for local cache
+    }
+
+    @Override
     public void put(final String key, final File file) throws IOException {
         final File destination = createDestinationPath(key);
 
