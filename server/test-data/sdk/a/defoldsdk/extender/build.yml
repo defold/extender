@@ -138,7 +138,11 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:    "{{build_folder}}"
+        EM_CACHE:        "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
+        EM_CONFIG:       "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
+        PATH:            "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME: "{{env.EMSCRIPTEN_HOME_1_38_12}}"
+        EMSCRIPTEN_BIN:  "{{env.EMSCRIPTEN_BIN_1_38_12}}"
     context:
         engineJsLibs: []
         engineLibs: ["engine_main", "engine_foo"]
@@ -156,14 +160,14 @@ platforms:
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine.js'
     allowedLibs:    []
-    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","-W{{warning}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
-    compileCmd:     'em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
-    linkCmd:        'em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
-    libCmd:         'emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
+    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
+    libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
 
   wasm-web:
     env:
-        EM_CACHE:        "{{build_folder}}"
+        EM_CACHE:        "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
         EM_CONFIG:       "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
         PATH:            "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
         EMSCRIPTEN_HOME: "{{env.EMSCRIPTEN_HOME_1_38_12}}"
