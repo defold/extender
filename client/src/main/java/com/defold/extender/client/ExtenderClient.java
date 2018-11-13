@@ -90,7 +90,7 @@ public class ExtenderClient {
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 return EntityUtils.toString(response.getEntity()).replace("\\/", "/");
             } else {
-                throw new ExtenderClientException("Failed to build source.");
+                return null; // Caching is not supported
             }
         } catch (IOException e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
@@ -146,11 +146,13 @@ public class ExtenderClient {
         // Now, let's ask the server what files it already has
         String cacheInfoName = "ne-cache-info.json";
         String cacheInfoJson = queryCache(sourceResources);
+        Set<String> cachedFiles = new HashSet<>();
+        if (cacheInfoJson != null) {
+            cachedFiles = getCachedFiles(cacheInfoJson);
 
-        Set<String> cachedFiles = getCachedFiles(cacheInfoJson);
-
-        // add the updated info to the file
-        entity.addPart(cacheInfoName, new ByteArrayBody(cacheInfoJson.getBytes(), cacheInfoName)); // Same as specified in DataStoreService.java
+            // add the updated info to the file
+            entity.addPart(cacheInfoName, new ByteArrayBody(cacheInfoJson.getBytes(), cacheInfoName)); // Same as specified in DataStoreService.java
+        }
 
         for (ExtenderResource s : sourceResources) {
             // If the file was already cached, don't upload it
