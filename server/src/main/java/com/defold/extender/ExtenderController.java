@@ -2,7 +2,7 @@ package com.defold.extender;
 
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
-import com.defold.extender.services.DataStoreService;
+import com.defold.extender.services.DataCacheService;
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
@@ -25,6 +25,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.List;
@@ -40,15 +41,15 @@ public class ExtenderController {
 
     private final DefoldSdkService defoldSdkService;
     private final GaugeService gaugeService;
-    private final DataStoreService dataStoreService;
+    private final DataCacheService dataCacheService;
 
     private static final int MAX_PACKAGE_SIZE = 512 * 1024*1024; // The max size of any upload package
 
     @Autowired
-    public ExtenderController(DefoldSdkService defoldSdkService, DataStoreService dataStoreService, @Qualifier("gaugeService") GaugeService gaugeService) {
+    public ExtenderController(DefoldSdkService defoldSdkService, DataCacheService dataCacheService, @Qualifier("gaugeService") GaugeService gaugeService) {
         this.defoldSdkService = defoldSdkService;
         this.gaugeService = gaugeService;
-        this.dataStoreService = dataStoreService;
+        this.dataCacheService = dataCacheService;
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -120,7 +121,7 @@ public class ExtenderController {
             metricsWriter.measureSdkDownload(sdkVersion);
 
             // Download the cached files from file server
-            long totalCacheDownloadSize = dataStoreService.downloadFilesFromCache(uploadDirectory);
+            long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
             metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
             Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
@@ -149,12 +150,37 @@ public class ExtenderController {
             throw e;
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
-            long totalUploadSize = dataStoreService.uploadFilesToCache(uploadDirectory);
+            long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(totalUploadSize);
 
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
+
+            LOGGER.info("Job done");
         }
+    }
+
+    @RequestMapping(method = RequestMethod.POST, value = "/query")
+    public void queryFiles(HttpServletRequest request, HttpServletResponse response) throws ExtenderException {
+        InputStream input;
+        OutputStream output;
+        try {
+            input = request.getInputStream();
+        } catch (IOException e) {
+            LOGGER.error("Failed to get input stream: " + e.getMessage());
+            throw new ExtenderException(e, "Failed to get input stream: " + e.getMessage());
+        }
+
+        try {
+            output = response.getOutputStream();
+        } catch (IOException e) {
+            LOGGER.error("Failed to get output stream: " + e.getMessage());
+            throw new ExtenderException(e, "Failed to get output stream: " + e.getMessage());
+        }
+
+        response.setContentType("application/json");
+
+        dataCacheService.queryCache(input, output);
     }
 
     static private boolean isRelativePath(File parent, File file) throws IOException {

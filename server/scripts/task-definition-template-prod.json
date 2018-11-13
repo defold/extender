@@ -1,5 +1,6 @@
 {
   "family": "extender",
+  "taskRoleArn": "arn:aws:iam::378120250811:role/DefoldExtenderS3CacheProdRole",
   "containerDefinitions": [
     {
       "image": "%IMAGE%",

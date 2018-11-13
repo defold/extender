@@ -10,9 +10,14 @@ extender:
     server:
         http:
             idle-timeout: 600000
-    data-store:
-        url: "http://localhost:9017"
-        file-size-threshold: 110000
+    cache:
+        enabled: true
+        type: LOCAL
+        file-size-threshold: 65536
+        local:
+            basedir: /var/extender/cache/data
+        s3:
+            bucket: defold-extender-cache-dev
 
 spring:
     http:
@@ -43,11 +48,23 @@ management:
 ---
 
 spring:
+    profiles: dev-s3
+
+extender:
+    cache:
+        type: S3
+
+---
+
+spring:
     profiles: stage
 
 extender:
     sdk-cache-size: 5
-
+    cache:
+        type: S3
+        s3:
+            bucket: defold-extender-cache-stage
 endpoints:
     health:
         sensitive: true
@@ -59,6 +76,10 @@ spring:
 
 extender:
     sdk-cache-size: 5
+    cache:
+        type: S3
+        s3:
+            bucket: defold-extender-cache-prod
 
 endpoints:
     health:
