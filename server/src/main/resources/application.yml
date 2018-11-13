@@ -13,7 +13,7 @@ extender:
     cache:
         enabled: true
         type: LOCAL
-        file-size-threshold: 110000
+        file-size-threshold: 65536
         local:
             basedir: /var/extender/cache/data
         s3:

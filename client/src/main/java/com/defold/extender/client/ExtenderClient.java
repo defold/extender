@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.Iterator;
+import java.util.Base64;
 
 public class ExtenderClient {
     private final String extenderBaseUrl;
@@ -60,9 +61,7 @@ public class ExtenderClient {
             throw new ExtenderClientException("Failed to read file: " + e.getMessage(), e);
         }
 
-        byte[] hash = digest.digest();
-        String hex = new java.math.BigInteger(1, hash).toString(16);
-        return hex;
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
     }
 
     String queryCache(List<ExtenderResource> sourceResources) throws ExtenderClientException {

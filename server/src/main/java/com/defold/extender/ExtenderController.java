@@ -155,6 +155,8 @@ public class ExtenderController {
 
             // Delete temporary upload directory
             FileUtils.deleteDirectory(jobDirectory);
+
+            LOGGER.info("Job done");
         }
     }
 

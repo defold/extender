@@ -59,16 +59,21 @@ public class DataCacheService {
         LOGGER.debug(String.format("Caching files in directory %s", directory.getPath()));
 
         final AtomicLong totalbytesCached = new AtomicLong();
+        final AtomicLong totalFilesCached = new AtomicLong();
         Files.walk(directory.toPath())
                 .filter(Files::isRegularFile)
                 .filter(path -> ! FILE_CACHE_INFO_FILE.equals(path.getFileName().toString()))
                 .forEach(path -> {
                     try {
-                        totalbytesCached.addAndGet(upload(path.toFile()));
+                        long fileSize = upload(path.toFile());
+                        totalbytesCached.addAndGet(fileSize);
+                        totalFilesCached.addAndGet(fileSize >= fileSizeThreshold ? 1 : 0);
                     } catch (IOException e) {
                         LOGGER.error("Could not cache file " + path.toString(), e);
                     }
                 });
+
+        LOGGER.info(String.format("Cached %d bytes in %d files", totalbytesCached.longValue(), totalFilesCached.longValue()));
         return totalbytesCached.longValue();
     }
 

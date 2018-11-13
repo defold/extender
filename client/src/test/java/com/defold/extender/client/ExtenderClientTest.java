@@ -1,6 +1,7 @@
 package com.defold.extender.client;
 
 import org.apache.commons.io.FileUtils;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
@@ -27,6 +28,12 @@ public class ExtenderClientTest {
         fwr.flush();
         fwr.close();
         f.setLastModified(Instant.now().toEpochMilli() + 23);
+    }
+
+    @BeforeClass
+    public static void beforeClass() {
+        File buildDir = new File("build");
+        buildDir.mkdirs();
     }
 
     @Test
@@ -185,7 +192,7 @@ public class ExtenderClientTest {
     }
 
     @Test
-    public void testClientCachePersistence() throws IOException, InterruptedException, ExtenderClientException, NoSuchAlgorithmException {
+    public void testClientCachePersistence() throws IOException, ExtenderClientException, NoSuchAlgorithmException {
         File a = new File("build/a");
         FileExtenderResource aRes = new FileExtenderResource(a);
         a.deleteOnExit();
@@ -315,7 +322,7 @@ public class ExtenderClientTest {
     }
 
     @Test
-    public void testClientHasExtensions() throws IOException, InterruptedException {
+    public void testClientHasExtensions() {
         assertFalse(hasExtensions(new File("../server/test-data/testproject/a")));
         assertTrue(hasExtensions(new File("../server/test-data/testproject/b")));
         assertTrue(hasExtensions(new File("../server/test-data/testproject")));
