@@ -5,6 +5,8 @@ FROM phusion/baseimage:0.9.22
 
 # Base stuff
 RUN \
+  sed -i 's|archive.ubuntu.com|ubuntu.mirror.su.se|g' /etc/apt/sources.list && \
+  sed -i 's|security.ubuntu.com|ubuntu.mirror.su.se|g' /etc/apt/sources.list && \
   dpkg --add-architecture i386 && \
   apt-get update && \
   apt-get install -y software-properties-common && \
