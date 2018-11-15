@@ -487,6 +487,7 @@ class Extender {
 
                 extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.shlibRe));
                 extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.stlibRe));
+                extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libCommonDir, JS_RE));
                 extFrameworkPaths.addAll(getFrameworkPaths(extDir));
             }
         }
