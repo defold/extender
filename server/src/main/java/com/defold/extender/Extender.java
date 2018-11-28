@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
-    private final AppManifestConfiguration appManifest;
     private final String appManifestPath;
     private final String platform;
     private final File sdk;
@@ -66,36 +65,39 @@ class Extender {
         if (appManifests.size() > 1 ) {
             throw new ExtenderException("Only one app.manifest allowed!");
         }
+
+        AppManifestConfiguration appManifest = null;
         AppManifestConfiguration baseVariantManifest = null;
 
         if (appManifests.isEmpty()) {
             this.appManifestPath = "";
-            this.appManifest = new AppManifestConfiguration();
+            appManifest = new AppManifestConfiguration();
         } else {
             this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
-            AppManifestConfiguration appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
-            
+            appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+
             // An completely empty manifest will yield a null pointer in result from Extender.loadYaml
-            this.appManifest = (appManifest != null) ? appManifest : new AppManifestConfiguration();
+            appManifest = (appManifest != null) ? appManifest : new AppManifestConfiguration();
 
             // An manifest with no platform keyword will yield a null-pointer for this.appManifest.platforms
             // This happens if we get a manifest with just the context keyword given.
-            if (this.appManifest.platforms == null) {
-                this.appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
+            if (appManifest.platforms == null) {
+                appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
             }
 
             // To avoid null pointers later on
-            if (this.appManifest.platforms.get(platform) == null) {
-                this.appManifest.platforms.put(platform, new AppManifestPlatformConfig());
+            if (appManifest.platforms.get(platform) == null) {
+                appManifest.platforms.put(platform, new AppManifestPlatformConfig());
             }
-            if (this.appManifest.platforms.get(platform).context == null) {
-                this.appManifest.platforms.get(platform).context = new HashMap<String, Object>();
+            if (appManifest.platforms.get(platform).context == null) {
+                appManifest.platforms.get(platform).context = new HashMap<String, Object>();
             }
 
-            if (this.appManifest.context != null && this.appManifest.context.get(BASE_VARIANT_KEYWORD) instanceof String)
+            if (appManifest.context != null && appManifest.context.get(BASE_VARIANT_KEYWORD) instanceof String)
             {
-                String baseVariant = (String)this.appManifest.context.get(BASE_VARIANT_KEYWORD);
+                String baseVariant = (String)appManifest.context.get(BASE_VARIANT_KEYWORD);
                 File baseVariantFile = new File(sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
+
                 if (!baseVariantFile.exists()) {
                     throw new ExtenderException("Base variant " + baseVariant + " not found!");
                 }
@@ -127,7 +129,7 @@ class Extender {
         this.useWine = alternatePlatform.contains("wine32");
 
         this.platformConfig = getPlatformConfig(alternatePlatform);
-        this.appManifestContext = ExtenderUtil.getAppManifestContext(this.appManifest, platform, baseVariantManifest);
+        this.appManifestContext = ExtenderUtil.getAppManifestContext(appManifest, platform, baseVariantManifest);
         LOGGER.info("Using context for platform: " + alternatePlatform);
 
         processExecutor.setCwd(jobDirectory);
@@ -446,8 +448,8 @@ class Extender {
 
         Map<String, Object> mainContext = context(manifestContext);
 
-        extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeSymbols"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeSymbols") );
-        mainContext.put("symbols", ExtenderUtil.pruneItems( (List<String>)mainContext.get("symbols"), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeSymbols"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeSymbols")));
+        extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols") );
+        mainContext.put("symbols", ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols")));
         mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
 
         String main = templateExecutor.execute(config.main, mainContext);
@@ -492,8 +494,8 @@ class Extender {
             }
         }
 
-        extLibs = ExtenderUtil.pruneItems( extLibs, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeLibs"));
-        extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJsLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJsLibs"));
+        extLibs = ExtenderUtil.pruneItems( extLibs, ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs"));
+        extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs"));
 
         String writeExePattern = platformConfig.writeExePattern;
         if (writeExePattern == null ) {
@@ -511,8 +513,8 @@ class Extender {
         context.put("src", objects);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
         context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
-        context.put("engineLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineLibs", new ArrayList<>()), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeLibs")) );
-        context.put("engineJsLibs", ExtenderUtil.pruneItems((List<String>) context.getOrDefault("engineJsLibs", new ArrayList<>()), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJsLibs"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJsLibs")) );
+        context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs")) );
+        context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs")) );
 
         // WINE->clang transition pt1: in the transition period from link.exe -> lld, we want to make sure we can write "foo" as opposed to "foo.lib"
         context.put("libs", patchLibs((List<String>) context.get("libs")));
@@ -754,8 +756,8 @@ class Extender {
         Map<String, Object> context = context(empty);
         context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
-        context.put("jars", ExtenderUtil.pruneItems( extJars, ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJars"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJars")));
-        context.put("engineJars", ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getAppManifestItems(appManifest, platform, "includeJars"), ExtenderUtil.getAppManifestItems(appManifest, platform, "excludeJars")) );
+        context.put("jars", ExtenderUtil.pruneItems( extJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")));
+        context.put("engineJars", ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")) );
 
         String command = templateExecutor.execute(platformConfig.dxCmd, context);
         try {

@@ -111,6 +111,18 @@ class ExtenderUtil
         }
     }
 
+    static void debugPrint(String name, List<String> l) {
+        if (l == null) {
+            System.out.println(String.format("%s: <null>", name));
+            return;
+        }
+        System.out.print(String.format("%s: [", name));
+        for (String v : l) {
+            System.out.print(String.format("%s, ", v));
+        }
+        System.out.println("]");
+    }
+
     static File[] listFilesMatching(File dir, String regex) {
         if(!dir.isDirectory()) {
             throw new IllegalArgumentException(dir+" is not a directory.");
@@ -208,6 +220,19 @@ class ExtenderUtil
             return b;
         }
         return default_value;
+    }
+
+    private static boolean isListOfStrings(List<Object> list) {
+        return list != null && list.stream().allMatch(o -> o instanceof String);
+    }
+
+    static List<String> getStringList(Map<String, Object> context, String key) throws ExtenderException
+    {
+        Object v = context.getOrDefault(key, new ArrayList<>());
+        if (v instanceof List && isListOfStrings((List<Object>)v)) {
+            return (List<String>)v;
+        }
+        throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Key %s: %s (type %s)", key, v.toString(), v.getClass().getCanonicalName()));
     }
 
     // Does a regexp match on the filename for each file found in a directory
