@@ -56,10 +56,21 @@ a platform for operating Docker containers running on EC2 instances. It runs in 
 
       $ git push origin --tags
   1. Create a release on github: Name: <date>, use the new tag, write an informative description of the relevant changes
-  1. Run `./server/scripts/publish.sh`
 
-  This will create a new task definition on AWS ECS and update the service to run this new version. The new
-  version will be rolled out without any downtime of the service.
+#### Releasing Stage Server
+
+  1. Run `./server/scripts/publish-stage.sh`
+
+This will create a new task definition on AWS ECS and update the service to run this new version. The new
+version will be rolled out without any downtime of the service.
+
+The target server is https://build-stage.defold.com
+
+#### Releasing Live Server
+
+  1. Run `./server/scripts/publish-prod.sh`
+
+The target server is https://build.defold.com (i.e. the live server!)
 
 ### Common issues
 
