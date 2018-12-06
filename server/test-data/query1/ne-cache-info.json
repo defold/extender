@@ -2,11 +2,11 @@
 	"files": [
 		{
 			"path": "a.txt",
-			"key": "9f51adb73a7fea871dcaef6838ce776853212af6ce42d0cc9ce5221d69f8af0f",
+			"key": "9f51adb73a7fea871dcaef6838ce776853212af6ce42d0cc9ce5221d69f8af0f"
 		},
 		{
 			"path": "b.txt",
-			"key": "2b414ebf2f1734b3705990f21d1cf348495591c6b530e5cb3053738a461bdce7",
-		},
+			"key": "2b414ebf2f1734b3705990f21d1cf348495591c6b530e5cb3053738a461bdce7"
+		}
 	]
 }

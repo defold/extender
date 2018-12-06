@@ -18,6 +18,7 @@ import org.json.simple.parser.ParseException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -25,7 +26,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.Iterator;
-import java.util.Base64;
 
 public class ExtenderClient {
     private final String extenderBaseUrl;
@@ -61,7 +61,10 @@ public class ExtenderClient {
             throw new ExtenderClientException("Failed to read file: " + e.getMessage(), e);
         }
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
+        // See CacheKeyGenerator.java in the server code
+        // and native_extensions.clj for the equivalent parts
+        byte[] bytes = digest.digest();
+        return new BigInteger(1, bytes).toString(16);
     }
 
     String queryCache(List<ExtenderResource> sourceResources) throws ExtenderClientException {

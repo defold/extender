@@ -6,9 +6,9 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
 
 @Service
 public class CacheKeyGenerator {
@@ -27,7 +27,11 @@ public class CacheKeyGenerator {
             }
         }
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
+        // Note: If you change this, the format of the cache is changed
+        // See: ./client/src/main/java/com/defold/extender/client/ExtenderClient.java (which is then bundled in bob.jar)
+        // and native_extensions.clj in the editor for the equivalent parts
+        byte[] bytes = digest.digest();
+        return new BigInteger(1, bytes).toString(16);
     }
 
     private MessageDigest getDigest() {

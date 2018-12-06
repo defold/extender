@@ -1,6 +1,7 @@
 package com.defold.extender.cache;
 
 import org.junit.Test;
+import com.defold.extender.TestUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,11 +19,11 @@ public class CacheKeyGeneratorTest {
 
     @Test
     public void generateKeyForFile() throws IOException, URISyntaxException {
-        assertEquals("LYwvbZeMohcStfbeNsnTH6jpak-l2P-LAYjfuefBcbs", generate("upload/dir/test1.txt"));
+        assertEquals(TestUtils.CACHE_ENTRIES[0].getKey(), generate("upload/" + TestUtils.CACHE_ENTRIES[0].getPath()));
     }
 
     @Test
     public void generateKeyForAnotherFile() throws IOException, URISyntaxException {
-        assertEquals("fzthrrNKjqFcZ1_92qavam-90DHtl4bcsrNbNRoTKzE", generate("upload/dir2/test2.txt"));
+        assertEquals(TestUtils.CACHE_ENTRIES[1].getKey(), generate("upload/" + TestUtils.CACHE_ENTRIES[1].getPath()));
     }
 }

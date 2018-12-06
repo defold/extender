@@ -34,6 +34,20 @@ _NOTE:_ The first time you build it will take a while. After that Docker cache w
 
 * In detail: [Debugging](./README_DEBUGGING.md)
 
+## Client
+
+There is a client part of this code which is used in Bob.jar.
+
+  1. Build the client
+
+    $ cd client
+    $ ../gradlew build
+
+  1. Copy the client to Bob
+
+    $ cp -v ./build/libs/extender-client-0.0.1.jar <defold>/com.dynamo.cr/com.dynamo.cr.common/ext/extender-client-0.0.1.jar
+
+
 ## Operations
 
 The Extender service runs on [AWS EC2 Container Service](https://aws.amazon.com/ecs/), which is
