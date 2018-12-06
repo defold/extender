@@ -33,8 +33,7 @@ public class CacheKeyGenerator {
         // See: ./client/src/main/java/com/defold/extender/client/ExtenderClient.java (which is then bundled in bob.jar)
         // and native_extensions.clj in the editor for the equivalent parts
         byte[] bytes = digest.digest();
-        String hex = new BigInteger(1, bytes).toString(16);
-        return Base64.getUrlEncoder().encodeToString(hex.getBytes(Charset.forName("UTF-8")));
+        return new BigInteger(1, bytes).toString(16);
     }
 
     private MessageDigest getDigest() {

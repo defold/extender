@@ -66,8 +66,7 @@ public class ExtenderClient {
         // See CacheKeyGenerator.java in the server code
         // and native_extensions.clj for the equivalent parts
         byte[] bytes = digest.digest();
-        String hex = new BigInteger(1, bytes).toString(16);
-        return Base64.getUrlEncoder().encodeToString(hex.getBytes(Charset.forName("UTF-8")));
+        return new BigInteger(1, bytes).toString(16);
     }
 
     String queryCache(List<ExtenderResource> sourceResources) throws ExtenderClientException {
