@@ -159,7 +159,7 @@ public class DataCacheServiceTest {
         CacheInfoFileParser parser = new CacheInfoFileParser();
 
         DataCache dataCacheMock = mock(DataCache.class);
-        when(dataCacheMock.exists("LYwvbZeMohcStfbeNsnTH6jpak-l2P-LAYjfuefBcbs")).thenReturn(true);
+        when(dataCacheMock.exists(TestUtils.CACHE_ENTRIES[0].getKey())).thenReturn(true);
 
         DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         when(dataCacheFactory.createCache()).thenReturn(dataCacheMock);
@@ -179,12 +179,12 @@ public class DataCacheServiceTest {
 
         CacheEntry entry1 = entries.get(0);
         assertEquals("dir/test1.txt", entry1.getPath());
-        assertEquals("LYwvbZeMohcStfbeNsnTH6jpak-l2P-LAYjfuefBcbs", entry1.getKey());
+        assertEquals(TestUtils.CACHE_ENTRIES[0].getKey(), entry1.getKey());
         assertTrue(entry1.isCached());
 
         CacheEntry entry2 = entries.get(1);
         assertEquals("dir2/test2.txt", entry2.getPath());
-        assertEquals("fzthrrNKjqFcZ1_92qavam-90DHtl4bcsrNbNRoTKzE", entry2.getKey());
+        assertEquals(TestUtils.CACHE_ENTRIES[1].getKey(), entry2.getKey());
         assertFalse(entry2.isCached());
     }
 }
