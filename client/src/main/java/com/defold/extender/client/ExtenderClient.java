@@ -27,7 +27,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.Iterator;
-import java.util.Base64;
 
 public class ExtenderClient {
     private final String extenderBaseUrl;
