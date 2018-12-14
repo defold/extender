@@ -182,10 +182,7 @@ public class DataCacheService {
 
         for (CacheEntry entry : cacheEntries) {
             verifyCacheEntry(entry);
-
-            // Due to an issue, with mismatching keys, this needs to be temporarily disabled
-            //entry.setCached(isCached(entry.getKey()));
-            entry.setCached(false);
+            entry.setCached(isCached(entry.getKey()));
 
             if (entry.isCached()) {
                 touchCacheEntry(entry);
