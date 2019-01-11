@@ -116,8 +116,8 @@ class Extender {
             try {
                 PlatformConfig alternateConfig = getPlatformConfig(platform.replace("win32", "wine32"));
                 if (alternateConfig != null) {
-                    Boolean use_clang = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "use-clang", true);
-                    if (!use_clang) {
+                    Boolean use_cl = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "legacy-use-cl", true);
+                    if (use_cl) {
                         alternatePlatform = platform.replace("win32", "wine32");
                     }
                 }

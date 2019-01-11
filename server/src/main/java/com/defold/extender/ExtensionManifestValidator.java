@@ -68,7 +68,8 @@ class ExtensionManifestValidator {
                 case "excludeJars":
                 case "excludeJsLibs":
                 case "excludeSymbols":
-                case "use-clang":
+                case "use-clang": // deprecated
+                case "legacy-use-cl": // undocumented, only used if some project needs to use cl.exe in the transition period
                     continue; // no need to whitelist
 
                 default:
