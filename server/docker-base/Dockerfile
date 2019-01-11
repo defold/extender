@@ -192,13 +192,13 @@ RUN \
 
 # Installation notes: https://wiki.winehq.org/Ubuntu
 RUN \
-  wget https://dl.winehq.org/wine-builds/Release.key && \
-  apt-key add Release.key && \
-  rm Release.key && \
-  apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
+  wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
+  apt-key add winehq.key && \
+  rm winehq.key && \
+  apt-add-repository 'deb https://dl.winehq.org/wine-builds/ubuntu/ xenial main' && \
   dpkg --add-architecture i386 && \
   apt-get update && \
-  apt-get install -y --install-recommends wine-stable
+  apt-get install -y --install-recommends winehq-stable
 
 ENV PATH ${PATH}:/opt/wine-stable/bin
 
