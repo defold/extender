@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -35,11 +36,25 @@ public class ZipUtils {
         }
     }
 
-    public static void zip(OutputStream outputStream, List<File> filesToZip) throws IOException {
+    private static void getFilesFromFolder(File file, List<File> output) {
+        if (file.isFile()) {
+            output.add(file);
+        }
+
+        if (file.isDirectory()) {
+            File[] listOfFiles = file.listFiles();
+            for (File child: listOfFiles) {
+                getFilesFromFolder(child, output);
+            }
+        }
+    }
+
+    public static void zip(OutputStream outputStream, File baseFolder, List<File> filesToZip) throws IOException {
         ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
 
         for (File file : filesToZip) {
-            zipOutputStream.putNextEntry(new ZipEntry(file.getName()));
+            String relative = baseFolder.toURI().relativize(file.toURI()).getPath();
+            zipOutputStream.putNextEntry(new ZipEntry(relative));
             Files.copy(file.toPath(), zipOutputStream);
             zipOutputStream.closeEntry();
         }
@@ -47,11 +62,17 @@ public class ZipUtils {
         zipOutputStream.finish();
     }
 
-    public static File zip(List<File> filesToZip, final String zipFilename) throws IOException {
+    public static File zip(List<File> filesToZip, final File baseFolder, final String zipFilename) throws IOException {
         File zipFile = new File(zipFilename);
 
+        List<File> allFiles = new ArrayList<>();
+
+        for (File file : filesToZip) {
+            getFilesFromFolder(file, allFiles);
+        }
+
         try (FileOutputStream fileOutputStream = new FileOutputStream(zipFile)) {
-            ZipUtils.zip(fileOutputStream, filesToZip);
+            ZipUtils.zip(fileOutputStream, baseFolder, allFiles);
         }
 
         return zipFile;

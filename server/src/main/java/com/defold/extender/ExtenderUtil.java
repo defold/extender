@@ -214,10 +214,34 @@ class ExtenderUtil
         return null;
     }
 
+
+    static Object getAppManifestContextObject(AppManifestConfiguration manifest, String name) throws ExtenderException {
+        if (manifest.context == null) {
+            return null;
+        }
+        return manifest.context.get(name);
+    }
+
     static Boolean getAppManifestBoolean(AppManifestConfiguration manifest, String platform, String name, Boolean default_value) throws ExtenderException {
         Boolean b = (Boolean)getAppManifestObject(manifest, platform, name);
         if (b instanceof Boolean) {
             return b;
+        }
+        return default_value;
+    }
+
+    static Boolean getAppManifestContextBoolean(AppManifestConfiguration manifest, String name, Boolean default_value) throws ExtenderException {
+        Boolean b = (Boolean)getAppManifestContextObject(manifest, name);
+        if (b instanceof Boolean) {
+            return b;
+        }
+        return default_value;
+    }
+
+    static String getAppManifestContextString(AppManifestConfiguration manifest, String name, String default_value) throws ExtenderException {
+        String s = (String)getAppManifestContextObject(manifest, name);
+        if (s instanceof String) {
+            return s;
         }
         return default_value;
     }

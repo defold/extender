@@ -33,11 +33,13 @@ class Extender {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private final Map<String, Object> appManifestContext;
+    private final Boolean withSymbols;
 
     private List<File> extDirs;
     private List<File> manifests;
 
-    static final String BASE_VARIANT_KEYWORD = "baseVariant";
+    static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
+    static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
@@ -93,9 +95,9 @@ class Extender {
                 appManifest.platforms.get(platform).context = new HashMap<String, Object>();
             }
 
-            if (appManifest.context != null && appManifest.context.get(BASE_VARIANT_KEYWORD) instanceof String)
+            String baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
+            if (baseVariant != null)
             {
-                String baseVariant = (String)appManifest.context.get(BASE_VARIANT_KEYWORD);
                 File baseVariantFile = new File(sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
 
                 if (!baseVariantFile.exists()) {
@@ -106,6 +108,8 @@ class Extender {
                 baseVariantManifest = Extender.loadYaml(this.jobDirectory, baseVariantFile, AppManifestConfiguration.class);
             }
         }
+
+        this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, false);
 
         this.platform = platform;
         this.sdk = sdk;
@@ -528,21 +532,41 @@ class Extender {
 
         processExecutor.execute(command);
 
+        // Extract symbols
+        if (this.withSymbols) {
+            String symbolCmd = platformConfig.symbolCmd;
+            if (symbolCmd != null && !symbolCmd.equals("")) {
+                Map<String, Object> symbolContext = context(manifestContext);
+                symbolContext.put("src", ExtenderUtil.getRelativePath(jobDirectory, exe));
+
+                symbolCmd = templateExecutor.execute(symbolCmd, symbolContext);
+                processExecutor.execute(symbolCmd);
+            }
+        }
+
         // Collect output/binaries
         String zipContentPattern = platformConfig.zipContentPattern;
         if (zipContentPattern == null) {
             zipContentPattern = writeExePattern;
         }
 
+        // If we wish to grab the symbols, prepend the pattern (E.g. to "(.*dSYM)|(dmengine)")
+        if (this.withSymbols) {
+            String symbolsPattern = platformConfig.symbolsPattern;
+            if (!symbolsPattern.equals("")) {
+                zipContentPattern = symbolsPattern + "|" + zipContentPattern;
+            }
+        }
+
         final Pattern p = Pattern.compile(zipContentPattern);
-        List<File> exes = Arrays.asList(buildDirectory.listFiles(new FileFilter(){
+        List<File> outputFiles = Arrays.asList(buildDirectory.listFiles(new FileFilter(){
             @Override
             public boolean accept(File file) {
                 return p.matcher(file.getName()).matches();
             }
         }));
 
-        return exes;
+        return outputFiles;
     }
 
     private File buildRJar() throws ExtenderException {
