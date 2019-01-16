@@ -53,8 +53,13 @@ public class ZipUtils {
         ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
 
         for (File file : filesToZip) {
-            String relative = baseFolder.toURI().relativize(file.toURI()).getPath();
-            zipOutputStream.putNextEntry(new ZipEntry(relative));
+            if (baseFolder != null) {
+                String relative = baseFolder.toURI().relativize(file.toURI()).getPath();
+                zipOutputStream.putNextEntry(new ZipEntry(relative));
+            }
+            else {
+                zipOutputStream.putNextEntry(new ZipEntry(file.getName()));
+            }
             Files.copy(file.toPath(), zipOutputStream);
             zipOutputStream.closeEntry();
         }
