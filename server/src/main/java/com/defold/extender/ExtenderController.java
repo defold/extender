@@ -132,7 +132,7 @@ public class ExtenderController {
 
             // Zip files
             String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
-            File zipFile = ZipUtils.zip(outputFiles, zipFilename);
+            File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
             metricsWriter.measureZipFiles(zipFile);
 
             // Write zip file to response

@@ -28,7 +28,7 @@ public class ZipUtilsTest {
         files.add(sourceFile1.toFile());
         files.add(sourceFile2.toFile());
 
-        ZipUtils.zip(new FileOutputStream(destinationFile.toFile()), files);
+        ZipUtils.zip(new FileOutputStream(destinationFile.toFile()), null, files);
 
         ZipUtils.unzip(new FileInputStream(destinationFile.toFile()), targetDirectory);
 
@@ -47,7 +47,7 @@ public class ZipUtilsTest {
         files.add(sourceFile1.toFile());
         files.add(sourceFile2.toFile());
 
-        File zipFile = ZipUtils.zip(files, zipFilename);
+        File zipFile = ZipUtils.zip(files, null, zipFilename);
         File[] filesInTarget = targetDirectory.listFiles();
 
         assertNotNull(filesInTarget);
