@@ -1,6 +1,7 @@
 package com.defold.extender.cache.info;
 
 import com.defold.extender.cache.CacheEntry;
+import com.defold.extender.cache.info.CacheInfoWrapper;
 import com.defold.extender.TestUtils;
 import org.junit.Test;
 
@@ -16,8 +17,12 @@ public class CacheInfoFileParserTest {
     public void parseFile() throws Exception {
         CacheInfoFileParser parser = new CacheInfoFileParser();
         File file = new File(ClassLoader.getSystemResource("upload/ne-cache-info.json").toURI());
-        List<CacheEntry> entries = parser.parse(file);
 
+        CacheInfoWrapper info = parser.parse(file);
+        List<CacheEntry> entries = info.getEntries();
+
+        assertEquals(1, info.getVersion());
+        assertEquals("sha256", info.getHashType());
         assertEquals(2, entries.size());
 
         CacheEntry entry1 = entries.get(0);
@@ -33,9 +38,12 @@ public class CacheInfoFileParserTest {
     public void parseInputStream() throws Exception {
         CacheInfoFileParser parser = new CacheInfoFileParser();
         File file = new File(ClassLoader.getSystemResource("upload/ne-cache-info.json").toURI());
-        List<CacheEntry> entries = parser.parse(new FileInputStream(file));
 
-        assertEquals(2, entries.size());
+        CacheInfoWrapper info = parser.parse(new FileInputStream(file));
+        List<CacheEntry> entries = info.getEntries();
+
+        assertEquals(1, info.getVersion());
+        assertEquals("sha256", info.getHashType());
 
         CacheEntry entry1 = entries.get(0);
         assertEquals(TestUtils.CACHE_ENTRIES[0].getPath(), entry1.getPath());
@@ -44,5 +52,17 @@ public class CacheInfoFileParserTest {
         CacheEntry entry2 = entries.get(1);
         assertEquals(TestUtils.CACHE_ENTRIES[1].getPath(), entry2.getPath());
         assertEquals(TestUtils.CACHE_ENTRIES[1].getKey(), entry2.getKey());
+    }
+
+    @Test
+    public void parseOldFile() throws Exception {
+        CacheInfoFileParser parser = new CacheInfoFileParser();
+        File file = new File(ClassLoader.getSystemResource("upload/old-ne-cache-info.json").toURI());
+
+        CacheInfoWrapper info = parser.parse(file);
+        List<CacheEntry> entries = info.getEntries();
+
+        assertEquals(0, info.getVersion());
+        assertEquals(null, info.getHashType());
     }
 }

@@ -5,6 +5,7 @@ import com.defold.extender.cache.CacheEntry;
 import com.defold.extender.cache.DataCacheFactory;
 import com.defold.extender.cache.info.CacheInfoFileParser;
 import com.defold.extender.cache.info.CacheInfoFileWriter;
+import com.defold.extender.cache.info.CacheInfoWrapper;
 import com.defold.extender.cache.CacheKeyGenerator;
 import com.defold.extender.cache.DataCache;
 import org.apache.commons.lang3.StringUtils;
@@ -29,6 +30,8 @@ public class DataCacheService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataCacheService.class);
 
     static final String FILE_CACHE_INFO_FILE = "ne-cache-info.json";
+    static final String FILE_CACHE_INFO_HASH_TYPE = "sha256";
+    static final int    FILE_CACHE_INFO_VERSION = 1;
 
     private final CacheKeyGenerator cacheKeyGenerator;
     private final CacheInfoFileParser cacheInfoFileParser;
@@ -103,7 +106,9 @@ public class DataCacheService {
         }
         LOGGER.info("Downloading cached files");
 
-        List<CacheEntry> cacheEntries = cacheInfoFileParser.parse(cacheInfoFile);
+        final CacheInfoWrapper wrapper = cacheInfoFileParser.parse(cacheInfoFile);
+
+        List<CacheEntry> cacheEntries = wrapper.getEntries();
         int numCachedFiles = 0;
 
         for (CacheEntry entry : cacheEntries) {
@@ -165,27 +170,36 @@ public class DataCacheService {
         }
     }
 
+    private Boolean isVersionOk(int version, String hashType) {
+        return  version == FILE_CACHE_INFO_VERSION &&
+                hashType.equals(FILE_CACHE_INFO_HASH_TYPE);
+    }
+
     /**
      * Reads a JSON file which contains an entry for each file, with corresponding checksum (sha256)
      * It modifies the json with the cache status for that file, and then writes the result to another json output file
      *   "files": [{"path": "a/b", "key": "<sha256>"}] ->
      *   "files": [{"path": "a/b", "key": "<sha256>", "cached": true/false}]
+     * It also verifies the version number and hash type
      */
     public void queryCache(InputStream input, OutputStream output) throws ExtenderException {
-        final List<CacheEntry> cacheEntries;
-
+        final CacheInfoWrapper wrapper;
         try {
-            cacheEntries = cacheInfoFileParser.parse(input);
+            wrapper = cacheInfoFileParser.parse(input);
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to parse cache info JSON: " + keepFirstLineInMessage(e.getMessage()));
         }
 
-        for (CacheEntry entry : cacheEntries) {
-            verifyCacheEntry(entry);
+        Boolean versionOK = isVersionOk(wrapper.getVersion(), wrapper.getHashType());
 
-            // Due to an issue, with mismatching keys, this needs to be temporarily disabled
-            //entry.setCached(isCached(entry.getKey()));
-            entry.setCached(false);
+        final List<CacheEntry> cacheEntries = wrapper.getEntries();
+        for (CacheEntry entry : cacheEntries) {
+            if (versionOK) {
+                verifyCacheEntry(entry);
+                entry.setCached(isCached(entry.getKey()));
+            } else {
+                entry.setCached(false);
+            }
 
             if (entry.isCached()) {
                 touchCacheEntry(entry);
@@ -193,7 +207,7 @@ public class DataCacheService {
         }
 
         try {
-            cacheInfoFileWriter.write(cacheEntries, output);
+            cacheInfoFileWriter.write(FILE_CACHE_INFO_VERSION, FILE_CACHE_INFO_HASH_TYPE, cacheEntries, output);
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to write cache info JSON: " + keepFirstLineInMessage(e.getMessage()));
         }

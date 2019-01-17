@@ -5,7 +5,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
-class CacheInfoWrapper {
+public class CacheInfoWrapper {
+
+    private int version;
+
+    private String hashType;
 
     @JsonProperty("files")
     private List<CacheEntry> entries;
@@ -14,12 +18,23 @@ class CacheInfoWrapper {
     CacheInfoWrapper() {
     }
 
-    CacheInfoWrapper(List<CacheEntry> entries) {
+    // Used when writing to disc
+    CacheInfoWrapper(int version, String hashType, List<CacheEntry> entries) {
+        this.version = version;
+        this.hashType = hashType;
         this.entries = entries;
     }
 
-    List<CacheEntry> getEntries() {
+    public List<CacheEntry> getEntries() {
         return entries;
+    }
+
+    public int getVersion() {
+        return version;
+    }
+
+    public String getHashType() {
+        return hashType;
     }
 }
 

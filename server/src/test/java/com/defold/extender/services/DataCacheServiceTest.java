@@ -7,6 +7,7 @@ import com.defold.extender.cache.DataCache;
 import com.defold.extender.cache.DataCacheFactory;
 import com.defold.extender.cache.info.CacheInfoFileParser;
 import com.defold.extender.cache.info.CacheInfoFileWriter;
+import com.defold.extender.cache.info.CacheInfoWrapper;
 import com.defold.extender.cache.CacheKeyGenerator;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -82,8 +83,8 @@ public class DataCacheServiceTest {
         File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
         dataCacheService.cacheFiles(uploadDirectory);
 
-        // Verify that 2 files were cached
-        verify(dataCache, times(2)).put(anyString(), any(File.class));
+        // Verify that 3 files were cached
+        verify(dataCache, times(3)).put(anyString(), any(File.class));
 
         // Verify that correct cache keys and file names were used
         for (CacheEntry entry : TestUtils.CACHE_ENTRIES) {
@@ -135,7 +136,7 @@ public class DataCacheServiceTest {
         // Write with an info file to the test directory root
         final CacheInfoFileWriter cacheInfoFileWriter = new CacheInfoFileWriter();
         File fileCacheInfoFile = new File(tmpDownloadDir, DataCacheService.FILE_CACHE_INFO_FILE);
-        cacheInfoFileWriter.write(Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), new FileOutputStream(fileCacheInfoFile));
+        cacheInfoFileWriter.write(DataCacheService.FILE_CACHE_INFO_VERSION, DataCacheService.FILE_CACHE_INFO_HASH_TYPE, Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), new FileOutputStream(fileCacheInfoFile));
 
         int numFilesDownloaded = spy.getCachedFiles(tmpDownloadDir);
 
@@ -173,15 +174,17 @@ public class DataCacheServiceTest {
         dataCacheService.queryCache(input, output);
 
         InputStream jsonStream = new ByteArrayInputStream(output.toByteArray());
-        List<CacheEntry> entries = parser.parse(jsonStream);
+        CacheInfoWrapper info = parser.parse(jsonStream);
+        List<CacheEntry> entries = info.getEntries();
 
+        assertEquals(1, info.getVersion());
+        assertEquals("sha256", info.getHashType());
         assertEquals(2, entries.size());
 
         CacheEntry entry1 = entries.get(0);
         assertEquals("dir/test1.txt", entry1.getPath());
         assertEquals(TestUtils.CACHE_ENTRIES[0].getKey(), entry1.getKey());
-        //assertTrue(entry1.isCached());
-        assertFalse(entry1.isCached()); // Disabled for now
+        assertTrue(entry1.isCached());
 
         CacheEntry entry2 = entries.get(1);
         assertEquals("dir2/test2.txt", entry2.getPath());
