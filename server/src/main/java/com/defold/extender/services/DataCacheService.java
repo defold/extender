@@ -107,6 +107,10 @@ public class DataCacheService {
         LOGGER.info("Downloading cached files");
 
         final CacheInfoWrapper wrapper = cacheInfoFileParser.parse(cacheInfoFile);
+        if (wrapper == null) {
+            LOGGER.info("Couldn't parse the cache info file. Ignoring");
+            return 0;
+        }
 
         List<CacheEntry> cacheEntries = wrapper.getEntries();
         int numCachedFiles = 0;
