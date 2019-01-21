@@ -77,6 +77,8 @@ public class ExtenderClient {
         }
         JSONObject root = new JSONObject();
         root.put("files", files);
+        root.put("version", 1);
+        root.put("hashType", "sha256");
 
         String data = root.toJSONString().replace("\\/", "/");
 
