@@ -44,13 +44,6 @@ class Extender {
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
 
-    private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
-    private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
-    private static final String ANDROID_STL_INCLUDE_PATH = System.getenv("ANDROID_STL_INCLUDE");
-    private static final String ANDROID_STL_ARCH_INCLUDE_PATH = System.getenv("ANDROID_STL_ARCH_INCLUDE");
-    private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
-    private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
-
     private final boolean useWine; // During the transition period
 
     Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
@@ -291,15 +284,6 @@ class Extender {
     @SuppressWarnings("unchecked")
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
-
-        if (this.platform.contains("android")) {
-            context.put("android_ndk_path", ANDROID_NDK_PATH);
-            context.put("android_ndk_include", ANDROID_NDK_INCLUDE_PATH);
-            context.put("android_stl_include", ANDROID_STL_INCLUDE_PATH);
-            context.put("android_stl_arch_include", ANDROID_STL_ARCH_INCLUDE_PATH);
-            context.put("android_stl_lib", ANDROID_STL_LIB_PATH);
-            context.put("android_sysroot", ANDROID_SYSROOT_PATH);
-        }
 
         context = Extender.mergeContexts(context, platformConfig.context);
         context = Extender.mergeContexts(context, manifestContext);
