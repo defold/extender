@@ -1,6 +1,4 @@
 {
-  "version": 1,
-  "hashType": "sha256",
   "files": [
     {
       "path": "dir/test1.txt",

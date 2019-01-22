@@ -13,7 +13,7 @@ public class CacheInfoFileWriter {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    public void write(List<CacheEntry> entries, OutputStream outputStream) throws IOException {
-        objectMapper.writer().writeValue(outputStream, new CacheInfoWrapper(entries));
+    public void write(int version, String hashType, List<CacheEntry> entries, OutputStream outputStream) throws IOException {
+        objectMapper.writer().writeValue(outputStream, new CacheInfoWrapper(version, hashType, entries));
     }
 }

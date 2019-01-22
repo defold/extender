@@ -14,13 +14,11 @@ public class CacheInfoFileParser {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    public List<CacheEntry> parse(final File file) throws IOException {
-        CacheInfoWrapper wrapper = objectMapper.readerFor(CacheInfoWrapper.class).readValue(file);
-        return wrapper.getEntries();
+    public CacheInfoWrapper parse(final File file) throws IOException {
+        return objectMapper.readerFor(CacheInfoWrapper.class).readValue(file);
     }
 
-    public List<CacheEntry> parse(final InputStream inputStream) throws IOException {
-        CacheInfoWrapper wrapper = objectMapper.readerFor(CacheInfoWrapper.class).readValue(inputStream);
-        return wrapper.getEntries();
+    public CacheInfoWrapper parse(final InputStream inputStream) throws IOException {
+        return objectMapper.readerFor(CacheInfoWrapper.class).readValue(inputStream);
     }
 }
