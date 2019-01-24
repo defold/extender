@@ -20,10 +20,13 @@ import java.nio.file.Files;
 @Service
 public class DarwinEngineBuilder {
 
+    private final RestTemplate restTemplate;
     private final String darwinServerBaseUrl;
 
     @Autowired
-    public DarwinEngineBuilder(@Value("${extender.darwin-server.url}") String darwinServerBaseUrl) {
+    public DarwinEngineBuilder(final RestTemplate restTemplate,
+                               @Value("${extender.darwin-server.url}") final String darwinServerBaseUrl) {
+        this.restTemplate = restTemplate;
         this.darwinServerBaseUrl = darwinServerBaseUrl;
     }
 
@@ -31,7 +34,20 @@ public class DarwinEngineBuilder {
                         final String platform,
                         final String sdkVersion) throws IOException, ExtenderException {
 
-        // Create multipart request
+        final HttpEntity<MultiValueMap<String, Object>> requestEntity = createMultipartRequest(projectDirectory);
+
+        // Send request to darwin server
+        final String serverUrl = String.format("%s/build/%s/%s", darwinServerBaseUrl, platform, sdkVersion);
+        final ResponseEntity<byte[]> response = restTemplate.postForEntity(serverUrl, requestEntity, byte[].class);
+
+        if (! response.getStatusCode().is2xxSuccessful()) {
+            throw new ExtenderException("Failed to build darwin engine: " + new String(response.getBody()));
+        }
+
+        return response.getBody();
+    }
+
+    HttpEntity<MultiValueMap<String, Object>> createMultipartRequest(final File projectDirectory) throws IOException {
         final HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
@@ -40,18 +56,6 @@ public class DarwinEngineBuilder {
                 .filter(Files::isRegularFile)
                 .forEach(path -> body.add("files", new FileSystemResource(path.toFile())));
 
-        final HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-
-        // Send request to darwin server
-        final RestTemplate restTemplate = new RestTemplate();
-        final String serverUrl = String.format("%s/build/%s/%s", darwinServerBaseUrl, platform, sdkVersion);
-
-        final ResponseEntity<byte[]> response = restTemplate.postForEntity(serverUrl, requestEntity, byte[].class);
-
-        if (! response.getStatusCode().is2xxSuccessful()) {
-            throw new ExtenderException("Failed to build darwin engine: " + new String(response.getBody()));
-        }
-
-        return response.getBody();
+        return new HttpEntity<>(body, headers);
     }
 }
