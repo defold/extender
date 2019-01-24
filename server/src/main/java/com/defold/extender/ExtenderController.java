@@ -131,7 +131,7 @@ public class ExtenderController {
             // Build engine locally or on darwin server
             if (darwinServerEnabled && isDarwinPlatform(platform)) {
                 final byte[] bytes = darwinEngineBuilder.build(uploadDirectory, platform, sdkVersion);
-                metricsWriter.measureEngineBuild(platform);
+                metricsWriter.measureDarwinEngineBuild(platform);
 
                 IOUtils.copyLarge(new ByteArrayInputStream(bytes), response.getOutputStream());
             } else {
