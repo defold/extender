@@ -19,7 +19,8 @@ extender:
         s3:
             bucket: defold-extender-cache-dev
     darwin-server:
-        enabled: false
+        enabled: true
+        url: http://localhost:9010
         platforms: ios,osx
 
 spring:
@@ -65,7 +66,6 @@ spring:
 extender:
     darwin-server:
         enabled: true
-        url: http://localhost:9010
 
 ---
 
