@@ -1,5 +1,32 @@
-/build
-/.gradle
-/.idea
+**/build
+**/classes
+/client/.buildcache
 /tmp
+/debugsdk
+/defoldsdk
+*.class
+!server/test-data/sdk/
+server/test-data/sdk/*
+!server/test-data/sdk/a
 
+# C++
+/**/*.o
+/**/*.pdb
+
+# IntelliJ IDEA
+/.idea
+/*.iml
+/*.ipr
+/*.iws
+/server/out
+
+# Eclipse
+/.classpath
+/.project
+/.settings
+
+# Gradle
+/.gradle
+
+# Mac
+.DS_Store

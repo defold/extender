@@ -1,0 +1,33 @@
+{
+  "family": "extender",
+  "taskRoleArn": "arn:aws:iam::378120250811:role/DefoldExtenderS3CacheProdRole",
+  "containerDefinitions": [
+    {
+      "image": "%IMAGE%",
+      "name": "extender",
+      "cpu": 10,
+      "memory": 6144,
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 9000
+        }
+      ],
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "production"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "prod-logs",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "extender",
+          "awslogs-datetime-format": "%Y-%m-%d %H:%M:%S"
+        }
+      }
+    }
+  ]
+}

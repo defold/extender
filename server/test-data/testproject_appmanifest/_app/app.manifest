@@ -1,0 +1,13 @@
+platforms:
+    common:
+        context:
+            excludeSymbols: ["FooSymbol"]
+            excludeLibs: ["alib", "engine_foo"]
+
+    x86-osx:
+        context:
+            excludeLibs: ["alib"]
+
+    armv7-android:
+        context:
+            excludeJars: ["(.*)/Dummy1.jar"]

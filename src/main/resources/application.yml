@@ -1,9 +1,0 @@
-server:
-    port: 9000
-extender:
-    defoldSdkPath: /tmp/defoldsdk
-spring.http.multipart.max-file-size: 150mb
-spring.http.multipart.max-request-size: 150mb
-
-# Don't check for templates on startup.
-spring.mustache.check-template-location: false

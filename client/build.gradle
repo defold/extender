@@ -1,0 +1,22 @@
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+jar {
+    baseName = 'extender-client'
+    version = '0.0.1'
+}
+
+dependencies {
+    compile('org.apache.httpcomponents:httpclient:4.5.6')
+    compile('org.apache.httpcomponents:httpmime:4.5.6')
+    compile('com.googlecode.json-simple:json-simple:1.1.1') {
+        exclude module: 'junit'
+    }
+    testCompile('commons-io:commons-io:2.6')
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}

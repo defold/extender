@@ -1,0 +1,3 @@
+[submodule "server/scripts/shared"]
+	path = server/scripts/shared
+	url = git@github.com:defold/aws-build-tools.git

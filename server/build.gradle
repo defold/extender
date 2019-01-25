@@ -1,0 +1,81 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'io.spring.gradle:dependency-management-plugin:1.0.6.RELEASE'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:1.5.17.RELEASE'
+        classpath 'se.transmode.gradle:gradle-docker:1.2'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'idea'
+    id 'eclipse'
+    id 'org.springframework.boot' version '1.5.17.RELEASE'
+}
+
+apply plugin: 'docker'
+apply plugin: 'io.spring.dependency-management'
+
+jar {
+    baseName = 'extender'
+    version =  '0.1.0'
+}
+
+repositories {
+    mavenCentral()
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+// This affects the Docker repo name.
+group = 'extender'
+
+dependencyManagement {
+    imports {
+        mavenBom 'com.amazonaws:aws-java-sdk-bom:1.11.436'
+    }
+}
+
+dependencies {
+    compile('org.springframework.boot:spring-boot-starter-web') {
+        exclude module: 'spring-boot-starter-tomcat'
+    }
+    compile('org.springframework.boot:spring-boot-starter-jetty')
+    compile('com.samskivert:jmustache:1.14')
+    compile('com.google.guava:guava:27.0-jre')
+    compile('org.apache.httpcomponents:httpclient:4.5.6')
+    compile('org.apache.httpcomponents:httpmime:4.5.6')
+    compile('commons-io:commons-io:2.6')
+    compile('commons-fileupload:commons-fileupload:1.3.3')
+    compile('commons-chain:commons-chain:1.2')
+    compile('org.apache.commons:commons-lang3:3.8.1')
+    compile('org.springframework.boot:spring-boot-starter-actuator')
+    compile('org.influxdb:influxdb-java:2.10')
+    compile('com.amazonaws:aws-java-sdk-s3:1.11.438')
+
+    testCompile('junit:junit:4.12')
+    testCompile('org.springframework:spring-test')
+    testCompile('org.springframework.boot:spring-boot-starter-test')
+    testCompile('org.smali:dexlib2:2.2.5')
+    testCompile project(':client')
+}
+
+task buildDocker(type: Docker, dependsOn: build) {
+    push = false
+    applicationName = jar.baseName
+    dockerfile = file('docker/Dockerfile')
+    doFirst {
+        copy {
+            from jar
+            into stageDir
+        }
+        copy {
+            from 'docker'
+            into stageDir
+        }
+    }
+}
