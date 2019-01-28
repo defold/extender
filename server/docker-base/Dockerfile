@@ -188,7 +188,7 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_35_23} && \
 # Windows
 #
 
-ENV PLATFORM_WIN32_SDK $PLATFORMSDK_DIR/Win32
+ENV PLATFORMSDK_WIN32 $PLATFORMSDK_DIR/Win32
 
 # windres: Allows for generating .res files that can be used during linking
 RUN \
@@ -197,43 +197,43 @@ RUN \
   ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
 
 # Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat (Can probably be trimmed further)
-ENV VS140COMNTOOLS "${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0/Common7/Tools/"
-ENV VCINSTALLDIR "${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0/VC/"
-ENV VSINSTALLDIR "${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0/"
-ENV WindowsLibPath "${PLATFORM_WIN32_SDK}/WindowsKits/8.1/References/CommonConfiguration/Neutral"
-ENV WindowsSdkDir "${PLATFORM_WIN32_SDK}/WindowsKits/8.1/"
+ENV VS140COMNTOOLS "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/Tools/"
+ENV VCINSTALLDIR "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/"
+ENV VSINSTALLDIR "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/"
+ENV WindowsLibPath "${PLATFORMSDK_WIN32}/WindowsKits/8.1/References/CommonConfiguration/Neutral"
+ENV WindowsSdkDir "${PLATFORMSDK_WIN32}/WindowsKits/8.1/"
 ENV WindowsSDKLibVersion "winv6.3/"
 ENV WindowsSDKVersion "/"
 
 RUN \
-  mkdir -p ${PLATFORM_WIN32_SDK}/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${PLATFORM_WIN32_SDK}/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORM_WIN32_SDK}/WindowsKits && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORM_WIN32_SDK} && \
-  ln -s ${PLATFORM_WIN32_SDK}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0
+  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
+  ln -s ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
 # so we solve the bulk by making the suffixes lowercase
-RUN find $PLATFORM_WIN32_SDK -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
 # Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
-RUN find $PLATFORM_WIN32_SDK -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
 
 # and the rest are manually copied (or made lower case)
-RUN (cd ${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
-    (cd ${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0/VC/lib && cp oldnames.lib OLDNAMES.lib) && \
-    (cd ${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
-    (cd ${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0/VC/lib && cp delayimp.lib Delayimp.lib) && \
-    (cd ${PLATFORM_WIN32_SDK}/WindowsKits/8.1/Include/shared && cp driverspecs.h DriverSpecs.h) && \
-    (cd ${PLATFORM_WIN32_SDK}/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h) && \
-    (cd ${PLATFORM_WIN32_SDK}/WindowsKits/8.1/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
-    (cd ${PLATFORM_WIN32_SDK}/WindowsKits/8.1/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
+RUN (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib && cp oldnames.lib OLDNAMES.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib && cp delayimp.lib Delayimp.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Include/shared && cp driverspecs.h DriverSpecs.h) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
 # For SDK's older than 1.2.146
 ENV PROGRAM_FILES /var/extender/.wine/drive_c/ProgramFilesx86
 RUN \
   mkdir -p ${PROGRAM_FILES} && \
-  ln -s ${PLATFORM_WIN32_SDK}/MicrosoftVisualStudio14.0 ${PROGRAM_FILES}/MicrosoftVisualStudio14.0 && \
-  ln -s ${PLATFORM_WIN32_SDK}/WindowsKits ${PROGRAM_FILES}/WindowsKits
+  ln -s ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 ${PROGRAM_FILES}/MicrosoftVisualStudio14.0 && \
+  ln -s ${PLATFORMSDK_WIN32}/WindowsKits ${PROGRAM_FILES}/WindowsKits
 
 #
 # Android SDK/NDK
