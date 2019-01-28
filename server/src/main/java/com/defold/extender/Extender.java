@@ -218,6 +218,11 @@ class Extender {
             throw new ExtenderException(String.format("%s:%d: error: Manifest files are YAML files and cannot contain tabs. Indentation should be done with spaces.", ExtenderUtil.getRelativePath(root, manifest), numLines));
         }
 
+        // Introduced in 1.2.146
+        // For a migration period, until everyone uses iPhoneOS12.1.sdk
+        yaml = yaml.replace("/opt/iPhoneOS11.2.sdk/","{{env.PLATFORMSDK_DIR}}/iPhoneOS11.2.sdk/");
+        yaml = yaml.replace("/opt/MacOSX10.13.sdk/","{{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/");
+
         try {
             return new Yaml().loadAs(yaml, type);
         } catch(YAMLException e) {

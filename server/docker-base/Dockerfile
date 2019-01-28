@@ -28,7 +28,9 @@ RUN \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
     freeglut3-dev \
-    unzip && \
+    unzip \
+    tree \
+    silversearcher-ag && \
   rm -rf /var/lib/apt/lists/* && \
   rm -rf /var/cache/oracle-jdk8-installer
 
@@ -99,25 +101,24 @@ RUN \
   apt-get remove -y git cmake
 
 
+ENV PLATFORMSDK_DIR=/opt/platformsdk
+RUN mkdir $PLATFORMSDK_DIR
+
 #
 # iOS + OSX
 #
-# For package instructions, see README_IOS.md
-
-# Keeping iOS 10.3 and MacOSX10.2 around for a few sprints
+# For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
-  wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt && \
-  mv /opt/iPhoneOS.sdk /opt/iPhoneOS11.2.sdk && \
-  wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
-  mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
-  wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C /opt && \
-  mv /opt/MacOSX.sdk /opt/MacOSX10.13.sdk && \
-  wget -q -O - ${S3_URL}/MacOSX10.12.sdk.tar.gz | tar xz -C /opt && \
-  mv /opt/MacOSX.sdk /opt/MacOSX10.12.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS11.2.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS12.1.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneSimulator12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator12.1.sdk && \
+  wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
   ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil && \
-  ln -s /usr/local/bin/clang /usr/local/bin/arm-apple-darwin12-clang && \
-  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-apple-darwin12-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-apple-darwin12-clang-ar && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
 
@@ -133,7 +134,7 @@ RUN apt-get autoclean && \
 ENV EMCC_SKIP_SANITY_CHECK 1
 
 ## Emscripten 1.38.12
-ENV EMSCRIPTEN_SDK_1_38_12 /opt/emsdk_1.38.12
+ENV EMSCRIPTEN_SDK_1_38_12 ${PLATFORMSDK_DIR}/emsdk_1.38.12
 ENV EMSCRIPTEN_HOME_1_38_12 ${EMSCRIPTEN_SDK_1_38_12}/bin/emsdk_portable
 ENV EMSCRIPTEN_CONFIG_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}/.emscripten
 ENV EMSCRIPTEN_BIN_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}/emscripten/1.38.12
@@ -151,7 +152,7 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12}.lock
 
 ## Emscripten 1.35.23 - Needs to be installed and activated last
-ENV EMSCRIPTEN_SDK_1_35_23 /opt/emsdk_1.35.23
+ENV EMSCRIPTEN_SDK_1_35_23 ${PLATFORMSDK_DIR}/emsdk_1.35.23
 ENV EMSCRIPTEN_HOME_1_35_23 ${EMSCRIPTEN_SDK_1_35_23}/bin/emsdk_portable
 ENV EMSCRIPTEN_CONFIG_1_35_23 ${EMSCRIPTEN_HOME_1_35_23}/.emscripten
 ENV EMSCRIPTEN_BIN_1_35_23 ${EMSCRIPTEN_HOME_1_35_23}/emscripten/master
@@ -233,12 +234,18 @@ RUN \
   wine cmd /c echo Initialized Wine folder && \
   chmod -R 755 ${WINEPREFIX} && \
   ln -s /tmp ${WINEPREFIX}/drive_c/tmp && \
-  ln -s ${WINEPREFIX}/drive_c/Program\ Files\ \(x86\) ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
-  mkdir ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
-  ln -s ${WINEPREFIX}/drive_c/ProgramFilesx86/Microsoft\ Visual\ Studio\ 14.0 ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0
+  ln -s ${WINEPREFIX}/drive_c/Program\ Files\ \(x86\) ${WINEPREFIX}/drive_c/ProgramFilesx86
+
+USER root
+
+RUN \
+  mkdir ${PLATFORMSDK_DIR}/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${PLATFORMSDK_DIR}/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_DIR}/WindowsKits && \
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_DIR}/MicrosoftVisualStudio14.0 && \
+  ln -s ${PLATFORMSDK_DIR}/WindowsKits ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
+  ln -s ${PLATFORMSDK_DIR}/MicrosoftVisualStudio14.0 ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0
 
 USER root
 
@@ -250,7 +257,7 @@ RUN apt-get update && \
 #
 # Android SDK/NDK
 #
-ENV ANDROID_ROOT /opt/android
+ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
 ENV ANDROID_TOOLS_FILENAME sdk-tools-linux-3859397.zip
 ENV ANDROID_TOOLS_URL https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
 
