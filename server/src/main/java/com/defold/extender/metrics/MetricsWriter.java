@@ -45,6 +45,10 @@ public class MetricsWriter {
         addMetric("job.build." + platform, timer.start());
     }
 
+    public void measureRemoteEngineBuild(final String platform) {
+        addMetric("job.remoteBuild." + platform, timer.start());
+    }
+
     public void measureZipFiles(final File zipFile) {
         addMetric("job.zip", timer.start());
         addMetric("job.zipSize", zipFile.length());
