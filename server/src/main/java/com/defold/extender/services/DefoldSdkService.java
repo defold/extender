@@ -5,7 +5,6 @@ import com.defold.extender.ZipUtils;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.metrics.CounterService;
@@ -34,6 +33,7 @@ public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
     private static final String REMOTE_SDK_URL_PATTERN = "http://d.defold.com/archive/%s/engine/defoldsdk.zip";
     private static final String TEST_SDK_DIRECTORY = "a";
+    private static final String LOCAL_VERSION = "local";
 
     private final Path baseSdkDirectory;
     private final File dynamoHome;
@@ -76,7 +76,19 @@ public class DefoldSdkService {
         }
     }
 
+    public String getSdkVersion(final String version) {
+        return isLocalSdk(version) ? LOCAL_VERSION : version;
+    }
+
+    public boolean isLocalSdk(final String sdkVersion) {
+        return sdkVersion == null || LOCAL_VERSION.equals(sdkVersion) || System.getenv("DYNAMO_HOME") != null;
+    }
+
     public File getSdk(String hash) throws IOException, URISyntaxException, ExtenderException {
+        return isLocalSdk(hash) ? getLocalSdk() : getRemoteSdk(hash);
+    }
+
+    public File getRemoteSdk(String hash) throws IOException, URISyntaxException, ExtenderException {
         long methodStart = System.currentTimeMillis();
 
         // Define SDK directory for this version

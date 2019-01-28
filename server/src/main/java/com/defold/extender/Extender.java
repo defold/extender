@@ -51,8 +51,6 @@ class Extender {
     private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
     private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
-    private final boolean useWine; // During the transition period
-
     Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
@@ -114,27 +112,9 @@ class Extender {
         this.platform = platform;
         this.sdk = sdk;
 
-        String alternatePlatform = platform;
-        if (this.platform.endsWith("win32")) {
-            // Detect if the SDK supports the alternate build path
-            try {
-                PlatformConfig alternateConfig = getPlatformConfig(platform.replace("win32", "wine32"));
-                if (alternateConfig != null) {
-                    Boolean use_cl = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "legacy-use-cl", false);
-                    if (use_cl) {
-                        alternatePlatform = platform.replace("win32", "wine32");
-                    }
-                }
-            } catch (ExtenderException e) {
-                // Pass
-            }
-        }
-
-        this.useWine = alternatePlatform.contains("wine32");
-
-        this.platformConfig = getPlatformConfig(alternatePlatform);
+        this.platformConfig = getPlatformConfig(platform);
         this.appManifestContext = ExtenderUtil.getAppManifestContext(appManifest, platform, baseVariantManifest);
-        LOGGER.info("Using context for platform: " + alternatePlatform);
+        LOGGER.info("Using context for platform: " + platform);
 
         processExecutor.setCwd(jobDirectory);
 
@@ -436,17 +416,7 @@ class Extender {
         if (libs == null) {
             return new ArrayList<>();
         }
-        if (!this.useWine) {
-            return libs;
-        }
-        List<String> modifiedLibs = new ArrayList<>();
-        for( String lib : libs) {
-            if (!lib.toLowerCase().endsWith(".lib")) {
-                lib = lib + ".lib";
-            }
-            modifiedLibs.add(lib);
-        }
-        return modifiedLibs;
+        return libs;
     }
 
     private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
