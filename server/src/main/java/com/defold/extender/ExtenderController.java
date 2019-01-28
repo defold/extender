@@ -1,6 +1,6 @@
 package com.defold.extender;
 
-import com.defold.extender.darwin.DarwinEngineBuilder;
+import com.defold.extender.remote.RemoteEngineBuilder;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
@@ -49,24 +49,24 @@ public class ExtenderController {
     private final DataCacheService dataCacheService;
     private final GaugeService gaugeService;
 
-    private final DarwinEngineBuilder darwinEngineBuilder;
-    private final boolean darwinServerEnabled;
-    private final List<String> darwinServerPlatforms;
+    private final RemoteEngineBuilder remoteEngineBuilder;
+    private final boolean remoteBuilderEnabled;
+    private final List<String> remoteBuilderPlatforms;
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
                               DataCacheService dataCacheService,
                               @Qualifier("gaugeService") GaugeService gaugeService,
-                              DarwinEngineBuilder darwinEngineBuilder,
-                              @Value("${extender.darwin-server.enabled}") boolean darwinServerEnabled,
-                              @Value("${extender.darwin-server.platforms}") List<String> darwinServerPlatforms) {
+                              RemoteEngineBuilder remoteEngineBuilder,
+                              @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
+                              @Value("${extender.remote-builder.platforms}") List<String> remoteBuilderPlatforms) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gaugeService = gaugeService;
 
-        this.darwinEngineBuilder = darwinEngineBuilder;
-        this.darwinServerEnabled = darwinServerEnabled;
-        this.darwinServerPlatforms = darwinServerPlatforms;
+        this.remoteEngineBuilder = remoteEngineBuilder;
+        this.remoteBuilderEnabled = remoteBuilderEnabled;
+        this.remoteBuilderPlatforms = remoteBuilderPlatforms;
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -128,10 +128,10 @@ public class ExtenderController {
             receiveUpload(request, uploadDirectory);
             metricsWriter.measureReceivedRequest(request);
 
-            // Build engine locally or on darwin server
-            if (darwinServerEnabled && isDarwinPlatform(platform)) {
-                final byte[] bytes = darwinEngineBuilder.build(uploadDirectory, platform, sdkVersion);
-                metricsWriter.measureDarwinEngineBuild(platform);
+            // Build engine locally or on remote builder
+            if (remoteBuilderEnabled && isRemotePlatform(platform)) {
+                final byte[] bytes = remoteEngineBuilder.build(uploadDirectory, platform, sdkVersion);
+                metricsWriter.measureRemoteEngineBuild(platform);
 
                 IOUtils.copyLarge(new ByteArrayInputStream(bytes), response.getOutputStream());
             } else {
@@ -255,8 +255,8 @@ public class ExtenderController {
         }
     }
 
-    private boolean isDarwinPlatform(final String platform) {
-        for (final String candidate : darwinServerPlatforms) {
+    private boolean isRemotePlatform(final String platform) {
+        for (final String candidate : remoteBuilderPlatforms) {
             if (platform.endsWith(candidate)) {
                 return true;
             }

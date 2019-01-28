@@ -1,4 +1,4 @@
-package com.defold.extender.darwin;
+package com.defold.extender.remote;
 
 import com.defold.extender.ExtenderException;
 import org.junit.Before;
@@ -20,21 +20,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-public class DarwinEngineBuilderTest {
+public class RemoteEngineBuilderTest {
 
-    private DarwinEngineBuilder darwinEngineBuilder;
+    private RemoteEngineBuilder remoteEngineBuilder;
     private RestTemplate restTemplate;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUp() throws IOException {
-        final String darwinServerBaseUrl = "https://test.darwin-build.defold.com";
+        final String remoteBuilderBaseUrl = "https://test.darwin-build.defold.com";
         final HttpEntity<MultiValueMap<String, Object>> httpEntity = mock(HttpEntity.class);
 
         restTemplate = mock(RestTemplate.class);
 
-        darwinEngineBuilder = spy(new DarwinEngineBuilder(restTemplate, darwinServerBaseUrl));
-        doReturn(httpEntity).when(darwinEngineBuilder).createMultipartRequest(any(File.class));
+        remoteEngineBuilder = spy(new RemoteEngineBuilder(restTemplate, remoteBuilderBaseUrl));
+        doReturn(httpEntity).when(remoteEngineBuilder).createMultipartRequest(any(File.class));
     }
 
     @Test
@@ -49,7 +49,7 @@ public class DarwinEngineBuilderTest {
                 any(Class.class)))
                 .thenReturn(new ResponseEntity<>(content.getBytes(), HttpStatus.OK));
 
-        byte[] bytes = darwinEngineBuilder.build(directory, "armv7-ios", "a6876bc5s");
+        byte[] bytes = remoteEngineBuilder.build(directory, "armv7-ios", "a6876bc5s");
 
         assertEquals(content, new String(bytes));
     }
@@ -66,6 +66,6 @@ public class DarwinEngineBuilderTest {
                 any(Class.class)))
                 .thenReturn(new ResponseEntity<>(content.getBytes(), HttpStatus.INTERNAL_SERVER_ERROR));
 
-        darwinEngineBuilder.build(directory, "armv7-ios", "a6876bc5s");
+        remoteEngineBuilder.build(directory, "armv7-ios", "a6876bc5s");
     }
 }

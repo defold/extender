@@ -1,4 +1,4 @@
-package com.defold.extender.darwin;
+package com.defold.extender.remote;
 
 import com.defold.extender.ExtenderException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,16 +18,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 @Service
-public class DarwinEngineBuilder {
+public class RemoteEngineBuilder {
 
     private final RestTemplate restTemplate;
-    private final String darwinServerBaseUrl;
+    private final String remoteBuilderBaseUrl;
 
     @Autowired
-    public DarwinEngineBuilder(final RestTemplate restTemplate,
-                               @Value("${extender.darwin-server.url}") final String darwinServerBaseUrl) {
+    public RemoteEngineBuilder(final RestTemplate restTemplate,
+                               @Value("${extender.remote-builder.url}") final String remoteBuilderBaseUrl) {
         this.restTemplate = restTemplate;
-        this.darwinServerBaseUrl = darwinServerBaseUrl;
+        this.remoteBuilderBaseUrl = remoteBuilderBaseUrl;
     }
 
     public byte[] build(final File projectDirectory,
@@ -36,12 +36,12 @@ public class DarwinEngineBuilder {
 
         final HttpEntity<MultiValueMap<String, Object>> requestEntity = createMultipartRequest(projectDirectory);
 
-        // Send request to darwin server
-        final String serverUrl = String.format("%s/build/%s/%s", darwinServerBaseUrl, platform, sdkVersion);
+        // Send request to remote builder
+        final String serverUrl = String.format("%s/build/%s/%s", remoteBuilderBaseUrl, platform, sdkVersion);
         final ResponseEntity<byte[]> response = restTemplate.postForEntity(serverUrl, requestEntity, byte[].class);
 
         if (! response.getStatusCode().is2xxSuccessful()) {
-            throw new ExtenderException("Failed to build darwin engine: " + new String(response.getBody()));
+            throw new ExtenderException("Failed to build engine remotely: " + new String(response.getBody()));
         }
 
         return response.getBody();
