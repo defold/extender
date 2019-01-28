@@ -1,7 +1,4 @@
-# To solve the PID1 zombie process issue
-# http://phusion.github.io/baseimage-docker/
-# It derives from ubuntu:16.04
-FROM phusion/baseimage:0.9.22
+FROM ubuntu:16.04
 
 # Base stuff
 RUN \
@@ -17,6 +14,8 @@ RUN \
     oracle-java8-installer \
     gcc \
     g++ \
+    gcc-multilib \
+    g++-multilib \
     libssl-dev \
     openssl \
     libtool \
@@ -28,7 +27,8 @@ RUN \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
     freeglut3-dev \
-    unzip && \
+    unzip \
+    tree && \
   rm -rf /var/lib/apt/lists/* && \
   rm -rf /var/cache/oracle-jdk8-installer
 
@@ -42,6 +42,10 @@ RUN  useradd -r -u 2222 extender && \
 
 
 ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
+
+# Put all SDK's into a single folder (just as we do in the regular engine build)
+ENV PLATFORMSDK_DIR /opt/platformsdk
+RUN mkdir $PLATFORMSDK_DIR
 
 # These packages are downloaded from here: http://releases.llvm.org/download.html
 # and then uploaded as-is to S3
@@ -184,68 +188,52 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_35_23} && \
 # Windows
 #
 
+ENV PLATFORMSDK_WIN32 $PLATFORMSDK_DIR/Win32
+
 # windres: Allows for generating .res files that can be used during linking
 RUN \
   apt-get update && \
   apt-get install -y apt-transport-https mingw-w64 && \
   ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
 
-# Installation notes: https://wiki.winehq.org/Ubuntu
-RUN \
-  wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
-  apt-key add winehq.key && \
-  rm winehq.key && \
-  apt-add-repository 'deb https://dl.winehq.org/wine-builds/ubuntu/ xenial main' && \
-  dpkg --add-architecture i386 && \
-  apt-get update && \
-  apt-get install -y --install-recommends winehq-stable
-
-ENV PATH ${PATH}:/opt/wine-stable/bin
-
-ENV PROGRAM_FILES "C:/Program Files (x86)"
-
 # Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat (Can probably be trimmed further)
-ENV VS140COMNTOOLS "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/Common7/Tools/"
-ENV VCINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/VC/"
-ENV VSINSTALLDIR "${PROGRAM_FILES}/Microsoft Visual Studio 14.0/"
-ENV WindowsLibPath "${PROGRAM_FILES}/Windows Kits/8.1/References/CommonConfiguration/Neutral"
-ENV WindowsSdkDir "${PROGRAM_FILES}/Windows Kits/8.1/"
+ENV VS140COMNTOOLS "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/Tools/"
+ENV VCINSTALLDIR "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/"
+ENV VSINSTALLDIR "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/"
+ENV WindowsLibPath "${PLATFORMSDK_WIN32}/WindowsKits/8.1/References/CommonConfiguration/Neutral"
+ENV WindowsSdkDir "${PLATFORMSDK_WIN32}/WindowsKits/8.1/"
 ENV WindowsSDKLibVersion "winv6.3/"
 ENV WindowsSDKVersion "/"
-ENV WindowsSDK_ExecutablePath_x64 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/x64/"
-ENV WindowsSDK_ExecutablePath_x86 "${PROGRAM_FILES}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
-
-# Disable all debug messages
-ENV WINEDEBUG "-all"
-
-# Set the wine home to be in a folder that extender will own (Or you'll get the "wine: <path> is not owned by you")
-ENV WINEPREFIX "/var/extender/.wine"
-
-# Initialize Wine (also see next Dockerfile)
-# Setup symbolic links for folders to exist in the C:/ space
-# Also, for the installed packages, create symlinks without spaces in the paths!
-# Once we run wine, the folder is created for the root user, this needs to be chown'ed back to the extender user (see next Dockerfile)
-
-USER extender
 
 RUN \
-  mkdir -p ${WINEPREFIX} && \
-  wine cmd /c echo Initialized Wine folder && \
-  chmod -R 755 ${WINEPREFIX} && \
-  ln -s /tmp ${WINEPREFIX}/drive_c/tmp && \
-  ln -s ${WINEPREFIX}/drive_c/Program\ Files\ \(x86\) ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
-  mkdir ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${WINEPREFIX}/drive_c/ProgramFilesx86 && \
-  ln -s ${WINEPREFIX}/drive_c/ProgramFilesx86/Microsoft\ Visual\ Studio\ 14.0 ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0
+  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
+  ln -s ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
 
-USER root
+# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
+# so we solve the bulk by making the suffixes lowercase
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
 
-RUN apt-get update && \
-    apt-get install -y \
-    gcc-multilib \
-    g++-multilib
+# and the rest are manually copied (or made lower case)
+RUN (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib && cp oldnames.lib OLDNAMES.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib && cp delayimp.lib Delayimp.lib) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Include/shared && cp driverspecs.h DriverSpecs.h) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
+    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
+
+# For SDK's older than 1.2.146
+ENV PROGRAM_FILES /var/extender/.wine/drive_c/ProgramFilesx86
+RUN \
+  mkdir -p ${PROGRAM_FILES} && \
+  ln -s ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 ${PROGRAM_FILES}/MicrosoftVisualStudio14.0 && \
+  ln -s ${PLATFORMSDK_WIN32}/WindowsKits ${PROGRAM_FILES}/WindowsKits
 
 #
 # Android SDK/NDK
@@ -298,23 +286,9 @@ RUN cd ${ANDROID_HOME} && \
     echo y | ./tools/bin/sdkmanager --verbose "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" && \
     ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
 
+
 # Remove the rights again from the extender user
 USER root
 RUN cd ${ANDROID_HOME} && \
     chown -R root: ${ANDROID_HOME}
 
-# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
-# so we solve the bulk by making the suffixes lowercase
-RUN find $WINEPREFIX -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
-# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
-RUN find $WINEPREFIX -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
-
-# and the rest are manually copied (or made lower case)
-RUN (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib && cp oldnames.lib OLDNAMES.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib && cp delayimp.lib Delayimp.lib) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared && cp driverspecs.h DriverSpecs.h) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
-    (cd ${WINEPREFIX}/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
