@@ -21,6 +21,7 @@ import org.springframework.boot.context.embedded.jetty.JettyEmbeddedServletConta
 import org.springframework.boot.context.embedded.jetty.JettyServerCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
+import org.springframework.web.client.RestTemplate;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -111,6 +112,10 @@ public class ExtenderApplication {
                 });
             }
         };
+    }
 
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 }

@@ -18,6 +18,10 @@ extender:
             basedir: /var/extender/cache/data
         s3:
             bucket: defold-extender-cache-dev
+    remote-builder:
+        enabled: true
+        url: http://localhost:9010
+        platforms: ios,osx
 
 spring:
     http:
@@ -57,6 +61,15 @@ extender:
 ---
 
 spring:
+    profiles: dev-remote-builder
+
+extender:
+    remote-builder:
+        enabled: true
+
+---
+
+spring:
     profiles: stage
 
 extender:
@@ -65,6 +78,10 @@ extender:
         type: S3
         s3:
             bucket: defold-extender-cache-stage
+    remote-builder:
+        enabled: true
+        url: https://build-darwin-stage.defold.com
+
 endpoints:
     health:
         sensitive: true
@@ -80,6 +97,9 @@ extender:
         type: S3
         s3:
             bucket: defold-extender-cache-prod
+    remote-builder:
+        enabled: true
+        url: https://build-darwin.defold.com
 
 endpoints:
     health:
