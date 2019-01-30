@@ -103,10 +103,6 @@ RUN \
   make install && \
   apt-get remove -y git cmake
 
-
-ENV PLATFORMSDK_DIR=/opt/platformsdk
-RUN mkdir $PLATFORMSDK_DIR
-
 #
 # iOS + OSX
 #
@@ -120,6 +116,8 @@ RUN \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator12.1.sdk && \
   wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
+  wget -q -O - ${S3_URL}/XcodeDefault10.1.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault10.1.xctoolchain && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
   ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \

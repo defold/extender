@@ -3,6 +3,7 @@ package com.defold.extender.remote;
 import com.defold.extender.ExtenderException;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.Ignore;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+@Ignore
 public class RemoteEngineBuilderTest {
 
     private RemoteEngineBuilder remoteEngineBuilder;

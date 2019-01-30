@@ -1,18 +1,18 @@
 package com.defold.extender.remote;
 
 import com.defold.extender.ExtenderException;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.ByteArrayBody;
+import org.apache.http.impl.client.DefaultHttpClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,42 +20,57 @@ import java.nio.file.Files;
 @Service
 public class RemoteEngineBuilder {
 
-    private final RestTemplate restTemplate;
     private final String remoteBuilderBaseUrl;
 
     @Autowired
-    public RemoteEngineBuilder(final RestTemplate restTemplate,
-                               @Value("${extender.remote-builder.url}") final String remoteBuilderBaseUrl) {
-        this.restTemplate = restTemplate;
+    public RemoteEngineBuilder(@Value("${extender.remote-builder.url}") final String remoteBuilderBaseUrl) {
         this.remoteBuilderBaseUrl = remoteBuilderBaseUrl;
     }
 
     public byte[] build(final File projectDirectory,
                         final String platform,
-                        final String sdkVersion) throws IOException, ExtenderException {
+                        final String sdkVersion) throws ExtenderException {
 
-        final HttpEntity<MultiValueMap<String, Object>> requestEntity = createMultipartRequest(projectDirectory);
+        MultipartEntity entity = new MultipartEntity();
 
-        // Send request to remote builder
-        final String serverUrl = String.format("%s/build/%s/%s", remoteBuilderBaseUrl, platform, sdkVersion);
-        final ResponseEntity<byte[]> response = restTemplate.postForEntity(serverUrl, requestEntity, byte[].class);
-
-        if (! response.getStatusCode().is2xxSuccessful()) {
-            throw new ExtenderException("Failed to build engine remotely: " + new String(response.getBody()));
+        try {
+            Files.walk(projectDirectory.toPath())
+                    .filter(Files::isRegularFile)
+                    .forEach(path -> {
+                        String relativePath = path.toFile().getAbsolutePath().substring(projectDirectory.getAbsolutePath().length() + 1);
+                        ByteArrayBody body;
+                        try {
+                            body = new ByteArrayBody(Files.readAllBytes(path), relativePath);
+                        } catch (IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                        entity.addPart(relativePath, body);
+                    });
+        } catch(IllegalStateException|IOException e) {
+            throw new ExtenderException(e, "Failed to add files to multipart request");
         }
 
-        return response.getBody();
-    }
+        final String serverUrl = String.format("%s/build/%s/%s", remoteBuilderBaseUrl, platform, sdkVersion);
+        HttpPost request = new HttpPost(serverUrl);
 
-    HttpEntity<MultiValueMap<String, Object>> createMultipartRequest(final File projectDirectory) throws IOException {
-        final HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        request.setEntity(entity);
 
-        final MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        Files.walk(projectDirectory.toPath())
-                .filter(Files::isRegularFile)
-                .forEach(path -> body.add("files", new FileSystemResource(path.toFile())));
+        try {
+            HttpClient client = new DefaultHttpClient();
+            HttpResponse response = client.execute(request);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
-        return new HttpEntity<>(body, headers);
+            response.getEntity().writeTo(bos);
+
+            byte[] bytes = bos.toByteArray();
+
+            if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                throw new ExtenderException("Failed to build engine remotely: " + new String(bytes));
+            }
+
+            return bytes;
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to communicate with remote builder");
+        }
     }
 }
