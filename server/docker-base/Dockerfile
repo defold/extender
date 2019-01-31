@@ -280,8 +280,8 @@ RUN mkdir -p ${ANDROID_HOME} && \
 # The sdk manager wants user access folder
 USER extender
 RUN cd ${ANDROID_HOME} && \
-    echo y | ./tools/bin/sdkmanager "tools" "platform-tools" &> /dev/null && \
-    echo y | ./tools/bin/sdkmanager "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" &> /dev/null && \
+    echo y | ./tools/bin/sdkmanager "tools" "platform-tools" > /dev/null && \
+    echo y | ./tools/bin/sdkmanager "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" > /dev/null && \
     ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
 
 
