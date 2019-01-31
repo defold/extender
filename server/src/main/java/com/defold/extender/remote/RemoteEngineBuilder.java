@@ -1,13 +1,15 @@
 package com.defold.extender.remote;
 
 import com.defold.extender.ExtenderException;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.ByteArrayBody;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,38 +33,20 @@ public class RemoteEngineBuilder {
                         final String platform,
                         final String sdkVersion) throws ExtenderException {
 
-        MultipartEntity entity = new MultipartEntity();
+        final HttpEntity httpEntity;
 
         try {
-            Files.walk(projectDirectory.toPath())
-                    .filter(Files::isRegularFile)
-                    .forEach(path -> {
-                        String relativePath = path.toFile().getAbsolutePath().substring(projectDirectory.getAbsolutePath().length() + 1);
-                        ByteArrayBody body;
-                        try {
-                            body = new ByteArrayBody(Files.readAllBytes(path), relativePath);
-                        } catch (IOException e) {
-                            throw new IllegalStateException(e);
-                        }
-                        entity.addPart(relativePath, body);
-                    });
+            httpEntity = buildHttpEntity(projectDirectory);
         } catch(IllegalStateException|IOException e) {
             throw new ExtenderException(e, "Failed to add files to multipart request");
         }
 
-        final String serverUrl = String.format("%s/build/%s/%s", remoteBuilderBaseUrl, platform, sdkVersion);
-        HttpPost request = new HttpPost(serverUrl);
-
-        request.setEntity(entity);
-
-        try {
-            HttpClient client = new DefaultHttpClient();
-            HttpResponse response = client.execute(request);
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            final HttpResponse response = sendRequest(platform, sdkVersion, httpEntity);
 
             response.getEntity().writeTo(bos);
 
-            byte[] bytes = bos.toByteArray();
+            final byte[] bytes = bos.toByteArray();
 
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 throw new ExtenderException("Failed to build engine remotely: " + new String(bytes));
@@ -72,5 +56,34 @@ public class RemoteEngineBuilder {
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to communicate with remote builder");
         }
+    }
+
+    HttpResponse sendRequest(String platform, String sdkVersion, HttpEntity httpEntity) throws IOException {
+        final String serverUrl = String.format("%s/build/%s/%s", remoteBuilderBaseUrl, platform, sdkVersion);
+        final HttpPost request = new HttpPost(serverUrl);
+        request.setEntity(httpEntity);
+
+        final HttpClient client  = HttpClientBuilder.create().build();
+        return client.execute(request);
+    }
+
+    HttpEntity buildHttpEntity(final File projectDirectory) throws IOException {
+        final MultipartEntityBuilder builder = MultipartEntityBuilder.create()
+                .setContentType(ContentType.MULTIPART_FORM_DATA);
+
+        Files.walk(projectDirectory.toPath())
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                    String relativePath = path.toFile().getAbsolutePath().substring(projectDirectory.getAbsolutePath().length() + 1);
+                    ByteArrayBody body;
+                    try {
+                        body = new ByteArrayBody(Files.readAllBytes(path), relativePath);
+                    } catch (IOException e) {
+                        throw new IllegalStateException(e);
+                    }
+                    builder.addPart(relativePath, body);
+                });
+
+        return builder.build();
     }
 }
