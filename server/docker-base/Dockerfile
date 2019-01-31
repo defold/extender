@@ -272,7 +272,7 @@ RUN mkdir -p ${ANDROID_HOME} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} && \
     cd ${ANDROID_HOME} && \
     echo ${ANDROID_TOOLS_URL} && \
-    wget ${ANDROID_TOOLS_URL} && \
+    wget -q ${ANDROID_TOOLS_URL} && \
     unzip -q ${ANDROID_TOOLS_FILENAME} && \
     rm ${ANDROID_TOOLS_FILENAME} && \
     chown -R extender: ${ANDROID_HOME}
