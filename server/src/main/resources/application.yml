@@ -19,7 +19,7 @@ extender:
         s3:
             bucket: defold-extender-cache-dev
     remote-builder:
-        enabled: true
+        enabled: false
         url: http://localhost:9010
         platforms: ios,osx
 
@@ -65,7 +65,7 @@ spring:
 
 extender:
     remote-builder:
-        enabled: true
+        enabled: false
 
 ---
 
@@ -79,7 +79,7 @@ extender:
         s3:
             bucket: defold-extender-cache-stage
     remote-builder:
-        enabled: true
+        enabled: false
         url: https://build-darwin-stage.defold.com
 
 endpoints:
@@ -98,7 +98,7 @@ extender:
         s3:
             bucket: defold-extender-cache-prod
     remote-builder:
-        enabled: true
+        enabled: false
         url: https://build-darwin.defold.com
 
 endpoints:
