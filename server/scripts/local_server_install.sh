@@ -6,7 +6,7 @@ if [ ! -e $EXTENDER_DIR ]; then
 	echo "Created" $EXTENDER_DIR
 fi
 
-EXTENDER_CACHE_DIR=./extender/cache/data
+EXTENDER_CACHE_DIR=${EXTENDER_DIR}/cache/data
 if [ ! -e $EXTENDER_CACHE_DIR ]; then
 	mkdir -p $EXTENDER_CACHE_DIR
 	echo "Created" $EXTENDER_CACHE_DIR
