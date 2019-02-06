@@ -51,7 +51,7 @@ public class ExtenderController {
 
     private final RemoteEngineBuilder remoteEngineBuilder;
     private final boolean remoteBuilderEnabled;
-    private final List<String> remoteBuilderPlatforms;
+    private final String[] remoteBuilderPlatforms;
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
@@ -59,7 +59,7 @@ public class ExtenderController {
                               @Qualifier("gaugeService") GaugeService gaugeService,
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
-                              @Value("${extender.remote-builder.platforms}") List<String> remoteBuilderPlatforms) {
+                              @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gaugeService = gaugeService;
