@@ -213,6 +213,7 @@ class Extender {
         // For a migration period, until everyone uses iPhoneOS12.1.sdk
         yaml = yaml.replace("/opt/iPhoneOS11.2.sdk/","{{env.PLATFORMSDK_DIR}}/iPhoneOS11.2.sdk/");
         yaml = yaml.replace("/opt/MacOSX10.13.sdk/","{{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/");
+        yaml = yaml.replace("/opt/MacOSX10.12.sdk/","{{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/");
         yaml = yaml.replace("llvm-ar", "ar");
 
         try {
