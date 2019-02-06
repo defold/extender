@@ -19,7 +19,7 @@ extender:
         s3:
             bucket: defold-extender-cache-dev
     remote-builder:
-        enabled: true
+        enabled: false
         # This points to the host machine from inside docker
         url: http://host.docker.internal:9010
         platforms: ios, osx
