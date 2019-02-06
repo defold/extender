@@ -19,7 +19,7 @@ extender:
         s3:
             bucket: defold-extender-cache-dev
     remote-builder:
-        enabled: false
+        enabled: true
         # This points to the host machine from inside docker
         url: http://host.docker.internal:9010
         platforms: ios, osx
@@ -66,7 +66,7 @@ spring:
 
 extender:
     remote-builder:
-        enabled: false
+        enabled: true
 
 ---
 
@@ -80,7 +80,7 @@ extender:
         s3:
             bucket: defold-extender-cache-stage
     remote-builder:
-        enabled: false
+        enabled: true
         url: https://build-darwin-stage.defold.com
 
 endpoints:
@@ -99,7 +99,7 @@ extender:
         s3:
             bucket: defold-extender-cache-prod
     remote-builder:
-        enabled: false
+        enabled: true
         url: https://build-darwin.defold.com
 
 endpoints:

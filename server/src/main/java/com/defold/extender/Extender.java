@@ -142,6 +142,17 @@ class Extender {
             }
         }
 
+        // Introduced in 1.2.146 to support older releases
+        {
+            Object platformsdk_dir = this.platformConfig.context.get("env.PLATFORMSDK_DIR");
+            if (platformsdk_dir == null) {
+                platformsdk_dir = System.getenv().get("PLATFORMSDK_DIR");
+                if (platformsdk_dir == null)
+                    platformsdk_dir = "/opt/platformsdk";
+                this.platformConfig.context.put("env.PLATFORMSDK_DIR", platformsdk_dir);
+            }
+        }
+
         // The allowed libs/symbols are the union of the values from the different "levels": "context: allowedLibs: [...]" + "context: platforms: arm64-osx: allowedLibs: [...]"
         List<String> allowedLibs = ExtenderUtil.mergeLists(this.platformConfig.allowedLibs, (List<String>) this.config.context.getOrDefault("allowedLibs", new ArrayList<String>()) );
         List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
@@ -202,6 +213,7 @@ class Extender {
         // For a migration period, until everyone uses iPhoneOS12.1.sdk
         yaml = yaml.replace("/opt/iPhoneOS11.2.sdk/","{{env.PLATFORMSDK_DIR}}/iPhoneOS11.2.sdk/");
         yaml = yaml.replace("/opt/MacOSX10.13.sdk/","{{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/");
+        yaml = yaml.replace("llvm-ar", "ar");
 
         try {
             return new Yaml().loadAs(yaml, type);
