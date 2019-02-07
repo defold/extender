@@ -361,6 +361,7 @@ class Extender {
     private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(extDir, "include") ) );
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) );
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
 
         List<String> frameworks = getFrameworks(extDir);
