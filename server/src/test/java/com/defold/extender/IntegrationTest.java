@@ -286,6 +286,20 @@ public class IntegrationTest {
         doBuild(sourceFiles);
     }
 
+    @Test
+    public void buildEngineWithBaseExtension() throws IOException, ExtenderClientException {
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/include/ext.h"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
+                new FileExtenderResource("test-data/ext_use_base_extension/ext.manifest"),
+                new FileExtenderResource("test-data/ext_use_base_extension/src/test_ext.cpp")
+        );
+
+        doBuild(sourceFiles);
+    }
+
     private boolean checkClassesDexClasses(File buildZip, List<String> classes) throws IOException {
         ZipFile zipFile = new ZipFile(buildZip);
         ZipEntry classesDexEntry = zipFile.getEntry("classes.dex");
