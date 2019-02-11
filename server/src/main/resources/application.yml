@@ -52,8 +52,7 @@ management:
 
 ---
 
-spring:
-    profiles: dev-s3
+spring.profiles: dev-s3
 
 extender:
     cache:
@@ -61,43 +60,21 @@ extender:
 
 ---
 
-spring:
-    profiles: dev-remote-builder
+spring.profiles: dev-remote-builder
 
 extender:
     remote-builder:
-        enabled: false
+        enabled: true
 
 ---
 
-spring:
-    profiles: stage
+spring.profiles: production
 
 extender:
     sdk-cache-size: 5
     cache:
         type: S3
-        s3:
-            bucket: defold-extender-cache-stage
-    remote-builder:
-        enabled: false
-        url: https://build-darwin-stage.defold.com
-
-endpoints:
-    health:
-        sensitive: true
-
----
-
-spring:
-    profiles: production
-
-extender:
-    sdk-cache-size: 5
-    cache:
-        type: S3
-        s3:
-            bucket: defold-extender-cache-prod
+        s3.bucket: defold-extender-cache-prod
     remote-builder:
         enabled: false
         url: https://build-darwin.defold.com
@@ -108,8 +85,36 @@ endpoints:
 
 ---
 
-spring:
-    profiles: standalone-dev
+spring.profiles: stage
+spring.profiles.include:
+    - production
+
+extender:
+    cache.s3.bucket: defold-extender-cache-stage
+    remote-builder:
+        enabled: false
+        url: https://build-darwin-stage.defold.com
+
+---
+
+spring.profiles: standalone
+
+server:
+    port: 8080
+
+extender:
+    sdk-location: /usr/local/extender/tools
+    build-location: /usr/local/extender/builds
+    cache:
+        enabled: false
+    remote-builder:
+        enabled: false
+
+---
+
+spring.profiles: standalone-dev
+spring.profiles.include:
+    - standalone
 
 server:
     port: 9010
@@ -117,10 +122,17 @@ server:
 extender:
     sdk-location: ./extender/sdk
     build-location: ./extender/builds
-    cache:
-        enabled: false
-        local:
-            basedir: ./extender/cache/data
-    remote-builder:
-        enabled: false
 
+---
+
+spring.profiles: standalone-production
+spring.profiles.include:
+    - production
+    - standalone
+
+---
+
+spring.profiles: standalone-stage
+spring.profiles.include:
+    - stage
+    - standalone
