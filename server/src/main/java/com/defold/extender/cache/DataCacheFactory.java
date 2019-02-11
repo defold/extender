@@ -11,19 +11,26 @@ public class DataCacheFactory {
     private static final String STORE_TYPE_S3 = "S3";
     private static final String STORE_TYPE_LOCAL = "LOCAL";
 
+    private final boolean isEnabled;
     private final String storeType;
     private final String baseDirectory;
     private final String bucketName;
 
-    public DataCacheFactory(@Value("${extender.cache.type}") String storeType,
+    public DataCacheFactory(@Value("${extender.cache.enabled}") boolean isEnabled,
+                            @Value("${extender.cache.type}") String storeType,
                             @Value("${extender.cache.local.basedir}") String baseDirectory,
                             @Value("${extender.cache.s3.bucket}") String bucketName) {
+        this.isEnabled = isEnabled;
         this.storeType = storeType;
         this.baseDirectory = baseDirectory;
         this.bucketName = bucketName;
     }
 
     public DataCache createCache() {
+        if (! isEnabled) {
+            return new DummyDataCache();
+        }
+
         if (STORE_TYPE_S3.equals(storeType)) {
             return new S3DataCache(bucketName);
         } else if (STORE_TYPE_LOCAL.equals(storeType)) {
