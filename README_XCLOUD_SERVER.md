@@ -92,6 +92,10 @@ Install Java 8 with HomeBrew:
 `brew tap caskroom/versions`  
 `brew cask install java8`
 
+### Install utilities needed by setup/service scripts
+
+`brew install tree wget`
+
 ### Add defold.com SSL certificate
 
 Create a directory where the SSL certificates will be stored:
@@ -139,7 +143,7 @@ Edit the nginx configuration:
            
            server_name  build-stage-darwin.defold.com;
    ```
-1. Pass all requests to the web application running on port 8080.
+1. Pass all requests to the web application running on port 8080. Raise max file upload size to 500MB.
 
    Replace this:
    ```
@@ -152,6 +156,7 @@ Edit the nginx configuration:
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
            proxy_set_header X-Forwarded-Proto $scheme;
            proxy_set_header X-Forwarded-Port $server_port;
+           client_max_body_size 500M;
    ```
 1. Comment out the error page.
    
