@@ -14,7 +14,7 @@ TARGET_DIR=/usr/local/extender/${VERSION}
 source ${DIR}/shared/tools.sh
 
 build_artifact() {
-    echo "[build]  Creating extender darwin server artifact at ${ARTIFACT_DIR} ..."
+    echo "[build]  Creating extender darwin server artifact at ${ARTIFACT_DIR}..."
     rm -rf ${ARTIFACT_DIR}
     mkdir -p ${ARTIFACT_DIR}
     cp ${SERVER_DIR}/build/libs/extender-0.1.0.jar ${ARTIFACT_DIR}/extender.jar
@@ -25,9 +25,11 @@ build_artifact() {
 }
 
 deploy_artifact() {
-    echo "[deploy] Secure copying artifact to ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}"
+    echo "[deploy] Secure copying artifact to ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}..."
     scp -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}
+    echo "[deploy] Running setup script on target host..."
     ssh ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/setup.sh ${VERSION}
+    echo "[deploy] Deployment done."
 }
 
 check_uncommitted_changes ${CALLER_DIR}
