@@ -10,6 +10,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.ByteArrayBody;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,8 @@ import java.nio.file.Files;
 @Service
 public class RemoteEngineBuilder {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(RemoteEngineBuilder.class);
+
     private final String remoteBuilderBaseUrl;
 
     @Autowired
@@ -32,6 +36,8 @@ public class RemoteEngineBuilder {
     public byte[] build(final File projectDirectory,
                         final String platform,
                         final String sdkVersion) throws ExtenderException {
+
+        LOGGER.info("Building engine remotely at {}", remoteBuilderBaseUrl);
 
         final HttpEntity httpEntity;
 

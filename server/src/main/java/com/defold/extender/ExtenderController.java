@@ -130,11 +130,15 @@ public class ExtenderController {
 
             // Build engine locally or on remote builder
             if (remoteBuilderEnabled && isRemotePlatform(platform)) {
+                LOGGER.info("Building engine on remote builder");
+
                 final byte[] bytes = remoteEngineBuilder.build(uploadDirectory, platform, sdkVersion);
                 metricsWriter.measureRemoteEngineBuild(platform);
 
                 IOUtils.copyLarge(new ByteArrayInputStream(bytes), response.getOutputStream());
             } else {
+                LOGGER.info("Building engine locally");
+
                 // Get SDK
                 final File sdk = defoldSdkService.getSdk(sdkVersion);
                 metricsWriter.measureSdkDownload(sdkVersion);
