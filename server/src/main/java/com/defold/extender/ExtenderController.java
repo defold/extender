@@ -125,8 +125,13 @@ public class ExtenderController {
         final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
 
         try {
+            // Get files uploaded by the client
             receiveUpload(request, uploadDirectory);
             metricsWriter.measureReceivedRequest(request);
+
+            // Get cached files from the cache service
+            long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
+            metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
             // Build engine locally or on remote builder
             if (remoteBuilderEnabled && isRemotePlatform(platform)) {
@@ -142,10 +147,6 @@ public class ExtenderController {
                 // Get SDK
                 final File sdk = defoldSdkService.getSdk(sdkVersion);
                 metricsWriter.measureSdkDownload(sdkVersion);
-
-                // Download the cached files from file server
-                long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
-                metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
                 // Build engine
                 Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
