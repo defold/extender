@@ -21,6 +21,7 @@ First off, change the Xcloud user's password you got from Xcloud. Open up a term
 1. Open System Preferences -> Keyboard -> Input Sources
    1. Remove "Swiss German"
 1. Open System Preferences -> Language & Region
+   1. Remove "Deutsch/German" in Preferred Languages
    1. Set region to "Sweden"
 
 ### Set timezone to UTC
@@ -104,7 +105,7 @@ Create a directory where the SSL certificates will be stored:
 
 Secure copy the certificate files to that directory from your local computer:
 
-`scp aws.wildcard.defold.com.* build-darwin-stage.defold.com:/usr/local/etc/ssl/`   
+`scp aws.wildcard.defold.com.* xcloud@build-darwin-stage.defold.com:/usr/local/etc/ssl/`
 
 ### Install nginx
 
@@ -135,8 +136,7 @@ Edit the nginx configuration:
    ```
    With this:
    ```
-           listen      443;
-           ssl         on;
+           listen      443 ssl;
            
            ssl_certificate /usr/local/etc/ssl/aws.wildcard.defold.com.pem;
            ssl_certificate_key /usr/local/etc/ssl/aws.wildcard.defold.com.key;
@@ -203,7 +203,7 @@ Add the defold anchor to the default PF configuration file `/etc/pf.conf`. This 
 
 Open the default PF configuration file:
 
-`sudo nano /etc/pf-defold.conf`
+`sudo nano /etc/pf.conf`
 
 Add the anchor to the bottom of the file:
 
