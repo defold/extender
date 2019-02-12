@@ -68,16 +68,18 @@ extender:
 
 ---
 
-spring.profiles: production
+spring:
+    profiles: stage
 
 extender:
     sdk-cache-size: 5
     cache:
         type: S3
-        s3.bucket: defold-extender-cache-prod
+        s3:
+            bucket: defold-extender-cache-stage
     remote-builder:
         enabled: false
-        url: https://build-darwin.defold.com
+        url: https://build-darwin-stage.defold.com
 
 endpoints:
     health:
@@ -85,15 +87,21 @@ endpoints:
 
 ---
 
-spring.profiles: stage
-spring.profiles.include:
-    - production
+spring.profiles: production
 
 extender:
-    cache.s3.bucket: defold-extender-cache-stage
+    sdk-cache-size: 5
+    cache:
+        type: S3
+        s3:
+            bucket: defold-extender-cache-prod
     remote-builder:
         enabled: false
-        url: https://build-darwin-stage.defold.com
+        url: https://build-darwin.defold.com
+
+endpoints:
+    health:
+        sensitive: true
 
 ---
 
