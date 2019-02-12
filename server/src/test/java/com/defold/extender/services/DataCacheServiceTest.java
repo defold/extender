@@ -31,8 +31,13 @@ public class DataCacheServiceTest {
     @Test
     @Ignore
     public void testUploadingToS3Cache() throws Exception {
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
-                new CacheInfoFileWriter(), new DataCacheFactory(true,"S3", "", "defold-extender-cache-dev"), fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                new CacheInfoFileParser(),
+                new CacheInfoFileWriter(),
+                new DataCacheFactory(true,"S3", "", "defold-extender-cache-dev"),
+                true,
+                fileThreshold);
 
         File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
         dataCacheService.cacheFiles(uploadDirectory);
@@ -41,8 +46,13 @@ public class DataCacheServiceTest {
     @Test
     @Ignore
     public void testQueryS3Cache() throws Exception {
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
-                new CacheInfoFileWriter(), new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"), fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                new CacheInfoFileParser(),
+                new CacheInfoFileWriter(),
+                new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"),
+                true,
+                fileThreshold);
 
         final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -55,8 +65,13 @@ public class DataCacheServiceTest {
     @Test
     @Ignore
     public void testDownloadingFromS3Cache() throws Exception {
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
-                new CacheInfoFileWriter(), new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"), fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                new CacheInfoFileParser(),
+                new CacheInfoFileWriter(),
+                new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"),
+                true,
+                fileThreshold);
 
         final File uploadDirectory = Files.createTempDirectory("extenderTest").toFile();
         final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
@@ -77,8 +92,13 @@ public class DataCacheServiceTest {
         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         when(dataCacheFactory.createCache()).thenReturn(dataCache);
 
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
-                mock(CacheInfoFileWriter.class), dataCacheFactory, fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                new CacheInfoFileParser(),
+                mock(CacheInfoFileWriter.class),
+                dataCacheFactory,
+                true,
+                fileThreshold);
 
         File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
         dataCacheService.cacheFiles(uploadDirectory);
@@ -99,8 +119,13 @@ public class DataCacheServiceTest {
         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         final CacheInfoFileParser cacheInfoFileParser = mock(CacheInfoFileParser.class);
 
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), cacheInfoFileParser,
-                new CacheInfoFileWriter(), dataCacheFactory, fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                cacheInfoFileParser,
+                new CacheInfoFileWriter(),
+                dataCacheFactory,
+                true,
+                fileThreshold);
 
         final File tmpDir = Files.createTempDirectory("extenderTest").toFile();
         tmpDir.deleteOnExit();
@@ -125,8 +150,13 @@ public class DataCacheServiceTest {
         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         when(dataCacheFactory.createCache()).thenReturn(dataCache);
 
-        final DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), new CacheInfoFileParser(),
-                mock(CacheInfoFileWriter.class), dataCacheFactory, fileThreshold);
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                new CacheInfoFileParser(),
+                mock(CacheInfoFileWriter.class),
+                dataCacheFactory,
+                true,
+                fileThreshold);
         final DataCacheService spy = spy(dataCacheService);
 
         // Create an empty test directory
@@ -165,8 +195,13 @@ public class DataCacheServiceTest {
         DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
         when(dataCacheFactory.createCache()).thenReturn(dataCacheMock);
 
-        DataCacheService dataCacheService = new DataCacheService(new CacheKeyGenerator(), parser,
-                new CacheInfoFileWriter(), dataCacheFactory, fileThreshold);
+        DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                parser,
+                new CacheInfoFileWriter(),
+                dataCacheFactory,
+                true,
+                fileThreshold);
 
         FileInputStream input = new FileInputStream(new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI()));
         ByteArrayOutputStream output = new ByteArrayOutputStream();

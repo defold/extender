@@ -36,21 +36,25 @@ public class DataCacheService {
     private final CacheKeyGenerator cacheKeyGenerator;
     private final CacheInfoFileParser cacheInfoFileParser;
     private final CacheInfoFileWriter cacheInfoFileWriter;
-    private final DataCache dataCache;
+    private final boolean cacheIsEnabled;
+    private final int fileSizeThreshold;
 
-    private int fileSizeThreshold;
+    private DataCache dataCache;
 
     @Autowired
     DataCacheService(final CacheKeyGenerator cacheKeyGenerator,
                      final CacheInfoFileParser cacheInfoFileParser,
                      final CacheInfoFileWriter cacheInfoFileWriter,
                      final DataCacheFactory dataCacheFactory,
+                     @Value("${extender.cache.enabled}") boolean cacheIsEnabled,
                      @Value("${extender.cache.file-size-threshold}") int fileSizeThreshold) {
 
         this.cacheKeyGenerator = cacheKeyGenerator;
         this.cacheInfoFileParser = cacheInfoFileParser;
         this.cacheInfoFileWriter = cacheInfoFileWriter;
         this.fileSizeThreshold = fileSizeThreshold;
+        this.cacheIsEnabled = cacheIsEnabled;
+
         this.dataCache = dataCacheFactory.createCache();
     }
 
@@ -59,6 +63,10 @@ public class DataCacheService {
     }
 
     public long cacheFiles(final File directory) throws IOException {
+        if (! cacheIsEnabled) {
+            return 0;
+        }
+
         LOGGER.debug(String.format("Caching files in directory %s", directory.getPath()));
 
         final AtomicLong totalbytesCached = new AtomicLong();
@@ -97,6 +105,10 @@ public class DataCacheService {
 
     // Step through the entries in the json and download them from the key-value server
     public int getCachedFiles(File directory) throws IOException, ExtenderException {
+        if (! cacheIsEnabled) {
+            return 0;
+        }
+
         File cacheInfoFile = new File(directory, FILE_CACHE_INFO_FILE);
 
         // Support older editors that don't supply a cache info file
