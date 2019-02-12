@@ -216,7 +216,20 @@ Enable the firewall and activate the defold rules:
 
 `sudo pfctl -ef /etc/pf.conf`
 
+### Extender service
+
 Create the Extender home:
 
 `sudo mkdir /usr/local/extender`
 `sudo chown xcloud:admin /usr/local/extender`
+
+Create the Extender environment properties file, which is used by the service script. Open the file:
+`nano /usr/local/extender/env.properties`
+
+Add the following (for production):
+
+`profile=standalone-production`
+
+Add the following (for stage):
+
+`profile=standalone-stage`
