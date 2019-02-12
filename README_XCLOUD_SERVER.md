@@ -215,3 +215,8 @@ load anchor "defold" from "/etc/pf.anchors/com.defold"
 Enable the firewall and activate the defold rules:
 
 `sudo pfctl -ef /etc/pf.conf`
+
+Create the Extender home:
+
+`sudo mkdir /usr/local/extender`
+`sudo chown xcloud:admin /usr/local/extender`

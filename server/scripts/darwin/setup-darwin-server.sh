@@ -30,6 +30,13 @@ if [ ! -e ${PLATFORMSDK_DIR} ]; then
 	echo "Created SDK directory at ${PLATFORMSDK_DIR}."
 fi
 
+# Logs
+LOGS_DIR=/usr/local/var/log/extender
+if [ ! -e ${LOGS_DIR} ]; then
+	mkdir -p ${LOGS_DIR}
+	echo "Created logs directory at ${LOGS_DIR}."
+fi
+
 S3_URL=https://s3-eu-west-1.amazonaws.com/defold-packages
 WGET_CMD=/usr/local/bin/wget
 
@@ -73,5 +80,6 @@ download_packages
 
 ${EXTENDER_SERVICE} stop
 ln -sfn ${VERSION} /usr/local/extender/current
+ln -sfn /usr/local/extender/current/service.sh /usr/local/bin/extender
 chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
 ${EXTENDER_SERVICE} start
