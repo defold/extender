@@ -1,8 +1,8 @@
-# Setup darwin server in Xcloud
+# Setup standalone server in Xcloud
 
-MacOS and iOS engines are built by darwin servers running Apple hardware. Our mac cloud provider is [Xcloud](https://xcloud.me/).
+MacOS and iOS engines are built by standalone servers running Apple hardware. Our mac cloud provider is [Xcloud](https://xcloud.me/).
 
-Here is how to setup a Darwin server in Xcloud.
+Here is how to setup a standalone server in Xcloud.
 
 ### Open the Xcloud web console
 
@@ -58,7 +58,7 @@ Add the following at the bottom of the file:
 
 This tells the SSH server to only allow SSH logins for the user "xcloud" from IP 82.99.54.98 (King external IP)
 
-### Add a hostname for the darwin server
+### Add a hostname for the standalone mac server
 
 1. Surf to the [King SSO portal](https://sso.king.com)
 1. Click on "Amazon Web Services - Defold" to open the AWS console
@@ -103,7 +103,7 @@ Create a directory where the SSL certificates will be stored:
 
 `mkdir /usr/local/etc/ssl`
 
-Secure copy the certificate files to that directory from your local computer:
+Secure copy the certificate files (located in Defold team drive in Google Drive) to that directory from your local computer:
 
 `scp aws.wildcard.defold.com.* xcloud@build-darwin-stage.defold.com:/usr/local/etc/ssl/`
 
