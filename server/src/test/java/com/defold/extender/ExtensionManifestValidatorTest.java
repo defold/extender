@@ -80,7 +80,7 @@ public class ExtensionManifestValidatorTest {
         stringValues.clear();
         context.clear();
         stringValues.add("apa");
-        stringValues.add("foo");
+        stringValues.add("./foo");
         context.put("libs", stringValues);
 
         boolean thrown;
