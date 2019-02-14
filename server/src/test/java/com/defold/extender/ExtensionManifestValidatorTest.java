@@ -53,7 +53,7 @@ public class ExtensionManifestValidatorTest {
         InputStream configFileInputStream = Files.newInputStream(new File("test-data/sdk/a/defoldsdk/extender/build.yml").toPath());
         assertNotNull(new Yaml().loadAs(configFileInputStream, Configuration.class));
 
-        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), allowedFlagsTemplates, allowedLibsTemplates, allowedSymbols);
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), allowedFlagsTemplates, allowedSymbols);
 
         List<String> stringValues = new ArrayList<>();
         Map<String, Object> context = new HashMap<>();
