@@ -4,10 +4,10 @@ import org.apache.commons.io.FileUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -188,7 +188,7 @@ public class ExtenderClientTest {
         byte[] data = Files.readAllBytes(file.toPath());
         md.update(data);
         byte[] digest = md.digest();
-        return (new HexBinaryAdapter()).marshal(digest);
+        return new BigInteger(1, digest).toString(16);
     }
 
     @Test

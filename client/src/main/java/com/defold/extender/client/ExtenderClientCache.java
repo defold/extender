@@ -1,9 +1,9 @@
 package com.defold.extender.client;
 
-import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
 import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
+import java.math.BigInteger;
 
 import java.security.MessageDigest;
 
@@ -172,7 +172,7 @@ public class ExtenderClientCache {
     }
 
     private static String hashToString(byte[] digest) {
-        return (new HexBinaryAdapter()).marshal(digest);
+        return new BigInteger(1, digest).toString(16);
     }
 
     private static String hash(ExtenderResource extenderResource) throws ExtenderClientException {
