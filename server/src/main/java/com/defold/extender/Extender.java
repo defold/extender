@@ -348,7 +348,7 @@ class Extender {
         return frameworkPaths;
     }
 
-    private List<String> getJars(File extDir) {
+    private List<String> getExtensionLibJars(File extDir) {
         List<String> jars = new ArrayList<>();
         jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
         String[] platformParts = this.platform.split("-");
@@ -673,7 +673,7 @@ class Extender {
             }
 
             // Get extension supplied Jar libraries
-            List<String> extJars = getJars(extDir);
+            List<String> extJars = getExtensionLibJars(extDir);
             for (String jarPath : extJars) {
                 classPath += ":" + jarPath;
             }
@@ -730,6 +730,62 @@ class Extender {
         return builtJars;
     }
 
+    // returns all jar files from each extension, as well as the engine defined jar files
+    private List<String> getAllJars(List<File> extensionJars) throws ExtenderException {
+        List<String> allJars = new ArrayList<>();
+        for (File extDir : this.extDirs) {
+            allJars.addAll(getExtensionLibJars(extDir));
+        }
+
+        for (File extraJar : extensionJars) {
+            allJars.add(extraJar.getAbsolutePath());
+        }
+
+        HashMap<String, Object> empty = new HashMap<>();
+        Map<String, Object> context = context(empty);
+        allJars = ExtenderUtil.pruneItems( allJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars"));
+        allJars.addAll( ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")) );
+        return allJars;
+    }
+
+    private File buildProGuard(List<String> jars) throws ExtenderException {
+
+        // To support older versions of build.yml where proGuardCmd is not defined:
+        if (platformConfig.proGuardCmd == null || platformConfig.proGuardCmd.isEmpty()) {
+            LOGGER.info("No SDK support. Skipping ProGuard step.");
+            return null;
+        }
+
+        File appPro = new File(uploadDirectory, "/_app/app.pro");
+        if (!appPro.exists()) {
+            LOGGER.info("No .pro file present. Skipping ProGuard step.");
+            return null;
+        }
+
+        LOGGER.info("Building using ProGuard {}", uploadDirectory);
+
+        List<String> allPro = new ArrayList<>();
+        allPro.add(appPro.getAbsolutePath());
+
+        File target = new File(buildDirectory, "dmengine.jar");
+
+        HashMap<String, Object> empty = new HashMap<>();
+        Map<String, Object> context = context(empty);
+        context.put("jars", jars);
+        context.put("src", allPro);
+        context.put("tgt", target.getAbsolutePath());
+        context.put("mapping", buildDirectory + "/mapping.txt");
+
+        String command = templateExecutor.execute(platformConfig.proGuardCmd, context);
+        try {
+            processExecutor.execute(command);
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return new File(buildDirectory, "dmengine.jar");
+    }
+
     public static Map<String, Object> getManifestContext(String platform, Configuration config, ManifestConfiguration manifestConfig) throws ExtenderException {
         ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(platform);
 
@@ -747,7 +803,7 @@ class Extender {
         return new HashMap<>();
     }
 
-    private File[] buildClassesDex(List<File> extraJars) throws ExtenderException {
+    private File[] buildClassesDex(List<String> jars) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
         // To support older versions of build.yml where dxCmd is not defined:
@@ -757,20 +813,14 @@ class Extender {
 
         File classesDex = new File(buildDirectory, "classes.dex");
 
-        List<String> extJars = new ArrayList<>();
-        for (File extDir : this.extDirs) {
-            extJars.addAll(getJars(extDir));
-        }
-        for (File extraJar : extraJars) {
-            extJars.add(extraJar.getAbsolutePath());
-        }
+        List<String> empty_list = new ArrayList<>();
 
         HashMap<String, Object> empty = new HashMap<>();
         Map<String, Object> context = context(empty);
         context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
-        context.put("jars", ExtenderUtil.pruneItems( extJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")));
-        context.put("engineJars", ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")) );
+        context.put("jars", jars);
+        context.put("engineJars", empty_list);
 
         String command = templateExecutor.execute(platformConfig.dxCmd, context);
         try {
@@ -861,9 +911,16 @@ class Extender {
 
         if (platform.endsWith("android")) {
             File rJar = buildRJar();
-            List<File> extraJars = buildJava(rJar);
+            List<File> extensionJars = buildJava(rJar);
+            List<String> allJars = getAllJars(extensionJars); // extension jars, extra jars, engine jars
+            File finalJar = buildProGuard(allJars); // Returns null if unsupported, dmengine.jar if it was
 
-            File[] classesDex = buildClassesDex(extraJars);
+            if (finalJar != null) {
+                allJars.clear();
+                allJars.add(finalJar.getAbsolutePath());
+            }
+
+            File[] classesDex = buildClassesDex(allJars);
             if (classesDex.length > 0) {
                 outputFiles.addAll(Arrays.asList(classesDex));
             }

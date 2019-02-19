@@ -24,6 +24,7 @@ class PlatformConfig {
     public String jarCmd;
     public String dxCmd;
     public String mtCmd;    // Deprecated, use windres instead (Deprecated at 1.2.135)
+    public String proGuardCmd = new String();
     public String windresCmd = new String();
     public String symbolCmd = new String();
     public String symbolsPattern = new String();
