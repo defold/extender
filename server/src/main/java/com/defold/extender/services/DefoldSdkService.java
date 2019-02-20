@@ -43,8 +43,8 @@ public class DefoldSdkService {
     private final GaugeService gaugeService;
 
     @Autowired
-    DefoldSdkService(@Value("${extender.sdk-location}") String baseSdkDirectory,
-                     @Value("${extender.sdk-cache-size}") int cacheSize,
+    DefoldSdkService(@Value("${extender.sdk.location}") String baseSdkDirectory,
+                     @Value("${extender.sdk.cache-size}") int cacheSize,
                      CounterService counterService,
                      GaugeService gaugeService) throws IOException {
         this.baseSdkDirectory = new File(baseSdkDirectory).toPath();
@@ -52,6 +52,8 @@ public class DefoldSdkService {
         this.counterService = counterService;
         this.gaugeService = gaugeService;
         this.dynamoHome = System.getenv("DYNAMO_HOME") != null ? new File(System.getenv("DYNAMO_HOME")) : null;
+
+        LOGGER.info("SDK service using directory {} with cache size {}", baseSdkDirectory, cacheSize);
 
         if (!Files.exists(this.baseSdkDirectory)) {
             Files.createDirectories(this.baseSdkDirectory);

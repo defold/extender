@@ -16,13 +16,6 @@ if [ ! -e ${EXTENDER_DIR} ]; then
 	exit 2
 fi
 
-# Builds
-EXTENDER_BUILD_DIR=${EXTENDER_DIR}/builds
-if [ ! -e ${EXTENDER_BUILD_DIR} ]; then
-	mkdir -p ${EXTENDER_BUILD_DIR}
-	echo "Created build directory at ${EXTENDER_BUILD_DIR}."
-fi
-
 # Platform SDKs
 PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 if [ ! -e ${PLATFORMSDK_DIR} ]; then
