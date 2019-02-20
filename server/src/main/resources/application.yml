@@ -121,15 +121,16 @@ extender:
 ---
 
 spring.profiles: standalone-dev
-spring.profiles.include:
-    - standalone
-
 server:
     port: 9010
 
 extender:
     sdk-location: ./extender/sdk
     build-location: ./extender/builds
+    cache:
+        enabled: false
+    remote-builder:
+        enabled: false
 
 ---
 
