@@ -111,6 +111,20 @@ class ExtenderUtil
         }
     }
 
+    static void debugPrintStringMap(Map<String, String> map, int indent) {
+        for (String key : map.keySet()) {
+            Object v = map.get(key);
+            if (v instanceof Map) {
+                debugPrintStringMap((Map<String, String>)v, indent+1);
+            } else {
+                for (int i = 0; i < indent; ++i) {
+                    System.out.print("  ");
+                }
+                System.out.println(String.format("%s:\t%s", key, v.toString() ) );
+            }
+        }
+    }
+
     static void debugPrint(String name, List<String> l) {
         if (l == null) {
             System.out.println(String.format("%s: <null>", name));

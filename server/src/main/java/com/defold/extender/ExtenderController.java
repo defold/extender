@@ -1,5 +1,6 @@
 package com.defold.extender;
 
+import com.defold.extender.remote.RemoteEngineBuilder;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
@@ -8,11 +9,13 @@ import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.io.EofException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.metrics.GaugeService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,17 +43,30 @@ public class ExtenderController {
     // Used to verify the uploaded filenames
     private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ](?:[\\w+\\-\\/ @]|(?:\\.[\\w+\\-\\/ ]*))+)$");
 
-    private final DefoldSdkService defoldSdkService;
-    private final GaugeService gaugeService;
-    private final DataCacheService dataCacheService;
-
     private static final int MAX_PACKAGE_SIZE = 512 * 1024*1024; // The max size of any upload package
 
+    private final DefoldSdkService defoldSdkService;
+    private final DataCacheService dataCacheService;
+    private final GaugeService gaugeService;
+
+    private final RemoteEngineBuilder remoteEngineBuilder;
+    private final boolean remoteBuilderEnabled;
+    private final String[] remoteBuilderPlatforms;
+
     @Autowired
-    public ExtenderController(DefoldSdkService defoldSdkService, DataCacheService dataCacheService, @Qualifier("gaugeService") GaugeService gaugeService) {
+    public ExtenderController(DefoldSdkService defoldSdkService,
+                              DataCacheService dataCacheService,
+                              @Qualifier("gaugeService") GaugeService gaugeService,
+                              RemoteEngineBuilder remoteEngineBuilder,
+                              @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
+                              @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms) {
         this.defoldSdkService = defoldSdkService;
-        this.gaugeService = gaugeService;
         this.dataCacheService = dataCacheService;
+        this.gaugeService = gaugeService;
+
+        this.remoteEngineBuilder = remoteEngineBuilder;
+        this.remoteBuilderEnabled = remoteBuilderEnabled;
+        this.remoteBuilderPlatforms = remoteBuilderPlatforms;
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -90,7 +107,7 @@ public class ExtenderController {
     public void buildEngine(HttpServletRequest request,
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
-                            @PathVariable("sdkVersion") String sdkVersion)
+                            @PathVariable("sdkVersion") String sdkVersionString)
             throws ExtenderException, IOException, URISyntaxException {
 
         boolean isMultipart = ServletFileUpload.isMultipartContent(request);
@@ -104,39 +121,47 @@ public class ExtenderController {
         File buildDirectory = new File(jobDirectory, "build");
         buildDirectory.mkdir();
 
-        MetricsWriter metricsWriter = new MetricsWriter(gaugeService);
+        final MetricsWriter metricsWriter = new MetricsWriter(gaugeService);
+        final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
 
         try {
+            // Get files uploaded by the client
             receiveUpload(request, uploadDirectory);
             metricsWriter.measureReceivedRequest(request);
 
-            // Get SDK
-            File sdk;
-            if (sdkVersion == null || System.getenv("DYNAMO_HOME") != null) {
-                sdk = defoldSdkService.getLocalSdk();
-                sdkVersion = "local";
-            } else {
-                sdk = defoldSdkService.getSdk(sdkVersion);
-            }
-            metricsWriter.measureSdkDownload(sdkVersion);
-
-            // Download the cached files from file server
+            // Get cached files from the cache service
             long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
             metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
-            Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+            // Build engine locally or on remote builder
+            if (remoteBuilderEnabled && isRemotePlatform(platform)) {
+                LOGGER.info("Building engine on remote builder");
 
-            // Build engine
-            List<File> outputFiles = extender.build();
-            metricsWriter.measureEngineBuild(platform);
+                final byte[] bytes = remoteEngineBuilder.build(uploadDirectory, platform, sdkVersion);
+                metricsWriter.measureRemoteEngineBuild(platform);
 
-            // Zip files
-            String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
-            File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
-            metricsWriter.measureZipFiles(zipFile);
+                IOUtils.copyLarge(new ByteArrayInputStream(bytes), response.getOutputStream());
+            } else {
+                LOGGER.info("Building engine locally");
 
-            // Write zip file to response
-            FileUtils.copyFile(zipFile, response.getOutputStream());
+                // Get SDK
+                final File sdk = defoldSdkService.getSdk(sdkVersion);
+                metricsWriter.measureSdkDownload(sdkVersion);
+
+                // Build engine
+                Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+                List<File> outputFiles = extender.build();
+                metricsWriter.measureEngineBuild(platform);
+
+                // Zip files
+                String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
+                File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
+                metricsWriter.measureZipFiles(zipFile);
+
+                // Write zip file to response
+                FileUtils.copyFile(zipFile, response.getOutputStream());
+            }
+
             response.flushBuffer();
             response.getOutputStream().close(); // No need for the user to wait for our upload to the cache
             metricsWriter.measureSentResponse();
@@ -233,5 +258,14 @@ public class ExtenderController {
         if (count == 0) {
             throw new ExtenderException("The build request contained no files!");
         }
+    }
+
+    private boolean isRemotePlatform(final String platform) {
+        for (final String candidate : remoteBuilderPlatforms) {
+            if (platform.endsWith(candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

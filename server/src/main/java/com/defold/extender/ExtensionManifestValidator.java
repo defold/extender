@@ -14,12 +14,12 @@ class ExtensionManifestValidator {
     private final List<Pattern> allowedDefines = new ArrayList<>();
     private final List<Pattern> allowedSymbols = new ArrayList<>();
 
-    ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedLibs, List<String> allowedSymbols) {
+    ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSymbols) {
         this.allowedDefines.add(WhitelistConfig.compile(whitelistConfig.defineRe));
+        this.allowedLibs.add(WhitelistConfig.compile(whitelistConfig.libraryRe));
 
         TemplateExecutor templateExecutor = new TemplateExecutor();
         ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedFlags, this.allowedFlags);
-        ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedLibs, this.allowedLibs);
         ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedSymbols, this.allowedSymbols);
     }
 
@@ -69,7 +69,6 @@ class ExtensionManifestValidator {
                 case "excludeJsLibs":
                 case "excludeSymbols":
                 case "use-clang": // deprecated
-                case "legacy-use-cl": // undocumented, only used if some project needs to use cl.exe in the transition period
                     continue; // no need to whitelist
 
                 default:

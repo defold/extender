@@ -44,7 +44,12 @@ class Extender {
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
 
-    private final boolean useWine; // During the transition period
+    private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
+    private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
+    private static final String ANDROID_STL_INCLUDE_PATH = System.getenv("ANDROID_STL_INCLUDE");
+    private static final String ANDROID_STL_ARCH_INCLUDE_PATH = System.getenv("ANDROID_STL_ARCH_INCLUDE");
+    private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
+    private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
     Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
@@ -107,27 +112,9 @@ class Extender {
         this.platform = platform;
         this.sdk = sdk;
 
-        String alternatePlatform = platform;
-        if (this.platform.endsWith("win32")) {
-            // Detect if the SDK supports the alternate build path
-            try {
-                PlatformConfig alternateConfig = getPlatformConfig(platform.replace("win32", "wine32"));
-                if (alternateConfig != null) {
-                    Boolean use_cl = ExtenderUtil.getAppManifestBoolean(appManifest, platform, "legacy-use-cl", false);
-                    if (use_cl) {
-                        alternatePlatform = platform.replace("win32", "wine32");
-                    }
-                }
-            } catch (ExtenderException e) {
-                // Pass
-            }
-        }
-
-        this.useWine = alternatePlatform.contains("wine32");
-
-        this.platformConfig = getPlatformConfig(alternatePlatform);
+        this.platformConfig = getPlatformConfig(platform);
         this.appManifestContext = ExtenderUtil.getAppManifestContext(appManifest, platform, baseVariantManifest);
-        LOGGER.info("Using context for platform: " + alternatePlatform);
+        LOGGER.info("Using context for platform: " + platform);
 
         processExecutor.setCwd(jobDirectory);
 
@@ -155,12 +142,22 @@ class Extender {
             }
         }
 
-        // The allowed libs/symbols are the union of the values from the different "levels": "context: allowedLibs: [...]" + "context: platforms: arm64-osx: allowedLibs: [...]"
-        List<String> allowedLibs = ExtenderUtil.mergeLists(this.platformConfig.allowedLibs, (List<String>) this.config.context.getOrDefault("allowedLibs", new ArrayList<String>()) );
+        // Introduced in 1.2.146 to support older releases
+        {
+            Object platformsdk_dir = this.platformConfig.context.get("env.PLATFORMSDK_DIR");
+            if (platformsdk_dir == null) {
+                platformsdk_dir = System.getenv().get("PLATFORMSDK_DIR");
+                if (platformsdk_dir == null)
+                    platformsdk_dir = "/opt/platformsdk";
+                this.platformConfig.context.put("env.PLATFORMSDK_DIR", platformsdk_dir);
+            }
+        }
+
+        // The allowed symbols are the union of the values from the different "levels": "context: allowedSymbols: [...]" + "context: platforms: arm64-osx: allowedSymbols: [...]"
         List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
 
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
-        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedLibs, allowedSymbols);
+        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
 
         // Make sure the user hasn't input anything invalid in the manifest
         this.manifestValidator.validate(this.appManifestPath, appManifestContext);
@@ -210,6 +207,13 @@ class Extender {
             int numLines = 1 + countLines(yaml.substring(0, yaml.indexOf("\t")));
             throw new ExtenderException(String.format("%s:%d: error: Manifest files are YAML files and cannot contain tabs. Indentation should be done with spaces.", ExtenderUtil.getRelativePath(root, manifest), numLines));
         }
+
+        // Introduced in 1.2.146
+        // For a migration period, until everyone uses iPhoneOS12.1.sdk
+        yaml = yaml.replace("/opt/iPhoneOS11.2.sdk/","{{env.PLATFORMSDK_DIR}}/iPhoneOS11.2.sdk/");
+        yaml = yaml.replace("/opt/MacOSX10.13.sdk/","{{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/");
+        yaml = yaml.replace("/opt/MacOSX10.12.sdk/","{{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/");
+        yaml = yaml.replace("llvm-ar", "ar");
 
         try {
             return new Yaml().loadAs(yaml, type);
@@ -347,6 +351,7 @@ class Extender {
     private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(extDir, "include") ) );
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) );
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
 
         List<String> frameworks = getFrameworks(extDir);
@@ -415,17 +420,7 @@ class Extender {
         if (libs == null) {
             return new ArrayList<>();
         }
-        if (!this.useWine) {
-            return libs;
-        }
-        List<String> modifiedLibs = new ArrayList<>();
-        for( String lib : libs) {
-            if (!lib.toLowerCase().endsWith(".lib")) {
-                lib = lib + ".lib";
-            }
-            modifiedLibs.add(lib);
-        }
-        return modifiedLibs;
+        return libs;
     }
 
     private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
@@ -446,11 +441,13 @@ class Extender {
         File mainObject = compileMain(maincpp, manifestContext);
 
         List<String> extLibs = new ArrayList<>();
+        List<String> extShLibs = new ArrayList<>();
         List<String> extLibPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
         List<String> extFrameworks = new ArrayList<>();
         List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
         List<String> extJsLibs = new ArrayList<>();
 
+        extShLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.shlibRe));
         extLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.stlibRe));
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
@@ -460,7 +457,7 @@ class Extender {
                 extFrameworkPaths.add(libDir.toString());
             }
 
-            extLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.shlibRe));
+            extShLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.shlibRe));
             extLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.stlibRe));
             extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libDir, JS_RE));
 
@@ -475,13 +472,14 @@ class Extender {
                     extFrameworkPaths.add(libCommonDir.toString());
                 }
 
-                extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.shlibRe));
+                extShLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.shlibRe));
                 extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.stlibRe));
                 extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libCommonDir, JS_RE));
                 extFrameworkPaths.addAll(getFrameworkPaths(extDir));
             }
         }
 
+        extShLibs = ExtenderUtil.pruneItems( extShLibs, ExtenderUtil.getStringList(mainContext, "includeDynamicLibs"), ExtenderUtil.getStringList(mainContext, "excludeDynamicLibs"));
         extLibs = ExtenderUtil.pruneItems( extLibs, ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs"));
         extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs"));
 
@@ -497,10 +495,17 @@ class Extender {
             objects.add(ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
         }
 
+        Map<String, Object> env = new HashMap<>();
+        env.put("libs", extLibs);
+        env.put("dynamicLibs", extShLibs);
+        env.put("libPaths", extLibPaths);
+        env.put("frameworks", extFrameworks);
+        env.put("frameworkPaths", extFrameworkPaths);
+        env.put("jsLibs", extJsLibs);
         Map<String, Object> context = context(manifestContext);
         context.put("src", objects);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
-        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
+        context.put("ext", env);
         context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs")) );
         context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs")) );
 
