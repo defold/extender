@@ -289,6 +289,16 @@ class Extender {
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
 
+        // Not needed since 1.2.148 - keep in case someone uses older build.yml
+        if (this.platform.contains("android")) {
+            context.put("android_ndk_path", ANDROID_NDK_PATH);
+            context.put("android_ndk_include", ANDROID_NDK_INCLUDE_PATH);
+            context.put("android_stl_include", ANDROID_STL_INCLUDE_PATH);
+            context.put("android_stl_arch_include", ANDROID_STL_ARCH_INCLUDE_PATH);
+            context.put("android_stl_lib", ANDROID_STL_LIB_PATH);
+            context.put("android_sysroot", ANDROID_SYSROOT_PATH);
+        }
+
         context = Extender.mergeContexts(context, platformConfig.context);
         context = Extender.mergeContexts(context, manifestContext);
 
