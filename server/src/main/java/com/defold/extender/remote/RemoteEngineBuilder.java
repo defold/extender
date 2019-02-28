@@ -29,7 +29,7 @@ public class RemoteEngineBuilder {
     private final String remoteBuilderBaseUrl;
 
     @Autowired
-    public RemoteEngineBuilder(@Value("${extender.remote-builder.url}") final String remoteBuilderBaseUrl) {
+    public RemoteEngineBuilder(@Value("${extender.remote-builder.url:}") final String remoteBuilderBaseUrl) {
         this.remoteBuilderBaseUrl = remoteBuilderBaseUrl;
     }
 
