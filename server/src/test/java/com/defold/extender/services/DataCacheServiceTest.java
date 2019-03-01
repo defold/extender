@@ -5,6 +5,8 @@ import com.defold.extender.TestUtils;
 import com.defold.extender.cache.CacheEntry;
 import com.defold.extender.cache.DataCache;
 import com.defold.extender.cache.DataCacheFactory;
+import com.defold.extender.cache.LocalDiskDataCacheFactory;
+import com.defold.extender.cache.S3DataCacheFactory;
 import com.defold.extender.cache.info.CacheInfoFileParser;
 import com.defold.extender.cache.info.CacheInfoFileWriter;
 import com.defold.extender.cache.info.CacheInfoWrapper;
@@ -28,6 +30,13 @@ public class DataCacheServiceTest {
 
     private static final int fileThreshold = 5;
 
+    private DataCacheFactory createDataCacheFactoryWithS3Store() {
+        return new DataCacheFactory(
+                mock(LocalDiskDataCacheFactory.class),
+                new S3DataCacheFactory("defold-extender-cache-dev"),
+                "S3");
+    }
+
     @Test
     @Ignore
     public void testUploadingToS3Cache() throws Exception {
@@ -35,7 +44,7 @@ public class DataCacheServiceTest {
                 new CacheKeyGenerator(),
                 new CacheInfoFileParser(),
                 new CacheInfoFileWriter(),
-                new DataCacheFactory(true,"S3", "", "defold-extender-cache-dev"),
+                createDataCacheFactoryWithS3Store(),
                 true,
                 fileThreshold);
 
@@ -50,7 +59,7 @@ public class DataCacheServiceTest {
                 new CacheKeyGenerator(),
                 new CacheInfoFileParser(),
                 new CacheInfoFileWriter(),
-                new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"),
+                createDataCacheFactoryWithS3Store(),
                 true,
                 fileThreshold);
 
@@ -69,7 +78,7 @@ public class DataCacheServiceTest {
                 new CacheKeyGenerator(),
                 new CacheInfoFileParser(),
                 new CacheInfoFileWriter(),
-                new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"),
+                createDataCacheFactoryWithS3Store(),
                 true,
                 fileThreshold);
 
