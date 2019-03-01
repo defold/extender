@@ -11,4 +11,4 @@ ${DIR}/../../gradlew buildDocker -x test
 
 chmod -R a+xrw ${DIR}/../test-data || true
 
-docker run -d --rm --name extender -p 9000:9000 -e SPRING_PROFILES_ACTIVE=dev -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender
+docker run -d --rm --name extender -p 9000:9000 -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender
