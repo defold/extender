@@ -3,7 +3,6 @@ package com.defold.extender.services;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.cache.CacheEntry;
 import com.defold.extender.cache.DataCacheFactory;
-import com.defold.extender.cache.DummyDataCache;
 import com.defold.extender.cache.info.CacheInfoFileParser;
 import com.defold.extender.cache.info.CacheInfoFileWriter;
 import com.defold.extender.cache.info.CacheInfoWrapper;
@@ -56,12 +55,7 @@ public class DataCacheService {
         this.fileSizeThreshold = fileSizeThreshold;
         this.cacheIsEnabled = cacheIsEnabled;
 
-        if (cacheIsEnabled) {
-            this.dataCache = dataCacheFactory.createCache();
-        } else {
-            LOGGER.info("Creating dummy data cache since cache is disabled");
-            this.dataCache =  new DummyDataCache();
-        }
+        this.dataCache = dataCacheFactory.createCache();
     }
 
     private boolean isCached(final String key) {

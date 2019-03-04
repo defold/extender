@@ -5,8 +5,6 @@ import com.defold.extender.TestUtils;
 import com.defold.extender.cache.CacheEntry;
 import com.defold.extender.cache.DataCache;
 import com.defold.extender.cache.DataCacheFactory;
-import com.defold.extender.cache.LocalDiskDataCacheFactory;
-import com.defold.extender.cache.S3DataCacheFactory;
 import com.defold.extender.cache.info.CacheInfoFileParser;
 import com.defold.extender.cache.info.CacheInfoFileWriter;
 import com.defold.extender.cache.info.CacheInfoWrapper;
@@ -32,9 +30,10 @@ public class DataCacheServiceTest {
 
     private DataCacheFactory createDataCacheFactoryWithS3Store() {
         return new DataCacheFactory(
-                mock(LocalDiskDataCacheFactory.class),
-                new S3DataCacheFactory("defold-extender-cache-dev"),
-                "S3");
+                true,
+                "S3",
+                "",
+                "defold-extender-cache-dev");
     }
 
     @Test
