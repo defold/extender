@@ -1,0 +1,10 @@
+
+server:
+    port: 9010
+
+extender:
+    sdk.location: /tmp/extender-standalone/sdk
+    cache:
+        enabled: false
+    remote-builder:
+        enabled: false

@@ -141,7 +141,7 @@ Edit the nginx configuration:
            ssl_certificate /usr/local/etc/ssl/aws.wildcard.defold.com.pem;
            ssl_certificate_key /usr/local/etc/ssl/aws.wildcard.defold.com.key;
            
-           server_name  build-stage-darwin.defold.com;
+           server_name  build-darwin-stage.defold.com;
    ```
 1. Pass all requests to the web application running on port 8080. Raise max file upload size to 500MB.
 

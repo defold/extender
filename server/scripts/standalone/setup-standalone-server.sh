@@ -1,63 +1,57 @@
 #!/bin/bash
 
-if [ $# -ne 1 ]; then
-    printf "Usage: $(basename "$0") <version>\n\n";
+if [[ "$#" -ne 2 ]] && [[ "$#" -ne 3 ]]; then
+    printf "Usage: $(basename "$0") <version> <target directory> [service script]\n\n";
     exit 1;
 fi
 
 VERSION=$1
+EXTENDER_DIR=$2
+EXTENDER_SERVICE=$3
 
-EXTENDER_DIR=/usr/local/extender
-EXTENDER_SERVICE=/usr/local/bin/extender
-EXTENDER_INSTALL_DIR=/usr/local/extender/${VERSION}
+EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/${VERSION}
 
-if [ ! -e ${EXTENDER_DIR} ]; then
-	echo "Error! Extender home directory ${EXTENDER_DIR} not setup, exiting.\n\n"
+if [[ ! -e ${EXTENDER_DIR} ]]; then
+	echo "[setup] Error! Extender home directory ${EXTENDER_DIR} not setup, exiting.\n\n"
 	exit 2
-fi
-
-# Builds
-EXTENDER_BUILD_DIR=${EXTENDER_DIR}/builds
-if [ ! -e ${EXTENDER_BUILD_DIR} ]; then
-	mkdir -p ${EXTENDER_BUILD_DIR}
-	echo "Created build directory at ${EXTENDER_BUILD_DIR}."
 fi
 
 # Platform SDKs
 PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
-if [ ! -e ${PLATFORMSDK_DIR} ]; then
+if [[ ! -e ${PLATFORMSDK_DIR} ]]; then
 	mkdir -p ${PLATFORMSDK_DIR}
-	echo "Created SDK directory at ${PLATFORMSDK_DIR}."
+	echo "[setup] Created SDK directory at ${PLATFORMSDK_DIR}."
 fi
 
 # Logs
-LOGS_DIR=/usr/local/var/log/extender
-if [ ! -e ${LOGS_DIR} ]; then
+LOGS_DIR=${EXTENDER_INSTALL_DIR}/logs
+if [[ ! -e ${LOGS_DIR} ]]; then
 	mkdir -p ${LOGS_DIR}
-	echo "Created logs directory at ${LOGS_DIR}."
+	echo "[setup] Created logs directory at ${LOGS_DIR}."
 fi
 
 S3_URL=https://s3-eu-west-1.amazonaws.com/defold-packages
 WGET_CMD=/usr/local/bin/wget
+TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
 function download_package() {
 	local package_name=$1
 
-	if [ ! -e ${PLATFORMSDK_DIR}/${package_name} ]; then
-		mkdir _tmpdir
+	if [[ ! -e ${PLATFORMSDK_DIR}/${package_name} ]]; then
+		mkdir -p ${TMP_DOWNLOAD_DIR}
 
-		echo "Downloading" ${package_name}.tar.gz
-		${WGET_CMD} -q -O - ${S3_URL}/${package_name}.tar.gz | tar xz -C _tmpdir
+		echo "[setup] Downloading" ${package_name}.tar.gz
+		${WGET_CMD} -q -O - ${S3_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
 
 		# The folder inside the package is something like "iPhoneOS.sdk"
-		local folder=`(cd _tmpdir && ls)`
-		echo "Found folder" ${folder}
-		mv _tmpdir/${folder} ${PLATFORMSDK_DIR}/${package_name}
-		rmdir _tmpdir
+		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
+		echo "[setup] Found folder" ${folder}
+		mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${package_name}
+		rm -rf ${TMP_DOWNLOAD_DIR}
 
-		echo "Installed" ${PLATFORMSDK_DIR}/${package_name}
+		echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
 	else
-		echo "Package" ${PLATFORMSDK_DIR}/${package_name} "already installed"
+		echo "[setup] Package" ${PLATFORMSDK_DIR}/${package_name} "already installed"
 	fi
 }
 
@@ -78,8 +72,15 @@ function download_packages() {
 
 download_packages
 
-${EXTENDER_SERVICE} stop
-ln -sfn ${VERSION} /usr/local/extender/current
-ln -sfn /usr/local/extender/current/service.sh /usr/local/bin/extender
 chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
-${EXTENDER_SERVICE} start
+
+if [[ -e ${EXTENDER_SERVICE} ]]; then
+    ${EXTENDER_SERVICE} stop
+fi
+
+ln -sfn ${VERSION} ${EXTENDER_DIR}/current
+
+if [[ -e ${EXTENDER_SERVICE} ]]; then
+    ln -sfn ${EXTENDER_DIR}/current/service.sh ${EXTENDER_SERVICE}
+    ${EXTENDER_SERVICE} start
+fi

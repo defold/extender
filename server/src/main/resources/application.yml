@@ -3,25 +3,18 @@ server:
     port: 9000
 
 extender:
-    sdk-location: /var/extender/sdk
-    # Slightly bigger than production in order to not remove version controlled SDK
-    sdk-cache-size: 10
-    build-location: /var/extender/builds
+    sdk:
+        location: /var/extender/sdk
+        # Slightly bigger than production in order to not remove version controlled SDK
+        cache-size: 10
     server:
         http:
             idle-timeout: 600000
     cache:
-        enabled: true
-        type: LOCAL
+        enabled: false
         file-size-threshold: 65536
-        local:
-            basedir: /var/extender/cache/data
-        s3:
-            bucket: defold-extender-cache-dev
     remote-builder:
         enabled: false
-        # This points to the host machine from inside docker
-        url: http://host.docker.internal:9010
         platforms: ios, osx
 
 spring:
@@ -49,99 +42,3 @@ management:
         diskspace:
             path: /
             threshold: 524288000 #500mb
-
----
-
-spring.profiles: dev-s3
-
-extender:
-    cache:
-        type: S3
-
----
-
-spring.profiles: dev-remote-builder
-
-extender:
-    remote-builder:
-        enabled: true
-
----
-
-spring:
-    profiles: stage
-
-extender:
-    sdk-cache-size: 5
-    cache:
-        type: S3
-        s3:
-            bucket: defold-extender-cache-stage
-    remote-builder:
-        enabled: true
-        url: https://build-darwin-stage.defold.com
-
-endpoints:
-    health:
-        sensitive: true
-
----
-
-spring.profiles: production
-
-extender:
-    sdk-cache-size: 5
-    cache:
-        type: S3
-        s3:
-            bucket: defold-extender-cache-prod
-    remote-builder:
-        enabled: true
-        url: https://build-darwin.defold.com
-
-endpoints:
-    health:
-        sensitive: true
-
----
-
-spring.profiles: standalone
-
-server:
-    port: 8080
-
-extender:
-    sdk-location: /usr/local/extender/tools
-    build-location: /usr/local/extender/builds
-    cache:
-        enabled: false
-    remote-builder:
-        enabled: false
-
----
-
-spring.profiles: standalone-dev
-server:
-    port: 9010
-
-extender:
-    sdk-location: ./extender/sdk
-    build-location: ./extender/builds
-    cache:
-        enabled: false
-    remote-builder:
-        enabled: false
-
----
-
-spring.profiles: standalone-production
-spring.profiles.include:
-    - production
-    - standalone
-
----
-
-spring.profiles: standalone-stage
-spring.profiles.include:
-    - stage
-    - standalone

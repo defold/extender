@@ -21,9 +21,9 @@ public class DataCacheFactory {
     private final String bucketName;
 
     public DataCacheFactory(@Value("${extender.cache.enabled}") boolean isEnabled,
-                            @Value("${extender.cache.type}") String storeType,
-                            @Value("${extender.cache.local.basedir}") String baseDirectory,
-                            @Value("${extender.cache.s3.bucket}") String bucketName) {
+                            @Value("${extender.cache.type:}") String storeType,
+                            @Value("${extender.cache.local.basedir:}") String baseDirectory,
+                            @Value("${extender.cache.s3.bucket:}") String bucketName) {
         this.isEnabled = isEnabled;
         this.storeType = storeType;
         this.baseDirectory = baseDirectory;

@@ -25,7 +25,7 @@ And now build the container again:
 
 After building your Docker container, you can login in using the script:
 
-    $ ./server/scripts/debug.sh
+    $ ./server/scripts/debug-local.sh
 
 Make sure you are `extender` by typing
 

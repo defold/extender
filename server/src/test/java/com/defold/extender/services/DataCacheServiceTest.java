@@ -28,6 +28,14 @@ public class DataCacheServiceTest {
 
     private static final int fileThreshold = 5;
 
+    private DataCacheFactory createDataCacheFactoryWithS3Store() {
+        return new DataCacheFactory(
+                true,
+                "S3",
+                "",
+                "defold-extender-cache-dev");
+    }
+
     @Test
     @Ignore
     public void testUploadingToS3Cache() throws Exception {
@@ -35,7 +43,7 @@ public class DataCacheServiceTest {
                 new CacheKeyGenerator(),
                 new CacheInfoFileParser(),
                 new CacheInfoFileWriter(),
-                new DataCacheFactory(true,"S3", "", "defold-extender-cache-dev"),
+                createDataCacheFactoryWithS3Store(),
                 true,
                 fileThreshold);
 
@@ -50,7 +58,7 @@ public class DataCacheServiceTest {
                 new CacheKeyGenerator(),
                 new CacheInfoFileParser(),
                 new CacheInfoFileWriter(),
-                new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"),
+                createDataCacheFactoryWithS3Store(),
                 true,
                 fileThreshold);
 
@@ -69,7 +77,7 @@ public class DataCacheServiceTest {
                 new CacheKeyGenerator(),
                 new CacheInfoFileParser(),
                 new CacheInfoFileWriter(),
-                new DataCacheFactory(true, "S3", "", "defold-extender-cache-dev"),
+                createDataCacheFactoryWithS3Store(),
                 true,
                 fileThreshold);
 
