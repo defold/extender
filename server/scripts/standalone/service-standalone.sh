@@ -5,7 +5,7 @@ EXTENDER_DIR=/usr/local/extender
 ENVIRONMENT_FILE=${EXTENDER_DIR}/env.properties
 PATH_TO_JAR=${EXTENDER_DIR}/current/extender.jar
 PID_PATH_NAME=${EXTENDER_DIR}/${SERVICE_NAME}.pid
-LOG_DIRECTORY=/usr/local/var/log/extender
+LOG_DIRECTORY=${EXTENDER_DIR}/logs
 STDOUT_LOG=${LOG_DIRECTORY}/stdout.log
 ERROR_LOG=${LOG_DIRECTORY}/error.log
 
