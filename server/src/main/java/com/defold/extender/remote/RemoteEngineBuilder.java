@@ -1,6 +1,5 @@
 package com.defold.extender.remote;
 
-import com.defold.extender.ExtenderException;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -35,7 +34,7 @@ public class RemoteEngineBuilder {
 
     public byte[] build(final File projectDirectory,
                         final String platform,
-                        final String sdkVersion) throws ExtenderException {
+                        final String sdkVersion) {
 
         LOGGER.info("Building engine remotely at {}", remoteBuilderBaseUrl);
 
@@ -44,7 +43,7 @@ public class RemoteEngineBuilder {
         try {
             httpEntity = buildHttpEntity(projectDirectory);
         } catch(IllegalStateException|IOException e) {
-            throw new ExtenderException(e, "Failed to add files to multipart request");
+            throw new RuntimeException("Failed to add files to multipart request", e);
         }
 
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
@@ -55,12 +54,12 @@ public class RemoteEngineBuilder {
             final byte[] bytes = bos.toByteArray();
 
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-                throw new ExtenderException("Failed to build engine remotely: " + new String(bytes));
+                throw new RuntimeException("Failed to build engine remotely: " + new String(bytes));
             }
 
             return bytes;
         } catch (IOException e) {
-            throw new ExtenderException(e, "Failed to communicate with remote builder");
+            throw new RuntimeException("Failed to communicate with remote builder", e);
         }
     }
 
