@@ -42,7 +42,7 @@ start_service() {
     if [[ -f ${PID_PATH_NAME} ]]; then
         PID=$(cat ${PID_PATH_NAME});
         if [[ -n "$(ps -p ${PID} -o pid=)" ]]; then
-            echo "Error! ${SERVICE_NAME} is already running."
+            echo "Error! ${SERVICE_NAME} is already running, exiting."
             exit 2
         else
             echo "Warning: PID file exists but no process running, removing PID file."
@@ -50,7 +50,7 @@ start_service() {
         fi
     fi
 
-    nohup java -Xmx1g -XX:MaxDirectMemorySize=512m -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+    nohup java -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     echo $! > ${PID_PATH_NAME}
     echo "${SERVICE_NAME} started."
 }
