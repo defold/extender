@@ -8,7 +8,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.message.BasicHttpResponse;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.Ignore;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,7 +19,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
-@Ignore
 public class RemoteEngineBuilderTest {
 
     private RemoteEngineBuilder remoteEngineBuilder;
@@ -59,7 +57,7 @@ public class RemoteEngineBuilderTest {
         assertEquals(content, new String(bytes));
     }
 
-    @Test(expected = ExtenderException.class)
+    @Test(expected = RemoteBuildException.class)
     @SuppressWarnings("unchecked")
     public void buildShouldThrowException() throws IOException, ExtenderException {
         final File directory = mock(File.class);
