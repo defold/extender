@@ -50,7 +50,7 @@ start_service() {
         fi
     fi
 
-    nohup java -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+    nohup java -Xmx1g -XX:MaxDirectMemorySize=512m -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     echo $! > ${PID_PATH_NAME}
     echo "${SERVICE_NAME} started."
 }
