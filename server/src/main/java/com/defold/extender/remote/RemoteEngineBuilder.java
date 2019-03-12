@@ -1,5 +1,6 @@
 package com.defold.extender.remote;
 
+import com.defold.extender.ExtenderException;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -34,7 +35,7 @@ public class RemoteEngineBuilder {
 
     public byte[] build(final File projectDirectory,
                         final String platform,
-                        final String sdkVersion) {
+                        final String sdkVersion) throws ExtenderException {
 
         LOGGER.info("Building engine remotely at {}", remoteBuilderBaseUrl);
 
@@ -43,23 +44,27 @@ public class RemoteEngineBuilder {
         try {
             httpEntity = buildHttpEntity(projectDirectory);
         } catch(IllegalStateException|IOException e) {
-            throw new RuntimeException("Failed to add files to multipart request", e);
+            throw new RemoteBuildException("Failed to add files to multipart request", e);
         }
 
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             final HttpResponse response = sendRequest(platform, sdkVersion, httpEntity);
 
+            LOGGER.info("Remote builder response status: {}", response.getStatusLine());
+
             response.getEntity().writeTo(bos);
 
             final byte[] bytes = bos.toByteArray();
 
-            if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-                throw new RuntimeException("Failed to build engine remotely: " + new String(bytes));
+            if (isClientError(response)) {
+                throw new ExtenderException("Client error when building engine remotely: " + new String(bytes));
+            } else if (isServerError(response)) {
+                throw new RemoteBuildException("Server error when building engine remotely: " + new String(bytes));
             }
 
             return bytes;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to communicate with remote builder", e);
+            throw new RemoteBuildException("Failed to communicate with remote builder", e);
         }
     }
 
@@ -90,5 +95,15 @@ public class RemoteEngineBuilder {
                 });
 
         return builder.build();
+    }
+
+    private boolean isClientError(final HttpResponse response) {
+        final int statusCode = response.getStatusLine().getStatusCode();
+        return HttpStatus.SC_BAD_REQUEST <= statusCode && statusCode < HttpStatus.SC_INTERNAL_SERVER_ERROR;
+    }
+
+    private boolean isServerError(final HttpResponse response) {
+        final int statusCode = response.getStatusLine().getStatusCode();
+        return statusCode >= HttpStatus.SC_INTERNAL_SERVER_ERROR;
     }
 }
