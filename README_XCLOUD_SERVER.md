@@ -157,6 +157,8 @@ Edit the nginx configuration:
            proxy_set_header X-Forwarded-Proto $scheme;
            proxy_set_header X-Forwarded-Port $server_port;
            client_max_body_size 500M;
+           proxy_request_buffering off;
+           proxy_buffering off;
    ```
 1. Comment out the error page.
    
@@ -260,3 +262,8 @@ Enable PF firewall:
 
 * NGINX access and error logs: /usr/local/var/log/nginx/
 * Extender service logs: /usr/local/extender/logs/
+
+### Xcloud services
+
+* [Xcloud portal with web console](https://my.flow.ch/portal/cloudserver)
+* [Status page with incidents](https://status.flow.ch/)
