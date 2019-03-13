@@ -110,6 +110,8 @@ public class ExtenderController {
                             @PathVariable("sdkVersion") String sdkVersionString)
             throws ExtenderException, IOException, URISyntaxException {
 
+        LOGGER.info("Starting build: sdk={}, platform={}", sdkVersionString, platform);
+
         boolean isMultipart = ServletFileUpload.isMultipartContent(request);
         if (!isMultipart) {
             throw new ExtenderException("The request must be a multi part request");

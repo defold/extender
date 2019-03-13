@@ -821,6 +821,10 @@ class Extender {
             for (File manifest : this.manifests) {
                 ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
 
+                if (manifestConfig == null) {
+                    throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
+                }
+
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
                     manifestContext = getManifestContext(platform, config, manifestConfig);

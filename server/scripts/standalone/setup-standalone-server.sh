@@ -24,7 +24,7 @@ if [[ ! -e ${PLATFORMSDK_DIR} ]]; then
 fi
 
 # Logs
-LOGS_DIR=${EXTENDER_INSTALL_DIR}/logs
+LOGS_DIR=${EXTENDER_DIR}/logs
 if [[ ! -e ${LOGS_DIR} ]]; then
 	mkdir -p ${LOGS_DIR}
 	echo "[setup] Created logs directory at ${LOGS_DIR}."

@@ -5,7 +5,7 @@ SOURCE_DIR=${SCRIPT_DIR}/../..
 
 VERSION=$(date "+%Y%m%d_%H%M")
 
-TARGET_DIR=/tmp/extender-standalone
+TARGET_DIR=/usr/local/extender
 INSTALL_DIR=${TARGET_DIR}/${VERSION}
 
 source ${SCRIPT_DIR}/standalone/publish-standalone.sh

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-EXTENDER_DIR=/tmp/extender-standalone
+EXTENDER_DIR=/usr/local/extender
 EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/current
 
 # The SDK path is used by Defold SDK build.yml
