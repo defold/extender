@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -250,7 +251,7 @@ public class ExtenderController {
                 Files.createDirectories(file.getParentFile().toPath());
 
                 try (InputStream inputStream = item.openStream()) {
-                    Files.copy(inputStream, file.toPath());
+                    Files.copy(inputStream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 }
 
                 count++;
