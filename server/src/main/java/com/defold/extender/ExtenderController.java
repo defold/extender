@@ -247,6 +247,9 @@ public class ExtenderController {
                 if (!isRelativePath(uploadDirectory, file)) { // in case the name contains "../"
                     throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
                 }
+                if (file.exists()) {
+                    LOGGER.info("Duplicate file in received zip file: ", name);
+                }
 
                 Files.createDirectories(file.getParentFile().toPath());
 
