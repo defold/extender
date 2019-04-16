@@ -22,6 +22,20 @@ _NOTE:_ The first time you build it will take a while. After that Docker cache w
 
 ### Start
 * Then, start a container based on that image by running: `./server/scripts/run-local.sh`.
+* The server is now available on port :9000
+
+
+### Darwin builds
+
+Since Apple discontinued opensourcing the libtapi library, we had to start building an actual mac machine.
+You can test this flow locally:
+
+* Create the output directory: `sudo mkdir /usr/local/extender`
+* Change permissions to it: `sudo chown mathiaswesterdahl:admin /usr/local/extender`
+* Build the server (extender.jar): `./gradlew clean build -xtest`
+* Run `./server/scripts/publish-standalone-local.sh`
+* The server is now available on http://localhost:9010
+
 
 ### Stop
 * Just hit `Ctrl-C`.
