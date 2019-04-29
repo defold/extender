@@ -76,7 +76,7 @@ if __name__ == '__main__':
 	print("export DYNAMO_HOME=%s" % sdk_path)
 
 	print("Starting server")
-	os.system("./server/scripts/run.sh")
+	os.system("./server/scripts/run-local.sh")
 
 
 

@@ -9,9 +9,11 @@ RUN \
   apt-get install -y software-properties-common && \
   add-apt-repository -y ppa:webupd8team/java && \
   apt-get update && \
-  echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
   apt-get install -y --no-install-recommends \
-    oracle-java8-installer \
+    wget \
+    locales \
+    default-jre \
+    default-jdk \
     gcc \
     g++ \
     gcc-multilib \
@@ -257,7 +259,18 @@ ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platform
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 
+ENV ANDROID_64_NDK_API_VERSION 21
+ENV ANDROID_64_GCC_VERSION 4.9
+ENV ANDROID_64_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64/usr/include
+ENV ANDROID_64_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/include
+ENV ANDROID_64_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a/include
+ENV ANDROID_64_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a
+ENV ANDROID_64_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64
+ENV ANDROID_64_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/linux-x86_64/bin
+ENV ANDROID_64_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
+
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
 
 ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
 ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}

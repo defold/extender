@@ -5,13 +5,14 @@ SOURCE_DIR=${SCRIPT_DIR}/../..
 
 VERSION=$(date "+%Y%m%d_%H%M")
 
-TARGET_HOST=build-darwin-stage.defold.com
-TARGET_USER=xcloud
 TARGET_DIR=/usr/local/extender
+INSTALL_DIR=${TARGET_DIR}/${VERSION}
 
-source ${SCRIPT_DIR}/shared/tools.sh
 source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 
-check_uncommitted_changes ${SOURCE_DIR}
+mkdir -p ${TARGET_DIR}
+
 build_artifact ${SOURCE_DIR}
-deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION} ${TARGET_HOST} ${TARGET_USER}
+deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION}
+
+bash ${SCRIPT_DIR}/run-standalone-local.sh
