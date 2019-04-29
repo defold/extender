@@ -1,0 +1,16 @@
+
+server:
+    port: 8080
+
+extender:
+    sdk:
+        location: /usr/local/extender/sdk
+        cache-size: 5
+    cache:
+        enabled: false
+    remote-builder:
+        enabled: false
+
+endpoints:
+    health:
+        sensitive: true

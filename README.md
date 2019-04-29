@@ -21,7 +21,21 @@ To speed things up, tests can be disabled by opening `./server/scripts/build.sh`
 _NOTE:_ The first time you build it will take a while. After that Docker cache will speed it up.
 
 ### Start
-* Then, start a container based on that image by running: `./server/scripts/run.sh`.
+* Then, start a container based on that image by running: `./server/scripts/run-local.sh`.
+* The server is now available on port :9000
+
+
+### Darwin builds
+
+Since Apple discontinued opensourcing the libtapi library, we had to start building an actual mac machine.
+You can test this flow locally:
+
+* Create the output directory: `sudo mkdir /usr/local/extender`
+* Change permissions to it: `sudo chown mathiaswesterdahl:admin /usr/local/extender`
+* Build the server (extender.jar): `./gradlew clean build -xtest`
+* Run `./server/scripts/publish-standalone-local.sh`
+* The server is now available on http://localhost:9010
+
 
 ### Stop
 * Just hit `Ctrl-C`.
@@ -30,7 +44,7 @@ _NOTE:_ The first time you build it will take a while. After that Docker cache w
 
 #### Docker container
 
-* When the container is running, then run `./server/scripts/debug.sh`. It connects to the container and executes bash.
+* When the container is running, then run `./server/scripts/debug-local.sh`. It connects to the container and executes bash.
 
 * In detail: [Debugging](./README_DEBUGGING.md)
 
