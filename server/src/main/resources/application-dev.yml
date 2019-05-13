@@ -1,0 +1,13 @@
+
+extender:
+    cache:
+        enabled: true
+        type: LOCAL
+        local.basedir: /var/extender/cache/data
+        #type: S3
+        #s3.bucket: defold-extender-cache-dev
+
+    remote-builder:
+        enabled: true
+        # This points to the host machine from inside docker
+        url: http://host.docker.internal:9010

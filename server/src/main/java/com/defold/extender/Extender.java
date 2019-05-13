@@ -289,6 +289,7 @@ class Extender {
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
 
+        // Not needed since 1.2.153 - keep in case someone uses older build.yml
         if (this.platform.contains("android")) {
             context.put("android_ndk_path", ANDROID_NDK_PATH);
             context.put("android_ndk_include", ANDROID_NDK_INCLUDE_PATH);
@@ -820,6 +821,10 @@ class Extender {
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
                 ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
+
+                if (manifestConfig == null) {
+                    throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
+                }
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {
