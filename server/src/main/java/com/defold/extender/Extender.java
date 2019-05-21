@@ -744,11 +744,18 @@ class Extender {
         ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(platform);
 
         // Check that the manifest only contains valid platforms
-        Set<String> allowedPlatforms = config.platforms.keySet();
+        final String[] allowedPlatforms = new String[]{
+            "ios", "armv7-ios","arm64-ios","x86_64-ios",
+            "android", "armv7-android","arm64-android",
+            "osx", "x86-osx","x86_64-osx",
+            "linux", "x86-linux","x86_64-linux",
+            "win32", "x86-win32","x86_64-win32",
+            "web", "js-web","wasm-web",
+        };
         Set<String> manifestPlatforms = manifestConfig.platforms.keySet();
-        manifestPlatforms.removeAll(allowedPlatforms);
+        manifestPlatforms.removeAll(Arrays.asList(allowedPlatforms));
         if (!manifestPlatforms.isEmpty()) {
-            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()));
+            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), Arrays.toString(allowedPlatforms)));
         }
 
         if (manifestPlatformConfig != null && manifestPlatformConfig.context != null) {
