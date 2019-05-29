@@ -15,3 +15,11 @@ source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 check_uncommitted_changes ${SOURCE_DIR}
 build_artifact ${SOURCE_DIR}
 deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION} ${TARGET_HOST} ${TARGET_USER}
+
+SERVER=https://${TARGET_HOST}
+
+echo "**********************************"
+echo "Checking the server version:"
+wget -q -O - $SERVER
+echo ""
+echo "**********************************"
