@@ -88,7 +88,7 @@ public class ExtenderController {
 
     @RequestMapping("/")
     public String index() {
-        return "Extender";
+        return String.format("Extender<br>%s<br>%s", Version.gitVersion, Version.buildTime);
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
