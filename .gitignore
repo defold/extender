@@ -30,3 +30,4 @@ server/test-data/sdk/*
 
 # Mac
 .DS_Store
+.bash_history

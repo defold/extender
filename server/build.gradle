@@ -64,6 +64,14 @@ dependencies {
     testCompile project(':client')
 }
 
+task createVersionFile(type:Exec) {
+    commandLine 'python', 'src/main/java/com/defold/extender/version.py'
+}
+
+compileJava {
+    dependsOn createVersionFile
+}
+
 task buildDocker(type: Docker, dependsOn: build) {
     push = false
     applicationName = jar.baseName
