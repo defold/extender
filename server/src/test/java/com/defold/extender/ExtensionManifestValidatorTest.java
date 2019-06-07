@@ -53,7 +53,7 @@ public class ExtensionManifestValidatorTest {
         InputStream configFileInputStream = Files.newInputStream(new File("test-data/sdk/a/defoldsdk/extender/build.yml").toPath());
         assertNotNull(new Yaml().loadAs(configFileInputStream, Configuration.class));
 
-        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), allowedFlagsTemplates, allowedLibsTemplates, allowedSymbols);
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), allowedFlagsTemplates, allowedSymbols);
 
         List<String> stringValues = new ArrayList<>();
         Map<String, Object> context = new HashMap<>();
@@ -80,7 +80,7 @@ public class ExtensionManifestValidatorTest {
         stringValues.clear();
         context.clear();
         stringValues.add("apa");
-        stringValues.add("foo");
+        stringValues.add("./foo");
         context.put("libs", stringValues);
 
         boolean thrown;
@@ -134,19 +134,40 @@ public class ExtensionManifestValidatorTest {
     }
 
     @Test
-    public void testAllowedLibs() {
-        String[] allowedLibsTemplatesArray = new String[]{"(\\w[\\w\\.-]+)"};
-        List<String> allowedLibs = Arrays.asList(allowedLibsTemplatesArray);
+    public void testAllowedLibs() throws ExtenderException {
+        Map<String, Object> context = new HashMap<>();
 
-        TemplateExecutor templateExecutor = new TemplateExecutor();
-
-        WhitelistConfig whitelistConfig = new WhitelistConfig();
-        List<Pattern> patterns = new ArrayList<>();
-        ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedLibs, patterns);
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
 
         List<String> l = new ArrayList<>();
         l.add("Crypt32");
-        String s = ExtensionManifestValidator.whitelistCheck(patterns, l);
-        assertEquals(null, s);
+        l.add("c++");
+        l.add("z");
+        context.put("libs", l);
+
+        boolean thrown = false;
+        try {
+            validator.validate("testExtension", context);
+        } catch (ExtenderException e) {
+            thrown = true;
+            System.out.println(e.toString());
+        }
+
+        assertFalse(thrown);
+
+        l.add("../libfoobar.a");
+        context.put("libs", l);
+        try {
+            validator.validate("testExtension", context);
+        } catch (ExtenderException e) {
+            System.out.println(e.toString());
+            if (e.toString().contains("Invalid")) { // expected error
+                thrown = true;
+            } else {
+                throw e;
+            }
+        }
+        assertTrue(thrown);
     }
 }

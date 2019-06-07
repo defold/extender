@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -87,7 +88,7 @@ public class ExtenderController {
 
     @RequestMapping("/")
     public String index() {
-        return "Extender";
+        return String.format("Extender<br>%s<br>%s", Version.gitVersion, Version.buildTime);
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
@@ -109,6 +110,8 @@ public class ExtenderController {
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
             throws ExtenderException, IOException, URISyntaxException {
+
+        LOGGER.info("Starting build: sdk={}, platform={}", sdkVersionString, platform);
 
         boolean isMultipart = ServletFileUpload.isMultipartContent(request);
         if (!isMultipart) {
@@ -244,11 +247,14 @@ public class ExtenderController {
                 if (!isRelativePath(uploadDirectory, file)) { // in case the name contains "../"
                     throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
                 }
+                if (file.exists()) {
+                    LOGGER.info("Duplicate file in received zip file: ", name);
+                }
 
                 Files.createDirectories(file.getParentFile().toPath());
 
                 try (InputStream inputStream = item.openStream()) {
-                    Files.copy(inputStream, file.toPath());
+                    Files.copy(inputStream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 }
 
                 count++;

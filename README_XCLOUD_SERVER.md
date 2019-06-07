@@ -115,7 +115,7 @@ Install nginx to enable HTTPS with SSL certificates for the web application:
 
 Start nginx and make sure it starts up at boot:
 
-`brew services start nginx`  
+`sudo brew services start nginx`  
 
 Go to Xcloud web console and there will hopefully be a firewall popup: allow nginx to accept incoming connections.
 
@@ -141,7 +141,7 @@ Edit the nginx configuration:
            ssl_certificate /usr/local/etc/ssl/aws.wildcard.defold.com.pem;
            ssl_certificate_key /usr/local/etc/ssl/aws.wildcard.defold.com.key;
            
-           server_name  build-stage-darwin.defold.com;
+           server_name  build-darwin-stage.defold.com;
    ```
 1. Pass all requests to the web application running on port 8080. Raise max file upload size to 500MB.
 
@@ -157,6 +157,8 @@ Edit the nginx configuration:
            proxy_set_header X-Forwarded-Proto $scheme;
            proxy_set_header X-Forwarded-Port $server_port;
            client_max_body_size 500M;
+           proxy_request_buffering off;
+           proxy_buffering off;
    ```
 1. Comment out the error page.
    
@@ -233,3 +235,35 @@ Add the following (for production):
 Add the following (for stage):
 
 `profile=standalone-stage`
+
+# Operations
+
+### What needs to run?
+
+The following services need to run:
+
+* NGINX load balancer & proxy
+* Extender
+* PF firewall
+
+Start nginx:
+
+`brew services start nginx`
+
+Start extender service:
+
+`extender start`
+
+Enable PF firewall:
+
+`sudo pfctl -ef /etc/pf.conf`
+
+### Where are the logs?
+
+* NGINX access and error logs: /usr/local/var/log/nginx/
+* Extender service logs: /usr/local/extender/logs/
+
+### Xcloud services
+
+* [Xcloud portal with web console](https://my.flow.ch/portal/cloudserver)
+* [Status page with incidents](https://status.flow.ch/)

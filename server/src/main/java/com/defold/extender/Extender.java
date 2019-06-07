@@ -153,12 +153,11 @@ class Extender {
             }
         }
 
-        // The allowed libs/symbols are the union of the values from the different "levels": "context: allowedLibs: [...]" + "context: platforms: arm64-osx: allowedLibs: [...]"
-        List<String> allowedLibs = ExtenderUtil.mergeLists(this.platformConfig.allowedLibs, (List<String>) this.config.context.getOrDefault("allowedLibs", new ArrayList<String>()) );
+        // The allowed symbols are the union of the values from the different "levels": "context: allowedSymbols: [...]" + "context: platforms: arm64-osx: allowedSymbols: [...]"
         List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
 
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
-        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedLibs, allowedSymbols);
+        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
 
         // Make sure the user hasn't input anything invalid in the manifest
         this.manifestValidator.validate(this.appManifestPath, appManifestContext);
@@ -290,6 +289,7 @@ class Extender {
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
 
+        // Not needed since 1.2.153 - keep in case someone uses older build.yml
         if (this.platform.contains("android")) {
             context.put("android_ndk_path", ANDROID_NDK_PATH);
             context.put("android_ndk_include", ANDROID_NDK_INCLUDE_PATH);
@@ -451,11 +451,13 @@ class Extender {
         File mainObject = compileMain(maincpp, manifestContext);
 
         List<String> extLibs = new ArrayList<>();
+        List<String> extShLibs = new ArrayList<>();
         List<String> extLibPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
         List<String> extFrameworks = new ArrayList<>();
         List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
         List<String> extJsLibs = new ArrayList<>();
 
+        extShLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.shlibRe));
         extLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.stlibRe));
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
@@ -465,7 +467,7 @@ class Extender {
                 extFrameworkPaths.add(libDir.toString());
             }
 
-            extLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.shlibRe));
+            extShLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.shlibRe));
             extLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.stlibRe));
             extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libDir, JS_RE));
 
@@ -480,13 +482,14 @@ class Extender {
                     extFrameworkPaths.add(libCommonDir.toString());
                 }
 
-                extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.shlibRe));
+                extShLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.shlibRe));
                 extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.stlibRe));
                 extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libCommonDir, JS_RE));
                 extFrameworkPaths.addAll(getFrameworkPaths(extDir));
             }
         }
 
+        extShLibs = ExtenderUtil.pruneItems( extShLibs, ExtenderUtil.getStringList(mainContext, "includeDynamicLibs"), ExtenderUtil.getStringList(mainContext, "excludeDynamicLibs"));
         extLibs = ExtenderUtil.pruneItems( extLibs, ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs"));
         extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs"));
 
@@ -502,10 +505,17 @@ class Extender {
             objects.add(ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
         }
 
+        Map<String, Object> env = new HashMap<>();
+        env.put("libs", extLibs);
+        env.put("dynamicLibs", extShLibs);
+        env.put("libPaths", extLibPaths);
+        env.put("frameworks", extFrameworks);
+        env.put("frameworkPaths", extFrameworkPaths);
+        env.put("jsLibs", extJsLibs);
         Map<String, Object> context = context(manifestContext);
         context.put("src", objects);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
-        context.put("ext", ImmutableMap.of("libs", extLibs, "libPaths", extLibPaths, "frameworks", extFrameworks, "frameworkPaths", extFrameworkPaths, "jsLibs", extJsLibs));
+        context.put("ext", env);
         context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs")) );
         context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs")) );
 
@@ -790,11 +800,18 @@ class Extender {
         ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(platform);
 
         // Check that the manifest only contains valid platforms
-        Set<String> allowedPlatforms = config.platforms.keySet();
+        final String[] allowedPlatforms = new String[]{
+            "ios", "armv7-ios","arm64-ios","x86_64-ios",
+            "android", "armv7-android","arm64-android",
+            "osx", "x86-osx","x86_64-osx",
+            "linux", "x86-linux","x86_64-linux",
+            "win32", "x86-win32","x86_64-win32",
+            "web", "js-web","wasm-web",
+        };
         Set<String> manifestPlatforms = manifestConfig.platforms.keySet();
-        manifestPlatforms.removeAll(allowedPlatforms);
+        manifestPlatforms.removeAll(Arrays.asList(allowedPlatforms));
         if (!manifestPlatforms.isEmpty()) {
-            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), allowedPlatforms.toString()));
+            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), Arrays.toString(allowedPlatforms)));
         }
 
         if (manifestPlatformConfig != null && manifestPlatformConfig.context != null) {
@@ -861,6 +878,10 @@ class Extender {
             Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
             for (File manifest : this.manifests) {
                 ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
+
+                if (manifestConfig == null) {
+                    throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
+                }
 
                 Map<String, Object> manifestContext = new HashMap<>();
                 if (manifestConfig.platforms != null) {

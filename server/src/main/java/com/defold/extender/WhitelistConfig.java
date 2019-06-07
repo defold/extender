@@ -9,6 +9,7 @@ class WhitelistConfig {
 
     // Used to verify C++ defines before adding them on the command line
     public String defineRe = "[A-Za-z]+[A-Za-z0-9_]+=?[A-Za-z0-9_]+";
+    public String libraryRe = "(\\w[\\w\\.+-]*)";
 
     public WhitelistConfig() {
         context.put("arg", "[a-zA-Z][a-zA-Z0-9-_]+");
