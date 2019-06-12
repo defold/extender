@@ -758,8 +758,7 @@ class Extender {
         return allJars;
     }
 
-    private File buildProGuard(List<String> jars) throws ExtenderException {
-
+    private File[] buildProGuard(List<String> jars) throws ExtenderException {
         // To support older versions of build.yml where proGuardCmd is not defined:
         if (platformConfig.proGuardCmd == null || platformConfig.proGuardCmd.isEmpty()) {
             LOGGER.info("No SDK support. Skipping ProGuard step.");
@@ -793,7 +792,10 @@ class Extender {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
 
-        return new File(buildDirectory, "dmengine.jar");
+        File[] proguardFiles = new File[2];
+        proguardFiles[0] = new File(buildDirectory, "dmengine.jar");
+        proguardFiles[1] = new File(buildDirectory, "mapping.txt");
+        return proguardFiles;
     }
 
     public static Map<String, Object> getManifestContext(String platform, Configuration config, ManifestConfiguration manifestConfig) throws ExtenderException {
@@ -934,11 +936,13 @@ class Extender {
             File rJar = buildRJar();
             List<File> extensionJars = buildJava(rJar);
             List<String> allJars = getAllJars(extensionJars); // extension jars, extra jars, engine jars
-            File finalJar = buildProGuard(allJars); // Returns null if unsupported, dmengine.jar if it was
+            File[] proguardFiles = buildProGuard(allJars);
 
-            if (finalJar != null) {
+            // Returns null if unsupported, dmengine.jar and mapping.txt if it was
+            if (proguardFiles != null) {
                 allJars.clear();
-                allJars.add(finalJar.getAbsolutePath());
+                allJars.add(proguardFiles[0].getAbsolutePath());
+                outputFiles.add(proguardFiles[1]);
             }
 
             File[] classesDex = buildClassesDex(allJars);
