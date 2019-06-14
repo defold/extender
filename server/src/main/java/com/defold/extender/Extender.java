@@ -749,14 +749,14 @@ class Extender {
     }
 
     // returns all jar files from each extension, as well as the engine defined jar files
-    private List<String> getAllJars(List<String> extensionJars) throws ExtenderException {
+    private List<String> getAllJars(Map<String,Collection<File>> extensionJarMap) throws ExtenderException {
         List<String> allJars = new ArrayList<>();
         for (File extDir : this.extDirs) {
             allJars.addAll(getExtensionLibJars(extDir));
         }
 
-        for (String extensionJar : extensionJars) {
-            allJars.add(extensionJar);
+        for (Map.Entry<String,Collection<File>> extensionJar : extensionJarMap.entrySet()) {
+            allJars.add(extensionJar.getKey());
         }
 
         HashMap<String, Object> empty = new HashMap<>();
@@ -972,9 +972,7 @@ class Extender {
             // If the collection is null, the jar should be considered as a library jar,
             // which means that it should not be obfuscated or have its symbols removed
             Map<String,Collection<File>> extensionJarMap = buildJava(rJar);
-            List<String> extensionJars  = new ArrayList<>(extensionJarMap.keySet());
-
-            List<String> allJars               = getAllJars(extensionJars); // extension jars, extra jars, engine jars
+            List<String> allJars = getAllJars(extensionJarMap); // extension jars, extra jars, engine jars
             Map.Entry<File,File> proGuardFiles = buildProGuard(allJars, extensionJarMap);
 
             // Returns null if unsupported, dmengine.jar and mapping.txt if it was
@@ -983,10 +981,10 @@ class Extender {
                 allJars.add(proGuardFiles.getKey().getAbsolutePath());
                 outputFiles.add(proGuardFiles.getValue());
 
-                for (String extensionJar : extensionJars) {
-                    Collection<File> exstensionProGuardFiles = extensionJarMap.get(extensionJar);
-                    if (exstensionProGuardFiles != null && exstensionProGuardFiles.size() == 0) {
-                        allJars.add(extensionJar);
+                for (Map.Entry<String,Collection<File>> extensionJar : extensionJarMap.entrySet()) {
+                    Collection<File> extensionProGuardFiles = extensionJar.getValue();
+                    if (extensionProGuardFiles != null && extensionProGuardFiles.size() == 0) {
+                        allJars.add(extensionJar.getKey());
                     }
                 }
             }
