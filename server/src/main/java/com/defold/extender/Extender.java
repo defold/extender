@@ -800,11 +800,10 @@ class Extender {
                 }
             } catch (NullPointerException e) {}
 
+            // proGuardFiles is null for engine jars and should thus always
+            // be optimized. For extensions, we only optimize those jars if
+            // we found a .pro file for them.
             if (proGuardFiles == null || proGuardFiles.size() > 0) {
-                // * A non-extension jar (vanilla defold) won't have an entry in the
-                //   proGuardFiles Map which means it should be optimized
-                // * An extension that has one or more proguard files should also
-                //   be optimized.
                 jarList.add(jar);
             } else {
                 jarLibrariesList.add(jar);
@@ -969,13 +968,16 @@ class Extender {
 
             // buildJava returns a file path to the built jar as well as a (potential) list
             // of proguard files that should be applied to the final application jar.
-            // If the collection is null, the jar should be considered as a library jar,
-            // which means that it should not be obfuscated or have its symbols removed
+            // If the collection contains zero entries, then the jar should be treated as a library jar,
+            // which means that it should not be obfuscated or optimized
             Map<String,Collection<File>> extensionJarMap = buildJava(rJar);
-            List<String> allJars = getAllJars(extensionJarMap); // extension jars, extra jars, engine jars
-            Map.Entry<File,File> proGuardFiles = buildProGuard(allJars, extensionJarMap);
 
-            // Returns null if unsupported, dmengine.jar and mapping.txt if it was
+            // getAllJars returns a list of extension jars, extra jars and engine jars
+            List<String> allJars = getAllJars(extensionJarMap);
+
+            // buildProguard returns null if not supported and the pair of the built engine jar
+            // and its corresponding mappings file if proGuard is supported.
+            Map.Entry<File,File> proGuardFiles = buildProGuard(allJars, extensionJarMap);
             if (proGuardFiles != null) {
                 allJars.clear();
                 allJars.add(proGuardFiles.getKey().getAbsolutePath());
