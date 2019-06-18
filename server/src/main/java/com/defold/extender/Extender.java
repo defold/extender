@@ -348,7 +348,7 @@ class Extender {
         return frameworkPaths;
     }
 
-    private List<String> getJars(File extDir) {
+    private List<String> getExtensionLibJars(File extDir) {
         List<String> jars = new ArrayList<>();
         jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
         String[] platformParts = this.platform.split("-");
@@ -628,7 +628,10 @@ class Extender {
         return null;
     }
 
-    private File buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
+    // returns:
+    //   a pair of the .jar file and a list of all of the proguard files that were found
+    //   in the manifests/android folder. If proGuard isn't supported (i.e old build.yml), a null pointer will be returned.
+    private Map.Entry<File, Collection<File>> buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
 
         if (platformConfig.javaSourceRe == null || platformConfig.javacCmd == null || platformConfig.jarCmd == null) {
             return null;
@@ -649,6 +652,13 @@ class Extender {
 
             if (javaSrcFiles.size() == 0) {
                 return null;
+            }
+
+            File manifestDir = new File(extDir, "manifests/android/");
+            Collection<File> proGuardSrcFiles = new ArrayList<>();
+            if (manifestDir.isDirectory()) {
+                proGuardSrcFiles = FileUtils.listFiles(manifestDir, null, true);
+                proGuardSrcFiles = Extender.filterFiles(proGuardSrcFiles, platformConfig.proGuardSourceRe);
             }
 
             // Create temp working directory, which will include;
@@ -683,7 +693,7 @@ class Extender {
             }
 
             // Get extension supplied Jar libraries
-            List<String> extJars = getJars(extDir);
+            List<String> extJars = getExtensionLibJars(extDir);
             for (String jarPath : extJars) {
                 classPath += ":" + jarPath;
             }
@@ -700,17 +710,23 @@ class Extender {
             command = templateExecutor.execute(platformConfig.jarCmd, context);
             processExecutor.execute(command);
 
-            return outputJar;
+            return new AbstractMap.SimpleEntry<File, Collection<File>>(outputJar, proGuardSrcFiles);
 
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
     }
 
-    private List<File> buildJava(File rJar) throws ExtenderException {
-        List<File> builtJars = new ArrayList<>();
+    // returns:
+    //   a file path to the built jar as well as a (potential) list
+    //   of proguard files that should be applied to the final application jar.
+    //   If the collection contains zero entries, then the jar should be treated as a library jar,
+    //   which means that it should not be obfuscated or optimized.
+    private Map<String,Collection<File>> buildJava(File rJar) throws ExtenderException {
+        Map<String,Collection<File>> builtJars = new HashMap<>();
+
         if (rJar != null) {
-            builtJars.add(rJar);
+            builtJars.put(rJar.getAbsolutePath(), null);
         }
 
         try {
@@ -727,9 +743,9 @@ class Extender {
 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 
-                File extensionJar = buildJavaExtension(manifest, manifestContext, rJar);
-                if (extensionJar != null) {
-                    builtJars.add(extensionJar);
+                Map.Entry<File, Collection<File>> extensionEntry = buildJavaExtension(manifest, manifestContext, rJar);
+                if (extensionEntry != null) {
+                    builtJars.put(extensionEntry.getKey().getAbsolutePath(), extensionEntry.getValue());
                 }
             }
 
@@ -738,6 +754,99 @@ class Extender {
         }
 
         return builtJars;
+    }
+
+    // arguments:
+    //   extensionJarMap - a mapping from a jar file to a list of its corresponding proGuard files
+    // returns:
+    //   all jar files from each extension, as well as the engine defined jar files
+    private List<String> getAllJars(Map<String,Collection<File>> extensionJarMap) throws ExtenderException {
+        List<String> allJars = new ArrayList<>();
+        for (File extDir : this.extDirs) {
+            allJars.addAll(getExtensionLibJars(extDir));
+        }
+
+        for (Map.Entry<String,Collection<File>> extensionJar : extensionJarMap.entrySet()) {
+            allJars.add(extensionJar.getKey());
+        }
+
+        HashMap<String, Object> empty = new HashMap<>();
+        Map<String, Object> context = context(empty);
+        allJars = ExtenderUtil.pruneItems( allJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars"));
+        allJars.addAll( ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")) );
+        return allJars;
+    }
+
+    // arguments:
+    //   jars            - the list of all available jar files gathered from the build
+    //   extensionJarMap - a mapping from a jar file to a list of its corresponding proGuard files
+    // returns:
+    //   a pair of the built & optimized proGuard jar and its corresponding mappings.txt file.
+    //   the mappings file can be uploaded to google play and then used for symbolication
+    private Map.Entry<File,File> buildProGuard(List<String> jars, Map<String,Collection<File>> extensionJarMap) throws ExtenderException {
+        // To support older versions of build.yml where proGuardCmd is not defined:
+        if (platformConfig.proGuardCmd == null || platformConfig.proGuardCmd.isEmpty()) {
+            LOGGER.info("No SDK support. Skipping ProGuard step.");
+            return null;
+        }
+
+        File appPro = new File(uploadDirectory, "/_app/app.pro");
+        if (!appPro.exists()) {
+            LOGGER.info("No .pro file present. Skipping ProGuard step.");
+            return null;
+        }
+
+        LOGGER.info("Building using ProGuard {}", uploadDirectory);
+
+        List<String> allPro = new ArrayList<>();
+        allPro.add(appPro.getAbsolutePath());
+
+        File targetFile  = new File(buildDirectory, "dmengine.jar");
+        File mappingFile = new File(buildDirectory, "mapping.txt");
+
+        List<String> jarList          = new ArrayList<>();
+        List<String> jarLibrariesList = new ArrayList<>();
+
+        for (String jar : jars) {
+            Collection<File> proGuardFiles = null;
+
+            try {
+                proGuardFiles = extensionJarMap.get(jar);
+
+                for (File proGuardFile : proGuardFiles) {
+                    allPro.add(proGuardFile.getAbsolutePath());
+                }
+            } catch (NullPointerException e) {}
+
+            // * proGuardFiles is null for engine jars and should thus always
+            //   be optimized due to the global .pro file specified in the
+            //   game.project file.
+            // * For extensions, we only optimize those jars if
+            //   we found one or more .pro files for them.
+            if (proGuardFiles == null || proGuardFiles.size() > 0) {
+                jarList.add(jar);
+            } else {
+                jarLibrariesList.add(jar);
+            }
+        }
+
+        HashMap<String, Object> empty = new HashMap<>();
+        Map<String, Object> context = context(empty);
+        context.put("jars", jarList);
+        context.put("libraryjars", jarLibrariesList);
+        context.put("src", allPro);
+        context.put("tgt", targetFile.getAbsolutePath());
+        context.put("mapping", mappingFile.getAbsolutePath());
+
+        String command = templateExecutor.execute(platformConfig.proGuardCmd, context);
+
+        try {
+            processExecutor.execute(command);
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return new AbstractMap.SimpleEntry<File, File>(targetFile, mappingFile);
     }
 
     public static Map<String, Object> getManifestContext(String platform, Configuration config, ManifestConfiguration manifestConfig) throws ExtenderException {
@@ -764,7 +873,7 @@ class Extender {
         return new HashMap<>();
     }
 
-    private File[] buildClassesDex(List<File> extraJars) throws ExtenderException {
+    private File[] buildClassesDex(List<String> jars) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
         // To support older versions of build.yml where dxCmd is not defined:
@@ -774,20 +883,15 @@ class Extender {
 
         File classesDex = new File(buildDirectory, "classes.dex");
 
-        List<String> extJars = new ArrayList<>();
-        for (File extDir : this.extDirs) {
-            extJars.addAll(getJars(extDir));
-        }
-        for (File extraJar : extraJars) {
-            extJars.add(extraJar.getAbsolutePath());
-        }
+        // The empty list is also present for backwards compatability with older build.yml
+        List<String> empty_list = new ArrayList<>();
 
         HashMap<String, Object> empty = new HashMap<>();
         Map<String, Object> context = context(empty);
         context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
-        context.put("jars", ExtenderUtil.pruneItems( extJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")));
-        context.put("engineJars", ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")) );
+        context.put("jars", jars);
+        context.put("engineJars", empty_list);
 
         String command = templateExecutor.execute(platformConfig.dxCmd, context);
         try {
@@ -882,9 +986,29 @@ class Extender {
 
         if (platform.endsWith("android")) {
             File rJar = buildRJar();
-            List<File> extraJars = buildJava(rJar);
 
-            File[] classesDex = buildClassesDex(extraJars);
+            Map<String,Collection<File>> extensionJarMap = buildJava(rJar);
+            List<String> allJars = getAllJars(extensionJarMap);
+            Map.Entry<File,File> proGuardFiles = buildProGuard(allJars, extensionJarMap);
+
+            // If we have proGuard support, we need to reset the allJars list so that
+            // we don't get duplicate symbols.
+            if (proGuardFiles != null) {
+                allJars.clear();
+                allJars.add(proGuardFiles.getKey().getAbsolutePath()); // built jar
+                outputFiles.add(proGuardFiles.getValue()); // mappings file
+
+                // Since the proGuard step might have treated some of the jars as library jars,
+                // we need to put them on the allJars list for inclusion in the .dex file.
+                for (Map.Entry<String,Collection<File>> extensionJar : extensionJarMap.entrySet()) {
+                    Collection<File> extensionProGuardFiles = extensionJar.getValue();
+                    if (extensionProGuardFiles != null && extensionProGuardFiles.size() == 0) {
+                        allJars.add(extensionJar.getKey());
+                    }
+                }
+            }
+
+            File[] classesDex = buildClassesDex(allJars);
             if (classesDex.length > 0) {
                 outputFiles.addAll(Arrays.asList(classesDex));
             }
