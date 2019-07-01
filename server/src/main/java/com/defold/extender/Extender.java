@@ -790,7 +790,7 @@ class Extender {
     // arguments:
     //   jars            - the list of all available jar files gathered from the build
     //   extensionJarMap - a mapping from a jar file to a list of its corresponding proGuard contexts
-    private Map<String, ProGuardContext> getProGuardMapping(String appProFile, List<String> jars, Map<String,ProGuardContext> extensionJarMap) {
+    private Map<String, ProGuardContext> getProGuardMapping(List<String> jars, Map<String,ProGuardContext> extensionJarMap) {
         Map<String,ProGuardContext> jarToProGuardContextMap = new HashMap<>();
 
         for (String jar : jars) {
@@ -802,13 +802,11 @@ class Extender {
             ProGuardContext ctx = extensionJarEntry.getValue();
 
             // rJars from the buildRJar function will exist in the extensionJarMap,
-            // but associated with a null context. It will be addressed by the
-            // global 'appProFile' context instead.
+            // but associated with a null context.
             if (ctx == null) {
                 continue;
             }
 
-            // Update the hash entry for the built jar
             jarToProGuardContextMap.put(jar,ctx);
 
             // If we couldn't find any proguard files for this extension,
@@ -852,7 +850,7 @@ class Extender {
         LOGGER.info("Building using ProGuard {}", uploadDirectory);
 
         String appProPath = appPro.getAbsolutePath();
-        Map<String,ProGuardContext> allJarsMap = getProGuardMapping(appProPath, allJars, extensionJarMap);
+        Map<String,ProGuardContext> allJarsMap = getProGuardMapping(allJars, extensionJarMap);
 
         List<String> allPro = new ArrayList<>();
         allPro.add(appProPath);
@@ -892,8 +890,6 @@ class Extender {
         context.put("mapping", mappingFile.getAbsolutePath());
 
         String command = templateExecutor.execute(platformConfig.proGuardCmd, context);
-
-        System.out.println(command);
 
         try {
             processExecutor.execute(command);
