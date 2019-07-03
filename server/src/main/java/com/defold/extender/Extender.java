@@ -51,6 +51,20 @@ class Extender {
     private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
     private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
+    // This class specifies the set of files that are used when running proguard on
+    // the project jars that were found during the build process. This class is only
+    // relevant on Android.
+    //
+    // * proGuardFiles - Array of .pro files that contain settings and rules that specify
+    //                   what ProGuard should do with the input jars.
+    // * libraryJars - Array of .jar files should be passed to ProGuard as '-libraryjar' entries.
+    //                 Everything from a libraryjar will be kept by ProGuard, i.e no optimization or
+    //                 obfuscation will be performed.
+    private class ProGuardContext {
+        public List<String> proGuardFiles = new ArrayList<>();
+        public List<String> libraryJars   = new ArrayList<>();
+    }
+
     Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
@@ -712,6 +726,12 @@ class Extender {
 
             ProGuardContext proGuardContext = new ProGuardContext();
 
+            // * If we found proguard files, we add all of them to the proguard context
+            //   for this extension. It is implied that if there are .pro files present,
+            //   then the extension developer is responsible to make sure the correct classes and symbols are kept.
+            // * However, if no proguard files were found, we need to add all potential jar files
+            //   from the extension lib folder into the context so that we can set them as -libraryjar when
+            //   running proguard.
             if (proGuardSrcFiles.size() > 0) {
                 for (File pFile : proGuardSrcFiles) {
                     proGuardContext.proGuardFiles.add(pFile.getAbsolutePath());
