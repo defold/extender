@@ -62,23 +62,23 @@ ENV LC_ALL en_US.UTF-8
 
 # The old install flow (Kept for backwards compatibility until all builds are done using darwin12)
 # Reference for relating between version numbers: https://en.wikipedia.org/wiki/Darwin_(operating_system)
-RUN \
-  apt-get update && \
-  apt-get install -y git && \
-  cd /tmp && \
-  git clone https://github.com/tpoechtrager/cctools-port.git && \
-  cd cctools-port/cctools && \
-  git checkout 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68 && \
-  ./autogen.sh && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin11 && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./autogen.sh && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin11 && \
-  make -j8 && \
-  make install && \
-  apt-get remove -y git
+# RUN \
+#   apt-get update && \
+#   apt-get install -y git && \
+#   cd /tmp && \
+#   git clone https://github.com/tpoechtrager/cctools-port.git && \
+#   cd cctools-port/cctools && \
+#   git checkout 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68 && \
+#   ./autogen.sh && \
+#   ./configure --prefix=/usr/local --target=arm-apple-darwin11 && \
+#   make -j8 && \
+#   make install && \
+#   make distclean && \
+#   ./autogen.sh && \
+#   ./configure --prefix=/usr/local --target=x86_64-apple-darwin11 && \
+#   make -j8 && \
+#   make install && \
+#   apt-get remove -y git
 
 # The updated install flow
 RUN \
@@ -89,17 +89,16 @@ RUN \
   mkdir $TPAPITMP && \
   git clone https://github.com/tpoechtrager/apple-libtapi.git && \
   cd apple-libtapi && \
-  git checkout 19694a572cd9c0f6452a8e214682e74197370934 && \
+  git checkout 3efb201881e7a76a21e0554906cf306432539cef && \
   INSTALLPREFIX=$TPAPITMP ./build.sh && \
   ./install.sh && \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
   cd cctools-port/cctools && \
-  git checkout 22ebe727a5cdc21059d45313cf52b4882157f6f0 && \
+  git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
   ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TPAPITMP && \
   make -j8 && \
   make install && \
   make distclean && \
-  ./autogen.sh && \
   ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
   make -j8 && \
   make install && \
@@ -114,10 +113,16 @@ RUN \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS11.2.sdk && \
   wget -q -O - ${S3_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS12.1.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneOS13.0-beta.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.0.sdk && \
   wget -q -O - ${S3_URL}/iPhoneSimulator12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator12.1.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneSimulator13.0-beta.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.0.sdk && \
   wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
+  wget -q -O - ${S3_URL}/MacOSX10.15-beta.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
   wget -q -O - ${S3_URL}/XcodeDefault10.1.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault10.1.xctoolchain && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
