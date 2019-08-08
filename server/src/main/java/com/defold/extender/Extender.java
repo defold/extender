@@ -372,6 +372,14 @@ class Extender {
         return jars;
     }
 
+    private List<String> getAllExtensionsLibJars() {
+        List<String> allJars = new ArrayList<>();
+        for (File extDir : this.extDirs) {
+            allJars.addAll(getExtensionLibJars(extDir));
+        }
+        return allJars;
+    }
+
     private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(extDir, "include") ) );
@@ -706,9 +714,11 @@ class Extender {
                 classPath += ":" + rJar.getAbsolutePath();
             }
 
-            // Get extension supplied Jar libraries
-            List<String> extJars = getExtensionLibJars(extDir);
-            for (String jarPath : extJars) {
+            // We want to include all jars from all extensions to have the possibility
+            // to create base (core) extensions that contain only jars.
+            // For example, firebase-core, firebase-analytics and firebase-core 
+            List<String> allJars = getAllExtensionsLibJars();
+            for (String jarPath : allJars) {
                 classPath += ":" + jarPath;
             }
 
@@ -737,6 +747,8 @@ class Extender {
                     proGuardContext.proGuardFiles.add(pFile.getAbsolutePath());
                 }
             } else {
+                // Get extension supplied Jar libraries
+                List<String> extJars = getExtensionLibJars(extDir);
                 proGuardContext.libraryJars = new ArrayList<>(extJars);
             }
 
@@ -791,10 +803,7 @@ class Extender {
     // returns:
     //   all jar files from each extension, as well as the engine defined jar files
     private List<String> getAllJars(Map<String,ProGuardContext> extensionJarMap) throws ExtenderException {
-        List<String> allJars = new ArrayList<>();
-        for (File extDir : this.extDirs) {
-            allJars.addAll(getExtensionLibJars(extDir));
-        }
+        List<String> allJars = getAllExtensionsLibJars();
 
         for (Map.Entry<String,ProGuardContext> extensionJar : extensionJarMap.entrySet()) {
             allJars.add(extensionJar.getKey());
