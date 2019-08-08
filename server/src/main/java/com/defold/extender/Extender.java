@@ -672,15 +672,34 @@ class Extender {
                 javaSrcFiles = Extender.filterFiles(javaSrcFiles, platformConfig.javaSourceRe);
             }
 
-            if (javaSrcFiles.size() == 0) {
-                return null;
-            }
-
             File manifestDir = new File(extDir, "manifests/android/");
             Collection<File> proGuardSrcFiles = new ArrayList<>();
             if (manifestDir.isDirectory()) {
                 proGuardSrcFiles = FileUtils.listFiles(manifestDir, null, true);
                 proGuardSrcFiles = Extender.filterFiles(proGuardSrcFiles, platformConfig.proGuardSourceRe);
+            }
+            // We want to collect ProGuards files even if we don't have java or jar files for the build
+            // because it's possible that this extention depends on some base extension
+            if (javaSrcFiles.size() == 0 && proGuardSrcFiles.size() == 0) {
+                return null;
+            }
+
+            ProGuardContext proGuardContext = new ProGuardContext();
+
+            // * If we found proguard files, we add all of them to the proguard context
+            //   for this extension. It is implied that if there are .pro files present,
+            //   then the extension developer is responsible to make sure the correct classes and symbols are kept.
+            // * However, if no proguard files were found, we need to add all potential jar files
+            //   from the extension lib folder into the context so that we can set them as -libraryjar when
+            //   running proguard.
+            if (proGuardSrcFiles.size() > 0) {
+                for (File pFile : proGuardSrcFiles) {
+                    proGuardContext.proGuardFiles.add(pFile.getAbsolutePath());
+                }
+            } else {
+                // Get extension supplied Jar libraries
+                List<String> extJars = getExtensionLibJars(extDir);
+                proGuardContext.libraryJars = new ArrayList<>(extJars);
             }
 
             // Create temp working directory, which will include;
@@ -691,6 +710,14 @@ class Extender {
             File tmpDir = uniqueTmpFile("tmp", "javac");
             tmpDir.delete();
             tmpDir.mkdir();
+
+            if (javaSrcFiles.size() == 0) {
+                // If we collect proguard files without building `jar` 
+                // we have to use special name to avoid "File doesn't exist"
+                // error. We check it later with `(.*)/proguard_files_without_jar` pattern.
+                File proguardFakeJar = new File(tmpDir, "proguard_files_without_jar");
+                return new AbstractMap.SimpleEntry<File, ProGuardContext>(proguardFakeJar, proGuardContext);
+            }
 
             File classesDir = new File(tmpDir, "classes");
             classesDir.delete();
@@ -733,24 +760,6 @@ class Extender {
             context.put("classesDir", classesDir.getAbsolutePath());
             command = templateExecutor.execute(platformConfig.jarCmd, context);
             processExecutor.execute(command);
-
-            ProGuardContext proGuardContext = new ProGuardContext();
-
-            // * If we found proguard files, we add all of them to the proguard context
-            //   for this extension. It is implied that if there are .pro files present,
-            //   then the extension developer is responsible to make sure the correct classes and symbols are kept.
-            // * However, if no proguard files were found, we need to add all potential jar files
-            //   from the extension lib folder into the context so that we can set them as -libraryjar when
-            //   running proguard.
-            if (proGuardSrcFiles.size() > 0) {
-                for (File pFile : proGuardSrcFiles) {
-                    proGuardContext.proGuardFiles.add(pFile.getAbsolutePath());
-                }
-            } else {
-                // Get extension supplied Jar libraries
-                List<String> extJars = getExtensionLibJars(extDir);
-                proGuardContext.libraryJars = new ArrayList<>(extJars);
-            }
 
             return new AbstractMap.SimpleEntry<File, ProGuardContext>(outputJar, proGuardContext);
 
@@ -811,7 +820,10 @@ class Extender {
 
         HashMap<String, Object> empty = new HashMap<>();
         Map<String, Object> context = context(empty);
-        allJars = ExtenderUtil.pruneItems( allJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars"));
+        List<String> excludeJars = ExtenderUtil.getStringList(appManifestContext, "excludeJars");
+        //exclude fake `jar` path for extensions without java code
+        excludeJars.add("(.*)/proguard_files_without_jar");
+        allJars = ExtenderUtil.pruneItems( allJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), excludeJars);
         allJars.addAll( ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")) );
         return allJars;
     }
@@ -909,6 +921,11 @@ class Extender {
                 jarLibrariesList.add(jar);
             }
         }
+        //exclude fake `jar` paths for extensions without java code
+        List<String> excludeJars = new ArrayList<>();
+        excludeJars.add("(.*)/proguard_files_without_jar");
+        jarLibrariesList = ExtenderUtil.excludeItems(jarLibrariesList, excludeJars);
+        jarList = ExtenderUtil.excludeItems(jarList, excludeJars);
 
         HashMap<String, Object> empty = new HashMap<>();
         Map<String, Object> context = context(empty);

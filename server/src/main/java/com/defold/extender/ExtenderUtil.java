@@ -13,7 +13,7 @@ class ExtenderUtil
 {
 
     // Excludes items from input list that matches an item in the expressions list
-    static private List<String> excludeItems(List<String> input, List<String> expressions) {
+    static List<String> excludeItems(List<String> input, List<String> expressions) {
         List<String> items = new ArrayList<>();
 
         List<Pattern> patterns = new ArrayList<>();
