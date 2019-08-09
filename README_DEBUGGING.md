@@ -7,19 +7,38 @@ There is a debug script that you can run to download a specific SDK version, or 
 
 This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It also sets the environment variable `DYNAMO_HOME` and then starts the extender server.
 
+# Environment variables
 
-# Debugging individual command lines
+* **DM_DEBUG_COMMANDS** - Prints the command line and result  for each command in a build
+* **DM_DEBUG_DISABLE_PROGUARD** - Disables building with ProGuard (Android only)
+* **DM_DEBUG_JOB_FOLDER** - The uploaded job (and build) will always end up in this folder
+* **DYNAMO_HOME** - If set, used as the actual SDK for the builds
+
+# Debugging a job
 
 ## Preparation
 
-In order to make sure the job folders aren't deleted by default, change the line in ExtenderController.java:
+* For locally built SDK's (in DYNAMO_HOME), it's good to map the same folder path locally as is in the Docker container
 
-    // Delete temporary upload directory
-    //FileUtils.deleteDirectory(jobDirectory);
+        $ ln -s $DYNAMO_HOME /dynamo_home
 
-And now build the container again:
+* Set the `DM_DEBUG_JOB_FOLDER` to a static folder, which both your computer and the Docker container can reach.
+    E.g. `DM_DEBUG_JOB_FOLDER=/dynamo_home/job123456`
+    This will help when you debug the generated engine executable, since the debugger will find the object files on your local drive.
 
-    $ ./server/scripts/build.sh
+* Build the container (if it wasn't already built):
+
+        $ ./server/scripts/build.sh -xtest
+
+* Run the server
+
+        $ DM_DEBUG_JOB_FOLDER=/dynamo_home/job123456 DM_DEBUG_COMMANDS=1 ./server/scripts/run.sh
+
+* After building, you'll find the output in the `$DM_DEBUG_JOB_FOLDER/build` folder
+
+* Set up the debugger to point to the executable
+
+* Set the working dir to the project directory
 
 ## Login
 
@@ -49,4 +68,4 @@ And, next run the command line you got from the failing build log. E.g.:
 
 ## Other platforms
 
-Apart from the WINEPATHG environment flag, the workflow is the same for all other supported platforms
+Apart from the WINEPATH environment flag, the workflow is the same for all other supported platforms
