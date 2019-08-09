@@ -744,8 +744,8 @@ class Extender {
             // We want to include all jars from all extensions to have the possibility 
             // of creation base (core) extensions that contain only jars.
             // For example, firebase-core for firebase-analytics and firebase-push 
-            List<String> allJars = getAllExtensionsLibJars();
-            for (String jarPath : allJars) {
+            List<String> allLibJars = getAllExtensionsLibJars();
+            for (String jarPath : allLibJars) {
                 classPath += ":" + jarPath;
             }
 
