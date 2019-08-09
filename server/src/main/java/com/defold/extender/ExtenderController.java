@@ -54,6 +54,8 @@ public class ExtenderController {
     private final boolean remoteBuilderEnabled;
     private final String[] remoteBuilderPlatforms;
 
+    private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
+
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
                               DataCacheService dataCacheService,
@@ -118,7 +120,17 @@ public class ExtenderController {
             throw new ExtenderException("The request must be a multi part request");
         }
 
-        File jobDirectory = Files.createTempDirectory("job").toFile();
+        File jobDirectory;
+        if (DM_DEBUG_JOB_FOLDER != null) {
+            jobDirectory = new File(DM_DEBUG_JOB_FOLDER);
+            if (!jobDirectory.isDirectory()) {
+                throw new ExtenderException("The DM_DEBUG_JOB_FOLDER must be a directory: " + DM_DEBUG_JOB_FOLDER);
+            }
+            LOGGER.info("Setting DM_DEBUG_JOB_FOLDER to {}", DM_DEBUG_JOB_FOLDER);
+        } else {
+            jobDirectory = Files.createTempDirectory("job").toFile();
+        }
+
         File uploadDirectory = new File(jobDirectory, "upload");
         uploadDirectory.mkdir();
         File buildDirectory = new File(jobDirectory, "build");
@@ -182,7 +194,9 @@ public class ExtenderController {
             metricsWriter.measureCacheUpload(totalUploadSize);
 
             // Delete temporary upload directory
-            FileUtils.deleteDirectory(jobDirectory);
+            if (DM_DEBUG_JOB_FOLDER == null) {
+                FileUtils.deleteDirectory(jobDirectory);
+            }
 
             LOGGER.info("Job done");
         }
@@ -248,7 +262,9 @@ public class ExtenderController {
                     throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
                 }
                 if (file.exists()) {
-                    LOGGER.info("Duplicate file in received zip file: ", name);
+                    if (DM_DEBUG_JOB_FOLDER == null) {
+                        LOGGER.info("Duplicate file in received zip file: ", name);
+                    }
                 }
 
                 Files.createDirectories(file.getParentFile().toPath());

@@ -65,6 +65,8 @@ class Extender {
         public List<String> libraryJars   = new ArrayList<>();
     }
 
+    private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
+
     Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
@@ -856,8 +858,12 @@ class Extender {
     //   the mappings file can be uploaded to google play and then used for symbolication
     private Map.Entry<File,File> buildProGuard(List<String> allJars, Map<String,ProGuardContext> extensionJarMap) throws ExtenderException {
         // To support older versions of build.yml where proGuardCmd is not defined:
-        if (platformConfig.proGuardCmd == null || platformConfig.proGuardCmd.isEmpty()) {
-            LOGGER.info("No SDK support. Skipping ProGuard step.");
+        if (platformConfig.proGuardCmd == null || platformConfig.proGuardCmd.isEmpty() || DM_DEBUG_DISABLE_PROGUARD) {
+            if (DM_DEBUG_DISABLE_PROGUARD) {
+                LOGGER.info("ProGuard support disabled by environment flag DM_DEBUG_DISABLE_PROGUARD");
+            } else {
+                LOGGER.info("No SDK support. Skipping ProGuard step.");
+            }
             return null;
         }
 
