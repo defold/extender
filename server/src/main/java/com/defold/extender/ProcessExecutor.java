@@ -10,9 +10,14 @@ class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
     private final HashMap<String, String> env = new HashMap<>();
     private File cwd = null;
+    private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
 
     int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");
+
+        if (DM_DEBUG_COMMANDS) {
+            System.out.println("CMD: " + command);
+        }
 
         // To avoid an issue where an extra space was interpreted as an argument
         List<String> args = Arrays.stream(command.split(" "))
