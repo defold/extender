@@ -373,11 +373,11 @@ class Extender {
     }
 
     private List<String> getAllExtensionsLibJars() {
-        List<String> allJars = new ArrayList<>();
+        List<String> allLibJars = new ArrayList<>();
         for (File extDir : this.extDirs) {
-            allJars.addAll(getExtensionLibJars(extDir));
+            allLibJars.addAll(getExtensionLibJars(extDir));
         }
-        return allJars;
+        return allLibJars;
     }
 
     private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
