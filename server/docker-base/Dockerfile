@@ -252,6 +252,9 @@ ENV ANDROID_MIN_API_LEVEL 9
 ENV ANDROID_GCC_VERSION 4.8
 ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
+ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
+ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
+
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
 ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
@@ -271,20 +274,32 @@ ENV ANDROID_64_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platf
 ENV ANDROID_64_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_64_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 
+# We must keep two NDKs alive for now, since migrating to the latest (i.e 20) will break
+# for users that try to build with an older build.yml.
+ENV ANDROID_NDK20_VERSION        20
+ENV ANDROID_NDK20_API_VERSION    16
+ENV ANDROID_64_NDK20_API_VERSION 21
+
+# These paths are the same for both the 32 and 64 bit toolchains
+ENV ANDROID_NDK20_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin
+ENV ANDROID_NDK20_SYSROOT  ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+
+ENV ANDROID_NDK20_FILENAME android-ndk-r${ANDROID_NDK20_VERSION}-x86_64-linux.tar.gz
+ENV ANDROID_NDK20_URL      ${S3_URL}/${ANDROID_NDK20_FILENAME}
+
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
-
-ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
-ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
+ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
 
 RUN mkdir -p ${ANDROID_HOME} && \
     cd ${ANDROID_ROOT} && \
-    wget -q ${ANDROID_NDK_URL} && \
-    chmod +x ${ANDROID_NDK_FILENAME} && \
+    wget -q ${ANDROID_NDK_URL} ${ANDROID_NDK20_URL} && \
+    chmod +x ${ANDROID_NDK_FILENAME} ${ANDROID_NDK20_FILENAME} && \
     unzip -q ${ANDROID_NDK_FILENAME} && \
+    tar xzf ${ANDROID_NDK20_FILENAME} && \
     chmod +r -R ${ANDROID_ROOT} && \
-    rm ${ANDROID_NDK_FILENAME} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} && \
+    rm ${ANDROID_NDK_FILENAME} ${ANDROID_NDK20_FILENAME} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
     cd ${ANDROID_HOME} && \
     echo ${ANDROID_TOOLS_URL} && \
     wget -q ${ANDROID_TOOLS_URL} && \
