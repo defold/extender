@@ -6,7 +6,7 @@
       "image": "%IMAGE%",
       "name": "extender",
       "cpu": 10,
-      "memory": 2048,
+      "memory": 6144,
       "essential": true,
       "portMappings": [
         {

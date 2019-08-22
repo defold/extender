@@ -210,7 +210,8 @@ RUN \
   wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
   wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
   wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
-  ln -s ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
+  ln -s ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 && \
+  rm -rf ${VSINSTALLDIR}/Common7/IDE
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
 # so we solve the bulk by making the suffixes lowercase
@@ -307,11 +308,16 @@ RUN mkdir -p ${ANDROID_HOME} && \
     rm ${ANDROID_TOOLS_FILENAME} && \
     chown -R extender: ${ANDROID_HOME}
 
+# trying to save space for the poor old AWS containers...
+# ~925mb
+#RUN rm -rf /opt/platformsdk/android/android-sdk-linux/emulator
+
 # The sdk manager wants user access folder
 USER extender
 RUN cd ${ANDROID_HOME} && \
     echo y | ./tools/bin/sdkmanager "tools" "platform-tools" > /dev/null && \
     echo y | ./tools/bin/sdkmanager "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" > /dev/null && \
+    rm -rf ${ANDROID_HOME}/emulator && \
     ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
 
 
@@ -320,3 +326,5 @@ USER root
 RUN cd ${ANDROID_HOME} && \
     chown -R root: ${ANDROID_HOME}
 
+# Always run last to minimize the size
+RUN apt-get clean autoclean
