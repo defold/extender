@@ -282,8 +282,12 @@ ENV ANDROID_NDK20_API_VERSION    16
 ENV ANDROID_64_NDK20_API_VERSION 21
 
 # These paths are the same for both the 32 and 64 bit toolchains
-ENV ANDROID_NDK20_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin
-ENV ANDROID_NDK20_SYSROOT  ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+ENV ANDROID_NDK20_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}
+ENV ANDROID_NDK20_BIN_PATH   ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin
+ENV ANDROID_NDK20_SYSROOT    ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+
+ENV ANDROID_NDK20_STL_LIB    ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
+ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
 
 ENV ANDROID_NDK20_FILENAME android-ndk-r${ANDROID_NDK20_VERSION}-x86_64-linux.tar.gz
 ENV ANDROID_NDK20_URL      ${S3_URL}/${ANDROID_NDK20_FILENAME}
