@@ -32,7 +32,7 @@ This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It als
 
 * Run the server
 
-        $ DM_DEBUG_JOB_FOLDER=/dynamo_home/job123456 DM_DEBUG_COMMANDS=1 ./server/scripts/run.sh
+        $ DM_DEBUG_JOB_FOLDER=/dynamo_home/job123456 DM_DEBUG_COMMANDS=1 ./server/scripts/run-local.sh
 
 * After building, you'll find the output in the `$DM_DEBUG_JOB_FOLDER/build` folder
 
