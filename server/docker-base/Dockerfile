@@ -240,8 +240,9 @@ RUN \
 # Android SDK/NDK
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-ENV ANDROID_TOOLS_FILENAME sdk-tools-linux-3859397.zip
-ENV ANDROID_TOOLS_URL https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
+
+ENV ANDROID_TOOLS_FILENAME android-sdk-tools-linux-3859397.tar.gz
+ENV ANDROID_TOOLS_URL ${S3_URL}/${ANDROID_TOOLS_FILENAME}
 
 ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
@@ -253,8 +254,8 @@ ENV ANDROID_MIN_API_LEVEL 9
 ENV ANDROID_GCC_VERSION 4.8
 ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
-ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip
-ENV ANDROID_NDK_URL https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
+ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.tar.gz
+ENV ANDROID_NDK_URL ${S3_URL}/${ANDROID_NDK_FILENAME}
 
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
@@ -275,6 +276,9 @@ ENV ANDROID_64_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platf
 ENV ANDROID_64_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_64_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 
+ENV ANDROID_SDK_FILENAME android-sdk-linux-android-29.tar.gz
+ENV ANDROID_SDK_URL ${S3_URL}/${ANDROID_SDK_FILENAME}
+
 # We must keep two NDKs alive for now, since migrating to the latest (i.e 20) will break
 # for users that try to build with an older build.yml.
 ENV ANDROID_NDK20_VERSION        20
@@ -289,7 +293,7 @@ ENV ANDROID_NDK20_SYSROOT    ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linu
 ENV ANDROID_NDK20_STL_LIB    ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
 ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
 
-ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-x86_64-linux.tar.gz
+ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.tar.gz
 ENV ANDROID_NDK20_URL        ${S3_URL}/${ANDROID_NDK20_FILENAME}
 
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
@@ -297,33 +301,15 @@ ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_
 ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
 
 RUN mkdir -p ${ANDROID_HOME} && \
-    cd ${ANDROID_ROOT} && \
-    wget -q ${ANDROID_NDK_URL} ${ANDROID_NDK20_URL} && \
-    chmod +x ${ANDROID_NDK_FILENAME} ${ANDROID_NDK20_FILENAME} && \
-    unzip -q ${ANDROID_NDK_FILENAME} && \
-    tar xzf ${ANDROID_NDK20_FILENAME} && \
+    wget -q -O - ${ANDROID_NDK_URL} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${ANDROID_NDK20_URL} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${ANDROID_TOOLS_URL} | tar xz -C ${ANDROID_HOME} && \
+    wget -q -O - ${ANDROID_SDK_URL} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     chmod +r -R ${ANDROID_ROOT} && \
-    rm ${ANDROID_NDK_FILENAME} ${ANDROID_NDK20_FILENAME} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
     cd ${ANDROID_HOME} && \
-    echo ${ANDROID_TOOLS_URL} && \
-    wget -q ${ANDROID_TOOLS_URL} && \
-    unzip -q ${ANDROID_TOOLS_FILENAME} && \
-    rm ${ANDROID_TOOLS_FILENAME} && \
-    chown -R extender: ${ANDROID_HOME}
-
-# trying to save space for the poor old AWS containers...
-# ~925mb
-#RUN rm -rf /opt/platformsdk/android/android-sdk-linux/emulator
-
-# The sdk manager wants user access folder
-USER extender
-RUN cd ${ANDROID_HOME} && \
-    echo y | ./tools/bin/sdkmanager "tools" "platform-tools" > /dev/null && \
-    echo y | ./tools/bin/sdkmanager "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" > /dev/null && \
-    rm -rf ${ANDROID_HOME}/emulator && \
-    ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
-
+    chown -R extender: ${ANDROID_HOME} && \
+    ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
 
 # Remove the rights again from the extender user
 USER root
