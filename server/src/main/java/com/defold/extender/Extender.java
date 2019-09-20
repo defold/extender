@@ -43,6 +43,7 @@ class Extender {
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
+    static final String ENGINE_JAR_RE = "(?:.*)\\/share\\/java\\/[\\w\\-\\.]*\\.jar$";
 
     private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
     private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
@@ -241,6 +242,15 @@ class Extender {
     static List<File> filterFiles(Collection<File> files, String re) {
         Pattern p = Pattern.compile(re);
         return files.stream().filter(f -> p.matcher(f.getName()).matches()).collect(Collectors.toList());
+    }
+
+    static List<String> filterStrings(Collection<String> strings, String re) {
+        Pattern p = Pattern.compile(re);
+        System.out.println("PATTERN: " + re);
+        for (String s : strings) {
+            System.out.println(" s: " + s + "  matches: " + (p.matcher(s).matches() ? "YES":"no"));
+        }
+        return strings.stream().filter(s -> p.matcher(s).matches()).collect(Collectors.toList());
     }
 
     static List<String> mergeLists(List<String> a, List<String> b) {
@@ -714,7 +724,7 @@ class Extender {
             tmpDir.mkdir();
 
             if (javaSrcFiles.size() == 0) {
-                // If we collect proguard files without building `jar` 
+                // If we collect proguard files without building `jar`
                 // we have to use special name to avoid "File doesn't exist"
                 // error. We check it later with `(.*)/proguard_files_without_jar` pattern.
                 File proguardFakeJar = new File(tmpDir, "proguard_files_without_jar");
@@ -743,9 +753,9 @@ class Extender {
                 classPath += ":" + rJar.getAbsolutePath();
             }
 
-            // We want to include all jars from all extensions to have the possibility 
+            // We want to include all jars from all extensions to have the possibility
             // of creation base (core) extensions that contain only jars.
-            // For example, firebase-core for firebase-analytics and firebase-push 
+            // For example, firebase-core for firebase-analytics and firebase-push
             List<String> allLibJars = getAllExtensionsLibJars();
             for (String jarPath : allLibJars) {
                 classPath += ":" + jarPath;
@@ -814,19 +824,21 @@ class Extender {
     // returns:
     //   all jar files from each extension, as well as the engine defined jar files
     private List<String> getAllJars(Map<String,ProGuardContext> extensionJarMap) throws ExtenderException {
-        List<String> allJars = getAllExtensionsLibJars();
+        List<String> includeJars = ExtenderUtil.getStringList(appManifestContext, "includeJars");
+        List<String> excludeJars = ExtenderUtil.getStringList(appManifestContext, "excludeJars");
+        //exclude fake `jar` path for extensions without java code
+        excludeJars.add("(.*)/proguard_files_without_jar");
+
+        List<String> extensionJars = getAllExtensionsLibJars();
 
         for (Map.Entry<String,ProGuardContext> extensionJar : extensionJarMap.entrySet()) {
-            allJars.add(extensionJar.getKey());
+            extensionJars.add(extensionJar.getKey());
         }
 
         HashMap<String, Object> empty = new HashMap<>();
         Map<String, Object> context = context(empty);
-        List<String> excludeJars = ExtenderUtil.getStringList(appManifestContext, "excludeJars");
-        //exclude fake `jar` path for extensions without java code
-        excludeJars.add("(.*)/proguard_files_without_jar");
-        allJars = ExtenderUtil.pruneItems( allJars, ExtenderUtil.getStringList(appManifestContext, "includeJars"), excludeJars);
-        allJars.addAll( ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), ExtenderUtil.getStringList(appManifestContext, "includeJars"), ExtenderUtil.getStringList(appManifestContext, "excludeJars")) );
+        List<String> allJars = ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), includeJars, excludeJars);
+        allJars.addAll( ExtenderUtil.pruneItems( extensionJars, includeJars, excludeJars) );
         return allJars;
     }
 
@@ -976,6 +988,41 @@ class Extender {
         return new HashMap<>();
     }
 
+    private File buildMainDexList(List<String> jars) throws ExtenderException {
+
+        // Find the engine libraries (**/share/java/*.jar)
+        List<String> mainListJars = filterStrings(jars, ENGINE_JAR_RE);
+
+        if (mainListJars.isEmpty()) {
+            throw new ExtenderException("Regex failed to find any engine jars: " + ENGINE_JAR_RE);
+        }
+
+        List<String> mainClassNames = new ArrayList<String>();
+
+        for (String jarFile : mainListJars) {
+            try {
+                mainClassNames.addAll( ZipUtils.getEntries(jarFile) );
+            } catch (IOException e) {
+                throw new ExtenderException(e, "Failed to read the class names from " + jarFile);
+            }
+        }
+
+        // Only keep the .class files
+        mainClassNames = filterStrings(mainClassNames, "(?:.*)\\.class$");
+
+        File mainList = new File(buildDirectory, "main_dex_list.txt");
+
+        try {
+            mainList.createNewFile();
+            for (String classFile : mainClassNames) {
+                FileUtils.writeStringToFile(mainList, classFile + "\n", Charset.defaultCharset(), true);
+            }
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to write to " + mainList.getAbsolutePath());
+        }
+        return mainList;
+    }
+
     private File[] buildClassesDex(List<String> jars) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
@@ -984,6 +1031,7 @@ class Extender {
             return new File[0];
         }
 
+        File mainList = buildMainDexList(jars);
         File classesDex = new File(buildDirectory, "classes.dex");
 
         // The empty list is also present for backwards compatability with older build.yml
@@ -995,8 +1043,18 @@ class Extender {
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
         context.put("jars", jars);
         context.put("engineJars", empty_list);
+        context.put("engineJars", empty_list);
+        context.put("mainDexList", mainList.getAbsolutePath());
 
-        String command = templateExecutor.execute(platformConfig.dxCmd, context);
+        String command = platformConfig.dxCmd;
+
+        // Until it's part of the build.yml
+        if (command.indexOf("--main-dex-list") == -1) {
+            command = command.replace("--multi-dex" , "--multi-dex --main-dex-list={{mainDexList}}");
+        }
+
+        command = templateExecutor.execute(command, context);
+
         try {
             processExecutor.execute(command);
         } catch (IOException | InterruptedException e) {
