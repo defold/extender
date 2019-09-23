@@ -157,34 +157,13 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12} && \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12}.lock
 
-## Emscripten 1.35.23 - Needs to be installed and activated last
-ENV EMSCRIPTEN_SDK_1_35_23 ${PLATFORMSDK_DIR}/emsdk_1.35.23
-ENV EMSCRIPTEN_HOME_1_35_23 ${EMSCRIPTEN_SDK_1_35_23}/bin/emsdk_portable
-ENV EMSCRIPTEN_CONFIG_1_35_23 ${EMSCRIPTEN_HOME_1_35_23}/.emscripten
-ENV EMSCRIPTEN_BIN_1_35_23 ${EMSCRIPTEN_HOME_1_35_23}/emscripten/master
-
-# Add old 1.35.23 emscripten to the env PATH, it will be used by default since older SDKs doesn't have the emversion key in build.yml.
-# We are also setting up default variables for the config path and emscripten home for 1.35.23.
-# This can be removed once we remove 1.35.23 version support.
-ENV PATH ${PATH}:${EMSCRIPTEN_HOME_1_35_23}:${EMSCRIPTEN_HOME_1_35_23}/clang/fastcomp/build_master_64/bin:${EMSCRIPTEN_HOME_1_35_23}/node/4.1.1_64bit/bin:${EMSCRIPTEN_BIN_1_35_23}
-ENV EM_CONFIG ${EMSCRIPTEN_CONFIG_1_35_23}
-ENV EMSCRIPTEN_HOME ${EMSCRIPTEN_HOME_1_35_23}
-
-RUN \
-  mkdir ${EMSCRIPTEN_SDK_1_35_23} && \
-  wget -q -O - ${S3_URL}/emsdk-1.35.23-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_35_23} && \
-  ${EMSCRIPTEN_HOME_1_35_23}/emsdk activate --embedded && \
-  chmod -R 755 ${EMSCRIPTEN_HOME_1_35_23}
-
 # We use the same temp directory for both versions.
 ENV EMSCRIPTEN_TEMP_DIR /var/extender/ems_temp
 RUN mkdir -p ${EMSCRIPTEN_TEMP_DIR}
 RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR}
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
-RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_35_23} && \
-  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_35_23} && \
-  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
+RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
   echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_38_12}
 
 #
