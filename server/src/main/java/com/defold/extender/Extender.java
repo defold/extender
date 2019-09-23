@@ -246,10 +246,6 @@ class Extender {
 
     static List<String> filterStrings(Collection<String> strings, String re) {
         Pattern p = Pattern.compile(re);
-        System.out.println("PATTERN: " + re);
-        for (String s : strings) {
-            System.out.println(" s: " + s + "  matches: " + (p.matcher(s).matches() ? "YES":"no"));
-        }
         return strings.stream().filter(s -> p.matcher(s).matches()).collect(Collectors.toList());
     }
 
