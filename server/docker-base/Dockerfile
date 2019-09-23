@@ -77,8 +77,7 @@ RUN \
   ./autogen.sh && \
   ./configure --prefix=/usr/local --target=x86_64-apple-darwin11 && \
   make -j8 && \
-  make install && \
-  apt-get remove -y git
+  make install
 
 # The updated install flow
 RUN \
@@ -103,7 +102,7 @@ RUN \
   ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
   make -j8 && \
   make install && \
-  apt-get remove -y git cmake
+  apt-get purge --auto-remove -y git cmake
 
 #
 # iOS + OSX
@@ -190,12 +189,6 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_35_23} && \
 
 ENV PLATFORMSDK_WIN32 $PLATFORMSDK_DIR/Win32
 
-# windres: Allows for generating .res files that can be used during linking
-RUN \
-  apt-get update && \
-  apt-get install -y apt-transport-https mingw-w64 && \
-  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
-
 # Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat (Can probably be trimmed further)
 ENV VS140COMNTOOLS "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/Tools/"
 ENV VCINSTALLDIR "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/"
@@ -235,6 +228,13 @@ RUN \
   mkdir -p ${PROGRAM_FILES} && \
   ln -s ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 ${PROGRAM_FILES}/MicrosoftVisualStudio14.0 && \
   ln -s ${PLATFORMSDK_WIN32}/WindowsKits ${PROGRAM_FILES}/WindowsKits
+
+# windres: Allows for generating .res files that can be used during linking
+RUN \
+  apt-get update && \
+  apt-get install -y mingw-w64 && \
+  cp /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres && \
+  apt-get purge --auto-remove -y mingw-w64
 
 #
 # Android SDK/NDK
@@ -307,14 +307,7 @@ RUN mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${ANDROID_SDK_URL} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
-    cd ${ANDROID_HOME} && \
-    chown -R extender: ${ANDROID_HOME} && \
     ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
 
-# Remove the rights again from the extender user
-USER root
-RUN cd ${ANDROID_HOME} && \
-    chown -R root: ${ANDROID_HOME}
-
 # Always run last to minimize the size
-RUN apt-get clean autoclean
+RUN apt-get clean autoclean autoremove
