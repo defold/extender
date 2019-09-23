@@ -77,14 +77,15 @@ RUN \
   ./autogen.sh && \
   ./configure --prefix=/usr/local --target=x86_64-apple-darwin11 && \
   make -j8 && \
-  make install
+  make install && \
+  rm -rf /tmp/cctools-port
 
 # The updated install flow
 RUN \
   apt-get update && \
   apt-get install -y git cmake && \
   cd /tmp && \
-  TPAPITMP=/tmp/tpapi && \
+  TPAPITMP=/tmp/tpapitmp && \
   mkdir $TPAPITMP && \
   git clone https://github.com/tpoechtrager/apple-libtapi.git && \
   cd apple-libtapi && \
@@ -102,6 +103,9 @@ RUN \
   ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
   make -j8 && \
   make install && \
+  rm -rf /tmp/cctools-port && \
+  rm -rf /tmp/apple-libtapi && \
+  rm -rf /tmp/tpapitmp && \
   apt-get purge --auto-remove -y git cmake
 
 #
