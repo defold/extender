@@ -105,7 +105,6 @@ RUN \
   make install && \
   rm -rf /tmp/cctools-port && \
   rm -rf /tmp/apple-libtapi && \
-  rm -rf /tmp/tpapitmp && \
   apt-get purge --auto-remove -y git cmake
 
 #
