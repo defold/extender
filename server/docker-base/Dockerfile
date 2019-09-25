@@ -175,7 +175,8 @@ ENV PLATFORMSDK_WIN32 $PLATFORMSDK_DIR/Win32
 # windres: Allows for generating .res files that can be used during linking
 RUN \
   apt-get update && \
-  apt-get install -y apt-transport-https mingw-w64 && \
+  apt-get install -y binutils-mingw-w64-x86-64 && \
+  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
   ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
 
 # Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat (Can probably be trimmed further)
