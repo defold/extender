@@ -92,4 +92,14 @@ public class ZipUtils {
         }
         bos.close();
     }
+
+    public static List<String> getEntries(String path) throws IOException {
+        List<String> entries = new ArrayList<String>();
+        try (ZipInputStream zipInputStream = new ZipInputStream(new FileInputStream(path))) {
+            for (ZipEntry entry = zipInputStream.getNextEntry(); entry != null; entry = zipInputStream.getNextEntry()) {
+                entries.add(entry.getName());
+            }
+        }
+        return entries;
+    }
 }

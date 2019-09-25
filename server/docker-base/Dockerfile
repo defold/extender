@@ -2,18 +2,15 @@ FROM ubuntu:16.04
 
 # Base stuff
 RUN \
-  sed -i 's|archive.ubuntu.com|ubuntu.mirror.su.se|g' /etc/apt/sources.list && \
-  sed -i 's|security.ubuntu.com|ubuntu.mirror.su.se|g' /etc/apt/sources.list && \
   dpkg --add-architecture i386 && \
   apt-get update && \
   apt-get install -y software-properties-common && \
-  add-apt-repository -y ppa:webupd8team/java && \
+  add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     wget \
     locales \
-    default-jre \
-    default-jdk \
+    openjdk-11-jdk \
     gcc \
     g++ \
     gcc-multilib \
@@ -239,6 +236,10 @@ ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/plat
 ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.tar.gz
 ENV ANDROID_NDK_URL ${S3_URL}/${ANDROID_NDK_FILENAME}
 
+ENV ANDROID_SDK_VERSION 29
+ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}.tar.gz
+ENV ANDROID_SDK_URL ${S3_URL}/${ANDROID_SDK_FILENAME}
+
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
 ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
@@ -246,7 +247,7 @@ ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platform
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_PROGUARD ${ANDROID_HOME}/tools/proguard/lib/proguard.jar
-ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_TARGET_API_LEVEL}/android.jar
+ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
 ENV ANDROID_64_NDK_API_VERSION 21
 ENV ANDROID_64_GCC_VERSION 4.9
@@ -257,9 +258,6 @@ ENV ANDROID_64_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sourc
 ENV ANDROID_64_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64
 ENV ANDROID_64_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_64_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
-
-ENV ANDROID_SDK_FILENAME android-sdk-linux-android-29.tar.gz
-ENV ANDROID_SDK_URL ${S3_URL}/${ANDROID_SDK_FILENAME}
 
 # We must keep two NDKs alive for now, since migrating to the latest (i.e 20) will break
 # for users that try to build with an older build.yml.
