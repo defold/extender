@@ -7,13 +7,12 @@ RUN \
   dpkg --add-architecture i386 && \
   apt-get update && \
   apt-get install -y software-properties-common && \
-  add-apt-repository -y ppa:webupd8team/java && \
+  add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     wget \
     locales \
-    default-jre \
-    default-jdk \
+    openjdk-11-jdk \
     gcc \
     g++ \
     gcc-multilib \
