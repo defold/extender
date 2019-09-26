@@ -250,7 +250,6 @@ ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/
 ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
-ENV ANDROID_PROGUARD ${ANDROID_HOME}/tools/proguard/lib/proguard.jar
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
 ENV ANDROID_64_NDK_API_VERSION 21
@@ -283,6 +282,14 @@ ENV ANDROID_NDK20_URL        ${S3_URL}/${ANDROID_NDK20_FILENAME}
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
 ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
+
+# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends proguard && \
+  ls -la /usr/share/java/proguard.jar
+
+ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 
 RUN mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${ANDROID_NDK_URL} | tar xz -C ${ANDROID_ROOT} && \

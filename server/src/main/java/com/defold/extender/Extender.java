@@ -1019,7 +1019,7 @@ class Extender {
         return mainList;
     }
 
-    private File[] buildClassesDex(List<String> jars) throws ExtenderException {
+    private File[] buildClassesDex(List<String> jars, File mainDexList) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
         // To support older versions of build.yml where dxCmd is not defined:
@@ -1027,7 +1027,6 @@ class Extender {
             return new File[0];
         }
 
-        File mainList = buildMainDexList(jars);
         File classesDex = new File(buildDirectory, "classes.dex");
 
         // The empty list is also present for backwards compatability with older build.yml
@@ -1040,7 +1039,7 @@ class Extender {
         context.put("jars", jars);
         context.put("engineJars", empty_list);
         context.put("engineJars", empty_list);
-        context.put("mainDexList", mainList.getAbsolutePath());
+        context.put("mainDexList", mainDexList.getAbsolutePath());
 
         String command = platformConfig.dxCmd;
 
@@ -1148,6 +1147,8 @@ class Extender {
             List<String> allJars                         = getAllJars(extensionJarMap);
             Map.Entry<File,File> proGuardFiles           = buildProGuard(allJars, extensionJarMap);
 
+            File mainDexList = buildMainDexList(allJars);
+
             // If we have proGuard support, we need to reset the allJars list so that
             // we don't get duplicate symbols.
             if (proGuardFiles != null) {
@@ -1170,7 +1171,7 @@ class Extender {
                 }
             }
 
-            File[] classesDex = buildClassesDex(allJars);
+            File[] classesDex = buildClassesDex(allJars, mainDexList);
             if (classesDex.length > 0) {
                 outputFiles.addAll(Arrays.asList(classesDex));
             }
