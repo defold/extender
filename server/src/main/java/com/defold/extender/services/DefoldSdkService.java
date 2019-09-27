@@ -94,41 +94,69 @@ public class DefoldSdkService {
         long methodStart = System.currentTimeMillis();
 
         // Define SDK directory for this version
-        File sdkDirectory = new File(baseSdkDirectory.toFile(),  hash);
+        File sdkDirectory = new File(baseSdkDirectory.toFile(), hash);
 
         // If directory does not exist, create it and download SDK
         if (!Files.exists(sdkDirectory.toPath())) {
-            LOGGER.info("Downloading Defold SDK version {} ...", hash);
+            File lockFile = new File(baseSdkDirectory.toFile(), "tmp" + hash + ".lock");
 
-            URL url = new URL(String.format(REMOTE_SDK_URL_PATTERN, hash));
-            ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
-            ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+            if (lockFile.createNewFile()) { // atomic creation of lock file
+                try {
+                    LOGGER.info("Downloading Defold SDK version {} ...", hash);
 
-            // Connect and copy to file
-            try (ClientHttpResponse response = request.execute()) {
-                if (response.getStatusCode() != HttpStatus.OK) {
-                    throw new ExtenderException(String.format("The given sdk does not exist: %s (%s)", hash, response.getStatusCode().toString()));
+                    URL url = new URL(String.format(REMOTE_SDK_URL_PATTERN, hash));
+                    ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
+                    ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+
+                    // Connect and copy to file
+                    try (ClientHttpResponse response = request.execute()) {
+                        if (response.getStatusCode() != HttpStatus.OK) {
+                            throw new ExtenderException(String.format("The given sdk does not exist: %s (%s)", hash, response.getStatusCode().toString()));
+                        }
+
+                        Path tempDirectoryPath = Files.createTempDirectory(baseSdkDirectory, "tmp" + hash);
+                        File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
+
+                        Files.createDirectories(tempDirectoryPath);
+                        InputStream body = response.getBody();
+                        ZipUtils.unzip(body, tmpSdkDirectory.toPath());
+
+                        Move(tmpSdkDirectory.toPath(), sdkDirectory.toPath());
+                    }
+
+                    // Delete old SDK:s
+                    Comparator<Path> lastModifiedComparator = Comparator.comparing(path -> path.toFile().lastModified());
+
+                    Files
+                            .list(baseSdkDirectory)
+                            .filter(path -> !path.getFileName().toString().startsWith("tmp"))
+                            .sorted(lastModifiedComparator.reversed())
+                            .skip(cacheSize)
+                            .forEach(this::deleteCachedSdk);
+
+                    counterService.increment("counter.service.sdk.get.download");
+                } finally {
+                    lockFile.delete();
+                }
+            } else {
+                LOGGER.info("Waiting for Defold SDK version {} to download ...", hash);
+                // We have to wait for the lock file to disappear
+                int seconds = 120; // Downloading an sdk takes ~30-50 seconds
+                while (Files.exists(lockFile.toPath()) && seconds > 0) {
+                    int step = 2;
+                    seconds -= step;
+                    try {
+                        Thread.sleep(step * 1000);
+                    } catch (InterruptedException e) {
+                        // pass
+                    }
                 }
 
-                Path tempDirectoryPath = Files.createTempDirectory(baseSdkDirectory, hash);
-                File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
-
-                Files.createDirectories(tempDirectoryPath);
-                InputStream body = response.getBody();
-                ZipUtils.unzip(body, tmpSdkDirectory.toPath());
-
-                Move(tmpSdkDirectory.toPath(), sdkDirectory.toPath());
+                // Now check again that the SDK was downloaded
+                if (!Files.exists(sdkDirectory.toPath())) {
+                    throw new ExtenderException(String.format("The given sdk still does not exist: %s", hash));
+                }
             }
-
-            // Delete old SDK:s
-            Comparator<Path> lastModifiedComparator = Comparator.comparing(path -> path.toFile().lastModified());
-            Files
-                    .list(baseSdkDirectory)
-                    .sorted(lastModifiedComparator.reversed())
-                    .skip(cacheSize)
-                    .forEach(this::deleteCachedSdk);
-
-            counterService.increment("counter.service.sdk.get.download");
         }
 
         LOGGER.info("Using Defold SDK version {}", hash);
