@@ -36,6 +36,8 @@ endpoints:
 
 # Suppress info-logging from metrics reporting client
 logging.level.okhttp3.OkHttpClient: WARN
+# Increase thread name size, to make the job name more visible
+logging.pattern.console: "%clr(%d{yy-MM-dd E HH:mm:ss.SSS}){blue} %clr(%-5p) %clr(${PID}){faint} %clr(---){faint} %clr([%8.23t]){cyan} %clr(%-40.40c{1.}){blue} %clr(:){red} %clr(%m){faint}%n"
 
 management:
     health:
