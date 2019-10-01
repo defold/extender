@@ -76,9 +76,18 @@ RUN \
   make -j8 && \
   make install && \
   make distclean && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
   ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TPAPITMP && \
   make -j8 && \
   make install && \
+  make distclean && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
   apt-get remove -y git cmake
 
 #
