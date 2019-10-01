@@ -49,7 +49,7 @@ RUN mkdir $PLATFORMSDK_DIR
 
 # These packages are downloaded from here: http://releases.llvm.org/download.html
 # and then uploaded as-is to S3
-RUN wget -q -O - ${S3_URL}/clang%2Bllvm-6.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+RUN wget -q -O - ${S3_URL}/clang%2Bllvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -72,11 +72,11 @@ RUN \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
   cd cctools-port/cctools && \
   git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TPAPITMP && \
   make -j8 && \
   make install && \
   make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TPAPITMP && \
   make -j8 && \
   make install && \
   apt-get remove -y git cmake
@@ -86,26 +86,28 @@ RUN \
 #
 # For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
-  wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS11.2.sdk && \
   wget -q -O - ${S3_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS12.1.sdk && \
-  wget -q -O - ${S3_URL}/iPhoneOS13.0-beta.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${S3_URL}/iPhoneOS13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.0.sdk && \
   wget -q -O - ${S3_URL}/iPhoneSimulator12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator12.1.sdk && \
-  wget -q -O - ${S3_URL}/iPhoneSimulator13.0-beta.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${S3_URL}/iPhoneSimulator13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.0.sdk && \
   wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
-  wget -q -O - ${S3_URL}/MacOSX10.15-beta.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${S3_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
-  wget -q -O - ${S3_URL}/XcodeDefault10.1.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault10.1.xctoolchain && \
+  wget -q -O - ${S3_URL}/XcodeDefault11.0.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
+
+RUN \
+  ls -la /usr/local/bin/llvm* && \
+  ls -la /usr/local/bin/*dsymutil* && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar && \
+  ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain/usr/lib/arc /usr/local/lib/arc
 
 #
 # EMSCRIPTEN
