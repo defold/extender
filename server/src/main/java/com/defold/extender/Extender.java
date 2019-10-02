@@ -343,14 +343,24 @@ class Extender {
         }
 
         // Added in 1.2.163 to make it easier to upgrade to Clang 9
-        if (this.platform.contains("ios") || this.platform.contains("osx"))
-        {
-            LOGGER.info("Adding arclite hack to ios/osx");
+        if (this.platform.contains("ios") || this.platform.contains("osx")) {
+            LOGGER.debug("Adding arclite hack to ios/osx");
             List<String> linkFlags = (List<String>)context.get("linkFlags");
-            linkFlags.add("-Xlinker");
-            linkFlags.add("-U");
-            linkFlags.add("-Xlinker");
-            linkFlags.add("_objc_loadClassref");
+            if (!linkFlags.contains("-Wl,-U,_objc_loadClassref")) {
+                linkFlags.add("-Wl,-U,_objc_loadClassref");
+            }
+        }
+        else if ( this.platform.contains("win32")) {
+            LOGGER.debug("Adding WinMain hack to win32");
+            List<String> linkFlags = (List<String>)context.get("linkFlags");
+            if (!linkFlags.contains("-Wl,/entry:mainCRTStartup")) {
+                linkFlags.add("-Wl,/entry:mainCRTStartup");
+            }
+
+            LOGGER.debug("Adding SEH hack to win32");
+            if (!linkFlags.contains("-Wl,/safeseh:no")) {
+                linkFlags.add("-Wl,/safeseh:no");
+            }
         }
 
         return context;

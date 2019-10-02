@@ -110,10 +110,12 @@ public class IntegrationTest {
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
-                new DefoldVersion("d13de133800e52aeda921e270d1d7340d5ac6684", new Version(1, 2, 143), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                new DefoldVersion("8def4b50c9aa049670e698d7dff3dc00d77e42d5", new Version(1, 2, 144), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                new DefoldVersion("9f376d88408bad9088a4187d4f874ae4767a0185", new Version(1, 2, 145), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                new DefoldVersion("851fbeb469987908d2b785fa3964003acc919394", new Version(1, 2, 149), new String[] {"armv7-android", "armv7-ios"}),
+
+                new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 154), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("67b68f1e1ac26a3385fb511cdce520fe52387bb0", new Version(1, 2, 156), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("3d63d0509cc828c9555afc149cccfea0f7f83c97", new Version(1, 2, 158), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("1a8e53ae9c38a09b742d38dffc6a9f2efdbe6e97", new Version(1, 2, 160), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("e07f3bb9e8c970eceda8dce8efd5905fd67fa720", new Version(1, 2, 162), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
