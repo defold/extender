@@ -57,42 +57,46 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
+#
+# iOS + OSX
+#
+
 # The updated install flow
 RUN \
   apt-get update && \
   apt-get install -y git cmake && \
   cd /tmp && \
-  TPAPITMP=/tmp/tpapi && \
-  mkdir $TPAPITMP && \
+  TAPITMP=/tmp/tapi1.4 && \
+  mkdir $TAPITMP && \
   git clone https://github.com/tpoechtrager/apple-libtapi.git && \
   cd apple-libtapi && \
   git checkout 3efb201881e7a76a21e0554906cf306432539cef && \
-  INSTALLPREFIX=$TPAPITMP ./build.sh && \
+  INSTALLPREFIX=$TAPITMP ./build.sh && \
   ./install.sh && \
+  cd .. && \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
   cd cctools-port/cctools && \
   git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TPAPITMP && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
   make distclean && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
   make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TPAPITMP && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
   make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
   make distclean && \
-  apt-get remove -y git cmake
+  apt-get remove -y git cmake && \
+  rm -rf apple-libtapi && \
+  rm -rf cctools-port
 
-#
-# iOS + OSX
-#
 # For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
   wget -q -O - ${S3_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
@@ -111,8 +115,6 @@ RUN \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
 
 RUN \
-  ls -la /usr/local/bin/llvm* && \
-  ls -la /usr/local/bin/*dsymutil* && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar && \
