@@ -349,6 +349,24 @@ class Extender {
             if (!linkFlags.contains("-Wl,-U,_objc_loadClassref")) {
                 linkFlags.add("-Wl,-U,_objc_loadClassref");
             }
+
+            List<String> libs = (List<String>)context.get("libs");
+            if (this.platform.contains("osx")) {
+                if (!libs.contains("clang_rt.osx")) {
+                    libs.add("clang_rt.osx");
+                }
+            } else {
+                if (!libs.contains("clang_rt.ios")) {
+                    libs.add("clang_rt.ios");
+                }
+            }
+
+            Object platformsdk_dir = this.platformConfig.context.get("env.PLATFORMSDK_DIR");
+            String path = String.format("%s/XcodeDefault11.0.xctoolchain/usr/lib/clang/11.0.0/lib/darwin", platformsdk_dir);
+            List<String> libPaths = (List<String>)context.get("libPaths");
+            if (!libPaths.contains(path)) {
+                libPaths.add(path);
+            }
         }
         else if ( this.platform.contains("win32")) {
             LOGGER.debug("Adding WinMain hack to win32");
