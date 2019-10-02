@@ -344,6 +344,7 @@ class Extender {
 
         // Added in 1.2.163 to make it easier to upgrade to Clang 9
         if (this.platform.contains("ios") || this.platform.contains("osx"))
+        {
             LOGGER.info("Adding arclite hack to ios/osx");
             List<String> linkFlags = (List<String>)context.get("linkFlags");
             linkFlags.add("-Xlinker");
