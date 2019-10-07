@@ -109,13 +109,15 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
+                //new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
 
-                new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 154), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                new DefoldVersion("67b68f1e1ac26a3385fb511cdce520fe52387bb0", new Version(1, 2, 156), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                new DefoldVersion("3d63d0509cc828c9555afc149cccfea0f7f83c97", new Version(1, 2, 158), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                new DefoldVersion("1a8e53ae9c38a09b742d38dffc6a9f2efdbe6e97", new Version(1, 2, 160), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                new DefoldVersion("e07f3bb9e8c970eceda8dce8efd5905fd67fa720", new Version(1, 2, 162), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 154), new String[] {"js-web"}),
+                // new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 154), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                // new DefoldVersion("67b68f1e1ac26a3385fb511cdce520fe52387bb0", new Version(1, 2, 156), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                // new DefoldVersion("3d63d0509cc828c9555afc149cccfea0f7f83c97", new Version(1, 2, 158), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                // new DefoldVersion("1a8e53ae9c38a09b742d38dffc6a9f2efdbe6e97", new Version(1, 2, 160), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                // new DefoldVersion("e07f3bb9e8c970eceda8dce8efd5905fd67fa720", new Version(1, 2, 162), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                // new DefoldVersion("13261949f45c333806c8aac8bd5b08124ca2810f", new Version(1, 2, 163), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -264,7 +266,7 @@ public class IntegrationTest {
         return destination;
     }
 
-    @Test
+    //@Test
     public void buildEngine() throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext2/ext.manifest"),
@@ -288,7 +290,7 @@ public class IntegrationTest {
         doBuild(sourceFiles);
     }
 
-    @Test
+    //@Test
     public void buildEngineWithBaseExtension() throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext/ext.manifest"),
@@ -325,7 +327,7 @@ public class IntegrationTest {
         return true;
     }
 
-    @Test
+    //@Test
     public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
@@ -345,7 +347,7 @@ public class IntegrationTest {
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
+    //@Test
     public void buildAndroidCheckClassesMultiDex() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
@@ -367,7 +369,7 @@ public class IntegrationTest {
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
+    //@Test
     public void buildAndroidCheckCompiledJava() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
@@ -391,7 +393,7 @@ public class IntegrationTest {
     /*
      * Test if a Java source can import classes specified in a supplied Jar file.
      */
-    @Test
+    //@Test
     public void buildAndroidJavaJarDependency() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
@@ -412,7 +414,7 @@ public class IntegrationTest {
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
+    //@Test
     public void buildAndroidRJar() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support Android resources compilation test.",
@@ -432,7 +434,7 @@ public class IntegrationTest {
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
+    //@Test
     public void buildEngineAppManifest() throws IOException, ExtenderClientException {
         // Testing that using an app.manifest helps resolve issues with duplicate symbols
         // E.g. removing libs, symbols and jar files
@@ -457,7 +459,7 @@ public class IntegrationTest {
         doBuild(sourceFiles);
     }
 
-    @Test
+    //@Test
     public void buildLinkWithoutDotLib() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("This test was written to test a Win32 link.exe -> clang transition", configuration.platform.contains("win32") &&
@@ -471,7 +473,7 @@ public class IntegrationTest {
         doBuild(sourceFiles);
     }
 
-    @Test
+    //@Test
     public void buildEngineAppManifestVariant() throws IOException, ExtenderClientException {
         // Testing that the variant parameter can be parse and processed properly.
         // This test requires that we have a debug.appmanifest present in the SDK and only
