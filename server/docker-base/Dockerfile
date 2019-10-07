@@ -304,6 +304,8 @@ RUN \
 
 ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 
+RUN echo "fix for triggering a build of the image"
+
 RUN mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${ANDROID_NDK_URL} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${ANDROID_NDK20_URL} | tar xz -C ${ANDROID_ROOT} && \
@@ -312,8 +314,13 @@ RUN mkdir -p ${ANDROID_HOME} && \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
     cd ${ANDROID_HOME} && \
-    chown -R extender: ${ANDROID_HOME} && \
-    ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
+    chown -R extender: ${ANDROID_HOME}
+
+# make sure the tools exist!
+RUN \
+    ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx && \
+    which aarch64-linux-android-g++ && \
+    which arm-linux-androideabi-g++
 
 # Remove the rights again from the extender user
 USER root
