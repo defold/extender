@@ -266,7 +266,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         return destination;
     }
 
-    //@Test
+    @Test
     public void buildEngine() throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext2/ext.manifest"),
@@ -290,7 +290,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         doBuild(sourceFiles);
     }
 
-    //@Test
+    @Test
     public void buildEngineWithBaseExtension() throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext/ext.manifest"),
@@ -327,7 +327,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         return true;
     }
 
-    //@Test
+    @Test
     public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
@@ -347,7 +347,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    //@Test
+    @Test
     public void buildAndroidCheckClassesMultiDex() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
@@ -369,7 +369,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    //@Test
+    @Test
     public void buildAndroidCheckCompiledJava() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
@@ -393,7 +393,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
     /*
      * Test if a Java source can import classes specified in a supplied Jar file.
      */
-    //@Test
+    @Test
     public void buildAndroidJavaJarDependency() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
@@ -414,7 +414,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    //@Test
+    @Test
     public void buildAndroidRJar() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support Android resources compilation test.",
@@ -434,7 +434,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    //@Test
+    @Test
     public void buildEngineAppManifest() throws IOException, ExtenderClientException {
         // Testing that using an app.manifest helps resolve issues with duplicate symbols
         // E.g. removing libs, symbols and jar files
@@ -459,7 +459,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         doBuild(sourceFiles);
     }
 
-    //@Test
+    @Test
     public void buildLinkWithoutDotLib() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("This test was written to test a Win32 link.exe -> clang transition", configuration.platform.contains("win32") &&
@@ -473,7 +473,7 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
         doBuild(sourceFiles);
     }
 
-    //@Test
+    @Test
     public void buildEngineAppManifestVariant() throws IOException, ExtenderClientException {
         // Testing that the variant parameter can be parse and processed properly.
         // This test requires that we have a debug.appmanifest present in the SDK and only

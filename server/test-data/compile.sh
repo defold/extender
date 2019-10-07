@@ -1,21 +1,21 @@
 
 
-eval ANDROID_NDK=$ANDROID_NDK
-ANDROID_GCC=${ANDROID_NDK}/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-g++
-ANDROID_AR=${ANDROID_NDK}/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-ar
+ANDROID_NDK=${DYNAMO_HOME}/ext/SDKs/android-ndk-r20
+ANDROID_GCC=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++
+ANDROID_AR=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar
 ANDROID_NDK_API_VERSION='14'
-ANDROID_GCC_VERSION='4.8'
+ANDROID_GCC_VERSION='4.9'
 ANDROID_SYS_ROOT=${ANDROID_NDK}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
 ANDROID_INCLUDE_STL=${ANDROID_NDK}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ANDROID_INCLUDE_ARCH=${ANDROID_NDK}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
 
-IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/clang++
-IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/ar
+IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/clang++
+IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/ar
 IOS_MIN_VERSION=6.0
-IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS11.2.sdk
+IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS12.1.sdk
 
-OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/clang++
-OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/bin/ar
+OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/clang++
+OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/ar
 OSX_MIN_VERSION=10.7
 OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX10.13.sdk
 
@@ -80,7 +80,7 @@ function CompileiOS {
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$IOS_GCC -arch $arch -fno-strict-aliasing -fno-exceptions -miphoneos-version-min=${IOS_MIN_VERSION} -isysroot ${IOS_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
+		$IOS_GCC -arch $arch -stdlib=libc++ -fno-strict-aliasing -fno-exceptions -miphoneos-version-min=${IOS_MIN_VERSION} -isysroot ${IOS_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
 		$IOS_AR rcs $target /tmp/$name-$archname.o
 
 		echo Wrote $target
@@ -92,7 +92,7 @@ function CompileOSX {
 	local src=$2
 	local targetdir=$3
 
-	archs=( "x86" "x86_64")
+	archs=("x86_64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-osx
