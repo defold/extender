@@ -40,8 +40,7 @@ RUN  useradd -r -u 2222 extender && \
   chown extender: $(readlink -f /usr/bin/java) && \
   chmod +s $(readlink -f /usr/bin/java)
 
-
-ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
+ARG S3_URL
 
 # Put all SDK's into a single folder (just as we do in the regular engine build)
 ENV PLATFORMSDK_DIR /opt/platformsdk

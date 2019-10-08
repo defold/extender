@@ -14,28 +14,20 @@ This describes how to run the build server locally.
   * git submodule update
 
 ### Build
-* First, build the Extender Docker image by running: `./server/scripts/build.sh`
 
-To speed things up, tests can be disabled by opening `./server/scripts/build.sh` and adding `-x test` to the last line.
+* Make sure you have access to the url where to download packages from `S3_URL`
+
+* Then, build the Extender Docker image by running:
+
+        $ S3_URL=https://hostname/path/to/packages ./server/scripts/build.sh
+
+To speed things up, tests can be disabled by passing `-xtest` to the command line.
 
 _NOTE:_ The first time you build it will take a while. After that Docker cache will speed it up.
 
 ### Start
 * Then, start a container based on that image by running: `./server/scripts/run-local.sh`.
-* The server is now available on port :9000
-
-
-### Darwin builds
-
-Since Apple discontinued opensourcing the libtapi library, we had to start building an actual mac machine.
-You can test this flow locally:
-
-* Create the output directory: `sudo mkdir /usr/local/extender`
-* Change permissions to it: `sudo chown mathiaswesterdahl:admin /usr/local/extender`
-* Build the server (extender.jar): `./gradlew clean build -xtest`
-* Run `./server/scripts/publish-standalone-local.sh`
-* The server is now available on http://localhost:9010
-
+* The build server is now available on port `http://localhost:9000`
 
 ### Stop
 * Just hit `Ctrl-C`.
@@ -82,7 +74,6 @@ a platform for operating Docker containers running on EC2 instances. It runs in 
   3. Merge dev into beta: `git merge dev`
   4. Build and runs tests: `./server/scripts/build.sh`
   5. Run `./server/scripts/publish-stage.sh`
-  6. Run `./server/scripts/publish-xcloud-stage.sh`
 
 This will create a new task definition on AWS ECS and update the service to run this new version. The new
 version will be rolled out without any downtime of the service.
@@ -95,7 +86,6 @@ The target server is https://build-stage.defold.com
   2. Merge beta into master: `git merge beta`
   3. Build and runs tests: `./server/scripts/build.sh`
   4. Run `./server/scripts/publish-prod.sh`
-  5. Run `./server/scripts/publish-xcloud-prod.sh`
 
 The target server is https://build.defold.com (i.e. the live server!)
 
@@ -112,12 +102,10 @@ The target server is https://build.defold.com (i.e. the live server!)
 #### No space left
 
 The docker build area is set to 64GB. The area filling up will manifest itself as suddenly failing, where it previously succeeded.
-Then try building again, and you might see an error like:
+Then try building again, and you might see an error like (or any disc space related error):
 
     mkdir: cannot create directory ‘/var/extender/.wine’: No space left on device
 
-You can solve this by removing the cached data:
+You can solve this by removing the cached images:
 
-    $ rm ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/Docker.qcow2
-
-and then restart Docker, and build again.
+    $ docker system prune
