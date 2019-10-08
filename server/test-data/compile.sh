@@ -1,13 +1,24 @@
+#!/usr/bin/env bash
 
+if [ "$(uname)" == "Darwin" ]; then
+	LINUX_GCC=$(brew --prefix llvm)/bin/clang++
+	LINUX_AR=$(brew --prefix llvm)/bin/llvm-ar
+	WIN32_GCC=$(brew --prefix llvm)/bin/clang++
+	WIN32_AR=$(brew --prefix llvm)/bin/llvm-ar
+	HOST='darwin'
+else
+	LINUX_GCC=/usr/bin/g++
+	LINUX_AR=/usr/bin/ar
+	HOST='linux'
+fi
 
 ANDROID_NDK=${DYNAMO_HOME}/ext/SDKs/android-ndk-r20
-ANDROID_GCC=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++
+ANDROID_GCC=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/bin/
 ANDROID_AR=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar
-ANDROID_NDK_API_VERSION='14'
-ANDROID_GCC_VERSION='4.9'
-ANDROID_SYS_ROOT=${ANDROID_NDK}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
-ANDROID_INCLUDE_STL=${ANDROID_NDK}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
-ANDROID_INCLUDE_ARCH=${ANDROID_NDK}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
+ANDROID_NDK_API_VERSION='16'
+ANDROID_64_NDK_API_VERSION='21'
+ANDROID_SYS_ROOT=${ANDROID_NDK}/toolchains/llvm/prebuilt/${HOST}-x86_64/sysroot
+ANDROID_INCLUDE_ARCH=${ANDROID_NDK}/sources/android/cpufeatures
 
 IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/clang++
 IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/ar
@@ -25,16 +36,6 @@ EMAR=$DYNAMO_HOME/ext/bin/emsdk_portable/emscripten/1.38.12/emar
 WIN32_CL=cl.exe
 WIN32_LIB=lib.exe
 
-if [ "$(uname)" == "Darwin" ]; then
-	LINUX_GCC=$(brew --prefix llvm)/bin/clang++
-	LINUX_AR=$(brew --prefix llvm)/bin/llvm-ar
-	WIN32_GCC=$(brew --prefix llvm)/bin/clang++
-	WIN32_AR=$(brew --prefix llvm)/bin/llvm-ar
-else
-	LINUX_GCC=/usr/bin/g++
-	LINUX_AR=/usr/bin/ar
-fi
-
 function RemoveTarget {
 	local name=$1
 	if [ -f $name ]; then
@@ -48,7 +49,7 @@ function CompileAndroid {
 	local src=$2
 	local targetdir=$3
 
-	archs=("armv7")
+	archs=("armv7" "arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-android
@@ -58,7 +59,19 @@ function CompileAndroid {
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$ANDROID_GCC -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fno-strict-aliasing -finline-limit=64 -fno-exceptions -funwind-tables -I${ANDROID_INCLUDE_STL} -I${ANDROID_INCLUDE_ARCH} --sysroot=${ANDROID_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
+		CFLAGS="-g -gdwarf-2 -D__STDC_LIMIT_MACROS -Wall -fpic -ffunction-sections -fstack-protector -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions -funwind-tables"
+		if [ "armv7" == "$arch" ]; then
+			CFLAGS="${CFLAGS} -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__ -march=armv7-a -mfloat-abi=softfp -mfpu=vfp"
+			LDFLAGS="-Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text"
+			GCC=${ANDROID_GCC}armv7a-linux-androideabi${ANDROID_NDK_API_VERSION}-clang++
+		else
+			CFLAGS="${CFLAGS} -D__aarch64__ -march=armv8-a"
+			LDFLAGS="-Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text"
+			GCC=${ANDROID_GCC}aarch64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++
+		fi
+
+		$GCC -c -gdwarf-2 $CFLAGS -I${ANDROID_INCLUDE_ARCH} -isysroot=${ANDROID_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
+
 		$ANDROID_AR rcs $target /tmp/$name-$archname.o
 		echo Wrote $target
 	done
