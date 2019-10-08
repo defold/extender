@@ -35,6 +35,8 @@ public class IntegrationTest {
     private TestConfiguration configuration;
     private long startTime;
 
+    private static final String S3_URL = System.getenv("S3_URL");
+
     @Rule
     public TestName name = new TestName();
 
@@ -140,6 +142,7 @@ public class IntegrationTest {
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
+        processExecutor.putEnv("S3_URL", IntegrationTest.S3_URL);
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
@@ -279,10 +282,12 @@ public class IntegrationTest {
 
     @Test
     public void buildExtensionStdLib() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("Changed to -stdlib=libc++ in 163 for ios/osx",
+        org.junit.Assume.assumeTrue("Changed to -stdlib=libc++ in 163 for ios/osx, and clang++ for Android in 161",
                 (configuration.platform.contains("osx") &&
                  configuration.version.version.isGreaterThan(1, 2, 163)) ||
-                (!configuration.platform.contains("osx") &&
+                (configuration.platform.contains("android") &&
+                 configuration.version.version.isGreaterThan(1, 2, 161)) ||
+                (!(configuration.platform.contains("osx") || configuration.platform.contains("android")) &&
                  configuration.version.version.isGreaterThan(0, 0, 0))
         );
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
