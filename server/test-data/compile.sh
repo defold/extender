@@ -119,7 +119,7 @@ function CompileOSX {
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$OSX_GCC -arch $arch -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions -mmacosx-version-min=${OSX_MIN_VERSION} -isysroot ${OSX_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
+		$OSX_GCC -arch $arch -stdlib=libc++ -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions -mmacosx-version-min=${OSX_MIN_VERSION} -isysroot ${OSX_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
 		$OSX_AR rcs $target /tmp/$name-$archname.o
 
 		echo Wrote $target

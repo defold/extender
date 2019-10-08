@@ -109,15 +109,14 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                //new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
 
-new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 154), new String[] {"js-web"}),
-                // new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 154), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                // new DefoldVersion("67b68f1e1ac26a3385fb511cdce520fe52387bb0", new Version(1, 2, 156), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                // new DefoldVersion("3d63d0509cc828c9555afc149cccfea0f7f83c97", new Version(1, 2, 158), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                // new DefoldVersion("1a8e53ae9c38a09b742d38dffc6a9f2efdbe6e97", new Version(1, 2, 160), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                // new DefoldVersion("e07f3bb9e8c970eceda8dce8efd5905fd67fa720", new Version(1, 2, 162), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
-                // new DefoldVersion("13261949f45c333806c8aac8bd5b08124ca2810f", new Version(1, 2, 163), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 154), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("67b68f1e1ac26a3385fb511cdce520fe52387bb0", new Version(1, 2, 156), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("3d63d0509cc828c9555afc149cccfea0f7f83c97", new Version(1, 2, 158), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("1a8e53ae9c38a09b742d38dffc6a9f2efdbe6e97", new Version(1, 2, 160), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("e07f3bb9e8c970eceda8dce8efd5905fd67fa720", new Version(1, 2, 162), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
+                new DefoldVersion("13261949f45c333806c8aac8bd5b08124ca2810f", new Version(1, 2, 163), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -280,7 +279,12 @@ new DefoldVersion("1a8f9e14786e6779405aedf490ebb82da01d7198", new Version(1, 2, 
 
     @Test
     public void buildExtensionStdLib() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("Only implemented for actual sdk's", configuration.version.version.isGreaterThan(0, 0, 0));
+        org.junit.Assume.assumeTrue("Changed to -stdlib=libc++ in 163 for ios/osx",
+                (configuration.platform.contains("osx") &&
+                 configuration.version.version.isGreaterThan(1, 2, 163)) ||
+                (!configuration.platform.contains("osx") &&
+                 configuration.version.version.isGreaterThan(0, 0, 0))
+        );
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext_std/ext.manifest"),
                 new FileExtenderResource("test-data/ext_std/include/std.h"),
