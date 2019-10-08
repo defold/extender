@@ -1,0 +1,25 @@
+name: Docker Image CI
+
+on: [push, pull_request]
+      
+jobs:
+
+  build:
+ 
+    runs-on: ubuntu-latest
+ 
+    steps:
+    - uses: actions/checkout@v1
+      
+    - name: Build the extender-client.jar
+      run: (cd client && ../gradlew build)
+      
+    - name: Test the extender-client.jar
+      run: (cd client && ../gradlew test)
+      
+    - name: Build the Docker image
+      run: ./server/scripts/build.sh -xtest
+    
+    - name: Test the Docker image
+      run: ./gradlew test
+      
