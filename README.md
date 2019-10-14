@@ -6,24 +6,29 @@ Extender is a build server that builds native extensions of the Defold engine.
 This describes how to run the build server locally.
 
 ### Prerequisites
+
 * Make sure you have [Docker](https://www.docker.com) installed and running.
+
 * Clone this repo with the _recurse-submodules_ parameter:
   * git clone --recurse-submodules <repo>
 * If you have already cloned the repo, you can init and fetch the submodule like this:
   * git submodule init
   * git submodule update
 
-### Build
-
 * Make sure you have access to the url where to download packages from `S3_URL`
 
-* Then, build the Extender Docker image by running:
+  * See the [Dockerfile](./server/docker-base/Dockerfile) for what actual packages are needed.
+  * See [defold/scripts/package](https://github.com/defold/defold/tree/dev/scripts/package) folder for scripts how to create these packages.
+
+### Build
+
+* Build the Extender Docker image by running:
 
         $ S3_URL=https://hostname/path/to/packages ./server/scripts/build.sh
 
 To speed things up, tests can be disabled by passing `-xtest` to the command line.
 
-_NOTE:_ The first time you build it will take a while. After that Docker cache will speed it up.
+_NOTE:_ The first time you build it will take a while (~45minutes). After that Docker cache will speed it up.
 
 ### Start
 * Then, start a container based on that image by running: `./server/scripts/run-local.sh`.
@@ -36,7 +41,7 @@ _NOTE:_ The first time you build it will take a while. After that Docker cache w
 
 #### Docker container
 
-* When the container is running, then run `./server/scripts/debug-local.sh`. It connects to the container and executes bash.
+* When the container is running, then run `./server/scripts/debug-local.sh`. It connects to the container using the `etender` user, and executes bash.
 
 * In detail: [Debugging](./README_DEBUGGING.md)
 
