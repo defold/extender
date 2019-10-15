@@ -40,8 +40,7 @@ RUN  useradd -r -u 2222 extender && \
   chown extender: $(readlink -f /usr/bin/java) && \
   chmod +s $(readlink -f /usr/bin/java)
 
-
-ENV S3_URL https://s3-eu-west-1.amazonaws.com/defold-packages
+ARG S3_URL
 
 # Put all SDK's into a single folder (just as we do in the regular engine build)
 ENV PLATFORMSDK_DIR /opt/platformsdk
@@ -49,7 +48,7 @@ RUN mkdir $PLATFORMSDK_DIR
 
 # These packages are downloaded from here: http://releases.llvm.org/download.html
 # and then uploaded as-is to S3
-RUN wget -q -O - ${S3_URL}/clang%2Bllvm-6.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+RUN wget -q -O - ${S3_URL}/clang%2Bllvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -57,72 +56,68 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
-# The old install flow (Kept for backwards compatibility until all builds are done using darwin12)
-# Reference for relating between version numbers: https://en.wikipedia.org/wiki/Darwin_(operating_system)
-RUN \
-  apt-get update && \
-  apt-get install -y git && \
-  cd /tmp && \
-  git clone https://github.com/tpoechtrager/cctools-port.git && \
-  cd cctools-port/cctools && \
-  git checkout 84ce22dbb22a26ce7f392e9de0ee39c2efe6fd68 && \
-  ./autogen.sh && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin11 && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./autogen.sh && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin11 && \
-  make -j8 && \
-  make install && \
-  rm -rf /tmp/cctools-port
+#
+# iOS + OSX
+#
 
 # The updated install flow
 RUN \
   apt-get update && \
   apt-get install -y git cmake && \
   cd /tmp && \
-  TPAPITMP=/tmp/tpapitmp && \
-  mkdir $TPAPITMP && \
+  TAPITMP=/tmp/tapi1.4 && \
+  mkdir $TAPITMP && \
   git clone https://github.com/tpoechtrager/apple-libtapi.git && \
   cd apple-libtapi && \
-  git checkout 19694a572cd9c0f6452a8e214682e74197370934 && \
-  INSTALLPREFIX=$TPAPITMP ./build.sh && \
+  git checkout 3efb201881e7a76a21e0554906cf306432539cef && \
+  INSTALLPREFIX=$TAPITMP ./build.sh && \
   ./install.sh && \
+  cd .. && \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
   cd cctools-port/cctools && \
-  git checkout 22ebe727a5cdc21059d45313cf52b4882157f6f0 && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
   make distclean && \
-  ./autogen.sh && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TPAPITMP && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
-  rm -rf /tmp/cctools-port && \
-  rm -rf /tmp/apple-libtapi && \
-  apt-get purge --auto-remove -y git cmake
+  make distclean && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  apt-get purge --auto-remove -y git cmake && \
+  rm -rf apple-libtapi && \
+  rm -rf cctools-port
 
-#
-# iOS + OSX
-#
 # For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
-  wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS11.2.sdk && \
   wget -q -O - ${S3_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS12.1.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneOS13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.0.sdk && \
   wget -q -O - ${S3_URL}/iPhoneSimulator12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator12.1.sdk && \
+  wget -q -O - ${S3_URL}/iPhoneSimulator13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.0.sdk && \
   wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
-  wget -q -O - ${S3_URL}/XcodeDefault10.1.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault10.1.xctoolchain && \
+  wget -q -O - ${S3_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
+  wget -q -O - ${S3_URL}/XcodeDefault11.0.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
+
+RUN \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s /usr/local/bin/llvm-dsymutil /usr/local/bin/dsymutil && \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar && \
+  ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain/usr/lib/arc /usr/local/lib/arc
 
 #
 # EMSCRIPTEN
@@ -168,22 +163,38 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
 
 ENV PLATFORMSDK_WIN32 $PLATFORMSDK_DIR/Win32
 
-# Grabbed after a call to <VCINSTALLDIR>/bin/x86_amd64\vcvarsx86_amd64.bat (Can probably be trimmed further)
-ENV VS140COMNTOOLS "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/Tools/"
-ENV VCINSTALLDIR "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/"
-ENV VSINSTALLDIR "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/"
-ENV WindowsLibPath "${PLATFORMSDK_WIN32}/WindowsKits/8.1/References/CommonConfiguration/Neutral"
-ENV WindowsSdkDir "${PLATFORMSDK_WIN32}/WindowsKits/8.1/"
-ENV WindowsSDKLibVersion "winv6.3/"
-ENV WindowsSDKVersion "/"
+# windres: Allows for generating .res files that can be used during linking
+RUN \
+  echo "Win32 SDK - WINDRES" && \
+  apt-get update && \
+  apt-get install -y binutils-mingw-w64-x86-64 && \
+  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
+  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
+
+# Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer COmmand Prompt"
+ENV \
+  VS160COMNTOOLS="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Community/Common7/Tools/" \
+  VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Community/VC/" \
+  VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Community/" \
+  WindowsLibPath="${PLATFORMSDK_WIN32}/WindowsKits/8.1/References/CommonConfiguration/Neutral" \
+  WindowsSdkDir="${PLATFORMSDK_WIN32}/WindowsKits/8.1/" \
+  WindowsSDKLibVersion="winv6.3/" \
+  WindowsSDKVersion="/" \
+  WINDOWS_MSVC_DIR=/opt/platformsdk/Win32/MicrosoftVisualStudio2019/VC/Tools/MSVC/14.23.28105/ \
+  WINDOWS_SDK_8_DIR=/opt/platformsdk/Win32/WindowsKits/8.1/ \
+  WINDOWS_SDK_10_DIR=/opt/platformsdk/Win32/WindowsKits/10/ \
+  WINDOWS_SDK_10_VERSION=10.0.18362.0 \
+  WINDOWS_MSVC_VERSION=14.23.28105
+
+RUN echo "force build"
 
 RUN \
+  echo "WIN32 SDK - TOOLKITS" && \
   mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-8.1.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
-  ln -s ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 && \
-  rm -rf ${VSINSTALLDIR}/Common7/IDE
+  wget -q -O - ${S3_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${S3_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  mkdir ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
 # so we solve the bulk by making the suffixes lowercase
@@ -191,29 +202,24 @@ RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "
 # Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
 RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
 
-# and the rest are manually copied (or made lower case)
-RUN (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
-    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib && cp oldnames.lib OLDNAMES.lib) && \
-    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
-    (cd ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/lib && cp delayimp.lib Delayimp.lib) && \
-    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Include/shared && cp driverspecs.h DriverSpecs.h) && \
-    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Include/shared && cp specstrings.h SpecStrings.h) && \
-    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
-    (cd ${PLATFORMSDK_WIN32}/WindowsKits/8.1/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
-
-# For SDK's older than 1.2.146
-ENV PROGRAM_FILES /var/extender/.wine/drive_c/ProgramFilesx86
+# # and the rest are manually copied (or made lower case)
 RUN \
-  mkdir -p ${PROGRAM_FILES} && \
-  ln -s ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 ${PROGRAM_FILES}/MicrosoftVisualStudio14.0 && \
-  ln -s ${PLATFORMSDK_WIN32}/WindowsKits ${PROGRAM_FILES}/WindowsKits
+  echo "WIN32 SDK - Cleanup" && \
+  (cd ${WINDOWS_MSVC_DIR}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_DIR}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_DIR}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_MSVC_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp driverspecs.h DriverSpecs.h) && \
+  (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp specstrings.h SpecStrings.h) && \
+  (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
+  (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
-# windres: Allows for generating .res files that can be used during linking
-RUN \
-  apt-get update && \
-  apt-get install -y mingw-w64 && \
-  cp /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres && \
-  apt-get purge --auto-remove -y mingw-w64
+# # For SDK's older than 1.2.146
+# ENV PROGRAM_FILES /var/extender/.wine/drive_c/ProgramFilesx86
+# RUN \
+#   mkdir -p ${PROGRAM_FILES} && \
+#   ln -s ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 ${PROGRAM_FILES}/MicrosoftVisualStudio14.0 && \
+#   ln -s ${PLATFORMSDK_WIN32}/WindowsKits ${PROGRAM_FILES}/WindowsKits
 
 #
 # Android SDK/NDK
@@ -246,7 +252,6 @@ ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/
 ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
-ENV ANDROID_PROGUARD ${ANDROID_HOME}/tools/proguard/lib/proguard.jar
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
 ENV ANDROID_64_NDK_API_VERSION 21
@@ -280,6 +285,16 @@ ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
 ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
 
+# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends proguard && \
+  ls -la /usr/share/java/proguard.jar
+
+ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
+
+RUN echo "fix for triggering a build of the image"
+
 RUN mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${ANDROID_NDK_URL} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${ANDROID_NDK20_URL} | tar xz -C ${ANDROID_ROOT} && \
@@ -287,7 +302,9 @@ RUN mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${ANDROID_SDK_URL} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
-    ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx # make sure it exists!
+    ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx && \
+    which aarch64-linux-android-g++ && \
+    which arm-linux-androideabi-g++
 
 # Always run last to minimize the size
 RUN apt-get clean autoclean autoremove

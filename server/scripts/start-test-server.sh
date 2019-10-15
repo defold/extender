@@ -5,10 +5,18 @@ set -x
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-docker build -t extender-base ${DIR}/../docker-base
+if [ "${S3_URL}" != "" ]; then
+	ENV='--build-arg S3_URL'
+fi
+
+if [ "${ENV}" != "" ]; then
+	echo "Using ENV: ${ENV}"
+fi
+
+docker build ${ENV} -t extender-base ${DIR}/../docker-base
 
 ${DIR}/../../gradlew buildDocker -x test
 
 chmod -R a+xrw ${DIR}/../test-data || true
 
-docker run -d --rm --name extender -p 9000:9000 -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender
+docker run -d --rm --name extender -p 9000:9000 -e S3_URL=${S3_URL} -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender

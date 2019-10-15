@@ -341,6 +341,46 @@ class Extender {
             }
             context.put(k, v);
         }
+
+        // Added in 1.2.163 to make it easier to upgrade to Clang 9
+        if (this.platform.contains("ios") || this.platform.contains("osx")) {
+            LOGGER.debug("Adding arclite hack to ios/osx");
+            List<String> linkFlags = (List<String>)context.get("linkFlags");
+            if (!linkFlags.contains("-Wl,-U,_objc_loadClassref")) {
+                linkFlags.add("-Wl,-U,_objc_loadClassref");
+            }
+
+            List<String> libs = (List<String>)context.get("libs");
+            if (this.platform.contains("osx")) {
+                if (!libs.contains("clang_rt.osx")) {
+                    libs.add("clang_rt.osx");
+                }
+            } else {
+                if (!libs.contains("clang_rt.ios")) {
+                    libs.add("clang_rt.ios");
+                }
+            }
+
+            Object platformsdk_dir = this.platformConfig.context.get("env.PLATFORMSDK_DIR");
+            String path = String.format("%s/XcodeDefault11.0.xctoolchain/usr/lib/clang/11.0.0/lib/darwin", platformsdk_dir);
+            List<String> libPaths = (List<String>)context.get("libPaths");
+            if (!libPaths.contains(path)) {
+                libPaths.add(path);
+            }
+        }
+        else if ( this.platform.contains("win32")) {
+            LOGGER.debug("Adding WinMain hack to win32");
+            List<String> linkFlags = (List<String>)context.get("linkFlags");
+            if (!linkFlags.contains("-Wl,/entry:mainCRTStartup")) {
+                linkFlags.add("-Wl,/entry:mainCRTStartup");
+            }
+
+            LOGGER.debug("Adding SEH hack to win32");
+            if (!linkFlags.contains("-Wl,/safeseh:no")) {
+                linkFlags.add("-Wl,/safeseh:no");
+            }
+        }
+
         return context;
     }
 
@@ -1019,7 +1059,7 @@ class Extender {
         return mainList;
     }
 
-    private File[] buildClassesDex(List<String> jars) throws ExtenderException {
+    private File[] buildClassesDex(List<String> jars, File mainDexList) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
         // To support older versions of build.yml where dxCmd is not defined:
@@ -1027,7 +1067,6 @@ class Extender {
             return new File[0];
         }
 
-        File mainList = buildMainDexList(jars);
         File classesDex = new File(buildDirectory, "classes.dex");
 
         // The empty list is also present for backwards compatability with older build.yml
@@ -1040,7 +1079,7 @@ class Extender {
         context.put("jars", jars);
         context.put("engineJars", empty_list);
         context.put("engineJars", empty_list);
-        context.put("mainDexList", mainList.getAbsolutePath());
+        context.put("mainDexList", mainDexList.getAbsolutePath());
 
         String command = platformConfig.dxCmd;
 
@@ -1148,6 +1187,8 @@ class Extender {
             List<String> allJars                         = getAllJars(extensionJarMap);
             Map.Entry<File,File> proGuardFiles           = buildProGuard(allJars, extensionJarMap);
 
+            File mainDexList = buildMainDexList(allJars);
+
             // If we have proGuard support, we need to reset the allJars list so that
             // we don't get duplicate symbols.
             if (proGuardFiles != null) {
@@ -1170,7 +1211,7 @@ class Extender {
                 }
             }
 
-            File[] classesDex = buildClassesDex(allJars);
+            File[] classesDex = buildClassesDex(allJars, mainDexList);
             if (classesDex.length > 0) {
                 outputFiles.addAll(Arrays.asList(classesDex));
             }

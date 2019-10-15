@@ -113,8 +113,6 @@ public class ExtenderController {
                             @PathVariable("sdkVersion") String sdkVersionString)
             throws ExtenderException, IOException, URISyntaxException {
 
-        LOGGER.info("Starting build: sdk={}, platform={}", sdkVersionString, platform);
-
         boolean isMultipart = ServletFileUpload.isMultipartContent(request);
         if (!isMultipart) {
             throw new ExtenderException("The request must be a multi part request");
@@ -130,6 +128,10 @@ public class ExtenderController {
         } else {
             jobDirectory = Files.createTempDirectory("job").toFile();
         }
+
+        Thread.currentThread().setName(jobDirectory.getName());
+
+        LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
 
         File uploadDirectory = new File(jobDirectory, "upload");
         uploadDirectory.mkdir();
