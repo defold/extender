@@ -2,6 +2,7 @@ FROM ubuntu:16.04
 
 # Base stuff
 RUN \
+  echo "LINUX TOOLS + COMPILER" && \
   dpkg --add-architecture i386 && \
   apt-get update && \
   apt-get install -y software-properties-common && \
@@ -32,7 +33,6 @@ RUN \
   rm -rf /var/lib/apt/lists/* && \
   rm -rf /var/cache/oracle-jdk8-installer
 
-
 # Add extender user
 RUN  useradd -r -u 2222 extender && \
   mkdir -p /var/extender && \
@@ -52,9 +52,9 @@ RUN wget -q -O - ${S3_URL}/clang%2Bllvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.
 
 # Darwin
 RUN locale-gen en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
 
 #
 # iOS + OSX
@@ -123,7 +123,9 @@ RUN \
 # EMSCRIPTEN
 #
 
-RUN apt-get autoclean && \
+RUN \
+  echo "EMSCRIPTEN" && \
+  apt-get autoclean && \
   apt-get install -y --no-install-recommends python2.7 && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python2
@@ -161,7 +163,10 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
 # Windows
 #
 
-ENV PLATFORMSDK_WIN32 $PLATFORMSDK_DIR/Win32
+ENV \
+  PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
+  WINDOWS_SDK_10_VERSION=10.0.18362.0 \
+  WINDOWS_MSVC_2019_VERSION=14.23.28105
 
 # windres: Allows for generating .res files that can be used during linking
 RUN \
@@ -171,30 +176,20 @@ RUN \
   ls -la /usr/bin/x86_64-w64-mingw32-windres && \
   ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
 
-# Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer COmmand Prompt"
-ENV \
-  VS160COMNTOOLS="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Community/Common7/Tools/" \
-  VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Community/VC/" \
-  VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Community/" \
-  WindowsLibPath="${PLATFORMSDK_WIN32}/WindowsKits/8.1/References/CommonConfiguration/Neutral" \
-  WindowsSdkDir="${PLATFORMSDK_WIN32}/WindowsKits/8.1/" \
-  WindowsSDKLibVersion="winv6.3/" \
-  WindowsSDKVersion="/" \
-  WINDOWS_MSVC_DIR=/opt/platformsdk/Win32/MicrosoftVisualStudio2019/VC/Tools/MSVC/14.23.28105/ \
-  WINDOWS_SDK_8_DIR=/opt/platformsdk/Win32/WindowsKits/8.1/ \
-  WINDOWS_SDK_10_DIR=/opt/platformsdk/Win32/WindowsKits/10/ \
-  WINDOWS_SDK_10_VERSION=10.0.18362.0 \
-  WINDOWS_MSVC_VERSION=14.23.28105
-
-RUN echo "force build"
-
 RUN \
-  echo "WIN32 SDK - TOOLKITS" && \
+  echo "WIN32 2019 SDK" && \
   mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
   wget -q -O - ${S3_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
   wget -q -O - ${S3_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
   mkdir ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
+
+RUN \
+  echo "WIN32 2015 SDK" && \
+  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
+  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 && \
+  rm -rf ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/IDE && \
+  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
 # so we solve the bulk by making the suffixes lowercase
@@ -202,36 +197,48 @@ RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "
 # Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
 RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
 
+# Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer Command Prompt"
+# Note: VCINSTALLDIR is special since clang will use it as the last "-internal-isystem" option
+ENV \
+  VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/" \
+  VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/" \
+  WINDOWS_MSVC_2015_DIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/" \
+  WINDOWS_MSVC_2019_DIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/Tools/MSVC/${WINDOWS_MSVC_2019_VERSION}/" \
+  WINDOWS_SDK_8_DIR="${PLATFORMSDK_WIN32}/WindowsKits/8.1/" \
+  WINDOWS_SDK_10_DIR="${PLATFORMSDK_WIN32}/WindowsKits/10/" \
+  VS140COMNTOOLS="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/Tools/" \
+  VS160COMNTOOLS="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Common7/Tools/" \
+  WINDOWS_VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/Tools/MSVC/${WINDOWS_MSVC_2019_VERSION}/" \
+  WINDOWS_VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/" \
+  WindowsLibPath="${PLATFORMSDK_WIN32}/WindowsKits/8.1/References/CommonConfiguration/Neutral" \
+  WindowsSdkDir="${PLATFORMSDK_WIN32}/WindowsKits/8.1/" \
+  WindowsSDKLibVersion="winv6.3/" \
+  WindowsSDKVersion="/"
+
 # # and the rest are manually copied (or made lower case)
 RUN \
   echo "WIN32 SDK - Cleanup" && \
-  (cd ${WINDOWS_MSVC_DIR}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
-  (cd ${WINDOWS_MSVC_DIR}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
-  (cd ${WINDOWS_MSVC_DIR}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
-  (cd ${WINDOWS_MSVC_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_2015_DIR}/lib && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_MSVC_2015_DIR}/lib && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib) && \
   (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp driverspecs.h DriverSpecs.h) && \
   (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp specstrings.h SpecStrings.h) && \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
-# # For SDK's older than 1.2.146
-# ENV PROGRAM_FILES /var/extender/.wine/drive_c/ProgramFilesx86
-# RUN \
-#   mkdir -p ${PROGRAM_FILES} && \
-#   ln -s ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 ${PROGRAM_FILES}/MicrosoftVisualStudio14.0 && \
-#   ln -s ${PLATFORMSDK_WIN32}/WindowsKits ${PROGRAM_FILES}/WindowsKits
 
 #
 # Android SDK/NDK
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-
 ENV ANDROID_TOOLS_FILENAME android-sdk-tools-linux-3859397.tar.gz
-ENV ANDROID_TOOLS_URL ${S3_URL}/${ANDROID_TOOLS_FILENAME}
-
 ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
-
 ENV ANDROID_NDK_VERSION 10e
 ENV ANDROID_NDK_API_VERSION 14
 ENV ANDROID_TARGET_API_LEVEL 23
@@ -240,12 +247,8 @@ ENV ANDROID_GCC_VERSION 4.8
 ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
 ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.tar.gz
-ENV ANDROID_NDK_URL ${S3_URL}/${ANDROID_NDK_FILENAME}
-
 ENV ANDROID_SDK_VERSION 29
 ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}.tar.gz
-ENV ANDROID_SDK_URL ${S3_URL}/${ANDROID_SDK_FILENAME}
-
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
 ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
@@ -253,7 +256,6 @@ ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platform
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
-
 ENV ANDROID_64_NDK_API_VERSION 21
 ENV ANDROID_64_GCC_VERSION 4.9
 ENV ANDROID_64_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64/usr/include
@@ -274,12 +276,9 @@ ENV ANDROID_64_NDK20_API_VERSION 21
 ENV ANDROID_NDK20_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}
 ENV ANDROID_NDK20_BIN_PATH   ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
 ENV ANDROID_NDK20_SYSROOT    ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-
 ENV ANDROID_NDK20_STL_LIB    ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
 ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
-
 ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.tar.gz
-ENV ANDROID_NDK20_URL        ${S3_URL}/${ANDROID_NDK20_FILENAME}
 
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
@@ -295,11 +294,13 @@ ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 
 RUN echo "fix for triggering a build of the image"
 
-RUN mkdir -p ${ANDROID_HOME} && \
-    wget -q -O - ${ANDROID_NDK_URL} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${ANDROID_NDK20_URL} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${ANDROID_TOOLS_URL} | tar xz -C ${ANDROID_HOME} && \
-    wget -q -O - ${ANDROID_SDK_URL} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+RUN \
+    echo "Android SDK" && \
+    mkdir -p ${ANDROID_HOME} && \
+    wget -q -O - ${S3_URL}/${ANDROID_NDK_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${S3_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${S3_URL}/${ANDROID_TOOLS_FILENAME} | tar xz -C ${ANDROID_HOME} && \
+    wget -q -O - ${S3_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
     ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx && \
