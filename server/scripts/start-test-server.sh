@@ -18,7 +18,7 @@ docker build ${ENV} -t extender-base ${DIR}/../docker-base
 ${DIR}/../../gradlew buildDocker -x test
 
 # For CI to be able to work with the test files
-if [ "$GITHUB_ACTION" != "" ];
+if [ "$GITHUB_ACTION" != "" ]; then
 	chmod -R a+xrw ${DIR}/../test-data || true
 fi
 
