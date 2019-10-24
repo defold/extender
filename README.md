@@ -41,7 +41,7 @@ _NOTE:_ The first time you build it will take a while (~45minutes). After that D
 
 #### Docker container
 
-* When the container is running, then run `./server/scripts/debug-local.sh`. It connects to the container using the `etender` user, and executes bash.
+* When the container is running, then run `./server/scripts/debug-local.sh`. It connects to the container using the `extender` user, and executes bash.
 
 * In detail: [Debugging](./README_DEBUGGING.md)
 
