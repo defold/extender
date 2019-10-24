@@ -26,4 +26,12 @@ jobs:
       run: ./gradlew test
       env:
             S3_URL:  ${{ secrets.S3_URL }}
-      
+
+    - name: Notify if tests failed
+      uses: homoluctus/slatify@master
+      if: failure()
+      with:
+        type: ${{ job.status }}
+        job_name: 'Extender tests'
+        channel: '#defold-alarms-build'
+        url: ${{ secrets.SLACK_WEBHOOK }}
