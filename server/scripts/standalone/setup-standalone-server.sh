@@ -30,7 +30,6 @@ if [[ ! -e ${LOGS_DIR} ]]; then
 	echo "[setup] Created logs directory at ${LOGS_DIR}."
 fi
 
-S3_URL=https://s3-eu-west-1.amazonaws.com/defold-packages
 WGET_CMD=/usr/local/bin/wget
 TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
@@ -57,11 +56,10 @@ function download_package() {
 
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
-    iPhoneOS11.2.sdk
-    iPhoneOS12.1.sdk
-    iPhoneSimulator12.1.sdk
-    MacOSX10.13.sdk
-    XcodeDefault10.1.xctoolchain
+    iPhoneOS13.0.sdk
+    iPhoneSimulator13.0.sdk
+    MacOSX10.15.sdk
+    XcodeDefault11.0.xctoolchain
 )
 
 function download_packages() {
