@@ -228,6 +228,7 @@ RUN \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib) && \
   (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp driverspecs.h DriverSpecs.h) && \
   (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp specstrings.h SpecStrings.h) && \
+  (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp concurrencysal.h ConcurrencySal.h) && \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
@@ -291,8 +292,6 @@ RUN \
   ls -la /usr/share/java/proguard.jar
 
 ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
-
-RUN echo "fix for triggering a build of the image"
 
 RUN \
     echo "Android SDK" && \
