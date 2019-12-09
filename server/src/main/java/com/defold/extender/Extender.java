@@ -37,6 +37,7 @@ class Extender {
 
     private List<File> extDirs;
     private List<File> manifests;
+    private List<File> gradlePackages;
 
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
@@ -68,10 +69,11 @@ class Extender {
 
     private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
 
-    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
+    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory, List<File> gradlePackages) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
         this.buildDirectory = buildDirectory;
+        this.gradlePackages = gradlePackages;
 
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);

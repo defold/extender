@@ -4,6 +4,7 @@ import com.defold.extender.remote.RemoteEngineBuilder;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
+import com.defold.extender.services.GradleService;
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
@@ -48,6 +49,7 @@ public class ExtenderController {
 
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
+    private final GradleService gradleService;
     private final GaugeService gaugeService;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
@@ -59,12 +61,14 @@ public class ExtenderController {
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
                               DataCacheService dataCacheService,
+                              GradleService gradleService,
                               @Qualifier("gaugeService") GaugeService gaugeService,
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
+        this.gradleService = gradleService;
         this.gaugeService = gaugeService;
 
         this.remoteEngineBuilder = remoteEngineBuilder;
@@ -165,8 +169,14 @@ public class ExtenderController {
                 final File sdk = defoldSdkService.getSdk(sdkVersion);
                 metricsWriter.measureSdkDownload(sdkVersion);
 
+                List<File> gradlePackages = null;
+                if (platform.contains("android")) {
+                    gradlePackages = gradleService.resolveDependencies(jobDirectory);
+                    metricsWriter.measureGradleDownload(gradlePackages, gradleService.getCacheSize());
+                }
+
                 // Build engine
-                Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+                Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory, gradlePackages);
                 List<File> outputFiles = extender.build();
                 metricsWriter.measureEngineBuild(platform);
 

@@ -16,6 +16,10 @@ extender:
     remote-builder:
         enabled: false
         platforms: ios, osx
+    gradle:
+        location: /tmp/.gradle
+        # megabytes
+        cache-size: 2048
 
 spring:
     http:

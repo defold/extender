@@ -5,6 +5,7 @@ import org.springframework.boot.actuate.metrics.GaugeService;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -39,6 +40,14 @@ public class MetricsWriter {
     public void measureSdkDownload(String sdk) {
         addMetric("job.sdkDownload", timer.start());
         addMetric("job.sdk." + sdk, 1);
+    }
+
+    public void measureGradleDownload(List<File> packages, long cacheSize) {
+        addMetric("job.gradle.download", timer.start());
+        addMetric("job.gradle.cacheSize", cacheSize);
+        // for (File file : packages) {
+        //     addMetric("job.gradle.package." + file.getName().replace('.', '-'), 1);
+        // }
     }
 
     public void measureEngineBuild(final String platform) {

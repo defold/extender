@@ -9,7 +9,11 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-class ExtenderUtil
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
+
+public class ExtenderUtil
 {
 
     // Excludes items from input list that matches an item in the expressions list
@@ -137,7 +141,8 @@ class ExtenderUtil
         System.out.println("]");
     }
 
-    static File[] listFilesMatching(File dir, String regex) {
+    // Lists files in a directory
+    public static File[] listFilesMatching(File dir, String regex) {
         if(!dir.isDirectory()) {
             throw new IllegalArgumentException(dir+" is not a directory.");
         }
@@ -148,6 +153,14 @@ class ExtenderUtil
                 return p.matcher(file.getName()).matches();
             }
         });
+    }
+
+    // Finds all files recursively
+    public static List<File> listFilesMatchingRecursive(File dir, String regex) {
+        if(!dir.isDirectory()) {
+            throw new IllegalArgumentException(dir+" is not a directory.");
+        }
+        return new ArrayList(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
     }
 
     /** Merges the different levels in the app manifest into one context

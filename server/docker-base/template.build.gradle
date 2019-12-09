@@ -1,0 +1,22 @@
+apply plugin: 'java'
+
+allprojects {
+  repositories {
+    google()
+    mavenLocal()
+    jcenter()
+  }
+}
+
+{{#gradle-files}}
+apply from: "{{{.}}}"
+{{/gradle-files}}
+
+project.configurations.compileClasspath.resolvedConfiguration.resolvedArtifacts.each {
+  println "NAME:" + it.name + " FILE: " + it.file
+}
+
+task downloadDependencies(type: Exec) {
+  configurations.testRuntimeClasspath.files
+  commandLine 'echo', 'Downloaded all dependencies'
+}
