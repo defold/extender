@@ -178,7 +178,9 @@ public class DefoldSdkService {
 
     private void deleteCachedSdk(Path path) {
         try {
-            FileUtils.deleteDirectory(path.toFile());
+            File tmpDir = new File(path.toString() + ".delete");
+            Move(path, tmpDir.toPath());
+            FileUtils.deleteDirectory(tmpDir);
         } catch (IOException e) {
             LOGGER.error("Failed to delete cached SDK at " + path.toAbsolutePath().toString(), e);
         }
