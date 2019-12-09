@@ -409,6 +409,20 @@ class Extender {
         for (File extDir : this.extDirs) {
             allLibJars.addAll(getExtensionLibJars(extDir));
         }
+
+        // Where we previously stored the dependencies directly inside the extensions
+        // we now use gradle to resolve the dependencies
+        for (File f : gradlePackages) {
+            if (f.getName().endsWith(".jar"))
+                allLibJars.add(f.getAbsolutePath());
+            else if(f.getName().endsWith(".aar")) {
+                File classesJar = new File(f, "classes.jar");
+                if (classesJar.exists()) {
+                    allLibJars.add(classesJar.getAbsolutePath());
+                }
+            }
+        }
+
         return allLibJars;
     }
 
