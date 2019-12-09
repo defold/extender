@@ -323,7 +323,7 @@ RUN \
 ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
 COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
 
-ENV JAVA_HOME /usr/lib/jvm/java-13-openjdk-amd64
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 
 # To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
 # # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile
