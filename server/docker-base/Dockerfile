@@ -29,9 +29,15 @@ RUN \
     freeglut3-dev \
     unzip \
     tree \
-    silversearcher-ag && \
+    silversearcher-ag \
+    less \
+    nano \
+    zlib1g:i386 && \
+# cleanup
   rm -rf /var/lib/apt/lists/* && \
   rm -rf /var/cache/oracle-jdk8-installer
+
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 
 # Add extender user
 RUN  useradd -r -u 2222 extender && \
@@ -304,9 +310,12 @@ RUN \
     wget -q -O - ${S3_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
+# check that dx installed properly
     ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx && \
     which aarch64-linux-android-g++ && \
-    which arm-linux-androideabi-g++
+    which arm-linux-androideabi-g++ && \
+# check that aapt installed correctly
+    aapt v
 
 ENV GRADLE_USER_HOME /tmp/.gradle
 ENV GRADLE_VERSION 6.0.1
@@ -322,8 +331,6 @@ RUN \
 
 ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
 COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
-
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 
 # To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
 # # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile
@@ -353,16 +360,6 @@ RUN \
 # https://github.com/docker-library/openjdk/issues/331#issuecomment-498834472
   find "$JAVA_HOME/lib" -name '*.so' -exec dirname '{}' ';' | sort -u > /etc/ld.so.conf.d/docker-openjdk.conf; \
   ldconfig;
-
-RUN \
-  dpkg --add-architecture i386 && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends \
-  less \
-  nano \
-  zlib1g:i386 && \
-  aapt v
-
 
 # Always run last to minimize the size
 RUN apt-get clean autoclean autoremove
