@@ -464,6 +464,14 @@ class Extender {
         return o;
     }
 
+    private List<File> getExtensionManifestFiles() {
+        return manifestConfigs.keySet().stream().map(k -> manifestFiles.get(k)).collect(Collectors.toList());
+    }
+
+    private List<File> getExtensionFolders() {
+        return getExtensionManifestFiles().stream().map(File::getParentFile).collect(Collectors.toList());
+    }
+
     private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
         File srcDir = new File(extDir, "src");
@@ -643,8 +651,30 @@ class Extender {
         return outputFiles;
     }
 
+    private List<File> getAndroidResourceFolders(String platform) {
+            File packageDir = new File(uploadDirectory, "packages");
+            List<File> packageDirs = new ArrayList<>(Arrays.asList(packageDir.listFiles(File::isDirectory)));
+
+            // find all extension directories
+            for (File extensionFolder : getExtensionFolders()) {
+                for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+                    // add it regardless if it exists, since it will be pruned in the step below
+                    packageDirs.add(new File(extensionFolder, "res/" + platformAlt));
+                }
+            }
+
+            // we add all packages (even non-directories)
+            packageDirs.addAll(gradlePackages);
+
+            // here we keep only directories
+            return packageDirs.stream()
+                            .map(f -> new File(f, "res"))
+                            .filter(f -> f.isDirectory())
+                            .collect(Collectors.toList());
+    }
+
     // https://manpages.debian.org/jessie/aapt/aapt.1.en.html
-    private File generateRJava(Map<String, Object> mergedAppContext) throws ExtenderException {
+    private File generateRJava(String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
         File rJavaDir = new File(uploadDirectory, "_app/rjava");
         if (rJavaDir.exists()) {
             LOGGER.info("Using pre-existing R.java files");
@@ -668,17 +698,10 @@ class Extender {
             context.put("manifestFile", manifestFile.getAbsolutePath());
             context.put("outputDirectory", rJavaDir.getAbsolutePath());
 
-            File packageDir = new File(uploadDirectory, "packages");
-            List<File> packageDirs = new ArrayList<>(Arrays.asList(packageDir.listFiles(File::isDirectory)));
-
-            // we add all packages (even non-directories)
-            packageDirs.addAll(gradlePackages);
-
-            // here we keep only directories
-            List<String> resourceDirectories = packageDirs.stream()
-                                                    .filter(f -> f.isDirectory())
-                                                    .map(f -> new File(f, "res").getAbsolutePath())
-                                                    .collect(Collectors.toList());
+            List<String> resourceDirectories = getAndroidResourceFolders(platform)
+                                                                .stream()
+                                                                .map(File::getAbsolutePath)
+                                                                .collect(Collectors.toList());
             context.put("resourceDirectories", resourceDirectories);
 
             String command = templateExecutor.execute(platformConfig.rjavaCmd, context);
@@ -1235,12 +1258,12 @@ class Extender {
         }
     }
 
-    private List<File> buildAndroid() throws ExtenderException {
+    private List<File> buildAndroid(String platform) throws ExtenderException {
         LOGGER.info("Building Android specific code");
 
         List<File> outputFiles = new ArrayList<>();
 
-        File rJavaDir = generateRJava(mergedAppContext);
+        File rJavaDir = generateRJava(platform, mergedAppContext);
         File rJar = buildRJar(rJavaDir);
 
         Map<String, ProGuardContext> extensionJarMap = buildJava(rJar);
@@ -1297,7 +1320,7 @@ class Extender {
 
         // TODO: Thread this step
         if (platform.endsWith("android")) {
-            outputFiles.addAll(buildAndroid());
+            outputFiles.addAll(buildAndroid(platform));
         }
         outputFiles.addAll(buildEngine());
         outputFiles.addAll(writeLog());
