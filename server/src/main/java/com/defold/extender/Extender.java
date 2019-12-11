@@ -1258,6 +1258,20 @@ class Extender {
         }
     }
 
+    private List<File> copyAndroidResourceFolders(String platform) {
+        File resDir = new File(buildDirectory, "res");
+        for (File packageResourceDir : getAndroidResourceFolders(platform)) {
+            try {
+                FileUtils.copyDirectory(packageResourceDir, resDir);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return FileUtils.listFiles(resDir, null, true).stream()
+                                                      .filter(f -> !f.getName().endsWith(".xml"))
+                                                      .collect(Collectors.toList());
+    }
+
     private List<File> buildAndroid(String platform) throws ExtenderException {
         LOGGER.info("Building Android specific code");
 
@@ -1298,6 +1312,8 @@ class Extender {
         if (classesDex.length > 0) {
             outputFiles.addAll(Arrays.asList(classesDex));
         }
+
+        outputFiles.addAll(copyAndroidResourceFolders(platform));
 
         return outputFiles;
     }
