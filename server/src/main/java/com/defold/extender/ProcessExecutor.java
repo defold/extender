@@ -3,6 +3,7 @@ package com.defold.extender;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.FileOutputStream;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,12 @@ public class ProcessExecutor {
 
     public String getOutput() {
         return output.toString();
+    }
+
+    public void writeLog(File file) throws IOException {
+        FileOutputStream os = new FileOutputStream(file);
+        byte[] strToBytes = getOutput().getBytes();
+        os.write(strToBytes);
     }
 
     public void putEnv(String key, String value) {
