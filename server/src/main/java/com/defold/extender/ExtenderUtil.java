@@ -323,4 +323,15 @@ public class ExtenderUtil
         }
         return result;
     }
+
+    static public List<String> getPlatformAlternatives(String platform) {
+        List<String> platforms = new ArrayList<>();
+        platforms.add("common");
+        String[] platformParts = platform.split("-");
+        if (platformParts.length == 2) {
+            platforms.add(platformParts[1]);
+        }
+        platforms.add(platform);
+        return platforms;
+    }
 }

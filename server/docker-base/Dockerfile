@@ -354,5 +354,15 @@ RUN \
   find "$JAVA_HOME/lib" -name '*.so' -exec dirname '{}' ';' | sort -u > /etc/ld.so.conf.d/docker-openjdk.conf; \
   ldconfig;
 
+RUN \
+  dpkg --add-architecture i386 && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+  less \
+  nano \
+  zlib1g:i386 && \
+  aapt v
+
+
 # Always run last to minimize the size
 RUN apt-get clean autoclean autoremove

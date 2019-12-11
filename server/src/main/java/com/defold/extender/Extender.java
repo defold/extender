@@ -35,6 +35,10 @@ class Extender {
     private final Map<String, Object> appManifestContext;
     private final Boolean withSymbols;
 
+    private Map<String, Map<String, Object>>    manifestConfigs;
+    private Map<String, File>                   manifestFiles;
+    private Map<String, Object>                 mergedAppContext;
+
     private List<File> extDirs;
     private List<File> manifests;
     private List<File> gradlePackages;
@@ -173,6 +177,9 @@ class Extender {
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         this.extDirs = this.manifests.stream().map(File::getParentFile).collect(Collectors.toList());
+
+        // Load and merge manifests
+        loadManifests();
     }
 
     private PlatformConfig getPlatformConfig(String platform) throws ExtenderException {
@@ -636,10 +643,60 @@ class Extender {
         return outputFiles;
     }
 
-    private File buildRJar() throws ExtenderException {
+    // https://manpages.debian.org/jessie/aapt/aapt.1.en.html
+    private File generateRJava(Map<String, Object> mergedAppContext) throws ExtenderException {
+        File rJavaDir = new File(uploadDirectory, "_app/rjava");
+        if (rJavaDir.exists()) {
+            LOGGER.info("Using pre-existing R.java files");
+            return rJavaDir;
+        }
+
+        LOGGER.info("Generating R.java files");
+
+        // From 1.2.165
+        rJavaDir = new File(buildDirectory, "rjava");
         try {
-            File rJavaDir = new File(uploadDirectory, "_app/rjava/");
-            if (rJavaDir.exists() && rJavaDir.isDirectory()) {
+            rJavaDir.mkdir();
+
+            HashMap<String, Object> empty = new HashMap<>();
+            Map<String, Object> context = context(empty);
+            if (mergedAppContext.containsKey("aaptExtraPackages")) {
+                context.put("extraPackages", String.join(":", (List<String>)mergedAppContext.get("aaptExtraPackages")));
+            }
+
+            File manifestFile = new File(uploadDirectory, "AndroidManifest.xml");
+            context.put("manifestFile", manifestFile.getAbsolutePath());
+            context.put("outputDirectory", rJavaDir.getAbsolutePath());
+
+            File packageDir = new File(uploadDirectory, "packages");
+            List<File> packageDirs = new ArrayList<>(Arrays.asList(packageDir.listFiles(File::isDirectory)));
+
+            // we add all packages (even non-directories)
+            packageDirs.addAll(gradlePackages);
+
+            // here we keep only directories
+            List<String> resourceDirectories = packageDirs.stream()
+                                                    .filter(f -> f.isDirectory())
+                                                    .map(f -> new File(f, "res").getAbsolutePath())
+                                                    .collect(Collectors.toList());
+            context.put("resourceDirectories", resourceDirectories);
+
+            String command = templateExecutor.execute(platformConfig.rjavaCmd, context);
+            processExecutor.execute(command);
+
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return rJavaDir;
+    }
+
+    private File buildRJar(File rJavaDir) throws ExtenderException {
+        try {
+            // Collect all *.java files
+            Collection<File> files = FileUtils.listFiles(rJavaDir, new RegexFileFilter(platformConfig.javaSourceRe), DirectoryFileFilter.DIRECTORY);
+
+            if (!files.isEmpty()) {
                 LOGGER.info("Building Android resources (R.java).");
 
                 // Create temp directories
@@ -658,13 +715,6 @@ class Extender {
                 // <tmpDir>/sources.txt - Text file listing all R.java source paths, used by javac command
                 File sourcesListFile = new File(tmpDir, "sources.txt");
                 sourcesListFile.createNewFile();
-
-                // Collect all *.java files
-                Collection<File> files = FileUtils.listFiles(
-                    rJavaDir,
-                    new RegexFileFilter(".+\\.java"),
-                    DirectoryFileFilter.DIRECTORY
-                );
 
                 // Write source paths to sources.txt
                 for (File javaFile : files) {
@@ -700,15 +750,7 @@ class Extender {
     //   a pair of the .jar file and a list of all of the proguard files that were found
     //   in the manifests/android folder. If proGuard isn't supported (i.e old build.yml), a null pointer will be returned.
     private Map.Entry<File, ProGuardContext> buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
-
-        if (platformConfig.javaSourceRe == null || platformConfig.javacCmd == null || platformConfig.jarCmd == null) {
-            return null;
-        }
-
         try {
-
-            LOGGER.info("Building Java sources with extension source {}", uploadDirectory);
-
             // Collect all Java source files
             File extDir = manifest.getParentFile();
             File srcDir = new File(extDir, "src");
@@ -727,8 +769,11 @@ class Extender {
             // We want to collect ProGuards files even if we don't have java or jar files for the build
             // because it's possible that this extention depends on some base extension
             if (javaSrcFiles.size() == 0 && proGuardSrcFiles.size() == 0) {
+                LOGGER.info("No Java sources. Skipping");
                 return null;
             }
+
+            LOGGER.info("Building Java sources with extension source {}", uploadDirectory);
 
             ProGuardContext proGuardContext = new ProGuardContext();
 
@@ -999,10 +1044,15 @@ class Extender {
     }
 
     public static Map<String, Object> getManifestContext(String platform, Configuration config, ManifestConfiguration manifestConfig) throws ExtenderException {
+        if (manifestConfig.platforms == null) {
+            return new HashMap<>();
+        }
+
         ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(platform);
 
         // Check that the manifest only contains valid platforms
         final String[] allowedPlatforms = new String[]{
+            "common",
             "ios", "armv7-ios","arm64-ios","x86_64-ios",
             "android", "armv7-android","arm64-android",
             "osx", "x86-osx","x86_64-osx",
@@ -1010,7 +1060,7 @@ class Extender {
             "win32", "x86-win32","x86_64-win32",
             "web", "js-web","wasm-web",
         };
-        Set<String> manifestPlatforms = manifestConfig.platforms.keySet();
+        Set<String> manifestPlatforms = new HashSet<>(manifestConfig.platforms.keySet());
         manifestPlatforms.removeAll(Arrays.asList(allowedPlatforms));
         if (!manifestPlatforms.isEmpty()) {
             throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), Arrays.toString(allowedPlatforms)));
@@ -1060,11 +1110,6 @@ class Extender {
     private File[] buildClassesDex(List<String> jars, File mainDexList) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
-        // To support older versions of build.yml where dxCmd is not defined:
-        if (platformConfig.dxCmd == null || platformConfig.dxCmd.isEmpty()) {
-            return new File[0];
-        }
-
         File classesDex = new File(buildDirectory, "classes.dex");
 
         // The empty list is also present for backwards compatability with older build.yml
@@ -1098,8 +1143,8 @@ class Extender {
         return classes;
     }
 
-    private File buildWin32Resources(Map<String, Object> mergedExtensionContext) throws ExtenderException {
-        Map<String, Object> context = context(mergedExtensionContext);
+    private File buildWin32Resources(Map<String, Object> mergedAppContext) throws ExtenderException {
+        Map<String, Object> context = context(mergedAppContext);
         File resourceFile = new File(buildDirectory, "dmengine.res");
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
 
@@ -1117,57 +1162,72 @@ class Extender {
         return resourceFile;
     }
 
+    private void loadManifests() throws IOException, ExtenderException {
+        manifestConfigs = new HashMap<>();
+        manifestFiles = new HashMap<>();
+        for (File manifest : this.manifests) {
+            ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
+
+            if (manifestConfig == null) {
+                throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
+            }
+
+            Map<String, Object> manifestContext = new HashMap<>();
+            for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(platform)) {
+                Map<String, Object> ctx = getManifestContext(platformAlternative, config, manifestConfig);
+                manifestContext = Extender.mergeContexts(manifestContext, ctx);
+            }
+
+            String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
+            this.manifestValidator.validate(relativePath, manifestContext);
+
+            // Apply any global settings to the context
+            manifestContext = Extender.mergeContexts(manifestContext, appManifestContext);
+            manifestContext.put("extension_name", manifestConfig.name);
+            manifestContext.put("extension_name_upper", manifestConfig.name.toUpperCase());
+
+            manifestConfigs.put(manifestConfig.name, manifestContext);
+            manifestFiles.put(manifestConfig.name, manifest);
+        }
+
+        mergedAppContext = Extender.createEmptyContext(platformConfig.context);
+
+        Set<String> keys = manifestConfigs.keySet();
+        for (String k : keys) {
+            Map<String, Object> extensionContext = manifestConfigs.get(k);
+            mergedAppContext = Extender.mergeContexts(mergedAppContext, extensionContext);
+        }
+
+        // The final link context is a merge of the app manifest and the extension contexts
+        mergedAppContext = Extender.mergeContexts(mergedAppContext, appManifestContext);
+
+        mergedAppContext.remove("extension_name");
+        mergedAppContext.remove("extension_name_upper");
+    }
+
     private List<File> buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
             List<String> symbols = new ArrayList<>();
 
-            Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
-            for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
-
-                if (manifestConfig == null) {
-                    throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
-                }
-
-                Map<String, Object> manifestContext = new HashMap<>();
-                if (manifestConfig.platforms != null) {
-                    manifestContext = getManifestContext(platform, config, manifestConfig);
-                }
-
-                String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
-                this.manifestValidator.validate(relativePath, manifestContext);
-
-                manifestConfigs.put(manifestConfig.name, manifestContext);
-
-                symbols.add(manifestConfig.name);
-
-                // Apply any global settings to the context
-                manifestContext = Extender.mergeContexts(manifestContext, appManifestContext);
-                manifestContext.put("extension_name", manifestConfig.name);
-                manifestContext.put("extension_name_upper", manifestConfig.name.toUpperCase());
-
-                buildExtension(manifest, manifestContext);
-            }
-
-            Map<String, Object> mergedExtensionContext = Extender.createEmptyContext(platformConfig.context);
-
             Set<String> keys = manifestConfigs.keySet();
-            for (String k : keys) {
-                Map<String, Object> extensionContext = manifestConfigs.get(k);
-                mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, extensionContext);
-            }
+            for (String extensionSymbol : keys) {
+                symbols.add(extensionSymbol);
 
-            // The final link context is a merge of the app manifest and the extension contexts
-            mergedExtensionContext = Extender.mergeContexts(mergedExtensionContext, appManifestContext);
+                Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
+                File manifest = manifestFiles.get(extensionSymbol);
+
+                // TODO: Thread this step
+                buildExtension(manifest, extensionContext);
+            }
 
             File resourceFile = null;
             if (platform.endsWith("win32")) {
-                resourceFile = buildWin32Resources(mergedExtensionContext);
+                resourceFile = buildWin32Resources(mergedAppContext);
             }
 
-            List<File> exes = linkEngine(symbols, mergedExtensionContext, resourceFile);
+            List<File> exes = linkEngine(symbols, mergedAppContext, resourceFile);
 
             return exes;
         } catch (IOException | InterruptedException e) {
@@ -1175,48 +1235,72 @@ class Extender {
         }
     }
 
-    List<File> build() throws ExtenderException {
+    private List<File> buildAndroid() throws ExtenderException {
+        LOGGER.info("Building Android specific code");
+
         List<File> outputFiles = new ArrayList<>();
 
-        if (platform.endsWith("android")) {
-            File rJar = buildRJar();
+        File rJavaDir = generateRJava(mergedAppContext);
+        File rJar = buildRJar(rJavaDir);
 
-            Map<String, ProGuardContext> extensionJarMap = buildJava(rJar);
-            List<String> allJars                         = getAllJars(extensionJarMap);
-            Map.Entry<File,File> proGuardFiles           = buildProGuard(allJars, extensionJarMap);
+        Map<String, ProGuardContext> extensionJarMap = buildJava(rJar);
+        List<String> allJars                         = getAllJars(extensionJarMap);
+        Map.Entry<File,File> proGuardFiles           = buildProGuard(allJars, extensionJarMap);
 
-            File mainDexList = buildMainDexList(allJars);
+        File mainDexList = buildMainDexList(allJars);
 
-            // If we have proGuard support, we need to reset the allJars list so that
-            // we don't get duplicate symbols.
-            if (proGuardFiles != null) {
-                allJars.clear();
-                allJars.add(proGuardFiles.getKey().getAbsolutePath()); // built jar
-                outputFiles.add(proGuardFiles.getValue()); // mappings file
+        // If we have proGuard support, we need to reset the allJars list so that
+        // we don't get duplicate symbols.
+        if (proGuardFiles != null) {
+            allJars.clear();
+            allJars.add(proGuardFiles.getKey().getAbsolutePath()); // built jar
+            outputFiles.add(proGuardFiles.getValue()); // mappings file
 
-                // Add the jars that were not run through ProGuard
-                for (Map.Entry<String,ProGuardContext> extensionJarEntry : extensionJarMap.entrySet()) {
-                    String extensionJar = extensionJarEntry.getKey();
-                    ProGuardContext proGuardContext = extensionJarEntry.getValue();
+            // Add the jars that were not run through ProGuard
+            for (Map.Entry<String,ProGuardContext> extensionJarEntry : extensionJarMap.entrySet()) {
+                String extensionJar = extensionJarEntry.getKey();
+                ProGuardContext proGuardContext = extensionJarEntry.getValue();
 
-                    if (proGuardContext != null && proGuardContext.proGuardFiles.size() == 0) {
-                        allJars.add(extensionJar);
+                if (proGuardContext != null && proGuardContext.proGuardFiles.size() == 0) {
+                    allJars.add(extensionJar);
 
-                        for (String extensionLibraryJar : proGuardContext.libraryJars) {
-                            allJars.add(extensionLibraryJar);
-                        }
+                    for (String extensionLibraryJar : proGuardContext.libraryJars) {
+                        allJars.add(extensionLibraryJar);
                     }
                 }
             }
-
-            File[] classesDex = buildClassesDex(allJars, mainDexList);
-            if (classesDex.length > 0) {
-                outputFiles.addAll(Arrays.asList(classesDex));
-            }
         }
 
-        outputFiles.addAll(buildEngine());
+        File[] classesDex = buildClassesDex(allJars, mainDexList);
+        if (classesDex.length > 0) {
+            outputFiles.addAll(Arrays.asList(classesDex));
+        }
 
+        return outputFiles;
+    }
+
+    private List<File> writeLog() {
+        List<File> outputFiles = new ArrayList<>();
+        File logFile = new File(buildDirectory, "log.txt");
+        try {
+            LOGGER.error("Writing log file");
+            processExecutor.writeLog(logFile);
+            outputFiles.add(logFile);
+        } catch (IOException e) {
+            LOGGER.error("Failed to write log file to {}", logFile.getAbsolutePath());
+        }
+        return outputFiles;
+    }
+
+    List<File> build() throws ExtenderException {
+        List<File> outputFiles = new ArrayList<>();
+
+        // TODO: Thread this step
+        if (platform.endsWith("android")) {
+            outputFiles.addAll(buildAndroid());
+        }
+        outputFiles.addAll(buildEngine());
+        outputFiles.addAll(writeLog());
         return outputFiles;
     }
 }
