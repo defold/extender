@@ -1,6 +1,7 @@
 FROM extender-base
 
 ADD extender-0.1.0.jar app.jar
+ADD manifestmergetool-0.1.0.jar /opt/local/bin/manifestmergetool.jar
 RUN chown extender: app.jar
 
 # Extender data cache
