@@ -57,6 +57,11 @@ class Extender {
     private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
     private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
+    private static final String MANIFEST_IOS    = "Info.plist";
+    private static final String MANIFEST_OSX    = "Info.plist";
+    private static final String MANIFEST_ANDROID= "AndroidManifest.xml";
+    private static final String MANIFEST_HTML5  = "engine_template.html";
+
     // This class specifies the set of files that are used when running proguard on
     // the project jars that were found during the build process. This class is only
     // relevant on Android.
@@ -694,7 +699,8 @@ class Extender {
                 context.put("extraPackages", String.join(":", (List<String>)mergedAppContext.get("aaptExtraPackages")));
             }
 
-            File manifestFile = new File(uploadDirectory, "AndroidManifest.xml");
+            // Use the merged manifest
+            File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
             context.put("manifestFile", manifestFile.getAbsolutePath());
             context.put("outputDirectory", rJavaDir.getAbsolutePath());
 
@@ -1318,6 +1324,96 @@ class Extender {
         return outputFiles;
     }
 
+    // Called for each platform, to merge the manifests into one
+    private List<File> buildManifests(String platform) throws ExtenderException {
+        List<File> out = new ArrayList<>();
+
+        String manifestName = null;
+        String platformName = null;
+        if (platform.contains("android")) {
+            manifestName = MANIFEST_ANDROID;
+            platformName = "android";
+        }
+        else if (platform.contains("ios")) {
+            manifestName = MANIFEST_IOS;
+            platformName = "ios";
+        }
+        else if (platform.contains("osx")) {
+            manifestName = MANIFEST_OSX;
+            platformName = "osx";
+        }
+        else if (platform.contains("web")) {
+            manifestName = MANIFEST_HTML5;
+            platformName = "html5";
+        }
+
+        if (manifestName == null) {
+            return out;
+        }
+
+        // The merged output will end up here
+        File targetManifest = new File(buildDirectory, manifestName);
+        out.add(targetManifest);
+
+        File mainManifest = new File(uploadDirectory, manifestName);
+
+        final String manifestSearchName = manifestName;
+        Collection<File> allManifests = FileUtils.listFiles(uploadDirectory, null, true);
+        allManifests = Extender.filterFiles(allManifests, manifestName);
+
+        // Add all dependency manifest files (only non empty on android)
+        for (File dependencyDir : gradlePackages) {
+            File manifest = new File(dependencyDir, manifestName);
+            if (manifest.exists()) {
+                allManifests.add(manifest);
+            }
+        }
+
+        for (File manifest : allManifests) {
+            System.out.printf("manifest: %s\n", manifest.getAbsolutePath());
+        }
+
+        // Make sure the main main manifest isn't part of the libraries
+        allManifests.remove(mainManifest);
+
+        for (File manifest : allManifests) {
+            System.out.printf("pruned manifests: %s\n", manifest.getAbsolutePath());
+        }
+
+        // no need to merge a single file
+        if (allManifests.isEmpty()) {
+            LOGGER.info("Copying manifest");
+            try {
+                FileUtils.copyFile(mainManifest, targetManifest);
+            } catch (IOException e) {
+                throw new ExtenderException(e, String.format("Failed to copy manifest %s to %s", mainManifest.getAbsolutePath(), targetManifest.getAbsolutePath()));
+            }
+        } else {
+            LOGGER.info("Merging manifests");
+
+            // Merge the files
+            HashMap<String, Object> empty = new HashMap<>();
+            Map<String, Object> context = context(empty);
+            context.put("mainManifest", mainManifest.getAbsolutePath());
+            context.put("target", targetManifest.getAbsolutePath());
+
+            context.put("platform", platformName);
+
+            List<String> libraries = allManifests.stream()
+                                                 .map(File::getAbsolutePath)
+                                                 .collect(Collectors.toList());
+            context.put("libraries", libraries);
+
+            try {
+                String command = templateExecutor.execute(platformConfig.manifestMergeCmd, context);
+                processExecutor.execute(command);
+            } catch (IOException | InterruptedException e) {
+                throw new ExtenderException(e, processExecutor.getOutput());
+            }
+        }
+        return out;
+    }
+
     private List<File> writeLog() {
         List<File> outputFiles = new ArrayList<>();
         File logFile = new File(buildDirectory, "log.txt");
@@ -1333,6 +1429,8 @@ class Extender {
 
     List<File> build() throws ExtenderException {
         List<File> outputFiles = new ArrayList<>();
+
+        outputFiles.addAll(buildManifests(platform));
 
         // TODO: Thread this step
         if (platform.endsWith("android")) {
