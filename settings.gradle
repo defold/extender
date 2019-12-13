@@ -1,3 +1,5 @@
 include ":server"
 include 'client'
 
+include 'manifestmergetool'
+project(':manifestmergetool').projectDir = file('server/manifestmergetool')

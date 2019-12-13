@@ -4,11 +4,26 @@ buildscript {
     }
 }
 
-plugins { id 'java' }
+apply plugin: 'java-library'
 
 jar {
-    baseName = 'manifestmergetool'
+    baseName = '_manifestmergetool'
+}
+
+task mainJar(type: Jar) {
     version =  '0.1.0'
+    baseName = 'manifestmergetool'
+    manifest {
+        attributes 'Main-Class': 'com.defold.manifestmergetool.ManifestMergeTool'
+    }
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+    with jar
 }
 
 repositories {
@@ -18,8 +33,6 @@ repositories {
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
-
-group = 'manifestmergetool'
 
 dependencies {
     compile('org.jsoup:jsoup:1.11.3')
