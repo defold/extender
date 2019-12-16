@@ -1361,11 +1361,13 @@ class Extender {
         Collection<File> allManifests = FileUtils.listFiles(uploadDirectory, null, true);
         allManifests = Extender.filterFiles(allManifests, manifestName);
 
-        // Add all dependency manifest files (only non empty on android)
-        for (File dependencyDir : gradlePackages) {
-            File manifest = new File(dependencyDir, manifestName);
-            if (manifest.exists()) {
-                allManifests.add(manifest);
+        // Add all dependency manifest files
+        if (gradlePackages != null) {
+            for (File dependencyDir : gradlePackages) {
+                File manifest = new File(dependencyDir, manifestName);
+                if (manifest.exists()) {
+                    allManifests.add(manifest);
+                }
             }
         }
 
