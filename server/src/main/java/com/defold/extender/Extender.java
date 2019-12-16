@@ -1371,16 +1371,8 @@ class Extender {
             }
         }
 
-        for (File manifest : allManifests) {
-            System.out.printf("manifest: %s\n", manifest.getAbsolutePath());
-        }
-
         // Make sure the main main manifest isn't part of the libraries
         allManifests.remove(mainManifest);
-
-        for (File manifest : allManifests) {
-            System.out.printf("pruned manifests: %s\n", manifest.getAbsolutePath());
-        }
 
         // no need to merge a single file
         if (allManifests.isEmpty()) {
