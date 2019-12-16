@@ -658,6 +658,9 @@ class Extender {
 
     private List<File> getAndroidResourceFolders(String platform) {
             File packageDir = new File(uploadDirectory, "packages");
+            if (!packageDir.exists()) {
+                return new ArrayList<>();
+            }
             List<File> packageDirs = new ArrayList<>(Arrays.asList(packageDir.listFiles(File::isDirectory)));
 
             // find all extension directories
@@ -692,6 +695,10 @@ class Extender {
         rJavaDir = new File(buildDirectory, "rjava");
         try {
             rJavaDir.mkdir();
+
+            if (platformConfig.rjavaCmd == null) {
+                return rJavaDir;
+            }
 
             HashMap<String, Object> empty = new HashMap<>();
             Map<String, Object> context = context(empty);
@@ -1266,6 +1273,9 @@ class Extender {
 
     private List<File> copyAndroidResourceFolders(String platform) {
         File resDir = new File(buildDirectory, "res");
+        if (!resDir.exists()) {
+            return new ArrayList<>();
+        }
         for (File packageResourceDir : getAndroidResourceFolders(platform)) {
             try {
                 FileUtils.copyDirectory(packageResourceDir, resDir);
@@ -1376,6 +1386,10 @@ class Extender {
 
         // no need to merge a single file
         if (allManifests.isEmpty()) {
+            if (!mainManifest.exists()) {
+                return out;
+            }
+
             LOGGER.info("Copying manifest");
             try {
                 FileUtils.copyFile(mainManifest, targetManifest);

@@ -1,0 +1,5 @@
+include ":client"
+project(":client").projectDir = file("../client")
+
+include ":manifestmergetool"
+project(":manifestmergetool").projectDir = file("manifestmergetool")
