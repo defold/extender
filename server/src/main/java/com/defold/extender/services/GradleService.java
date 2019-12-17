@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -149,24 +150,32 @@ public class GradleService {
         return pe.getOutput();
     }
 
-    static public List<String> parseDependencies(String log) {
+    static public Map<String, String> parseDependencies(String log) {
         // The output comes from template.build.gradle
-        Pattern p = Pattern.compile("(?:.*)\\sFILE:\\s*([\\w-.\\/]*)");
+        Pattern p = Pattern.compile("PATH:\\s*([\\w-.\\/]*)\\sEXTENSION:\\s*([\\w-.\\/]*)\\sTYPE:\\s*([\\w-.\\/]*)\\sMODULE_GROUP:\\s*([\\w-.\\/]*)\\sMODULE_NAME:\\s*([\\w-.\\/]*)\\sMODULE_VERSION:\\s*([\\w-.\\/]*)");
 
-        List<String> dependencies = new ArrayList<>();
+        Map<String, String> dependencies = new HashMap<>();
         String[] lines = log.split(System.getProperty("line.separator"));
         for (String line : lines) {
             Matcher m = p.matcher(line);
             if (m.matches()) {
-                dependencies.add(m.group(1));
+                String path = m.group(1);
+                String extension = m.group(2);
+                String type = m.group(3);
+                String group = m.group(4);
+                String name = m.group(5);
+                String version = m.group(6);
+
+                // Map the new name to the original file path
+                dependencies.put(String.format("%s-%s-%s.%s", group, name, version, extension), path);
             }
         }
 
         return dependencies;
     }
 
-    private File resolveDependencyAAR(File dependency) throws IOException {
-        File unpackedTarget = new File(baseDirectory, dependency.getName());
+    private File resolveDependencyAAR(File dependency, String name) throws IOException {
+        File unpackedTarget = new File(baseDirectory, name);
         if (unpackedTarget.exists()) {
             return unpackedTarget;
         }
@@ -177,8 +186,8 @@ public class GradleService {
         return unpackedTarget;
     }
 
-    private File resolveDependencyJAR(File dependency) throws IOException {
-        File targetFile = new File(baseDirectory, dependency.getName());
+    private File resolveDependencyJAR(File dependency, String name) throws IOException {
+        File targetFile = new File(baseDirectory, name);
         if (targetFile.exists()) {
             return targetFile;
         }
@@ -189,19 +198,21 @@ public class GradleService {
         return targetFile;
     }
 
-    private List<File> unpackDependencies(List<String> dependencies) throws IOException {
+    private List<File> unpackDependencies(Map<String, String> dependencies) throws IOException {
         List<File> resolvedDependencies = new ArrayList<>();
-        for (String dependency : dependencies) {
+        for (String newName : dependencies.keySet()) {
+            String dependency = dependencies.get(newName);
+
             File file = new File(dependency);
             if (!file.exists()) {
                 throw new IOException("File does not exist: %s" + dependency);
             }
             if (dependency.endsWith(".aar"))
-                resolvedDependencies.add(resolveDependencyAAR(file));
+                resolvedDependencies.add(resolveDependencyAAR(file, newName));
             else if (dependency.endsWith(".jar"))
-                resolvedDependencies.add(resolveDependencyJAR(file));
+                resolvedDependencies.add(resolveDependencyJAR(file, newName));
             else
-                resolvedDependencies.add(file); // .jar file
+                resolvedDependencies.add(file);
         }
         return resolvedDependencies;
     }
@@ -215,7 +226,7 @@ public class GradleService {
         // Put it in the log for the end user to see
         LOGGER.info("\n" + log);
 
-        List<String> dependencies = parseDependencies(log);
+        Map<String, String> dependencies = parseDependencies(log);
 
         List<File> unpackedDependencies = unpackDependencies(dependencies);
 

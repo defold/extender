@@ -13,7 +13,12 @@ apply from: "{{{.}}}"
 {{/gradle-files}}
 
 project.configurations.compileClasspath.resolvedConfiguration.resolvedArtifacts.each {
-  println "NAME: " + it.name + " FILE: " + it.file
+  println   "PATH: " + it.file + \
+            " EXTENSION: " + it.extension + \
+            " TYPE: " +  it.type + \
+            " MODULE_GROUP: " + it.moduleVersion.id.group + \
+            " MODULE_NAME: " + it.moduleVersion.id.name + \
+            " MODULE_VERSION: " + it.moduleVersion.id.version
 }
 
 task downloadDependencies(type: Exec) {
