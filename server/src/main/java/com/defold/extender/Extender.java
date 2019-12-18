@@ -358,6 +358,9 @@ class Extender {
             }
 
             Object platformsdk_dir = this.platformConfig.context.get("env.PLATFORMSDK_DIR");
+            if (platformsdk_dir == null) {
+                platformsdk_dir = "/opt/platformsdk";
+            }
             String path = String.format("%s/XcodeDefault11.0.xctoolchain/usr/lib/clang/11.0.0/lib/darwin", platformsdk_dir);
             List<String> libPaths = (List<String>)context.get("libPaths");
             if (!libPaths.contains(path)) {
