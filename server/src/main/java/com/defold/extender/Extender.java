@@ -1275,11 +1275,14 @@ class Extender {
     }
 
     private List<File> copyAndroidResourceFolders(String platform) {
-        File resDir = new File(buildDirectory, "res");
-        if (!resDir.exists()) {
+        System.out.printf("copyAndroidResourceFolders\n");
+        List<File> resources = getAndroidResourceFolders(platform);
+        if (resources.isEmpty()) {
             return new ArrayList<>();
         }
-        for (File packageResourceDir : getAndroidResourceFolders(platform)) {
+        File resDir = new File(buildDirectory, "res");
+        for (File packageResourceDir : resources) {
+            System.out.printf("packageResourceDir\n");
             try {
                 FileUtils.copyDirectory(packageResourceDir, resDir);
             } catch (IOException e) {
