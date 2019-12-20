@@ -1280,17 +1280,17 @@ class Extender {
         if (resources.isEmpty()) {
             return new ArrayList<>();
         }
-        File resDir = new File(buildDirectory, "res");
+        File packagesDir = new File(buildDirectory, "packages");
         for (File packageResourceDir : resources) {
             System.out.printf("packageResourceDir\n");
             try {
-                FileUtils.copyDirectory(packageResourceDir, resDir);
+                File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
+                FileUtils.copyDirectory(packageResourceDir, targetDir);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
-        return FileUtils.listFiles(resDir, null, true).stream()
-                                                      .filter(f -> !f.getName().endsWith(".xml"))
+        return FileUtils.listFiles(packagesDir, null, true).stream()
                                                       .collect(Collectors.toList());
     }
 
