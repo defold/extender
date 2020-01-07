@@ -23,6 +23,8 @@ class PlatformConfig {
     public String javacCmd;
     public String jarCmd;
     public String dxCmd;
+    public String rjavaCmd;
+    public String manifestMergeCmd;
     public String mtCmd;    // Deprecated, use windres instead (Deprecated at 1.2.135)
     public String proGuardSourceRe;
     public String proGuardCmd = new String();

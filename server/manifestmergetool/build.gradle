@@ -1,0 +1,52 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+}
+
+apply plugin: 'java-library'
+
+jar {
+    baseName = '_manifestmergetool'
+}
+
+task mainJar(type: Jar) {
+    version =  '0.1.0'
+    baseName = 'manifestmergetool'
+    manifest {
+        attributes 'Main-Class': 'com.defold.manifestmergetool.ManifestMergeTool'
+    }
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+    with jar
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://maven.google.com" }
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+    compile('org.jsoup:jsoup:1.11.3')
+    compile('com.android.tools.build:manifest-merger:26.0.0')
+    compile('commons-configuration:commons-configuration:1.4')
+
+    testCompile('commons-io:commons-io:2.6')
+    testCompile('junit:junit:4.12')
+}
+
+allprojects {
+    gradle.projectsEvaluated {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+        }
+    }
+}

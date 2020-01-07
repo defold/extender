@@ -69,6 +69,7 @@ class ExtensionManifestValidator {
                 case "excludeJsLibs":
                 case "excludeSymbols":
                 case "use-clang": // deprecated
+                case "aaptExtraPackages":
                     continue; // no need to whitelist
 
                 default:

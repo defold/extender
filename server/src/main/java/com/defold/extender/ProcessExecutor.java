@@ -3,16 +3,17 @@ package com.defold.extender;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.FileOutputStream;
 import java.util.*;
 import java.util.stream.Collectors;
 
-class ProcessExecutor {
+public class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
     private final HashMap<String, String> env = new HashMap<>();
     private File cwd = null;
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
 
-    int execute(String command) throws IOException, InterruptedException {
+    public int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");
 
         if (DM_DEBUG_COMMANDS) {
@@ -60,19 +61,25 @@ class ProcessExecutor {
         return exitValue;
     }
 
-    String getOutput() {
+    public String getOutput() {
         return output.toString();
     }
 
-    void putEnv(String key, String value) {
+    public void writeLog(File file) throws IOException {
+        FileOutputStream os = new FileOutputStream(file);
+        byte[] strToBytes = getOutput().getBytes();
+        os.write(strToBytes);
+    }
+
+    public void putEnv(String key, String value) {
         env.put(key, value);
     }
 
-    Map<String, String> getEnv() {
+    public Map<String, String> getEnv() {
         return env;
     }
 
-    void setCwd(File cwd) {
+    public void setCwd(File cwd) {
         this.cwd = cwd;
     }
 }

@@ -72,13 +72,18 @@ compileJava {
     dependsOn createVersionFile
 }
 
-task buildDocker(type: Docker, dependsOn: build) {
+task buildDocker(type: Docker) {
+    dependsOn 'build', ':manifestmergetool:mainJar'
     push = false
     applicationName = jar.baseName
     dockerfile = file('docker/Dockerfile')
     doFirst {
         copy {
             from jar
+            into stageDir
+        }
+        copy {
+            from project(':manifestmergetool').collect { it.tasks.withType(Jar) }
             into stageDir
         }
         copy {

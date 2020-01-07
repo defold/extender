@@ -29,9 +29,15 @@ RUN \
     freeglut3-dev \
     unzip \
     tree \
-    silversearcher-ag && \
+    silversearcher-ag \
+    less \
+    nano \
+    zlib1g:i386 && \
+# cleanup
   rm -rf /var/lib/apt/lists/* && \
   rm -rf /var/cache/oracle-jdk8-installer
+
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 
 # Add extender user
 RUN  useradd -r -u 2222 extender && \
@@ -281,6 +287,8 @@ ENV ANDROID_NDK20_STL_LIB    ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/l
 ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
 ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.tar.gz
 
+ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
+
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
 ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
@@ -302,9 +310,56 @@ RUN \
     wget -q -O - ${S3_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
+# check that dx installed properly
     ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx && \
     which aarch64-linux-android-g++ && \
-    which arm-linux-androideabi-g++
+    which arm-linux-androideabi-g++ && \
+# check that aapt installed correctly
+    aapt v
+
+ENV GRADLE_USER_HOME /tmp/.gradle
+ENV GRADLE_VERSION 6.0.1
+ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
+RUN \
+  echo "Gradle" && \
+  wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \
+  mkdir /opt/gradle && \
+  unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
+  rm gradle-${GRADLE_VERSION}-bin.zip && \
+  which gradle && \
+  chown -R extender: /opt/gradle
+
+ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
+COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
+
+# To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
+# # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile
+RUN \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
+# utilities for keeping Debian and OpenJDK CA certificates in sync
+    ca-certificates p11-kit \
+  ; \
+# update "cacerts" bundle to use Debian's CA certificates (and make sure it stays up-to-date with changes to Debian's store)
+# see https://github.com/docker-library/openjdk/issues/327
+#     http://rabexc.org/posts/certificates-not-working-java#comment-4099504075
+#     https://salsa.debian.org/java-team/ca-certificates-java/blob/3e51a84e9104823319abeb31f880580e46f45a98/debian/jks-keystore.hook.in
+#     https://git.alpinelinux.org/aports/tree/community/java-cacerts/APKBUILD?id=761af65f38b4570093461e6546dcf6b179d2b624#n29
+  { \
+    echo '#!/usr/bin/env bash'; \
+    echo 'set -Eeuo pipefail'; \
+    echo 'if ! [ -d "$JAVA_HOME" ]; then echo >&2 "error: missing JAVA_HOME environment variable"; exit 1; fi'; \
+# 8-jdk uses "$JAVA_HOME/jre/lib/security/cacerts" and 8-jre and 11+ uses "$JAVA_HOME/lib/security/cacerts" directly (no "jre" directory)
+    echo 'cacertsFile=; for f in "$JAVA_HOME/lib/security/cacerts" "$JAVA_HOME/jre/lib/security/cacerts"; do if [ -e "$f" ]; then cacertsFile="$f"; break; fi; done'; \
+    echo 'if [ -z "$cacertsFile" ] || ! [ -f "$cacertsFile" ]; then echo >&2 "error: failed to find cacerts file in $JAVA_HOME"; exit 1; fi'; \
+    echo 'trust extract --overwrite --format=java-cacerts --filter=ca-anchors --purpose=server-auth "$cacertsFile"'; \
+  } > /etc/ca-certificates/update.d/docker-openjdk; \
+  chmod +x /etc/ca-certificates/update.d/docker-openjdk; \
+  /etc/ca-certificates/update.d/docker-openjdk; \
+  \
+# https://github.com/docker-library/openjdk/issues/331#issuecomment-498834472
+  find "$JAVA_HOME/lib" -name '*.so' -exec dirname '{}' ';' | sort -u > /etc/ld.so.conf.d/docker-openjdk.conf; \
+  ldconfig;
 
 # Always run last to minimize the size
 RUN apt-get clean autoclean autoremove
