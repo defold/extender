@@ -670,7 +670,17 @@ class Extender {
             for (File extensionFolder : getExtensionFolders()) {
                 for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
                     // add it regardless if it exists, since it will be pruned in the step below
-                    packageDirs.add(new File(extensionFolder, "res/" + platformAlt));
+                    File f = new File(extensionFolder, "res/" + platformAlt);
+                    if (f.exists() && f.isDirectory()) {
+                        // In resource folders, we add packages like so:
+                        // 'project/extension/res/android/res/com.foo.name/res'
+                        for (File d : f.listFiles()) {
+                            File res = new File(d, "res");
+                            if (res.exists() && res.isDirectory()) {
+                                packageDirs.add(d);
+                            }
+                        }
+                    }
                 }
             }
 
