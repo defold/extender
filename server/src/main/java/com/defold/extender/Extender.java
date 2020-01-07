@@ -1377,6 +1377,12 @@ class Extender {
         Collection<File> allManifests = FileUtils.listFiles(uploadDirectory, null, true);
         allManifests = Extender.filterFiles(allManifests, manifestName);
 
+        // Frameworks have binary files with the same name, and we don't want to merge them
+        if (platform.contains("ios")) {
+            Pattern p = Pattern.compile("^(?!.*\\/lib\\/.*).*" + manifestName + "$");
+            allManifests = allManifests.stream().filter(f -> p.matcher(f.getAbsolutePath()).matches()).collect(Collectors.toList());
+        }
+
         // Add all dependency manifest files
         if (gradlePackages != null) {
             for (File dependencyDir : gradlePackages) {
