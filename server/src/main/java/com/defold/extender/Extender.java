@@ -1354,6 +1354,11 @@ class Extender {
     private List<File> buildManifests(String platform) throws ExtenderException {
         List<File> out = new ArrayList<>();
 
+        // prior to 1.2.165
+        if (platformConfig.manifestMergeCmd == null) {
+            return out;
+        }
+
         String manifestName = null;
         String platformName = null;
         if (platform.contains("android")) {
