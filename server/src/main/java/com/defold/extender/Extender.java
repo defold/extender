@@ -671,14 +671,31 @@ class Extender {
                 for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
                     // add it regardless if it exists, since it will be pruned in the step below
                     File f = new File(extensionFolder, "res/" + platformAlt);
-                    if (f.exists() && f.isDirectory()) {
-                        // In resource folders, we add packages like so:
-                        // 'project/extension/res/android/res/com.foo.name/res'
-                        for (File d : f.listFiles()) {
-                            File res = new File(d, "res");
-                            if (res.exists() && res.isDirectory()) {
-                                packageDirs.add(d);
+                    if (!f.exists() || !f.isDirectory()) {
+                        continue;
+                    }
+                    // In resource folders, we add packages in two ways:
+                    // 'project/extension/res/android/res/com.foo.name/res/<android folders>' (new)
+                    // 'project/extension/res/android/res/<android folders>' (legacy)
+
+                    for (File d : f.listFiles()) {
+                        // legacy structure
+                        if (d.getName().equals("res")) {
+                            if (!ExtenderUtil.verifyAndroidAssetDirectory(d)) {
+                                continue;
                             }
+                            // if it matches an android specific resource directory name
+                            // return the parent dir
+                            packageDirs.add(f);
+                            break;
+                        }
+                        // new structure, with package names
+                        File res = new File(d, "res");
+                        if (res.exists() && res.isDirectory()) {
+                            if (!ExtenderUtil.verifyAndroidAssetDirectory(res)) {
+                                continue;
+                            }
+                            packageDirs.add(d);
                         }
                     }
                 }
@@ -1285,14 +1302,12 @@ class Extender {
     }
 
     private List<File> copyAndroidResourceFolders(String platform) {
-        System.out.printf("copyAndroidResourceFolders\n");
         List<File> resources = getAndroidResourceFolders(platform);
         if (resources.isEmpty()) {
             return new ArrayList<>();
         }
         File packagesDir = new File(buildDirectory, "packages");
         for (File packageResourceDir : resources) {
-            System.out.printf("packageResourceDir\n");
             try {
                 File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);

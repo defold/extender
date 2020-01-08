@@ -334,4 +334,24 @@ public class ExtenderUtil
         platforms.add(platform);
         return platforms;
     }
+
+    public static boolean matchesAndroidAssetDirectoryName(String name) {
+        // For the list of reserved names, see Table 1: https://developer.android.com/guide/topics/resources/providing-resources
+        String[] assetDirs = new String[]{"values", "xml", "layout", "animator", "anim", "color", "drawable", "mipmap", "menu", "raw", "font"};
+        for (String reserved : assetDirs) {
+            if (name.startsWith(reserved)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean verifyAndroidAssetDirectory(File dir) {
+        for (File d : dir.listFiles()) {
+            if (!matchesAndroidAssetDirectoryName(d.getName())) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
