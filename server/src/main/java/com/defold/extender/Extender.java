@@ -1473,7 +1473,7 @@ class Extender {
         List<File> outputFiles = new ArrayList<>();
         File logFile = new File(buildDirectory, "log.txt");
         try {
-            LOGGER.error("Writing log file");
+            LOGGER.info("Writing log file");
             processExecutor.writeLog(logFile);
             outputFiles.add(logFile);
         } catch (IOException e) {
