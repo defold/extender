@@ -275,7 +275,7 @@ public class ExtenderController {
                 }
                 if (file.exists()) {
                     if (DM_DEBUG_JOB_FOLDER == null) {
-                        LOGGER.info("Duplicate file in received zip file: ", name);
+                        LOGGER.info(String.format("Duplicate file in received zip file: '%s'", name));
                     }
                 }
 

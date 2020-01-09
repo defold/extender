@@ -659,54 +659,63 @@ class Extender {
         return outputFiles;
     }
 
+    static private File getAndroidResourceFolder(File dir) {
+        // In resource folders, we add packages in several ways:
+        // 'project/extension/res/android/res/com.foo.name/res/<android folders>' (new)
+        // 'project/extension/res/android/res/com.foo.name/<android folders>' (legacy)
+        // 'project/extension/res/android/res/<android folders>' (legacy)
+        if (dir.isDirectory() && ExtenderUtil.verifyAndroidAssetDirectory(dir)) {
+            return dir;
+        }
+
+        for (File f : dir.listFiles()) {
+            if (!f.isDirectory()) {
+                continue;
+            }
+
+            File resDir = getAndroidResourceFolder(f);
+            if (resDir != null) {
+                return resDir;
+            }
+        }
+        return null;
+    }
+
     private List<File> getAndroidResourceFolders(String platform) {
+            // New feature from 1.2.165
             File packageDir = new File(uploadDirectory, "packages");
             if (!packageDir.exists()) {
                 return new ArrayList<>();
             }
-            List<File> packageDirs = new ArrayList<>(Arrays.asList(packageDir.listFiles(File::isDirectory)));
+            List<File> packageDirs = new ArrayList<>();
+
+            for (File dir : packageDir.listFiles(File::isDirectory)) {
+                File resDir = getAndroidResourceFolder(dir);
+                if (resDir != null) {
+                    packageDirs.add(resDir);
+                }
+            }
 
             // find all extension directories
             for (File extensionFolder : getExtensionFolders()) {
                 for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
-                    // add it regardless if it exists, since it will be pruned in the step below
-                    File f = new File(extensionFolder, "res/" + platformAlt);
+                    File f = new File(extensionFolder, "res/" + platformAlt + "/res");
                     if (!f.exists() || !f.isDirectory()) {
                         continue;
                     }
-                    // In resource folders, we add packages in two ways:
-                    // 'project/extension/res/android/res/com.foo.name/res/<android folders>' (new)
-                    // 'project/extension/res/android/res/<android folders>' (legacy)
-
-                    for (File d : f.listFiles()) {
-                        // legacy structure
-                        if (d.getName().equals("res")) {
-                            if (!ExtenderUtil.verifyAndroidAssetDirectory(d)) {
-                                continue;
-                            }
-                            // if it matches an android specific resource directory name
-                            // return the parent dir
-                            packageDirs.add(f);
-                            break;
-                        }
-                        // new structure, with package names
-                        File res = new File(d, "res");
-                        if (res.exists() && res.isDirectory()) {
-                            if (!ExtenderUtil.verifyAndroidAssetDirectory(res)) {
-                                continue;
-                            }
-                            packageDirs.add(d);
-                        }
+                    File resDir = getAndroidResourceFolder(f);
+                    if (resDir != null) {
+                        packageDirs.add(resDir);
                     }
                 }
             }
 
             // we add all packages (even non-directories)
-            packageDirs.addAll(gradlePackages);
+            packageDirs.addAll(gradlePackages.stream()
+                                             .map(f -> new File(f, "res"))
+                                             .collect(Collectors.toList()));
 
-            // here we keep only directories
             return packageDirs.stream()
-                            .map(f -> new File(f, "res"))
                             .filter(f -> f.isDirectory())
                             .collect(Collectors.toList());
     }
@@ -1403,14 +1412,13 @@ class Extender {
 
         File mainManifest = new File(uploadDirectory, manifestName);
 
-        final String manifestSearchName = manifestName;
-        Collection<File> allManifests = FileUtils.listFiles(uploadDirectory, null, true);
-        allManifests = Extender.filterFiles(allManifests, manifestName);
-
-        // Frameworks have binary files with the same name, and we don't want to merge them
-        if (platform.contains("ios")) {
-            Pattern p = Pattern.compile("^(?!.*\\/lib\\/.*).*" + manifestName + "$");
-            allManifests = allManifests.stream().filter(f -> p.matcher(f.getAbsolutePath()).matches()).collect(Collectors.toList());
+        // Make sure they're in the "<extension>/manifests/<platform>/<manifest name>"
+        List<File> allManifests = new ArrayList<>();
+        for (File dir : getExtensionFolders()) {
+            File manifest = new File(dir, String.format("manifests/%s/%s", platformName, manifestName));
+            if (manifest.exists()) {
+                allManifests.add(manifest);
+            }
         }
 
         // Add all dependency manifest files
@@ -1422,9 +1430,6 @@ class Extender {
                 }
             }
         }
-
-        // Make sure the main main manifest isn't part of the libraries
-        allManifests.remove(mainManifest);
 
         // no need to merge a single file
         if (allManifests.isEmpty()) {
