@@ -274,8 +274,11 @@ public class ExtenderController {
                     throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
                 }
                 if (file.exists()) {
+                    String msg = String.format("Duplicate file in received zip file: '%s'", name);
                     if (DM_DEBUG_JOB_FOLDER == null) {
-                        LOGGER.info(String.format("Duplicate file in received zip file: '%s'", name));
+                        LOGGER.info(msg);
+                    } else {
+                        throw new ExtenderException(msg);
                     }
                 }
 
