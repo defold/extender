@@ -756,6 +756,10 @@ class Extender {
                                                                 .collect(Collectors.toList());
             context.put("resourceDirectories", resourceDirectories);
 
+            for (String path : resourceDirectories) {
+                System.out.printf("PATH: %s\n", path);
+            }
+
             String command = templateExecutor.execute(platformConfig.rjavaCmd, context);
             processExecutor.execute(command);
 
