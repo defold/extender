@@ -288,11 +288,6 @@ public class ExtenderController {
                     Files.copy(inputStream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 }
 
-
-            String output = GradleService.execCommand(String.format("md5sum %s", file.toPath()), uploadDirectory);
-            output = output.substring(output.indexOf("\n")+1);
-            System.out.println("CHECKSUM: " + output + " : " + file.toPath());
-
                 count++;
             }
         }

@@ -11,7 +11,7 @@ public class ProcessExecutor {
     private final StringBuilder output = new StringBuilder();
     private final HashMap<String, String> env = new HashMap<>();
     private File cwd = null;
-    private boolean DM_DEBUG_COMMANDS = true;//System.getenv("DM_DEBUG_COMMANDS") != null;
+    private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
 
     public int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");

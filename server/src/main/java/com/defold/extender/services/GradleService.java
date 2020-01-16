@@ -130,7 +130,7 @@ public class GradleService {
         }
     }
 
-    static public String execCommand(String command, File cwd) throws ExtenderException {
+    private String execCommand(String command, File cwd) throws ExtenderException {
         ProcessExecutor pe = new ProcessExecutor();
 
         pe.putEnv("GRADLE_USER_HOME", GRADLE_USER_HOME);
