@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.io.comparator.NameFileComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -13,6 +14,8 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,6 +45,7 @@ class Extender {
     private List<File> extDirs;
     private List<File> manifests;
     private List<File> gradlePackages;
+    private int nameCounter = 0;
 
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
@@ -197,10 +201,15 @@ class Extender {
         return platformConfig;
     }
 
+    private String getNameUUID() {
+        int c = nameCounter++;
+        return String.format("%d", c);
+    }
+
     private File uniqueTmpFile(String prefix, String suffix) {
         File file;
         do {
-            file = new File(buildDirectory, prefix + UUID.randomUUID().toString() + suffix);
+            file = new File(buildDirectory, prefix + getNameUUID() + suffix);
         } while (file.exists());
 
         return file;
@@ -209,7 +218,7 @@ class Extender {
     private File uniqueTmpFile(String pattern) {
         File file;
         do {
-            file = new File(buildDirectory, String.format(pattern, UUID.randomUUID().toString()));
+            file = new File(buildDirectory, String.format(pattern, getNameUUID()));
         } while (file.exists());
 
         return file;
@@ -483,15 +492,24 @@ class Extender {
     private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
         File srcDir = new File(extDir, "src");
-        Collection<File> srcFiles = new ArrayList<>();
+
+        File[] srcFiles = null;
         if (srcDir.isDirectory()) {
-            srcFiles = FileUtils.listFiles(srcDir, null, true);
-            srcFiles = Extender.filterFiles(srcFiles, platformConfig.sourceRe);
+            Collection<File> _srcFiles = new ArrayList<>();
+            _srcFiles = FileUtils.listFiles(srcDir, null, true);
+            _srcFiles = Extender.filterFiles(_srcFiles, platformConfig.sourceRe);
+
+            // sorting makes it easier to diff different builds
+            srcFiles = _srcFiles.toArray(new File[_srcFiles.size()]);
+
         }
 
-        if (srcFiles.isEmpty()) {
+        if (srcFiles == null) {
             throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
         }
+
+        // Makes it a lot easier to diff build logs
+        Arrays.sort(srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
 
         List<String> objs = new ArrayList<>();
 
@@ -1160,7 +1178,10 @@ class Extender {
 
         for (String jarFile : mainListJars) {
             try {
-                mainClassNames.addAll( ZipUtils.getEntries(jarFile) );
+                List<String> entries = ZipUtils.getEntries(jarFile);
+                Collections.sort(entries); // make comparisons easier
+
+                mainClassNames.addAll( entries );
             } catch (IOException e) {
                 throw new ExtenderException(e, "Failed to read the class names from " + jarFile);
             }
@@ -1195,7 +1216,6 @@ class Extender {
         context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
         context.put("jars", jars);
-        context.put("engineJars", empty_list);
         context.put("engineJars", empty_list);
         context.put("mainDexList", mainDexList.getAbsolutePath());
 
@@ -1310,19 +1330,28 @@ class Extender {
         }
     }
 
-    private List<File> copyAndroidResourceFolders(String platform) {
+    private List<File> copyAndroidResourceFolders(String platform) throws ExtenderException {
         List<File> resources = getAndroidResourceFolders(platform);
         if (resources.isEmpty()) {
             return new ArrayList<>();
         }
         File packagesDir = new File(buildDirectory, "packages");
-        for (File packageResourceDir : resources) {
-            try {
+        packagesDir.mkdir();
+
+        List<String> packagesList = new ArrayList<>();
+
+        try {
+            for (File packageResourceDir : resources) {
                 File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);
-            } catch (IOException e) {
-                e.printStackTrace();
+
+                String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
+                packagesList.add(relativePath);
             }
+
+            Files.write(new File(packagesDir, "packages.txt").toPath(), packagesList, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to copy android resources");
         }
         return FileUtils.listFiles(packagesDir, null, true).stream()
                                                       .collect(Collectors.toList());
