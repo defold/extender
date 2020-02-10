@@ -707,21 +707,14 @@ class Extender {
             }
             List<File> packageDirs = new ArrayList<>();
 
-
-putLog(String.format("getAndroidResourceFolders\n"));
-putLog(String.format("  (packageDir : %s)\n", packageDir));
-
             for (File dir : packageDir.listFiles(File::isDirectory)) {
 
                 File resDir = getAndroidResourceFolder(dir);
-putLog(String.format("  dir: %s  -> resource folder: %s\n", dir, resDir));
-
                 if (resDir != null) {
                     packageDirs.add(resDir);
                 }
             }
 
-putLog(String.format("  (extensions)\n"));
             // find all extension directories
             for (File extensionFolder : getExtensionFolders()) {
                 for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
@@ -730,7 +723,6 @@ putLog(String.format("  (extensions)\n"));
                         continue;
                     }
                     File resDir = getAndroidResourceFolder(f);
-putLog(String.format("  dir: %s  -> resource folder: %s\n", f, resDir));
                     if (resDir != null) {
                         packageDirs.add(resDir);
                     }
@@ -1354,22 +1346,13 @@ putLog(String.format("  dir: %s  -> resource folder: %s\n", f, resDir));
 
         List<String> packagesList = new ArrayList<>();
 
-//putLog(String.format("copyAndroidResourceFolders\n"));
-
         try {
             for (File packageResourceDir : resources) {
-
-//putLog(String.format("  packageResourceDir: %s\n", packageResourceDir));
-
                 File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);
 
-//putLog(String.format("    -> targetDir: %s\n", targetDir));
-
                 String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
                 packagesList.add(relativePath);
-
-//putLog(String.format("        -> relativePath: %s\n", relativePath));
             }
 
             Files.write(new File(packagesDir, "packages.txt").toPath(), packagesList, StandardCharsets.UTF_8);
