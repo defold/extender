@@ -209,7 +209,7 @@ public class ExtenderController {
 
             // Delete temporary upload directory
             if (DM_DEBUG_JOB_FOLDER == null) {
-                //FileUtils.deleteDirectory(jobDirectory);
+                FileUtils.deleteDirectory(jobDirectory);
             }
 
             LOGGER.info("Job done");
