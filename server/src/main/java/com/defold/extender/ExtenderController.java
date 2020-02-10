@@ -57,6 +57,7 @@ public class ExtenderController {
     private final String[] remoteBuilderPlatforms;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
+    private static final String DM_DEBUG_JOB_UPLOAD = "1";//System.getenv("DM_DEBUG_JOB_UPLOAD");
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
@@ -207,7 +208,7 @@ public class ExtenderController {
 
             // Delete temporary upload directory
             if (DM_DEBUG_JOB_FOLDER == null) {
-                FileUtils.deleteDirectory(jobDirectory);
+                //FileUtils.deleteDirectory(jobDirectory);
             }
 
             LOGGER.info("Job done");
@@ -255,6 +256,10 @@ public class ExtenderController {
             throw new ExtenderException(String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLength(), MAX_PACKAGE_SIZE));
         }
 
+        if (DM_DEBUG_JOB_UPLOAD != null) {
+            LOGGER.info("receiveUpload");
+        }
+
         // Create a new file upload handler
         ServletFileUpload upload = new ServletFileUpload();
 
@@ -286,6 +291,10 @@ public class ExtenderController {
 
                 try (InputStream inputStream = item.openStream()) {
                     Files.copy(inputStream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+
+                if (DM_DEBUG_JOB_UPLOAD != null) {
+                    System.out.printf("    %s\n", file.toPath());
                 }
 
                 count++;

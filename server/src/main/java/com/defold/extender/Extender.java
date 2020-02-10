@@ -707,13 +707,21 @@ class Extender {
             }
             List<File> packageDirs = new ArrayList<>();
 
+
+putLog(String.format("getAndroidResourceFolders\n"));
+putLog(String.format("  (packageDir : %s)\n", packageDir));
+
             for (File dir : packageDir.listFiles(File::isDirectory)) {
+
                 File resDir = getAndroidResourceFolder(dir);
+putLog(String.format("  dir: %s  -> resource folder: %s\n", dir, resDir));
+
                 if (resDir != null) {
                     packageDirs.add(resDir);
                 }
             }
 
+putLog(String.format("  (extensions)\n"));
             // find all extension directories
             for (File extensionFolder : getExtensionFolders()) {
                 for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
@@ -722,6 +730,7 @@ class Extender {
                         continue;
                     }
                     File resDir = getAndroidResourceFolder(f);
+putLog(String.format("  dir: %s  -> resource folder: %s\n", f, resDir));
                     if (resDir != null) {
                         packageDirs.add(resDir);
                     }
@@ -1330,6 +1339,11 @@ class Extender {
         }
     }
 
+    private void putLog(String msg) {
+        System.out.printf(msg);
+        processExecutor.putLog(msg);
+    }
+
     private List<File> copyAndroidResourceFolders(String platform) throws ExtenderException {
         List<File> resources = getAndroidResourceFolders(platform);
         if (resources.isEmpty()) {
@@ -1340,13 +1354,22 @@ class Extender {
 
         List<String> packagesList = new ArrayList<>();
 
+//putLog(String.format("copyAndroidResourceFolders\n"));
+
         try {
             for (File packageResourceDir : resources) {
+
+//putLog(String.format("  packageResourceDir: %s\n", packageResourceDir));
+
                 File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);
 
+//putLog(String.format("    -> targetDir: %s\n", targetDir));
+
                 String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
                 packagesList.add(relativePath);
+
+//putLog(String.format("        -> relativePath: %s\n", relativePath));
             }
 
             Files.write(new File(packagesDir, "packages.txt").toPath(), packagesList, StandardCharsets.UTF_8);
@@ -1409,6 +1432,7 @@ class Extender {
 
         // prior to 1.2.165
         if (platformConfig.manifestMergeCmd == null) {
+            LOGGER.info("Manifest merging not supported by this sdk");
             return out;
         }
 
@@ -1432,6 +1456,7 @@ class Extender {
         }
 
         if (manifestName == null) {
+            LOGGER.info("No manifest base name!");
             return out;
         }
 
