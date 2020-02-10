@@ -10,6 +10,10 @@ fi
 if [ "$DM_DEBUG_JOB_FOLDER" != "" ]; then
 	LOCAL_ENV="$LOCAL_ENV -e DM_DEBUG_JOB_FOLDER=${DM_DEBUG_JOB_FOLDER}"
 fi
+if [ "$DM_DEBUG_KEEP_JOB_FOLDER" != "" ]; then
+    LOCAL_ENV="$LOCAL_ENV -e DM_DEBUG_KEEP_JOB_FOLDER=${DM_DEBUG_KEEP_JOB_FOLDER}"
+fi
+
 
 echo "Using local env: $LOCAL_ENV"
 

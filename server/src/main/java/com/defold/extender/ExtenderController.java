@@ -57,6 +57,7 @@ public class ExtenderController {
     private final String[] remoteBuilderPlatforms;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
+    private static final String DM_DEBUG_KEEP_JOB_FOLDER = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER");
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
@@ -205,9 +206,19 @@ public class ExtenderController {
             long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(totalUploadSize);
 
-            // Delete temporary upload directory
+            boolean deleteDirectory = true;
+            if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
+                deleteDirectory = false;
+            }
             if (DM_DEBUG_JOB_FOLDER == null) {
+                deleteDirectory = false;
+            }
+            // Delete temporary upload directory
+            if (deleteDirectory) {
                 FileUtils.deleteDirectory(jobDirectory);
+            }
+            else {
+                LOGGER.info("Keeping job folder due to debug flags");
             }
 
             LOGGER.info("Job done");

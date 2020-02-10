@@ -677,28 +677,6 @@ class Extender {
         return outputFiles;
     }
 
-    static private File getAndroidResourceFolder(File dir) {
-        // In resource folders, we add packages in several ways:
-        // 'project/extension/res/android/res/com.foo.name/res/<android folders>' (new)
-        // 'project/extension/res/android/res/com.foo.name/<android folders>' (legacy)
-        // 'project/extension/res/android/res/<android folders>' (legacy)
-        if (dir.isDirectory() && ExtenderUtil.verifyAndroidAssetDirectory(dir)) {
-            return dir;
-        }
-
-        for (File f : dir.listFiles()) {
-            if (!f.isDirectory()) {
-                continue;
-            }
-
-            File resDir = getAndroidResourceFolder(f);
-            if (resDir != null) {
-                return resDir;
-            }
-        }
-        return null;
-    }
-
     private List<File> getAndroidResourceFolders(String platform) {
             // New feature from 1.2.165
             File packageDir = new File(uploadDirectory, "packages");
@@ -708,7 +686,7 @@ class Extender {
             List<File> packageDirs = new ArrayList<>();
 
             for (File dir : packageDir.listFiles(File::isDirectory)) {
-                File resDir = getAndroidResourceFolder(dir);
+                File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
                 if (resDir != null) {
                     packageDirs.add(resDir);
                 }
@@ -721,7 +699,7 @@ class Extender {
                     if (!f.exists() || !f.isDirectory()) {
                         continue;
                     }
-                    File resDir = getAndroidResourceFolder(f);
+                    File resDir = ExtenderUtil.getAndroidResourceFolder(f);
                     if (resDir != null) {
                         packageDirs.add(resDir);
                     }
@@ -754,6 +732,7 @@ class Extender {
             rJavaDir.mkdir();
 
             if (platformConfig.rjavaCmd == null) {
+                LOGGER.info("No rjavaCmd found. Skipping");
                 return rJavaDir;
             }
 
