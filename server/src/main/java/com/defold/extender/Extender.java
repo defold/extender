@@ -708,6 +708,7 @@ class Extender {
             List<File> packageDirs = new ArrayList<>();
 
             for (File dir : packageDir.listFiles(File::isDirectory)) {
+
                 File resDir = getAndroidResourceFolder(dir);
                 if (resDir != null) {
                     packageDirs.add(resDir);
@@ -1330,6 +1331,11 @@ class Extender {
         }
     }
 
+    private void putLog(String msg) {
+        System.out.printf(msg);
+        processExecutor.putLog(msg);
+    }
+
     private List<File> copyAndroidResourceFolders(String platform) throws ExtenderException {
         List<File> resources = getAndroidResourceFolders(platform);
         if (resources.isEmpty()) {
@@ -1409,6 +1415,7 @@ class Extender {
 
         // prior to 1.2.165
         if (platformConfig.manifestMergeCmd == null) {
+            LOGGER.info("Manifest merging not supported by this sdk");
             return out;
         }
 
@@ -1432,6 +1439,7 @@ class Extender {
         }
 
         if (manifestName == null) {
+            LOGGER.info("No manifest base name!");
             return out;
         }
 

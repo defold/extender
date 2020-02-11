@@ -82,4 +82,8 @@ public class ProcessExecutor {
     public void setCwd(File cwd) {
         this.cwd = cwd;
     }
+
+    public void putLog(String msg) {
+        output.append(msg);
+    }
 }

@@ -9,6 +9,7 @@ import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.io.EofException;
@@ -57,6 +58,7 @@ public class ExtenderController {
     private final String[] remoteBuilderPlatforms;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
+    private static final String DM_DEBUG_JOB_UPLOAD = System.getenv("DM_DEBUG_JOB_UPLOAD");
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
@@ -243,6 +245,17 @@ public class ExtenderController {
         return filePath.startsWith(parentPath);
     }
 
+    static boolean ignoreFilename(String path) throws ExtenderException {
+        String name = FilenameUtils.getName(path);
+
+        boolean ignore = false;
+        ignore = ignore || name.equals(".DS_Store");
+        if (ignore) {
+            LOGGER.debug("ignoreFilename: %s", path);
+        }
+        return ignore;
+    }
+
     static void validateFilename(String path) throws ExtenderException {
         Matcher m = ExtenderController.FILENAME_RE.matcher(path);
         if (!m.matches()) {
@@ -255,6 +268,10 @@ public class ExtenderController {
             throw new ExtenderException(String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLength(), MAX_PACKAGE_SIZE));
         }
 
+        if (DM_DEBUG_JOB_UPLOAD != null) {
+            LOGGER.info("receiveUpload");
+        }
+
         // Create a new file upload handler
         ServletFileUpload upload = new ServletFileUpload();
 
@@ -265,6 +282,10 @@ public class ExtenderController {
             FileItemStream item = iter.next();
             String name = item.getName().replace('\\', File.separatorChar);
             if (!item.isFormField()) {
+
+                if (ignoreFilename(name)) {
+                    continue;
+                }
 
                 validateFilename(name);
 
@@ -286,6 +307,10 @@ public class ExtenderController {
 
                 try (InputStream inputStream = item.openStream()) {
                     Files.copy(inputStream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+
+                if (DM_DEBUG_JOB_UPLOAD != null) {
+                    System.out.printf("    %s\n", file.toPath());
                 }
 
                 count++;
