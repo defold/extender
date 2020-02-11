@@ -20,7 +20,10 @@ This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It als
 * **DM_DEBUG_DISABLE_PROGUARD** - Disables building with ProGuard (Android only)
 * **DM_DEBUG_JOB_FOLDER** - The uploaded job (and build) will always end up in this folder
 * **DM_DEBUG_KEEP_JOB_FOLDER** - Always keep the job folders
+* **DM_DEBUG_JOB_UPLOAD** - Output the file names in the received payload
 * **DYNAMO_HOME** - If set, used as the actual SDK for the builds
+
+Note: if you wish to add more of these, remember to also add them to `server/scripts/run-local.sh`
 
 # Debugging a job
 

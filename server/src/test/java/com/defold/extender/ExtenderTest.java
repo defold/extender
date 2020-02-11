@@ -89,9 +89,11 @@ public class ExtenderTest {
         // Should be fine
         filename = "include/test.h";
         expectedContent = "//ABcdEFgh";
+        String dsStoreFilename = "bundle/.DS_Store";
 
         List<MockMultipartFile> files = new ArrayList<>();
         files.add(new MockMultipartFile(filename, expectedContent.getBytes()));
+        files.add(new MockMultipartFile(dsStoreFilename, "shouldn't be received".getBytes()));
         request = createMultipartHttpRequest(files);
         {
             ExtenderController.receiveUpload(request, uploadDirectory);
@@ -100,6 +102,9 @@ public class ExtenderTest {
             assertTrue(file.exists());
             String fileContent = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
             assertTrue(expectedContent.equals(fileContent));
+
+            File ds_store = new File(uploadDirectory.getAbsolutePath() + "/" + dsStoreFilename);
+            assertFalse(ds_store.exists());
         }
 
         // Mustn't upload files outside of the folder!
