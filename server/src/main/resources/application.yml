@@ -25,8 +25,8 @@ spring:
     http:
         multipart:
             enabled: false
-            max-file-size: 500mb
-            max-request-size: 500mb
+            max-file-size: 1024mb
+            max-request-size: 1024mb
     # Don't check for templates on startup
     mustache:
         check-template-location: false
@@ -47,4 +47,4 @@ management:
     health:
         diskspace:
             path: /
-            threshold: 524288000 #500mb
+            threshold: 1073741824 #1024mb
