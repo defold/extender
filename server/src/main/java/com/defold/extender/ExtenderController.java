@@ -46,8 +46,6 @@ public class ExtenderController {
     // Used to verify the uploaded filenames
     private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ](?:[\\w+\\-\\/ @]|(?:\\.[\\w+\\-\\/ ]*))+)$");
 
-    private static final int MAX_PACKAGE_SIZE = 512 * 1024*1024; // The max size of any upload package
-
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
     private final GradleService gradleService;
@@ -56,9 +54,25 @@ public class ExtenderController {
     private final RemoteEngineBuilder remoteEngineBuilder;
     private final boolean remoteBuilderEnabled;
     private final String[] remoteBuilderPlatforms;
+    private static int maxPackageSize;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
     private static final String DM_DEBUG_JOB_UPLOAD = System.getenv("DM_DEBUG_JOB_UPLOAD");
+
+    static private int parseSizeFromString(String size) {
+        size = size.toLowerCase();
+        int multiplier = 1;
+        if (size.endsWith("mb")) {
+            multiplier = 1024*1024;
+            size = size.substring(0, size.indexOf("mb"));
+        }
+        else if (size.endsWith("gb")) {
+            multiplier = 1024*1024*1024;
+            size = size.substring(0, size.indexOf("gb"));
+        }
+
+        return Integer.parseInt(size) * multiplier;
+    }
 
     @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
@@ -67,7 +81,8 @@ public class ExtenderController {
                               @Qualifier("gaugeService") GaugeService gaugeService,
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
-                              @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms) {
+                              @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms,
+                              @Value("${spring.http.multipart.max-request-size}") String maxPackageSize) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
@@ -76,6 +91,7 @@ public class ExtenderController {
         this.remoteEngineBuilder = remoteEngineBuilder;
         this.remoteBuilderEnabled = remoteBuilderEnabled;
         this.remoteBuilderPlatforms = remoteBuilderPlatforms;
+        this.maxPackageSize = parseSizeFromString(maxPackageSize);
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -264,8 +280,10 @@ public class ExtenderController {
     }
 
     static void receiveUpload(HttpServletRequest request, File uploadDirectory) throws IOException, FileUploadException, ExtenderException {
-        if (request.getContentLength() > MAX_PACKAGE_SIZE ) {
-            throw new ExtenderException(String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLength(), MAX_PACKAGE_SIZE));
+        if (request.getContentLength() > ExtenderController.maxPackageSize ) {
+            String msg = String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLength(), ExtenderController.maxPackageSize);
+            LOGGER.error(msg);
+            throw new ExtenderException(msg);
         }
 
         if (DM_DEBUG_JOB_UPLOAD != null) {
