@@ -72,6 +72,13 @@ a platform for operating Docker containers running on EC2 instances. It runs in 
 
 ### Releasing
 
+#### Prerequisites
+
+* [awscli](https://docs.aws.amazon.com/systems-manager/latest/userguide/getting-started-cli.html)
+
+        $ brew install awscli@1 jq
+
+
 #### Releasing Stage Server
 
   1. Checkout the dev branch and sync: `git checkout dev && git pull`
@@ -114,3 +121,13 @@ Then try building again, and you might see an error like (or any disc space rela
 You can solve this by removing the cached images:
 
     $ docker system prune
+
+##### AWS docker instances
+
+Sometimes the new server won't start properly and you get this [cryptic message](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/CannotCreateContainerError.html) on the AWS instance:
+
+    "Thin Pool has 4350 free data blocks which is less than minimum required 4454 free data blocks"
+
+The fix is to log on to the instance and run:
+
+    $ sudo sh -c "docker ps -q | xargs docker inspect --format='{{ .State.Pid }}' | xargs -IZ fstrim /proc/Z/root/"
