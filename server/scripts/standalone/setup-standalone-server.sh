@@ -40,7 +40,7 @@ function download_package() {
 		mkdir -p ${TMP_DOWNLOAD_DIR}
 
 		echo "[setup] Downloading" ${package_name}.tar.gz
-		${WGET_CMD} -q -O - ${S3_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
+		${WGET_CMD} -q -O - ${DM_PACKAGES_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
 
 		# The folder inside the package is something like "iPhoneOS.sdk"
 		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`

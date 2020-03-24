@@ -5,8 +5,8 @@ set -x
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-if [ "${S3_URL}" != "" ]; then
-	ENV='--build-arg S3_URL'
+if [ "${DM_PACKAGES_URL}" != "" ]; then
+	ENV='--build-arg DM_PACKAGES_URL'
 fi
 
 if [ "${ENV}" != "" ]; then
@@ -22,4 +22,4 @@ if [ "$GITHUB_ACTION" != "" ]; then
 	chmod -R a+xrw ${DIR}/../test-data || true
 fi
 
-docker run -d --rm --name extender -p 9000:9000 -e S3_URL=${S3_URL} -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender
+docker run -d --rm --name extender -p 9000:9000 -e DM_PACKAGES_URL=${DM_PACKAGES_URL} -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender

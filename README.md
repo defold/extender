@@ -15,7 +15,7 @@ This describes how to run the build server locally.
   * git submodule init
   * git submodule update
 
-* Make sure you have access to the url where to download packages from `S3_URL`
+* Make sure you have access to the url where to download packages from `DM_PACKAGES_URL`
 
   * See the [Dockerfile](./server/docker-base/Dockerfile) for what actual packages are needed.
   * See [defold/scripts/package](https://github.com/defold/defold/tree/dev/scripts/package) folder for scripts how to create these packages.
@@ -24,7 +24,7 @@ This describes how to run the build server locally.
 
 * Build the Extender Docker image by running:
 
-        $ S3_URL=https://hostname/path/to/packages ./server/scripts/build.sh
+        $ DM_PACKAGES_URL=https://hostname/path/to/packages ./server/scripts/build.sh
 
 To speed things up, tests can be disabled by passing `-xtest` to the command line.
 

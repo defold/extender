@@ -20,12 +20,12 @@ jobs:
     - name: Build the Docker image
       run: ./server/scripts/build.sh -xtest
       env:
-            S3_URL:  ${{ secrets.S3_URL }}
+            DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
     
     - name: Test the Docker image
       run: ./gradlew test
       env:
-            S3_URL:  ${{ secrets.S3_URL }}
+            DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
 
     - name: Notify if tests failed
       uses: homoluctus/slatify@master
