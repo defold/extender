@@ -9,8 +9,8 @@ fi
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-if [ "${S3_URL}" != "" ]; then
-	ENV='--build-arg S3_URL'
+if [ "${DM_PACKAGES_URL}" != "" ]; then
+	ENV='--build-arg DM_PACKAGES_URL'
 fi
 
 if [ "${ENV}" != "" ]; then
