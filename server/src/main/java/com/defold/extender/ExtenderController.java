@@ -54,7 +54,7 @@ public class ExtenderController {
     private final RemoteEngineBuilder remoteEngineBuilder;
     private final boolean remoteBuilderEnabled;
     private final String[] remoteBuilderPlatforms;
-    private static int maxPackageSize;
+    private static int maxPackageSize = 1024* 1024*1024;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
     private static final String DM_DEBUG_JOB_UPLOAD = System.getenv("DM_DEBUG_JOB_UPLOAD");
@@ -69,6 +69,9 @@ public class ExtenderController {
         else if (size.endsWith("gb")) {
             multiplier = 1024*1024*1024;
             size = size.substring(0, size.indexOf("gb"));
+        } else {
+            size = "1024";
+            multiplier = 1024*1024;
         }
 
         return Integer.parseInt(size) * multiplier;
