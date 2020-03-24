@@ -243,8 +243,7 @@ RUN \
 # Android SDK/NDK
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-ENV ANDROID_TOOLS_FILENAME android-sdk-tools-linux-3859397.tar.gz
-ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
+ENV ANDROID_BUILD_TOOLS_VERSION 29.0.3
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 ENV ANDROID_NDK_VERSION 10e
 ENV ANDROID_NDK_API_VERSION 14
@@ -255,7 +254,7 @@ ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
 ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.tar.gz
 ENV ANDROID_SDK_VERSION 29
-ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}.tar.gz
+ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
 ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
@@ -306,7 +305,6 @@ RUN \
     mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${S3_URL}/${ANDROID_NDK_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${S3_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${S3_URL}/${ANDROID_TOOLS_FILENAME} | tar xz -C ${ANDROID_HOME} && \
     wget -q -O - ${S3_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
