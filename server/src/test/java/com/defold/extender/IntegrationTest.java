@@ -35,7 +35,7 @@ public class IntegrationTest {
     private TestConfiguration configuration;
     private long startTime;
 
-    private static final String S3_URL = System.getenv("S3_URL");
+    private static final String DM_PACKAGES_URL = System.getenv("DM_PACKAGES_URL");
 
     @Rule
     public TestName name = new TestName();
@@ -141,7 +141,7 @@ public class IntegrationTest {
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
-        processExecutor.putEnv("S3_URL", IntegrationTest.S3_URL);
+        processExecutor.putEnv("DM_PACKAGES_URL", IntegrationTest.DM_PACKAGES_URL);
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
