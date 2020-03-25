@@ -16,6 +16,9 @@ jobs:
       
     - name: Test the extender-client.jar
       run: (cd client && ../gradlew test)
+
+    - name: Free up Docker space
+      run: docker system prune --force
       
     - name: Build the Docker image
       run: ./server/scripts/build.sh -xtest
