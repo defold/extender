@@ -172,7 +172,7 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
   WINDOWS_SDK_10_VERSION=10.0.18362.0 \
-  WINDOWS_MSVC_2019_VERSION=14.23.28105
+  WINDOWS_MSVC_2019_VERSION=14.24.28314
 
 # windres: Allows for generating .res files that can be used during linking
 RUN \
@@ -192,9 +192,8 @@ RUN \
 
 RUN \
   echo "WIN32 2015 SDK" && \
-  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0-slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
   mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 && \
-  rm -rf ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/IDE && \
   wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
