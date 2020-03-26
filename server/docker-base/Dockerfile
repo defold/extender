@@ -202,7 +202,7 @@ RUN \
 
 RUN \
   echo "WIN32 2019 SDK" && \
-  mkdir ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
+  mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
   wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
 
 RUN \
