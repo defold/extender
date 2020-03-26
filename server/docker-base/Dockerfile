@@ -174,34 +174,6 @@ ENV \
   WINDOWS_SDK_10_VERSION=10.0.18362.0 \
   WINDOWS_MSVC_2019_VERSION=14.24.28314
 
-# windres: Allows for generating .res files that can be used during linking
-RUN \
-  echo "Win32 SDK - WINDRES" && \
-  apt-get update && \
-  apt-get install -y binutils-mingw-w64-x86-64 && \
-  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
-  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
-
-RUN \
-  echo "WIN32 2019 SDK" && \
-  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  mkdir ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
-  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
-
-RUN \
-  echo "WIN32 2015 SDK" && \
-  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0-slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
-  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
-
-# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
-# so we solve the bulk by making the suffixes lowercase
-RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
-# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
-RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
-
 # Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer Command Prompt"
 # Note: VCINSTALLDIR is special since clang will use it as the last "-internal-isystem" option
 ENV \
@@ -220,9 +192,46 @@ ENV \
   WindowsSDKLibVersion="winv6.3/" \
   WindowsSDKVersion="/"
 
-# # and the rest are manually copied (or made lower case)
+# windres: Allows for generating .res files that can be used during linking
+RUN \
+  echo "Win32 SDK - WINDRES" && \
+  apt-get update && \
+  apt-get install -y binutils-mingw-w64-x86-64 && \
+  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
+  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
+
+RUN \
+  echo "WIN32 2019 SDK" && \
+  mkdir ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
+
+RUN \
+  echo "WIN32 2015 SDK" && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0-slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
+  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
+
+RUN \
+  echo "WIN32 8.1 + 10 SDK" && \
+  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+# no real need to have 3 versions but older build.yml refer to these.
+# Should clean up package after 1.2.164 has become the baseline
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Lib/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Lib/10.0.10240.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10240.0
+
+
+# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
+# so we solve the bulk by making the suffixes lowercase
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+
 RUN \
   echo "WIN32 SDK - Cleanup" && \
+# and the rest are manually copied (or made lower case)
   (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2015_DIR}/lib && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
