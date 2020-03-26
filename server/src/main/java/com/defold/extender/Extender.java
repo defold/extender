@@ -54,13 +54,6 @@ class Extender {
     static final String JS_RE = "(.+\\.js)";
     static final String ENGINE_JAR_RE = "(?:.*)\\/share\\/java\\/[\\w\\-\\.]*\\.jar$";
 
-    private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
-    private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
-    private static final String ANDROID_STL_INCLUDE_PATH = System.getenv("ANDROID_STL_INCLUDE");
-    private static final String ANDROID_STL_ARCH_INCLUDE_PATH = System.getenv("ANDROID_STL_ARCH_INCLUDE");
-    private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
-    private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
-
     private static final String MANIFEST_IOS    = "Info.plist";
     private static final String MANIFEST_OSX    = "Info.plist";
     private static final String MANIFEST_ANDROID= "AndroidManifest.xml";
@@ -315,16 +308,6 @@ class Extender {
     @SuppressWarnings("unchecked")
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
-
-        // Not needed since 1.2.153 - keep in case someone uses older build.yml
-        if (this.platform.contains("android")) {
-            context.put("android_ndk_path", ANDROID_NDK_PATH);
-            context.put("android_ndk_include", ANDROID_NDK_INCLUDE_PATH);
-            context.put("android_stl_include", ANDROID_STL_INCLUDE_PATH);
-            context.put("android_stl_arch_include", ANDROID_STL_ARCH_INCLUDE_PATH);
-            context.put("android_stl_lib", ANDROID_STL_LIB_PATH);
-            context.put("android_sysroot", ANDROID_SYSROOT_PATH);
-        }
 
         context = Extender.mergeContexts(context, platformConfig.context);
         context = Extender.mergeContexts(context, manifestContext);
