@@ -116,7 +116,7 @@ RUN \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.4.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.0.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
 
 RUN \
@@ -295,7 +295,8 @@ RUN \
 #cleanup
     rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
     rm -rf ${ANDROID_NDK20_PATH}/shader-tools && \
-    rm -rf ${ANDROID_NDK20_PATH}/sources && \
+    rm -rf ${ANDROID_NDK20_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK20_PATH}/sources/cxx-stl && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/renderscript && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/arm-linux-androideabi-4.9 && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/aarch64-linux-android-4.9 && \

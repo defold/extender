@@ -47,8 +47,10 @@ main: |
     #endif
 
     struct android_app;
-    extern void _glfwPreMain(struct android_app* state);
-    extern void app_dummy();
+    //extern void _glfwPreMain(struct android_app* state);
+    //extern void app_dummy();
+    void _glfwPreMain(struct android_app* state) {}
+    void app_dummy() {}
 
     void android_main(struct android_app* state)
     {
@@ -99,31 +101,48 @@ platforms:
     libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
 
   armv7-android:
+    env:
+        PROGUARD:               "{{env.ANDROID_PROGUARD}}"
+        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
+        NDK_PATH:               "{{env.ANDROID_NDK20_PATH}}"
+        SYSROOT:                "{{env.ANDROID_NDK20_SYSROOT}}"
+        NDK_VERSION:            "{{env.ANDROID_NDK20_API_VERSION}}"
+        STL_LIB:                "{{env.ANDROID_NDK20_STL_LIB}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJars: ["{{dynamo_home}}/share/java/Engine.jar"]
         engineLibs: ["engine_main", "engine_foo"]
-        libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{android_stl_lib}}"]
-        libs:       ["gnustl_static"]
-        dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
-        flags:      []
+        libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{env.STL_LIB}}"]
+        defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
+        platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
+        flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  []
+        libs:       []
+        dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
+        symbols:    []
 
-    exePrefix:      'lib'
-    exeExt:         '.so'
-    shlibRe:        'lib(.+)\.so'
-    stlibRe:        'lib(.+)\.a'
-    sourceRe:       '(?i).+(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)$'
-    javaSourceRe:   '(?i).+(\.java)$'
+    exePrefix: 'lib'
+    exeExt: '.so'
+    shlibRe: 'lib(.+).so'
+    stlibRe: 'lib(.+).a'
+    sourceRe: '(?i).+(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)$'
+    javaSourceRe: '(?i).+(\.java)$'
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'libdmengine.so'
-    allowedLibs:    ["gnustl_static","supc\\+\\+","c","m","m_hard","stdc\\+\\+",]
-    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","-W{{warning}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
-    compileCmd:     'arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -fno-exceptions -funwind-tables --sysroot={{android_sysroot}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{.}} {{/defines}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd:        'arm-linux-androideabi-g++ --sysroot={{android_sysroot}} {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
-    libCmd:         'arm-linux-androideabi-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
-    javacCmd:       'javac -source 1.6 -target 1.6 -d {{classesDir}} -classpath {{classPath}} @{{sourcesListFile}}'
-    jarCmd:         'jar cvf {{outputJar}} -C {{classesDir}} .'
-    dxCmd:          'dx --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
+    zipContentPattern: 'libdmengine.so'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+"]
+    compileCmd: 'armv7a-linux-androideabi{{env.NDK_VERSION}}-clang++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'armv7a-linux-androideabi{{env.NDK_VERSION}}-clang++ -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
+    libCmd: 'arm-linux-androideabi-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    javacCmd: 'javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
+    jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
+    # mainDexList is automatically created by listing all classes inside the engine jars
+    dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --main-dex-list={{mainDexList}} --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
+    proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
+    proGuardSourceRe: '(?i).+(\.pro)$'
+    rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --auto-add-overlay -M {{manifestFile}} -I {{env.LIBRARYJAR}} -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   js-web:
     env:

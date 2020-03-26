@@ -6,7 +6,7 @@ extender:
     sdk:
         location: /var/extender/sdk
         # Slightly bigger than production in order to not remove version controlled SDK
-        cache-size: 2
+        cache-size: 10
     server:
         http:
             idle-timeout: 600000
