@@ -116,7 +116,7 @@ RUN \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.0.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.4.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
 
 RUN \
