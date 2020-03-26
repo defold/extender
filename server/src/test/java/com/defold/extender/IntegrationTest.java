@@ -125,14 +125,14 @@ public class IntegrationTest {
                 // Then you can write your tests without waiting for the next release
                 //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),
         };
-        
+
         DefoldVersion[] ciVersions = {
             versions[0],
             versions[versions.length-1],
         };
 
         if (ciBuild) {
-            versions = ciVersions
+            versions = ciVersions;
         }
 
         for( int i = 0; i < versions.length; ++i )
