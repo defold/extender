@@ -26,7 +26,7 @@ import com.android.utils.ILogger;
 public class ManifestMergeTool {
 
     public enum Platform {
-        ANDROID, IOS, OSX, HTML5, UNKNOWN
+        ANDROID, IOS, OSX, WEB, UNKNOWN
     }
 
     private static class ILoggerWrapper implements ILogger {
@@ -128,7 +128,7 @@ public class ManifestMergeTool {
             case ANDROID:  mergeAndroid(main, libraries.toArray(new File[0]), output); break;
             case IOS:
             case OSX:      mergePlist(main, libraries.toArray(new File[0]), output); break;
-            case HTML5:    mergeHtml(main, libraries.toArray(new File[0]), output); break;
+            case WEB:    mergeHtml(main, libraries.toArray(new File[0]), output); break;
             default:
                 throw new RuntimeException(String.format("Unsupported platform: %s", platform.toString()));
         };
@@ -165,8 +165,8 @@ public class ManifestMergeTool {
                     platform = Platform.ANDROID;
                 } else if (args[i].equals("ios")) {
                     platform = Platform.IOS;
-                } else if (args[i].equals("html5")) {
-                    platform = Platform.HTML5;
+                } else if (args[i].equals("web")) {
+                    platform = Platform.WEB;
                 } else {
                     ManifestMergeTool.logger.log(Level.SEVERE, String.format("Unsupported platform: %s", args[i]));
                     System.exit(1);
