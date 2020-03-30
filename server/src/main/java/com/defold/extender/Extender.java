@@ -1435,7 +1435,7 @@ class Extender {
         }
         else if (platform.contains("web")) {
             manifestName = MANIFEST_HTML5;
-            platformName = "html5";
+            platformName = "web";
         }
 
         if (manifestName == null) {
