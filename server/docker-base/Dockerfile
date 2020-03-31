@@ -342,35 +342,28 @@ ENV NINTENDO_SDK_ROOT ${PLATFORMSDK_DIR}/nx
 ENV SWITCH_SDK_FILENAME nx64-sdk-10.1.tar.gz
 
 RUN \
-    echo "Mono" && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends mono-complete && \
-    apt-get clean autoclean autoremove
-
-RUN \
   echo "Switch SDK" && \
   mkdir -p ${NINTENDO_SDK_ROOT} && \
-  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT} && \
-  ls -la ${NINTENDO_SDK_ROOT} && \
-# TODO: Keep the headers and libraries
-  #rm -rf ${NINTENDO_SDK_ROOT}/Compilers && \
-  echo "After" && \
-  ls -la ${NINTENDO_SDK_ROOT} && \
-  ln -s /usr/local/bin/clang /usr/local/bin/aarch64-nintendo-nx-elf-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/aarch64-nintendo-nx-elf-ar
+  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT}
 
 
 #
 # Wine
 #
 
+RUN \
+  echo "Mono" && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends mono-complete && \
+  apt-get clean autoclean autoremove
+
 # Installation notes: https://wiki.winehq.org/Ubuntu
 # TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
 RUN \
-  echo "Wine deps" && \
-  apt-get update && \
-  apt-get install -y --install-recommends apt-transport-https ca-certificates && \
-  apt-get clean autoclean autoremove
+ echo "Wine deps" && \
+ apt-get update && \
+ apt-get install -y --no-install-recommends apt-transport-https ca-certificates ca-certificates-java xvfb && \
+ apt-get clean autoclean autoremove
 
 RUN \
   echo "Wine" && \
@@ -383,42 +376,21 @@ RUN \
   apt-get clean autoclean autoremove && \
   rm winehq.key
 
+ENV PATH ${PATH}:/opt/wine-stable/bin
+
 RUN \
   wget -q https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
   chmod +rx winetricks && \
   mv winetricks /usr/local/bin/winetricks
 
-ENV PATH ${PATH}:/opt/wine-stable/bin
-
 # Disable all debug messages
-#ENV WINEDEBUG "-all"
+ENV WINEDEBUG "-all"
 
-# Set the wine home to be in a folder that extender will own (Or you'll get the "wine: <path> is not owned by you")
 ENV WINEPREFIX "/var/extender/.wine"
-
-ENV WINEARCH=win64
-
-# Initialize Wine (also see next Dockerfile)
-# Setup symbolic links for folders to exist in the C:/ space
-# Also, for the installed packages, create symlinks without spaces in the paths!
-# Once we run wine, the folder is created for the root user, this needs to be chown'ed back to the extender user (see next Dockerfile)
-
-RUN \
-  apt-get update && \
-  apt-get install -y xvfb
-
-RUN \
-  mkdir -p /home/extender && \
-  chown extender: /home/extender
-
-USER extender
 
 RUN \
   echo "Wine Init" && \
-  mkdir -p ${WINEPREFIX} && \
-  wine cmd /c echo Initialized Wine folder && \
-  chmod -R 755 ${WINEPREFIX} && \
-  ln -s /tmp ${WINEPREFIX}/drive_c/tmp
+  mkdir -p ${WINEPREFIX}
 
 ENV DISPLAY=":1"
 RUN \
@@ -427,10 +399,11 @@ RUN \
   xvfb-run wineserver -w      && \
   xvfb-run winetricks -q vcrun2015
 
-USER root
+RUN \
+  chown -R extender: $WINEPREFIX
 
 RUN \
-  apt-get remove -y xvfb && \
+  apt-get remove -y apt-transport-https xvfb && \
   apt-get clean autoclean autoremove
 
 
