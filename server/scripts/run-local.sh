@@ -20,8 +20,8 @@ fi
 echo "Using local env: $LOCAL_ENV"
 
 if [ -z "$DYNAMO_HOME" ]; then
-    docker run --rm --name extender -p 9000:9000 -e SPRING_PROFILES_ACTIVE=dev $LOCAL_ENV extender/extender;
+    docker run --init --rm --name extender -p 9000:9000 -e SPRING_PROFILES_ACTIVE=dev $LOCAL_ENV extender/extender;
 else
-    docker run --rm --name extender -p 9000:9000 -e SPRING_PROFILES_ACTIVE=dev $LOCAL_ENV -v ${DYNAMO_HOME}:/dynamo_home -e DYNAMO_HOME=/dynamo_home extender/extender;
 	echo "Using DYNAMO_HOME=$DYNAMO_HOME"
+    docker run --init --rm --name extender -p 9000:9000 -e SPRING_PROFILES_ACTIVE=dev $LOCAL_ENV -v ${DYNAMO_HOME}:/dynamo_home -e DYNAMO_HOME=/dynamo_home extender/extender;
 fi
