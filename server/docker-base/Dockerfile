@@ -339,7 +339,7 @@ COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
 #
 
 ENV NINTENDO_SDK_ROOT ${PLATFORMSDK_DIR}/nx
-ENV SWITCH_SDK_FILENAME nx64-sdk-10.1.tar.gz
+ENV SWITCH_SDK_FILENAME nx64-sdk-10.3.tar.gz
 
 RUN \
   echo "Switch SDK" && \
