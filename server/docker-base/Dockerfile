@@ -121,8 +121,6 @@ RUN \
 
 RUN \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar && \
   ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain/usr/lib/arc /usr/local/lib/arc
 
 #
@@ -222,6 +220,9 @@ RUN \
   ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10150.0 && \
   ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10240.0
 
+RUN \
+  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
 # so we solve the bulk by making the suffixes lowercase
@@ -332,6 +333,79 @@ RUN \
 
 ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
 COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
+
+#
+# Switch SDK
+#
+
+ENV NINTENDO_SDK_ROOT ${PLATFORMSDK_DIR}/nx
+ENV SWITCH_SDK_FILENAME nx64-sdk-10.3.tar.gz
+
+RUN \
+  echo "Switch SDK" && \
+  mkdir -p ${NINTENDO_SDK_ROOT} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT}
+
+
+#
+# Wine
+#
+
+RUN \
+  echo "Mono" && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends mono-complete && \
+  apt-get clean autoclean autoremove
+
+# Installation notes: https://wiki.winehq.org/Ubuntu
+# TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
+RUN \
+ echo "Wine deps" && \
+ apt-get update && \
+ apt-get install -y --no-install-recommends apt-transport-https ca-certificates ca-certificates-java xvfb && \
+ apt-get clean autoclean autoremove
+
+RUN \
+  echo "Wine" && \
+  wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
+  APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add winehq.key && \
+  apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu/ xenial main" && \
+  dpkg --add-architecture i386 && \
+  apt-get update && \
+  DEBIAN_FRONTEND="noninteractive" apt-get install -y --install-recommends winehq-stable && \
+  apt-get clean autoclean autoremove && \
+  rm winehq.key
+
+ENV PATH ${PATH}:/opt/wine-stable/bin
+
+RUN \
+  wget -q https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
+  chmod +rx winetricks && \
+  mv winetricks /usr/local/bin/winetricks
+
+# Disable all debug messages
+ENV WINEDEBUG "-all"
+
+ENV WINEPREFIX "/var/extender/.wine"
+
+RUN \
+  echo "Wine Init" && \
+  mkdir -p ${WINEPREFIX}
+
+ENV DISPLAY=":1"
+RUN \
+  set -xe                     && \
+  WINEDLLOVERRIDES="mscoree,mshtml=" xvfb-run wine wineboot && \
+  xvfb-run wineserver -w      && \
+  xvfb-run winetricks -q vcrun2015
+
+RUN \
+  chown -R extender: $WINEPREFIX
+
+RUN \
+  apt-get remove -y apt-transport-https xvfb && \
+  apt-get clean autoclean autoremove
+
 
 # To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
 # # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile

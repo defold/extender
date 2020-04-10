@@ -322,10 +322,15 @@ class Extender {
         Set<String> keys = context.keySet();
         for (String k : keys) {
             Object v = context.get(k);
-            if (v instanceof String) {
-                v = templateExecutor.execute((String) v, context);
-            } else if (v instanceof List) {
-                v = templateExecutor.execute((List<String>) v, context);
+            try {
+                if (v instanceof String) {
+                    v = templateExecutor.execute((String) v, context);
+                } else if (v instanceof List) {
+                    v = templateExecutor.execute((List<String>) v, context);
+                }
+            } catch (Exception e) {
+                LOGGER.error(String.format("Failed to substitute key %s", k));
+                throw e;
             }
             context.put(k, v);
         }
@@ -526,6 +531,8 @@ class Extender {
     }
 
     private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("Linking engine");
+
         File maincpp = new File(buildDirectory , "main.cpp");
 
         List<String> extSymbols = new ArrayList<>();
@@ -616,12 +623,21 @@ class Extender {
         context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
-        String command = templateExecutor.execute(platformConfig.linkCmd, context);
+        List<String> commands = platformConfig.linkCmds;
 
-        // WINE->clang transition pt2: Replace any redundant ".lib.lib"
-        command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
+        if (platformConfig.linkCmds == null) {
+            commands = new ArrayList<>();
+            commands.add(platformConfig.linkCmd);
+        }
 
-        processExecutor.execute(command);
+        for (String template : commands) {
+            String command = templateExecutor.execute(template, context);
+
+            // WINE->clang transition pt2: Replace any redundant ".lib.lib"
+            command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
+
+            processExecutor.execute(command);
+        }
 
         // Extract symbols
         if (this.withSymbols) {
@@ -1369,6 +1385,32 @@ class Extender {
 
         return outputFiles;
     }
+    
+    private String getBasePlatform(String platform) {
+        String[] platformParts = this.platform.split("-");
+        return platformParts[1];
+    }
+
+    private String getPlatformManifestName(String basePlatform) {
+        if (platformConfig.manifestName != null) {
+            return platformConfig.manifestName;
+        }
+        
+        // Before 1.2.xxx
+        if (platform.contains("android")) {
+            return MANIFEST_ANDROID;
+        }
+        else if (platform.contains("ios")) {
+            return  MANIFEST_IOS;
+        }
+        else if (platform.contains("osx")) {
+            return  MANIFEST_OSX;
+        }
+        else if (platform.contains("web")) {
+            return  MANIFEST_HTML5;
+        }
+        return null;
+    }
 
     // Called for each platform, to merge the manifests into one
     private List<File> buildManifests(String platform) throws ExtenderException {
@@ -1380,24 +1422,8 @@ class Extender {
             return out;
         }
 
-        String manifestName = null;
-        String platformName = null;
-        if (platform.contains("android")) {
-            manifestName = MANIFEST_ANDROID;
-            platformName = "android";
-        }
-        else if (platform.contains("ios")) {
-            manifestName = MANIFEST_IOS;
-            platformName = "ios";
-        }
-        else if (platform.contains("osx")) {
-            manifestName = MANIFEST_OSX;
-            platformName = "osx";
-        }
-        else if (platform.contains("web")) {
-            manifestName = MANIFEST_HTML5;
-            platformName = "web";
-        }
+        String platformName = getBasePlatform(platform);
+        String manifestName = getPlatformManifestName(platformName);
 
         if (manifestName == null) {
             LOGGER.info("No manifest base name!");
