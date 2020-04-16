@@ -231,7 +231,7 @@ public class ExtenderController {
             if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
                 deleteDirectory = false;
             }
-            if (DM_DEBUG_JOB_FOLDER == null) {
+            if (DM_DEBUG_JOB_FOLDER != null) {
                 deleteDirectory = false;
             }
             // Delete temporary upload directory
