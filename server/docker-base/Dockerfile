@@ -167,8 +167,6 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
 # Windows
 #
 
-RUN echo "trigger build"
-
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
   WINDOWS_SDK_10_VERSION=10.0.18362.0 \
