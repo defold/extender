@@ -46,7 +46,7 @@ RUN  useradd -r -u 2222 extender && \
   chown extender: $(readlink -f /usr/bin/java) && \
   chmod +s $(readlink -f /usr/bin/java)
 
-ARG S3_URL
+ARG DM_PACKAGES_URL
 
 # Put all SDK's into a single folder (just as we do in the regular engine build)
 ENV PLATFORMSDK_DIR /opt/platformsdk
@@ -54,7 +54,7 @@ RUN mkdir $PLATFORMSDK_DIR
 
 # These packages are downloaded from here: http://releases.llvm.org/download.html
 # and then uploaded as-is to S3
-RUN wget -q -O - ${S3_URL}/clang%2Bllvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+RUN wget -q -O - ${DM_PACKAGES_URL}/clang%2Bllvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -104,25 +104,23 @@ RUN \
 
 # For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
-  wget -q -O - ${S3_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS12.1.sdk && \
-  wget -q -O - ${S3_URL}/iPhoneOS13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.0.sdk && \
-  wget -q -O - ${S3_URL}/iPhoneSimulator12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator12.1.sdk && \
-  wget -q -O - ${S3_URL}/iPhoneSimulator13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.0.sdk && \
-  wget -q -O - ${S3_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
-  wget -q -O - ${S3_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
-  wget -q -O - ${S3_URL}/XcodeDefault11.0.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.0.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
 
 RUN \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar && \
   ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain/usr/lib/arc /usr/local/lib/arc
 
 #
@@ -149,7 +147,7 @@ ENV EMSCRIPTEN_PATH_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}:${EMSCRIPTEN_HOME_1_38_12
 
 RUN \
   mkdir ${EMSCRIPTEN_SDK_1_38_12} && \
-  wget -q -O - ${S3_URL}/emsdk-1.38.12-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_38_12} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-1.38.12-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_38_12} && \
   ${EMSCRIPTEN_HOME_1_38_12}/emsdk activate sdk-1.38.12-64bit --embedded && \
   EM_CONFIG=$EMSCRIPTEN_CONFIG_1_38_12 EM_CACHE=${EMSCRIPTEN_CACHE_1_38_12} python ${EMSCRIPTEN_BIN_1_38_12}/embuilder.py build libc libc-extras libcxx libcxx_noexcept libcxxabi wasm-libc gl dlmalloc struct_info && \
   chmod -R 755 ${EMSCRIPTEN_HOME_1_38_12} && \
@@ -172,36 +170,7 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
   WINDOWS_SDK_10_VERSION=10.0.18362.0 \
-  WINDOWS_MSVC_2019_VERSION=14.23.28105
-
-# windres: Allows for generating .res files that can be used during linking
-RUN \
-  echo "Win32 SDK - WINDRES" && \
-  apt-get update && \
-  apt-get install -y binutils-mingw-w64-x86-64 && \
-  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
-  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
-
-RUN \
-  echo "WIN32 2019 SDK" && \
-  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${S3_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  mkdir ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
-
-RUN \
-  echo "WIN32 2015 SDK" && \
-  wget -q -O - ${S3_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
-  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 && \
-  rm -rf ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/IDE && \
-  wget -q -O - ${S3_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
-
-# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
-# so we solve the bulk by making the suffixes lowercase
-RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
-# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
-RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+  WINDOWS_MSVC_2019_VERSION=14.24.28314
 
 # Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer Command Prompt"
 # Note: VCINSTALLDIR is special since clang will use it as the last "-internal-isystem" option
@@ -221,9 +190,49 @@ ENV \
   WindowsSDKLibVersion="winv6.3/" \
   WindowsSDKVersion="/"
 
-# # and the rest are manually copied (or made lower case)
+# windres: Allows for generating .res files that can be used during linking
+RUN \
+  echo "Win32 SDK - WINDRES" && \
+  apt-get update && \
+  apt-get install -y binutils-mingw-w64-x86-64 && \
+  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
+  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
+
+RUN \
+  echo "WIN32 2019 SDK" && \
+  mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
+
+RUN \
+  echo "WIN32 2015 SDK" && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0-slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
+  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
+
+RUN \
+  echo "WIN32 8.1 + 10 SDK" && \
+  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+# no real need to have 3 versions but older build.yml refer to these.
+# Should clean up package after 1.2.164 has become the baseline
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Lib/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Lib/10.0.10240.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10240.0
+
+RUN \
+  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
+
+# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
+# so we solve the bulk by making the suffixes lowercase
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+
 RUN \
   echo "WIN32 SDK - Cleanup" && \
+# and the rest are manually copied (or made lower case)
   (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2015_DIR}/lib && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
@@ -243,35 +252,15 @@ RUN \
 # Android SDK/NDK
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-ENV ANDROID_TOOLS_FILENAME android-sdk-tools-linux-3859397.tar.gz
 ENV ANDROID_BUILD_TOOLS_VERSION 23.0.2
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
-ENV ANDROID_NDK_VERSION 10e
-ENV ANDROID_NDK_API_VERSION 14
 ENV ANDROID_TARGET_API_LEVEL 23
 ENV ANDROID_MIN_API_LEVEL 9
 ENV ANDROID_GCC_VERSION 4.8
-ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
-ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
-ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.tar.gz
 ENV ANDROID_SDK_VERSION 29
 ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}.tar.gz
-ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
-ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
-ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
-ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
-ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
-ENV ANDROID_64_NDK_API_VERSION 21
-ENV ANDROID_64_GCC_VERSION 4.9
-ENV ANDROID_64_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64/usr/include
-ENV ANDROID_64_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/include
-ENV ANDROID_64_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a/include
-ENV ANDROID_64_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a
-ENV ANDROID_64_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64
-ENV ANDROID_64_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/linux-x86_64/bin
-ENV ANDROID_64_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 
 # We must keep two NDKs alive for now, since migrating to the latest (i.e 20) will break
 # for users that try to build with an older build.yml.
@@ -289,9 +278,7 @@ ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.
 
 ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
 
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
-ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK20_BIN_PATH}
 
 # android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
 RUN \
@@ -304,16 +291,31 @@ ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 RUN \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
-    wget -q -O - ${S3_URL}/${ANDROID_NDK_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${S3_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${S3_URL}/${ANDROID_TOOLS_FILENAME} | tar xz -C ${ANDROID_HOME} && \
-    wget -q -O - ${S3_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+#cleanup
+    rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
+    rm -rf ${ANDROID_NDK20_PATH}/shader-tools && \
+    rm -rf ${ANDROID_NDK20_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK20_PATH}/sources/cxx-stl && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/renderscript && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/arm-linux-androideabi-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/aarch64-linux-android-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86_64-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+# fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
 # check that dx installed properly
-    ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx && \
-    which aarch64-linux-android-g++ && \
-    which arm-linux-androideabi-g++ && \
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/dx && \
+    which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
+    which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
 # check that aapt installed correctly
     aapt v
 
@@ -331,6 +333,79 @@ RUN \
 
 ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
 COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
+
+#
+# Switch SDK
+#
+
+ENV NINTENDO_SDK_ROOT ${PLATFORMSDK_DIR}/nx
+ENV SWITCH_SDK_FILENAME nx64-sdk-10.3.tar.gz
+
+RUN \
+  echo "Switch SDK" && \
+  mkdir -p ${NINTENDO_SDK_ROOT} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT}
+
+
+#
+# Wine
+#
+
+RUN \
+  echo "Mono" && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends mono-complete && \
+  apt-get clean autoclean autoremove
+
+# Installation notes: https://wiki.winehq.org/Ubuntu
+# TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
+RUN \
+ echo "Wine deps" && \
+ apt-get update && \
+ apt-get install -y --no-install-recommends apt-transport-https ca-certificates ca-certificates-java xvfb && \
+ apt-get clean autoclean autoremove
+
+RUN \
+  echo "Wine" && \
+  wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
+  APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add winehq.key && \
+  apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu/ xenial main" && \
+  dpkg --add-architecture i386 && \
+  apt-get update && \
+  DEBIAN_FRONTEND="noninteractive" apt-get install -y --install-recommends winehq-stable && \
+  apt-get clean autoclean autoremove && \
+  rm winehq.key
+
+ENV PATH ${PATH}:/opt/wine-stable/bin
+
+RUN \
+  wget -q https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
+  chmod +rx winetricks && \
+  mv winetricks /usr/local/bin/winetricks
+
+# Disable all debug messages
+ENV WINEDEBUG "-all"
+
+ENV WINEPREFIX "/var/extender/.wine"
+
+RUN \
+  echo "Wine Init" && \
+  mkdir -p ${WINEPREFIX}
+
+ENV DISPLAY=":1"
+RUN \
+  set -xe                     && \
+  WINEDLLOVERRIDES="mscoree,mshtml=" xvfb-run wine wineboot && \
+  xvfb-run wineserver -w      && \
+  xvfb-run winetricks -q vcrun2015
+
+RUN \
+  chown -R extender: $WINEPREFIX
+
+RUN \
+  apt-get remove -y apt-transport-https xvfb && \
+  apt-get clean autoclean autoremove
+
 
 # To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
 # # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile

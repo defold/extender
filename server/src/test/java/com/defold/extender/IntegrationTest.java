@@ -35,7 +35,7 @@ public class IntegrationTest {
     private TestConfiguration configuration;
     private long startTime;
 
-    private static final String S3_URL = System.getenv("S3_URL");
+    private static final String DM_PACKAGES_URL = System.getenv("DM_PACKAGES_URL");
 
     @Rule
     public TestName name = new TestName();
@@ -107,22 +107,33 @@ public class IntegrationTest {
     @Parameterized.Parameters(name = "{index}: {0}")
     public static Collection<TestConfiguration> data() {
 
+        boolean ciBuild = System.getenv("GITHUB_WORKSPACE") != null;
+
         ArrayList<TestConfiguration> data = new ArrayList<>();
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
 
-                new DefoldVersion("e07f3bb9e8c970eceda8dce8efd5905fd67fa720", new Version(1, 2, 162), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("13261949f45c333806c8aac8bd5b08124ca2810f", new Version(1, 2, 163), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("2be2687cbb670c2dbe9cf2e99577bc3338561778", new Version(1, 2, 164), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("6fac6e80f09ab297093e3ff65a7f45ad56e06e33", new Version(1, 2, 165), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("5295afb3878441fb12f497df8831148525dcfb10", new Version(1, 2, 166), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("96f7a5e4f617d5f6f4645f30a3e6ff656689435d", new Version(1, 2, 167), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
                 //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),
         };
+
+        DefoldVersion[] ciVersions = {
+            versions[0],
+            versions[versions.length-1],
+        };
+
+        if (ciBuild) {
+            versions = ciVersions;
+        }
 
         for( int i = 0; i < versions.length; ++i )
         {
@@ -141,7 +152,7 @@ public class IntegrationTest {
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
-        processExecutor.putEnv("S3_URL", IntegrationTest.S3_URL);
+        processExecutor.putEnv("DM_PACKAGES_URL", IntegrationTest.DM_PACKAGES_URL);
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 

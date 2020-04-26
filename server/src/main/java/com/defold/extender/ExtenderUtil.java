@@ -347,11 +347,36 @@ public class ExtenderUtil
     }
 
     public static boolean verifyAndroidAssetDirectory(File dir) {
-        for (File d : dir.listFiles()) {
+        File[] files = dir.listFiles();
+        for (File d : files) {
             if (!matchesAndroidAssetDirectoryName(d.getName())) {
                 return false;
             }
         }
-        return true;
+        return files.length > 0;
     }
+
+
+    public static File getAndroidResourceFolder(File dir) {
+        // In resource folders, we add packages in several ways:
+        // 'project/extension/res/android/res/com.foo.name/res/<android folders>' (new)
+        // 'project/extension/res/android/res/com.foo.name/<android folders>' (legacy)
+        // 'project/extension/res/android/res/<android folders>' (legacy)
+        if (dir.isDirectory() && verifyAndroidAssetDirectory(dir)) {
+            return dir;
+        }
+
+        for (File f : dir.listFiles()) {
+            if (!f.isDirectory()) {
+                continue;
+            }
+
+            File resDir = getAndroidResourceFolder(f);
+            if (resDir != null) {
+                return resDir;
+            }
+        }
+        return null;
+    }
+
 }
