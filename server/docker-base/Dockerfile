@@ -167,10 +167,12 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
 # Windows
 #
 
+RUN echo "trigger build"
+
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
   WINDOWS_SDK_10_VERSION=10.0.18362.0 \
-  WINDOWS_MSVC_2019_VERSION=14.24.28314
+  WINDOWS_MSVC_2019_VERSION=14.25.28610
 
 # Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer Command Prompt"
 # Note: VCINSTALLDIR is special since clang will use it as the last "-internal-isystem" option
