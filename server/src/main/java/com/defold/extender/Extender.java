@@ -1259,7 +1259,6 @@ class Extender {
             this.manifestValidator.validate(relativePath, manifestContext);
 
             // Apply any global settings to the context
-            manifestContext = Extender.mergeContexts(manifestContext, appManifestContext);
             manifestContext.put("extension_name", manifestConfig.name);
             manifestContext.put("extension_name_upper", manifestConfig.name.toUpperCase());
 
@@ -1293,6 +1292,7 @@ class Extender {
                 symbols.add(extensionSymbol);
 
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
+                extensionContext = Extender.mergeContexts(extensionContext, appManifestContext);
                 File manifest = manifestFiles.get(extensionSymbol);
 
                 // TODO: Thread this step
