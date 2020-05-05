@@ -194,27 +194,30 @@ class Extender {
         return platformConfig;
     }
 
+    private int getAndIncreaseNameCount() {
+        return nameCounter++;
+    }
+
     private String getNameUUID() {
-        int c = nameCounter++;
+        int c = getAndIncreaseNameCount();
         return String.format("%d", c);
     }
 
-    private File uniqueTmpFile(String prefix, String suffix) {
+    private File createBuildFile(String name) {
         File file;
         do {
-            file = new File(buildDirectory, prefix + getNameUUID() + suffix);
+            file = new File(buildDirectory, name);
         } while (file.exists());
 
         return file;
     }
 
-    private File uniqueTmpFile(String pattern) {
-        File file;
-        do {
-            file = new File(buildDirectory, String.format(pattern, getNameUUID()));
-        } while (file.exists());
+    private File uniqueTmpFile(String prefix, String suffix) {
+        return createBuildFile(prefix + getNameUUID() + suffix);
+    }
 
-        return file;
+    private File uniqueTmpFile(String pattern) {
+        return createBuildFile(String.format(pattern, getNameUUID()));
     }
 
     private static int countLines(String str){
@@ -364,6 +367,7 @@ class Extender {
                 libPaths.add(path);
             }
         }
+        // Added in 2019, should be removed soon
         else if ( this.platform.contains("win32")) {
             LOGGER.debug("Adding WinMain hack to win32");
             List<String> linkFlags = (List<String>)context.get("linkFlags");
@@ -502,7 +506,7 @@ class Extender {
         List<String> objs = new ArrayList<>();
 
         // Compile C++ source into object files
-        int i = 0;
+        int i = getAndIncreaseNameCount();
         for (File src : srcFiles) {
             File o = compileFile(i, extDir, src, manifestContext);
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
@@ -512,7 +516,7 @@ class Extender {
         // Create c++ library
         File lib = null;
         if (platformConfig.writeLibPattern != null) {
-            lib = uniqueTmpFile(platformConfig.writeLibPattern);
+            lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
         } else {
             lib = uniqueTmpFile("lib", ".a"); // Deprecated, remove in a few versions
         }
