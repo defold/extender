@@ -621,6 +621,7 @@ class Extender {
         context.put("ext", env);
         context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs")) );
         context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs")) );
+        context.put("objectFiles", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(mainContext, "objectFiles"), ExtenderUtil.getStringList(mainContext, "includeObjectFiles"), ExtenderUtil.getStringList(mainContext, "excludeObjectFiles") ));
 
         // WINE->clang transition pt1: in the transition period from link.exe -> lld, we want to make sure we can write "foo" as opposed to "foo.lib"
         context.put("libs", patchLibs((List<String>) context.get("libs")));
