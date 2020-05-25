@@ -119,6 +119,8 @@ public class IntegrationTest {
                 new DefoldVersion("6fac6e80f09ab297093e3ff65a7f45ad56e06e33", new Version(1, 2, 165), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("5295afb3878441fb12f497df8831148525dcfb10", new Version(1, 2, 166), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("96f7a5e4f617d5f6f4645f30a3e6ff656689435d", new Version(1, 2, 167), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("e22f6d2f81e7c53ebcbfefe703ff22ce5da252c0", new Version(1, 2, 168), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("4ebe7a1d548eae2398717ed46f9d7d1b103d5503", new Version(1, 2, 169), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
