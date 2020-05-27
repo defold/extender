@@ -154,6 +154,26 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12} && \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12}.lock
 
+## Emscripten 1.39.16 (from version 1.2.170)
+ENV EMSCRIPTEN_SDK_1_39_16 ${PLATFORMSDK_DIR}/emsdk-1.39.16
+ENV EMSCRIPTEN_HOME_1_39_16 ${EMSCRIPTEN_SDK_1_39_16}
+ENV EMSCRIPTEN_CONFIG_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}/.emscripten
+ENV EMSCRIPTEN_BIN_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}/upstream/emscripten
+ENV EMSCRIPTEN_CACHE_1_39_16 /var/extender/emcache_1_39_16
+# Setup a special env variable that will be prefixed to PATH if requested version is 1.39.16
+ENV EMSCRIPTEN_PATH_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}:${EMSCRIPTEN_HOME_1_39_16}/upstream/bin:${EMSCRIPTEN_HOME_1_39_16}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_1_39_16}
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK_1_39_16} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-1.39.16-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_39_16} --strip-components=1
+
+RUN \
+  ${EMSCRIPTEN_HOME_1_39_16}/emsdk activate sdk-1.39.16-64bit --embedded && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_1_39_16 EM_CACHE=${EMSCRIPTEN_CACHE_1_39_16} python ${EMSCRIPTEN_BIN_1_39_16}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_1_39_16} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16}.lock
+
 # We use the same temp directory for both versions.
 ENV EMSCRIPTEN_TEMP_DIR /var/extender/ems_temp
 RUN mkdir -p ${EMSCRIPTEN_TEMP_DIR}
@@ -161,7 +181,9 @@ RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
 RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
-  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_38_12}
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_38_12} && \
+  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_39_16} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_39_16}
 
 #
 # Windows
@@ -208,6 +230,8 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0-slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
   mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
 
+# Windows kit 8.1 was removed in 1.2.170, and can be removed once that one is the last version available on d.defold.com
+# (We only keep backwards support in extensions for 6 months)
 RUN \
   echo "WIN32 8.1 + 10 SDK" && \
   mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
