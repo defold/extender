@@ -239,10 +239,10 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
 # no real need to have 3 versions but older build.yml refer to these.
 # Should clean up package after 1.2.164 has become the baseline
-  ln -s ${WINDOWS_SDK_10_DIR}/Lib/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Lib/10.0.10150.0 && \
-  ln -s ${WINDOWS_SDK_10_DIR}/Lib/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Lib/10.0.10240.0 && \
-  ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10150.0 && \
-  ln -s ${WINDOWS_SDK_10_DIR}/Include/10.0.18362.0 ${WINDOWS_SDK_10_DIR}/Include/10.0.10240.0
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Lib/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Lib/10.0.10240.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Include/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Include/10.0.10240.0
 
 RUN \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
@@ -270,6 +270,11 @@ RUN \
   (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp concurrencysal.h ConcurrencySal.h) && \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
+
+# We need to make certain names lowercase because some users have put "pragma lib" comments in some libraries :(
+RUN \
+  echo "WIN32 WindowsKits 10 - Cleanup" && \
+  (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
 
 #
