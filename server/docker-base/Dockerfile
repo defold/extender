@@ -1,5 +1,8 @@
 FROM ubuntu:16.04
 
+# We updated to use clang-9 for linux in 1.2.171
+# So once that is the last supported version, we can remove support for GCC5 etc
+
 # Base stuff
 RUN \
   echo "LINUX TOOLS + COMPILER" && \
@@ -82,14 +85,6 @@ RUN \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
   cd cctools-port/cctools && \
   git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
   ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
@@ -101,6 +96,11 @@ RUN \
   apt-get purge --auto-remove -y git cmake && \
   rm -rf apple-libtapi && \
   rm -rf cctools-port
+
+# from version 1.2.171
+RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux.tar.gz | tar xz -C /usr/local --strip-components=1
+
+ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
 
 # For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
