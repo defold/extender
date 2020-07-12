@@ -165,6 +165,8 @@ public class ManifestMergeTool {
                     platform = Platform.ANDROID;
                 } else if (args[i].equals("ios")) {
                     platform = Platform.IOS;
+                } else if (args[i].equals("osx")) {
+                    platform = Platform.OSX;
                 } else if (args[i].equals("web")) {
                     platform = Platform.WEB;
                 } else {
