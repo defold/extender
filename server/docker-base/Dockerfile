@@ -177,6 +177,28 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16} && \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16}.lock
 
+## Emscripten 1.39.20 (from version 1.2.172)
+ENV EMSCRIPTEN_SDK_1_39_20 ${PLATFORMSDK_DIR}/emsdk-1.39.20
+ENV EMSCRIPTEN_HOME_1_39_20 ${EMSCRIPTEN_SDK_1_39_20}
+ENV EMSCRIPTEN_CONFIG_1_39_20 ${EMSCRIPTEN_HOME_1_39_20}/.emscripten
+ENV EMSCRIPTEN_BIN_1_39_20 ${EMSCRIPTEN_HOME_1_39_20}/upstream/emscripten
+ENV EMSCRIPTEN_CACHE_1_39_20 /var/extender/emcache_1_39_20
+# Setup a special env variable that will be prefixed to PATH if requested version is 1.39.20
+ENV EMSCRIPTEN_PATH_1_39_20 ${EMSCRIPTEN_HOME_1_39_20}:${EMSCRIPTEN_HOME_1_39_20}/upstream/bin:${EMSCRIPTEN_HOME_1_39_20}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_1_39_20}
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK_1_39_20} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-1.39.20-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_39_20} --strip-components=1
+
+RUN \
+  ${EMSCRIPTEN_HOME_1_39_20}/emsdk activate sdk-1.39.20-64bit --embedded && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_1_39_20 EM_CACHE=${EMSCRIPTEN_CACHE_1_39_20} python ${EMSCRIPTEN_BIN_1_39_20}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_1_39_20} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_20} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_20}/asmjs/cache.lock && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_20}/wasm/cache.lock
+
+
 # We use the same temp directory for both versions.
 ENV EMSCRIPTEN_TEMP_DIR /var/extender/ems_temp
 RUN mkdir -p ${EMSCRIPTEN_TEMP_DIR}
