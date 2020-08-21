@@ -17,6 +17,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -442,7 +443,7 @@ class Extender {
         return allLibJars;
     }
 
-    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(extDir, "include") ) );
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) );
@@ -457,7 +458,7 @@ class Extender {
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
 
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
-        processExecutor.execute(command);
+        commands.add(command);
         return o;
     }
 
@@ -504,13 +505,42 @@ class Extender {
         Arrays.sort(srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
 
         List<String> objs = new ArrayList<>();
+        List<String> commands = new ArrayList<>();
 
         // Compile C++ source into object files
         int i = getAndIncreaseNameCount();
         for (File src : srcFiles) {
-            File o = compileFile(i, extDir, src, manifestContext);
+            File o = compileFile(i, extDir, src, manifestContext, commands);
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             i++;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        List<Callable<Void>> callables = new ArrayList<>();
+        for (String command : commands) {
+            callables.add(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    processExecutor.execute(command);
+                    return null;
+                }
+            });
+        }
+        List<Future<Void>> futures = executor.invokeAll(callables);
+        try {
+            for (Future<Void> future : futures) {
+                future.get(); 
+            }
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException) {
+                throw (IOException)e.getCause();
+            } else if (e.getCause() instanceof InterruptedException) {
+                throw (InterruptedException)e.getCause();
+            } else {
+                throw new ExtenderException(e.getCause().toString());
+            }
+        } finally {
+            executor.shutdown();
         }
 
         // Create c++ library
