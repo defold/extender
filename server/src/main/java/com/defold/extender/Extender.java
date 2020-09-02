@@ -175,7 +175,7 @@ class Extender {
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
 
         // Make sure the user hasn't input anything invalid in the manifest
-        this.manifestValidator.validate(this.appManifestPath, appManifestContext);
+        this.manifestValidator.validate(this.appManifestPath, this.uploadDirectory, appManifestContext);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -445,8 +445,18 @@ class Extender {
 
     private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(extDir, "include") ) );
+        File extIncludeDir = new File(extDir, "include");
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, extIncludeDir ) );
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) );
+
+        // Add the other extensions include folders
+        for (File otherExtDir : this.getExtensionFolders()) {
+            File otherIncludeDir = new File(otherExtDir, "include");
+            if (extIncludeDir.equals(otherIncludeDir))
+                continue;
+            includes.add( ExtenderUtil.getRelativePath(jobDirectory, otherIncludeDir ) );
+        }
+
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
 
         List<String> frameworks = getFrameworks(extDir);
@@ -987,7 +997,7 @@ class Extender {
                     manifestContext = getManifestContext(platform, config, manifestConfig);
                 }
 
-                this.manifestValidator.validate(manifestConfig.name, manifestContext);
+                this.manifestValidator.validate(manifestConfig.name, manifest.getParentFile(), manifestContext);
 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 
@@ -1287,7 +1297,7 @@ class Extender {
             }
 
             String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
-            this.manifestValidator.validate(relativePath, manifestContext);
+            this.manifestValidator.validate(relativePath, manifest.getParentFile(), manifestContext);
 
             // Apply any global settings to the context
             manifestContext.put("extension_name", manifestConfig.name);
