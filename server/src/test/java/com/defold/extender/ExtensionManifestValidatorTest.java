@@ -59,6 +59,7 @@ public class ExtensionManifestValidatorTest {
         Map<String, Object> context = new HashMap<>();
 
         // LIBS
+        File extensionFolder = new File("ext-folder");
 
         stringValues.clear();
         context.clear();
@@ -66,7 +67,7 @@ public class ExtensionManifestValidatorTest {
         stringValues.add("QuickTime");
         context.put("libs", stringValues);
 
-        validator.validate("test_extension", context);
+        validator.validate("test_extension", extensionFolder, context);
 
 
         stringValues.clear();
@@ -74,7 +75,7 @@ public class ExtensionManifestValidatorTest {
         stringValues.add("c++");
         context.put("libs", stringValues);
 
-        validator.validate("test_extension", context);
+        validator.validate("test_extension", extensionFolder, context);
 
 
         stringValues.clear();
@@ -86,7 +87,7 @@ public class ExtensionManifestValidatorTest {
         boolean thrown;
         try {
             thrown = false;
-            validator.validate("test_extension", context);
+            validator.validate("test_extension", extensionFolder, context);
         } catch (ExtenderException e) {
             thrown = true;
         }
@@ -101,7 +102,7 @@ public class ExtensionManifestValidatorTest {
         stringValues.add("-Weverything");
         context.put("flags", stringValues);
 
-        validator.validate("test_extension", context);
+        validator.validate("test_extension", extensionFolder, context);
 
 
         stringValues.clear();
@@ -111,7 +112,7 @@ public class ExtensionManifestValidatorTest {
         stringValues.add("-std=c++14");
         context.put("flags", stringValues);
 
-        validator.validate("test_extension", context);
+        validator.validate("test_extension", extensionFolder, context);
 
 
         stringValues.clear();
@@ -122,7 +123,7 @@ public class ExtensionManifestValidatorTest {
 
         try {
             thrown = false;
-            validator.validate("test_extension", context);
+            validator.validate("test_extension", extensionFolder, context);
         } catch (ExtenderException e) {
             if (e.toString().contains("rm -rf")) {
                 thrown = true;
@@ -146,9 +147,10 @@ public class ExtensionManifestValidatorTest {
         l.add("z");
         context.put("libs", l);
 
+        File extensionFolder = new File("ext-folder");
         boolean thrown = false;
         try {
-            validator.validate("testExtension", context);
+            validator.validate("testExtension", extensionFolder, context);
         } catch (ExtenderException e) {
             thrown = true;
             System.out.println(e.toString());
@@ -159,7 +161,7 @@ public class ExtensionManifestValidatorTest {
         l.add("../libfoobar.a");
         context.put("libs", l);
         try {
-            validator.validate("testExtension", context);
+            validator.validate("testExtension", extensionFolder, context);
         } catch (ExtenderException e) {
             System.out.println(e.toString());
             if (e.toString().contains("Invalid")) { // expected error

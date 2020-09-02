@@ -54,7 +54,6 @@ public class ExtenderUtilTest {
 
     @Test
     public void testAndroidAssetFolders() throws IOException, InterruptedException, ExtenderException {
-        System.out.printf("MAWE: testAndroidAssetFolders\n");
         File d;
         d = new File(uploadDir, "extension1/res/android/res/com.foo.name/res/values"); d.mkdirs(); assertTrue(d.exists());
         d = new File(uploadDir, "extension2/res/android/res/com.foo.name/values"); d.mkdirs(); assertTrue(d.exists());
@@ -78,5 +77,13 @@ public class ExtenderUtilTest {
 
         d = ExtenderUtil.getAndroidResourceFolder(new File(uploadDir, "extension3/res/android/res/values"));
         assertNull(d);
+    }
+
+    @Test
+    public void testChild() throws IOException, InterruptedException, ExtenderException {
+        File parent = new File("upload/extension1");
+        assertEquals( ExtenderUtil.isChild(parent, new File("upload/extension1")), true );
+        assertEquals( ExtenderUtil.isChild(parent, new File("upload/extension1/file")), true );
+        assertEquals( ExtenderUtil.isChild(parent, new File("upload")), false);
     }
 }
