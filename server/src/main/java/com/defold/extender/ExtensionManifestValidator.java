@@ -102,11 +102,13 @@ class ExtensionManifestValidator {
                 case "excludeJars":
                 case "excludeJsLibs":
                 case "excludeSymbols":
-                case "use-clang": // deprecated
-                case "aaptExtraPackages":
                 case "excludeObjectFiles":
                 case "includeObjectFiles":
+                case "excludeDynamicLibs":
+                case "excludeFrameworks":
+                case "aaptExtraPackages":
                 case "objectFiles":
+                case "use-clang": // deprecated
                     continue; // no need to whitelist
 
                 default:
