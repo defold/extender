@@ -421,7 +421,7 @@ RUN \
 RUN \
  echo "Wine deps" && \
  apt-get update && \
- apt-get install -y --no-install-recommends apt-transport-https ca-certificates ca-certificates-java xvfb && \
+ apt-get install -y --no-install-recommends apt-transport-https ca-certificates ca-certificates-java xvfb cabextract && \
  apt-get clean autoclean autoremove
 
 RUN \
