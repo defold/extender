@@ -11,9 +11,12 @@ import java.math.BigDecimal;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-// https://commons.apache.org/proper/commons-configuration/javadocs/v1.10/apidocs/index.html?org/apache/commons/configuration/FileConfiguration.html
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+// https://cayenne.apache.org/docs/2.0/api/org/apache/cayenne/conf/FileConfiguration.html
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.io.FileLocator.FileLocatorBuilder;
+import org.apache.commons.configuration2.io.FileLocatorUtils;
+import org.apache.commons.configuration2.io.FileLocator;
+import org.apache.commons.configuration2.plist.XMLPropertyListConfiguration;
 
 class PlistMergeException extends Exception {
     PlistMergeException(String message) {
@@ -96,10 +99,12 @@ public class InfoPlistMerger {
     private static XMLPropertyListConfiguration loadPlist(File file) {
         try {
             XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
-            plist.load(file);
+            plist.read(new FileReader(file));
             return plist;
         } catch (ConfigurationException e) {
             throw new RuntimeException(String.format("Failed to parse plist '%s': %s", file.getAbsolutePath(), e.toString()));
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(String.format("File not found: %s", file.getAbsolutePath()));
         }
     }
 
@@ -120,8 +125,15 @@ public class InfoPlistMerger {
         }
 
         try {
-            basePlist.save(out);
+            FileWriter writer = new FileWriter(out);
+            FileLocatorBuilder builder = FileLocatorUtils.fileLocator();
+            FileLocator locator = new FileLocator(builder);
+            basePlist.initFileLocator(locator);
+            basePlist.write(writer);
+            writer.close();
         } catch (ConfigurationException e) {
+            throw new RuntimeException("Failed to parse plist: " + e.toString());
+        } catch (IOException e) {
             throw new RuntimeException("Failed to parse plist: " + e.toString());
         }
     }
