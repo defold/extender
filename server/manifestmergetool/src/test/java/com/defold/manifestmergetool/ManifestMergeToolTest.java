@@ -115,7 +115,7 @@ public class ManifestMergeToolTest {
             this.main = new File(contentRoot, "builtins/manifests/ios/Info.plist");
             this.libraries = new ArrayList<File>();
             this.libraries.add(new File(contentRoot, "builtins/manifests/ios/InfoLib.plist"));
-        } else if (platform == Platform.HTML5) {
+        } else if (platform == Platform.WEB) {
             this.target = new File(contentRoot, "builtins/manifests/web/engine_template_merged.html");
             this.main = new File(contentRoot, "builtins/manifests/web/engine_template.html");
             this.libraries = new ArrayList<File>();
@@ -125,7 +125,7 @@ public class ManifestMergeToolTest {
 
     @Parameters
     public static Collection<Platform[]> data() {
-        Platform[][] data = new Platform[][] { {Platform.ANDROID}, {Platform.IOS}, {Platform.HTML5}};
+        Platform[][] data = new Platform[][] { {Platform.ANDROID}, {Platform.IOS}, {Platform.WEB}};
         return Arrays.asList(data);
     }
 
@@ -351,7 +351,7 @@ public class ManifestMergeToolTest {
 
     @Test
     public void testMergeHTML5() throws IOException {
-        if (platform != Platform.HTML5) {
+        if (platform != Platform.WEB) {
             return;
         }
 
@@ -382,7 +382,7 @@ public class ManifestMergeToolTest {
 
         createFile(contentRoot, "builtins/manifests/web/engine_template_expected.html", expected);
 
-        ManifestMergeTool.merge(ManifestMergeTool.Platform.HTML5, this.main, this.target, this.libraries);
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.WEB, this.main, this.target, this.libraries);
 
         String merged = readFile(target);
 
