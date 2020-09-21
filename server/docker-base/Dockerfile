@@ -69,7 +69,10 @@ ENV LANG=en_US.UTF-8 \
 # iOS + OSX
 #
 
-# The updated install flow
+# For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
+# and <defold>/scripts/mobile/package_cctools.sh
+
+# The install flow for <1.2.171
 RUN \
   apt-get update && \
   apt-get install -y git cmake && \
@@ -97,12 +100,6 @@ RUN \
   rm -rf apple-libtapi && \
   rm -rf cctools-port
 
-# from version 1.2.171
-RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux.tar.gz | tar xz -C /usr/local --strip-components=1
-
-ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
-
-# For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.0.sdk && \
@@ -111,7 +108,9 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.0.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
 
-# Updated for 1.2.171
+# Install flow for 1.2.171 - 1.2.173
+RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux.tar.gz | tar xz -C /usr/local --strip-components=1
+
 RUN \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.5.sdk && \
@@ -122,9 +121,31 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.5.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain
 
+ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
+
+# Install flow for 1.2.174
+ENV XCODE_12_VERSION    12.0
+ENV MACOS_10_15_VERSION 10.15
+ENV IOS_14_VERSION      14.0
+ENV LIB_TAPI_PATH       /usr/local/tapi1.6/lib
+
+RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux.tar.gz | tar xz -C /usr/local --strip-components=1
+
+RUN \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS${IOS_14_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_14_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_10_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_10_15_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
+
+# This part is not yet separable between xcode versions, but should work
 RUN \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain/usr/lib/arc /usr/local/lib/arc
+  ln -s ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/arc /usr/local/lib/arc
+
 
 #
 # EMSCRIPTEN
@@ -133,6 +154,7 @@ RUN \
 RUN \
   echo "EMSCRIPTEN" && \
   apt-get autoclean && \
+  apt-get update && \
   apt-get install -y --no-install-recommends python2.7 && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python2
