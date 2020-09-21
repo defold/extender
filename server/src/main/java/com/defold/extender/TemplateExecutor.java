@@ -17,8 +17,9 @@ public class TemplateExecutor {
     public String execute(String template, Map<String, Object> context) {
         try {
         	return Mustache.compiler().compile(template).execute(context);
-        } catch (MustacheException e) {
+        } catch (Exception e) {
             LOGGER.error(String.format("Failed to substitute string '%s'", (String)template));
+            ExtenderUtil.debugPrint(context, 0);
             throw e;
         }
     }
@@ -28,9 +29,10 @@ public class TemplateExecutor {
     	for (String template : templates) {
         	try {
     			out.add(Mustache.compiler().compile(template).execute(context));
-	        } catch (MustacheException e) {
-	            LOGGER.error(String.format("Failed to substitute string in list [..., '%s', ...]", (String)template));
-	            throw e;
+            } catch (Exception e) {
+                LOGGER.error(String.format("Failed to substitute string in list [..., '%s', ...]", (String)template));
+                ExtenderUtil.debugPrint(context, 0);
+                throw e;
 	        }
     	}
         return out;
