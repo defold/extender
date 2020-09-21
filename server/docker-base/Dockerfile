@@ -127,7 +127,7 @@ ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
 ENV XCODE_12_VERSION    12.0
 ENV MACOS_10_15_VERSION 10.15
 ENV IOS_14_VERSION      14.0
-ENV LIB_TAPI_PATH       /usr/local/tapi1.6/lib
+ENV LIB_TAPI_1_6_PATH   /usr/local/tapi1.6/lib
 
 RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux.tar.gz | tar xz -C /usr/local --strip-components=1
 
