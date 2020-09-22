@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.nio.file.Path;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
@@ -347,11 +348,41 @@ public class ExtenderUtil
     }
 
     public static boolean verifyAndroidAssetDirectory(File dir) {
-        for (File d : dir.listFiles()) {
+        File[] files = dir.listFiles();
+        for (File d : files) {
             if (!matchesAndroidAssetDirectoryName(d.getName())) {
                 return false;
             }
         }
-        return true;
+        return files.length > 0;
+    }
+
+
+    public static File getAndroidResourceFolder(File dir) {
+        // In resource folders, we add packages in several ways:
+        // 'project/extension/res/android/res/com.foo.name/res/<android folders>' (new)
+        // 'project/extension/res/android/res/com.foo.name/<android folders>' (legacy)
+        // 'project/extension/res/android/res/<android folders>' (legacy)
+        if (dir.isDirectory() && verifyAndroidAssetDirectory(dir)) {
+            return dir;
+        }
+
+        for (File f : dir.listFiles()) {
+            if (!f.isDirectory()) {
+                continue;
+            }
+
+            File resDir = getAndroidResourceFolder(f);
+            if (resDir != null) {
+                return resDir;
+            }
+        }
+        return null;
+    }
+
+    public static boolean isChild(File parent, File child) {
+        Path parentPath = parent.toPath().normalize().toAbsolutePath();
+        Path childPath = child.toPath().normalize().toAbsolutePath();
+        return childPath.startsWith(parentPath);
     }
 }

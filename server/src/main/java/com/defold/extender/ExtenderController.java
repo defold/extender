@@ -57,6 +57,7 @@ public class ExtenderController {
     private static int maxPackageSize = 1024* 1024*1024;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
+    private static final String DM_DEBUG_KEEP_JOB_FOLDER = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER");
     private static final String DM_DEBUG_JOB_UPLOAD = System.getenv("DM_DEBUG_JOB_UPLOAD");
 
     static private int parseSizeFromString(String size) {
@@ -226,9 +227,19 @@ public class ExtenderController {
             long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(totalUploadSize);
 
+            boolean deleteDirectory = true;
+            if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
+                deleteDirectory = false;
+            }
+            if (DM_DEBUG_JOB_FOLDER != null) {
+                deleteDirectory = false;
+            }
             // Delete temporary upload directory
-            if (DM_DEBUG_JOB_FOLDER == null) {
+            if (deleteDirectory) {
                 FileUtils.deleteDirectory(jobDirectory);
+            }
+            else {
+                LOGGER.info("Keeping job folder due to debug flags");
             }
 
             LOGGER.info("Job done");

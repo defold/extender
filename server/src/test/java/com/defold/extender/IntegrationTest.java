@@ -107,22 +107,35 @@ public class IntegrationTest {
     @Parameterized.Parameters(name = "{index}: {0}")
     public static Collection<TestConfiguration> data() {
 
+        boolean ciBuild = System.getenv("GITHUB_WORKSPACE") != null;
+
         ArrayList<TestConfiguration> data = new ArrayList<>();
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "js-web", "x86_64-win32", "wasm-web"} ),
 
-                new DefoldVersion("e07f3bb9e8c970eceda8dce8efd5905fd67fa720", new Version(1, 2, 162), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("13261949f45c333806c8aac8bd5b08124ca2810f", new Version(1, 2, 163), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("2be2687cbb670c2dbe9cf2e99577bc3338561778", new Version(1, 2, 164), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("6fac6e80f09ab297093e3ff65a7f45ad56e06e33", new Version(1, 2, 165), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("5295afb3878441fb12f497df8831148525dcfb10", new Version(1, 2, 166), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("96f7a5e4f617d5f6f4645f30a3e6ff656689435d", new Version(1, 2, 167), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("e22f6d2f81e7c53ebcbfefe703ff22ce5da252c0", new Version(1, 2, 168), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("4ebe7a1d548eae2398717ed46f9d7d1b103d5503", new Version(1, 2, 169), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // updated to wmscripten 1.39.16, which has different object format. We need to fix the tests to support that, but probably not after updating to Emscripten 2.x
+                new DefoldVersion("fe2b689302e79b7cf8c0bc7d934f23587b268c8a", new Version(1, 2, 173), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
                 //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),
         };
+
+        DefoldVersion[] ciVersions = {
+            versions[0],
+            versions[versions.length-1],
+        };
+
+        if (ciBuild) {
+            versions = ciVersions;
+        }
 
         for( int i = 0; i < versions.length; ++i )
         {

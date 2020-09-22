@@ -1,13 +1,18 @@
 package com.defold.extender;
 
+import java.io.File;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class ExtensionManifestValidator {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ExtensionManifestValidator.class);
 
     private final List<Pattern> allowedLibs = new ArrayList<>();
     private final List<Pattern> allowedFlags = new ArrayList<>();
@@ -27,7 +32,28 @@ class ExtensionManifestValidator {
         return list != null && list.stream().allMatch(o -> o instanceof String);
     }
 
-    void validate(String extensionName, Map<String, Object> context) throws ExtenderException {
+    private void validateIncludePaths(String extensionName, File extensionFolder, List<String> includes) throws ExtenderException {
+        for (String include : includes) {
+            String[] tokens = include.split("/");
+            for (int i = 0; i < tokens.length; ++i)
+            {
+                String[] subtokens = Arrays.copyOfRange(tokens, 0, i);
+                String s = String.join("/", subtokens);
+                File f = new File(extensionFolder, s);
+
+                if (!ExtenderUtil.isChild(extensionFolder, f))
+                {
+                    throw new ExtenderException(String.format("Error in '%s': The include '%s' path must be relative subdirectory to the extension folder '%s'", extensionName, include, extensionFolder));
+                }
+
+                if (!f.exists()) {
+                    LOGGER.warn("The include path '%s' does not exist:", f);
+                }
+            }
+        }
+    }
+
+    void validate(String extensionName, File extensionFolder, Map<String, Object> context) throws ExtenderException {
         Set<String> keys = context.keySet();
         for (String k : keys) {
             Object v = context.get(k);
@@ -64,12 +90,25 @@ class ExtensionManifestValidator {
                     type = "symbol";
                     break;
 
+                case "includes":
+                    if (!(v instanceof List)) {
+                        throw new ExtenderException(String.format("Error in '%s': The 'includes' must be a list of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
+                    }
+
+                    validateIncludePaths(extensionName, extensionFolder, (List<String>) v);
+                    continue;
+
                 case "excludeLibs":
                 case "excludeJars":
                 case "excludeJsLibs":
                 case "excludeSymbols":
-                case "use-clang": // deprecated
+                case "excludeObjectFiles":
+                case "includeObjectFiles":
+                case "excludeDynamicLibs":
+                case "excludeFrameworks":
                 case "aaptExtraPackages":
+                case "objectFiles":
+                case "use-clang": // deprecated
                     continue; // no need to whitelist
 
                 default:

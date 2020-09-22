@@ -8,7 +8,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class ProcessExecutor {
-    private final StringBuilder output = new StringBuilder();
+    private final StringBuffer output = new StringBuffer();
     private final HashMap<String, String> env = new HashMap<>();
     private File cwd = null;
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;

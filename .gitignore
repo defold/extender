@@ -26,8 +26,10 @@ server/test-data/sdk/*
 /.settings
 
 # Gradle
-/.gradle
+**/.gradle
 
 # Mac
 .DS_Store
 .bash_history
+
+Version.java

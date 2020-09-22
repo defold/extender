@@ -31,7 +31,7 @@ import java.util.Comparator;
 @Service
 public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
-    private static final String REMOTE_SDK_URL_PATTERN = "http://d.defold.com/archive/%s/engine/defoldsdk.zip";
+    private static final String REMOTE_SDK_URL_PATTERNS[] = {"http://d.defold.com/archive/%s/engine/defoldsdk.zip", "http://d.defold.com/archive-switch/%s/engine/defoldsdk.zip"};
     private static final String TEST_SDK_DIRECTORY = "a";
     private static final String LOCAL_VERSION = "local";
 
@@ -102,26 +102,38 @@ public class DefoldSdkService {
 
             if (lockFile.createNewFile()) { // atomic creation of lock file
                 try {
-                    LOGGER.info("Downloading Defold SDK version {} ...", hash);
+                    boolean sdkFound = false;
+                    for (String url_pattern : REMOTE_SDK_URL_PATTERNS) {
 
-                    URL url = new URL(String.format(REMOTE_SDK_URL_PATTERN, hash));
-                    ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
-                    ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+                        URL url = new URL(String.format(url_pattern, hash));
 
-                    // Connect and copy to file
-                    try (ClientHttpResponse response = request.execute()) {
-                        if (response.getStatusCode() != HttpStatus.OK) {
-                            throw new ExtenderException(String.format("The given sdk does not exist: %s (%s)", hash, response.getStatusCode().toString()));
+                        ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
+                        ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+
+                        // Connect and copy to file
+                        try (ClientHttpResponse response = request.execute()) {
+                            if (response.getStatusCode() != HttpStatus.OK) {
+                                LOGGER.info("The given sdk does not exist: {} {}", hash, response.getStatusCode().toString());
+                                continue;
+                            }
+
+                            LOGGER.info("Downloading Defold SDK from {} ...", url);
+                            Path tempDirectoryPath = Files.createTempDirectory(baseSdkDirectory, "tmp" + hash);
+                            File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
+
+                            Files.createDirectories(tempDirectoryPath);
+                            InputStream body = response.getBody();
+                            ZipUtils.unzip(body, tmpSdkDirectory.toPath());
+
+                            Move(tmpSdkDirectory.toPath(), sdkDirectory.toPath());
+
+                            sdkFound = true;
+                            break;
                         }
+                    }
 
-                        Path tempDirectoryPath = Files.createTempDirectory(baseSdkDirectory, "tmp" + hash);
-                        File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
-
-                        Files.createDirectories(tempDirectoryPath);
-                        InputStream body = response.getBody();
-                        ZipUtils.unzip(body, tmpSdkDirectory.toPath());
-
-                        Move(tmpSdkDirectory.toPath(), sdkDirectory.toPath());
+                    if (!sdkFound) {
+                        throw new ExtenderException(String.format("The given sdk does not exist: %s", hash));
                     }
 
                     // Delete old SDK:s

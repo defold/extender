@@ -9,16 +9,22 @@ This describes how to run the build server locally.
 
 * Make sure you have [Docker](https://www.docker.com) installed and running.
 
-* Clone this repo with the _recurse-submodules_ parameter:
-  * git clone --recurse-submodules <repo>
-* If you have already cloned the repo, you can init and fetch the submodule like this:
-  * git submodule init
-  * git submodule update
+* If you are not part of the team that makes releases, you can skip this step:
+
+  * Clone this repo with the _recurse-submodules_ parameter:
+    * git clone --recurse-submodules <repo>
+
+  * If you have already cloned the repo, you can init and fetch the submodule like this:
+    * git submodule init
+    * git submodule update
 
 * Make sure you have access to the url where to download packages from `DM_PACKAGES_URL`
 
   * See the [Dockerfile](./server/docker-base/Dockerfile) for what actual packages are needed.
   * See [defold/scripts/package](https://github.com/defold/defold/tree/dev/scripts/package) folder for scripts how to create these packages.
+  * If you have all files locally, you can serve them locally like so:
+    * export DM_PACKAGES_URL=http://localhost
+    * cd defold/local_sdks && python -m SimpleHTTPServer
 
 ### Build
 

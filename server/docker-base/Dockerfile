@@ -1,5 +1,8 @@
 FROM ubuntu:16.04
 
+# We updated to use clang-9 for linux in 1.2.171
+# So once that is the last supported version, we can remove support for GCC5 etc
+
 # Base stuff
 RUN \
   echo "LINUX TOOLS + COMPILER" && \
@@ -66,7 +69,10 @@ ENV LANG=en_US.UTF-8 \
 # iOS + OSX
 #
 
-# The updated install flow
+# For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
+# and <defold>/scripts/mobile/package_cctools.sh
+
+# The install flow for <1.2.171
 RUN \
   apt-get update && \
   apt-get install -y git cmake && \
@@ -82,14 +88,6 @@ RUN \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
   cd cctools-port/cctools && \
   git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
   ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
@@ -102,28 +100,52 @@ RUN \
   rm -rf apple-libtapi && \
   rm -rf cctools-port
 
-# For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 RUN \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS12.1.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.0.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator12.1.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator12.1.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.0.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.13.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.13.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.0.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.0.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
 
+# Install flow for 1.2.171 - 1.2.173
+RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux.tar.gz | tar xz -C /usr/local --strip-components=1
+
+RUN \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.5.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.5.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.5.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain
+
+ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
+
+# Install flow for 1.2.174
+ENV XCODE_12_VERSION    12.0
+ENV MACOS_10_15_VERSION 10.15
+ENV IOS_14_VERSION      14.0
+ENV LIB_TAPI_PATH       /usr/local/tapi1.6/lib
+
+RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux.tar.gz | tar xz -C /usr/local --strip-components=1
+
+RUN \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS${IOS_14_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_14_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_10_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_10_15_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
+
+# This part is not yet separable between xcode versions, but should work
 RUN \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar && \
-  ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain/usr/lib/arc /usr/local/lib/arc
+  ln -s ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/arc /usr/local/lib/arc
+
 
 #
 # EMSCRIPTEN
@@ -132,6 +154,7 @@ RUN \
 RUN \
   echo "EMSCRIPTEN" && \
   apt-get autoclean && \
+  apt-get update && \
   apt-get install -y --no-install-recommends python2.7 && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python2
@@ -156,6 +179,48 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12} && \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12}.lock
 
+## Emscripten 1.39.16 (from version 1.2.170)
+ENV EMSCRIPTEN_SDK_1_39_16 ${PLATFORMSDK_DIR}/emsdk-1.39.16
+ENV EMSCRIPTEN_HOME_1_39_16 ${EMSCRIPTEN_SDK_1_39_16}
+ENV EMSCRIPTEN_CONFIG_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}/.emscripten
+ENV EMSCRIPTEN_BIN_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}/upstream/emscripten
+ENV EMSCRIPTEN_CACHE_1_39_16 /var/extender/emcache_1_39_16
+# Setup a special env variable that will be prefixed to PATH if requested version is 1.39.16
+ENV EMSCRIPTEN_PATH_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}:${EMSCRIPTEN_HOME_1_39_16}/upstream/bin:${EMSCRIPTEN_HOME_1_39_16}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_1_39_16}
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK_1_39_16} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-1.39.16-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_39_16} --strip-components=1
+
+RUN \
+  ${EMSCRIPTEN_HOME_1_39_16}/emsdk activate sdk-1.39.16-64bit --embedded && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_1_39_16 EM_CACHE=${EMSCRIPTEN_CACHE_1_39_16} python ${EMSCRIPTEN_BIN_1_39_16}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_1_39_16} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16}.lock
+
+## Emscripten 1.39.20 (from version 1.2.172)
+ENV EMSCRIPTEN_SDK_1_39_20 ${PLATFORMSDK_DIR}/emsdk-1.39.20
+ENV EMSCRIPTEN_HOME_1_39_20 ${EMSCRIPTEN_SDK_1_39_20}
+ENV EMSCRIPTEN_CONFIG_1_39_20 ${EMSCRIPTEN_HOME_1_39_20}/.emscripten
+ENV EMSCRIPTEN_BIN_1_39_20 ${EMSCRIPTEN_HOME_1_39_20}/upstream/emscripten
+ENV EMSCRIPTEN_CACHE_1_39_20 /var/extender/emcache_1_39_20
+# Setup a special env variable that will be prefixed to PATH if requested version is 1.39.20
+ENV EMSCRIPTEN_PATH_1_39_20 ${EMSCRIPTEN_HOME_1_39_20}:${EMSCRIPTEN_HOME_1_39_20}/upstream/bin:${EMSCRIPTEN_HOME_1_39_20}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_1_39_20}
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK_1_39_20} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-1.39.20-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_39_20} --strip-components=1
+
+RUN \
+  ${EMSCRIPTEN_HOME_1_39_20}/emsdk activate sdk-1.39.20-64bit --embedded && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_1_39_20 EM_CACHE=${EMSCRIPTEN_CACHE_1_39_20} python ${EMSCRIPTEN_BIN_1_39_20}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_1_39_20} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_20} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_20}/asmjs/cache.lock && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_1_39_20}/wasm/cache.lock
+
+
 # We use the same temp directory for both versions.
 ENV EMSCRIPTEN_TEMP_DIR /var/extender/ems_temp
 RUN mkdir -p ${EMSCRIPTEN_TEMP_DIR}
@@ -163,7 +228,9 @@ RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
 RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
-  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_38_12}
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_38_12} && \
+  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_39_16} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_39_16}
 
 #
 # Windows
@@ -172,36 +239,7 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
   WINDOWS_SDK_10_VERSION=10.0.18362.0 \
-  WINDOWS_MSVC_2019_VERSION=14.23.28105
-
-# windres: Allows for generating .res files that can be used during linking
-RUN \
-  echo "Win32 SDK - WINDRES" && \
-  apt-get update && \
-  apt-get install -y binutils-mingw-w64-x86-64 && \
-  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
-  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
-
-RUN \
-  echo "WIN32 2019 SDK" && \
-  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  mkdir ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
-  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
-
-RUN \
-  echo "WIN32 2015 SDK" && \
-  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
-  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0 && \
-  rm -rf ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/IDE && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-10.0.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
-
-# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
-# so we solve the bulk by making the suffixes lowercase
-RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
-# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
-RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+  WINDOWS_MSVC_2019_VERSION=14.25.28610
 
 # Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer Command Prompt"
 # Note: VCINSTALLDIR is special since clang will use it as the last "-internal-isystem" option
@@ -221,9 +259,51 @@ ENV \
   WindowsSDKLibVersion="winv6.3/" \
   WindowsSDKVersion="/"
 
-# # and the rest are manually copied (or made lower case)
+# windres: Allows for generating .res files that can be used during linking
+RUN \
+  echo "Win32 SDK - WINDRES" && \
+  apt-get update && \
+  apt-get install -y binutils-mingw-w64-x86-64 && \
+  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
+  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
+
+RUN \
+  echo "WIN32 2019 SDK" && \
+  mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
+
+RUN \
+  echo "WIN32 2015 SDK" && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0-slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
+  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
+
+# Windows kit 8.1 was removed in 1.2.170, and can be removed once that one is the last version available on d.defold.com
+# (We only keep backwards support in extensions for 6 months)
+RUN \
+  echo "WIN32 8.1 + 10 SDK" && \
+  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
+# no real need to have 3 versions but older build.yml refer to these.
+# Should clean up package after 1.2.164 has become the baseline
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Lib/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Lib/10.0.10240.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Include/10.0.10150.0 && \
+  ln -s ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Include/10.0.10240.0
+
+RUN \
+  ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
+
+# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
+# so we solve the bulk by making the suffixes lowercase
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+
 RUN \
   echo "WIN32 SDK - Cleanup" && \
+# and the rest are manually copied (or made lower case)
   (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2015_DIR}/lib && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
@@ -238,6 +318,16 @@ RUN \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
   (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
+# Some headers are named by the wrong name in the windows sdk's...
+# We need to make certain names lowercase because some users
+# have put "pragma lib" comments in some libraries :(
+RUN \
+  echo "WIN32 WindowsKits 10 - Cleanup" && \
+  (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp driverspecs.h DriverSpecs.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp specstrings.h SpecStrings.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp concurrencysal.h ConcurrencySal.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
+
 
 #
 # Android SDK/NDK
@@ -245,14 +335,9 @@ RUN \
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
 ENV ANDROID_BUILD_TOOLS_VERSION 29.0.3
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
-ENV ANDROID_NDK_VERSION 10e
-ENV ANDROID_NDK_API_VERSION 14
 ENV ANDROID_TARGET_API_LEVEL 23
 ENV ANDROID_MIN_API_LEVEL 9
 ENV ANDROID_GCC_VERSION 4.8
-ENV ANDROID_NDK_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
-ENV ANDROID_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm/usr/include
-ENV ANDROID_NDK_FILENAME android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.tar.gz
 ENV ANDROID_SDK_VERSION 29
 ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
@@ -262,15 +347,6 @@ ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platform
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
-ENV ANDROID_64_NDK_API_VERSION 21
-ENV ANDROID_64_GCC_VERSION 4.9
-ENV ANDROID_64_NDK_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64/usr/include
-ENV ANDROID_64_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/include
-ENV ANDROID_64_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a/include
-ENV ANDROID_64_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a
-ENV ANDROID_64_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_NDK_API_VERSION}/arch-arm64
-ENV ANDROID_64_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/linux-x86_64/bin
-ENV ANDROID_64_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 
 # We must keep two NDKs alive for now, since migrating to the latest (i.e 20) will break
 # for users that try to build with an older build.yml.
@@ -288,9 +364,7 @@ ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.
 
 ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
 
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_BIN_PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_64_BIN_PATH}:${ANDROID_64_SDK_BUILD_TOOLS_PATH}
-ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK20_BIN_PATH}
 
 # android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
 RUN \
@@ -303,15 +377,31 @@ ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 RUN \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
-    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+#cleanup
+    rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
+    rm -rf ${ANDROID_NDK20_PATH}/shader-tools && \
+    rm -rf ${ANDROID_NDK20_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK20_PATH}/sources/cxx-stl && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/renderscript && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/arm-linux-androideabi-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/aarch64-linux-android-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86_64-4.9 && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+# fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
 # check that dx installed properly
-    ls -la ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx && \
-    which aarch64-linux-android-g++ && \
-    which arm-linux-androideabi-g++ && \
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/dx && \
+    which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
+    which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
 # check that aapt installed correctly
     aapt v
 
@@ -329,6 +419,79 @@ RUN \
 
 ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
 COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
+
+#
+# Switch SDK
+#
+
+ENV NINTENDO_SDK_ROOT ${PLATFORMSDK_DIR}/nx
+ENV SWITCH_SDK_FILENAME nx64-sdk-10.4.1.tar.gz
+
+RUN \
+  echo "Switch SDK" && \
+  mkdir -p ${NINTENDO_SDK_ROOT} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT}
+
+
+#
+# Wine
+#
+
+RUN \
+  echo "Mono" && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends mono-complete && \
+  apt-get clean autoclean autoremove
+
+# Installation notes: https://wiki.winehq.org/Ubuntu
+# TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
+RUN \
+ echo "Wine deps" && \
+ apt-get update && \
+ apt-get install -y --no-install-recommends apt-transport-https ca-certificates ca-certificates-java xvfb cabextract && \
+ apt-get clean autoclean autoremove
+
+RUN \
+  echo "Wine" && \
+  wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
+  APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add winehq.key && \
+  apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu/ xenial main" && \
+  dpkg --add-architecture i386 && \
+  apt-get update && \
+  DEBIAN_FRONTEND="noninteractive" apt-get install -y --install-recommends winehq-stable && \
+  apt-get clean autoclean autoremove && \
+  rm winehq.key
+
+ENV PATH ${PATH}:/opt/wine-stable/bin
+
+RUN \
+  wget -q https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
+  chmod +rx winetricks && \
+  mv winetricks /usr/local/bin/winetricks
+
+# Disable all debug messages
+ENV WINEDEBUG "-all"
+
+ENV WINEPREFIX "/var/extender/.wine"
+
+RUN \
+  echo "Wine Init" && \
+  mkdir -p ${WINEPREFIX}
+
+ENV DISPLAY=":1"
+RUN \
+  set -xe                     && \
+  WINEDLLOVERRIDES="mscoree,mshtml=" xvfb-run wine wineboot && \
+  xvfb-run wineserver -w      && \
+  xvfb-run winetricks -q vcrun2015
+
+RUN \
+  chown -R extender: $WINEPREFIX
+
+RUN \
+  apt-get remove -y apt-transport-https xvfb && \
+  apt-get clean autoclean autoremove
+
 
 # To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
 # # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile

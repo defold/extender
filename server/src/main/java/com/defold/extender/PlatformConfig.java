@@ -19,11 +19,13 @@ class PlatformConfig {
     public String javaSourceRe;
     public String compileCmd;
     public String linkCmd;
+    public List<String> linkCmds;
     public String libCmd;
     public String javacCmd;
     public String jarCmd;
     public String dxCmd;
     public String rjavaCmd;
+    public String manifestName;
     public String manifestMergeCmd;
     public String mtCmd;    // Deprecated, use windres instead (Deprecated at 1.2.135)
     public String proGuardSourceRe;

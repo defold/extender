@@ -17,6 +17,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -53,13 +54,6 @@ class Extender {
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
     static final String ENGINE_JAR_RE = "(?:.*)\\/share\\/java\\/[\\w\\-\\.]*\\.jar$";
-
-    private static final String ANDROID_NDK_PATH = System.getenv("ANDROID_NDK_PATH");
-    private static final String ANDROID_NDK_INCLUDE_PATH = System.getenv("ANDROID_NDK_INCLUDE");
-    private static final String ANDROID_STL_INCLUDE_PATH = System.getenv("ANDROID_STL_INCLUDE");
-    private static final String ANDROID_STL_ARCH_INCLUDE_PATH = System.getenv("ANDROID_STL_ARCH_INCLUDE");
-    private static final String ANDROID_STL_LIB_PATH = System.getenv("ANDROID_STL_LIB");
-    private static final String ANDROID_SYSROOT_PATH = System.getenv("ANDROID_SYSROOT");
 
     private static final String MANIFEST_IOS    = "Info.plist";
     private static final String MANIFEST_OSX    = "Info.plist";
@@ -181,7 +175,7 @@ class Extender {
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
 
         // Make sure the user hasn't input anything invalid in the manifest
-        this.manifestValidator.validate(this.appManifestPath, appManifestContext);
+        this.manifestValidator.validate(this.appManifestPath, this.uploadDirectory, appManifestContext);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -201,27 +195,30 @@ class Extender {
         return platformConfig;
     }
 
+    private int getAndIncreaseNameCount() {
+        return nameCounter++;
+    }
+
     private String getNameUUID() {
-        int c = nameCounter++;
+        int c = getAndIncreaseNameCount();
         return String.format("%d", c);
     }
 
-    private File uniqueTmpFile(String prefix, String suffix) {
+    private File createBuildFile(String name) {
         File file;
         do {
-            file = new File(buildDirectory, prefix + getNameUUID() + suffix);
+            file = new File(buildDirectory, name);
         } while (file.exists());
 
         return file;
     }
 
-    private File uniqueTmpFile(String pattern) {
-        File file;
-        do {
-            file = new File(buildDirectory, String.format(pattern, getNameUUID()));
-        } while (file.exists());
+    private File uniqueTmpFile(String prefix, String suffix) {
+        return createBuildFile(prefix + getNameUUID() + suffix);
+    }
 
-        return file;
+    private File uniqueTmpFile(String pattern) {
+        return createBuildFile(String.format(pattern, getNameUUID()));
     }
 
     private static int countLines(String str){
@@ -316,16 +313,6 @@ class Extender {
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
 
-        // Not needed since 1.2.153 - keep in case someone uses older build.yml
-        if (this.platform.contains("android")) {
-            context.put("android_ndk_path", ANDROID_NDK_PATH);
-            context.put("android_ndk_include", ANDROID_NDK_INCLUDE_PATH);
-            context.put("android_stl_include", ANDROID_STL_INCLUDE_PATH);
-            context.put("android_stl_arch_include", ANDROID_STL_ARCH_INCLUDE_PATH);
-            context.put("android_stl_lib", ANDROID_STL_LIB_PATH);
-            context.put("android_sysroot", ANDROID_SYSROOT_PATH);
-        }
-
         context = Extender.mergeContexts(context, platformConfig.context);
         context = Extender.mergeContexts(context, manifestContext);
 
@@ -339,10 +326,15 @@ class Extender {
         Set<String> keys = context.keySet();
         for (String k : keys) {
             Object v = context.get(k);
-            if (v instanceof String) {
-                v = templateExecutor.execute((String) v, context);
-            } else if (v instanceof List) {
-                v = templateExecutor.execute((List<String>) v, context);
+            try {
+                if (v instanceof String) {
+                    v = templateExecutor.execute((String) v, context);
+                } else if (v instanceof List) {
+                    v = templateExecutor.execute((List<String>) v, context);
+                }
+            } catch (Exception e) {
+                LOGGER.error(String.format("Failed to substitute key %s", k));
+                throw e;
             }
             context.put(k, v);
         }
@@ -376,6 +368,7 @@ class Extender {
                 libPaths.add(path);
             }
         }
+        // Added in 2019, should be removed soon
         else if ( this.platform.contains("win32")) {
             LOGGER.debug("Adding WinMain hack to win32");
             List<String> linkFlags = (List<String>)context.get("linkFlags");
@@ -450,10 +443,20 @@ class Extender {
         return allLibJars;
     }
 
-    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = new ArrayList<>();
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(extDir, "include") ) );
+        File extIncludeDir = new File(extDir, "include");
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, extIncludeDir ) );
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) );
+
+        // Add the other extensions include folders
+        for (File otherExtDir : this.getExtensionFolders()) {
+            File otherIncludeDir = new File(otherExtDir, "include");
+            if (extIncludeDir.equals(otherIncludeDir))
+                continue;
+            includes.add( ExtenderUtil.getRelativePath(jobDirectory, otherIncludeDir ) );
+        }
+
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
 
         List<String> frameworks = getFrameworks(extDir);
@@ -465,7 +468,7 @@ class Extender {
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
 
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
-        processExecutor.execute(command);
+        commands.add(command);
         return o;
     }
 
@@ -512,19 +515,48 @@ class Extender {
         Arrays.sort(srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
 
         List<String> objs = new ArrayList<>();
+        List<String> commands = new ArrayList<>();
 
         // Compile C++ source into object files
-        int i = 0;
+        int i = getAndIncreaseNameCount();
         for (File src : srcFiles) {
-            File o = compileFile(i, extDir, src, manifestContext);
+            File o = compileFile(i, extDir, src, manifestContext, commands);
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             i++;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        List<Callable<Void>> callables = new ArrayList<>();
+        for (String command : commands) {
+            callables.add(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    processExecutor.execute(command);
+                    return null;
+                }
+            });
+        }
+        List<Future<Void>> futures = executor.invokeAll(callables);
+        try {
+            for (Future<Void> future : futures) {
+                future.get();
+            }
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException) {
+                throw (IOException)e.getCause();
+            } else if (e.getCause() instanceof InterruptedException) {
+                throw (InterruptedException)e.getCause();
+            } else {
+                throw new ExtenderException(e.getCause().toString());
+            }
+        } finally {
+            executor.shutdown();
         }
 
         // Create c++ library
         File lib = null;
         if (platformConfig.writeLibPattern != null) {
-            lib = uniqueTmpFile(platformConfig.writeLibPattern);
+            lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
         } else {
             lib = uniqueTmpFile("lib", ".a"); // Deprecated, remove in a few versions
         }
@@ -543,6 +575,8 @@ class Extender {
     }
 
     private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("Linking engine");
+
         File maincpp = new File(buildDirectory , "main.cpp");
 
         List<String> extSymbols = new ArrayList<>();
@@ -627,18 +661,29 @@ class Extender {
         context.put("ext", env);
         context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs")) );
         context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs")) );
+        context.put("objectFiles", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(mainContext, "objectFiles"), ExtenderUtil.getStringList(mainContext, "includeObjectFiles"), ExtenderUtil.getStringList(mainContext, "excludeObjectFiles") ));
+        context.put("dynamicLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "dynamicLibs"), ExtenderUtil.getStringList(mainContext, "includeDynamicLibs"), ExtenderUtil.getStringList(mainContext, "excludeDynamicLibs")) );
 
         // WINE->clang transition pt1: in the transition period from link.exe -> lld, we want to make sure we can write "foo" as opposed to "foo.lib"
         context.put("libs", patchLibs((List<String>) context.get("libs")));
         context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
-        String command = templateExecutor.execute(platformConfig.linkCmd, context);
+        List<String> commands = platformConfig.linkCmds;
 
-        // WINE->clang transition pt2: Replace any redundant ".lib.lib"
-        command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
+        if (platformConfig.linkCmds == null) {
+            commands = new ArrayList<>();
+            commands.add(platformConfig.linkCmd);
+        }
 
-        processExecutor.execute(command);
+        for (String template : commands) {
+            String command = templateExecutor.execute(template, context);
+
+            // WINE->clang transition pt2: Replace any redundant ".lib.lib"
+            command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
+
+            processExecutor.execute(command);
+        }
 
         // Extract symbols
         if (this.withSymbols) {
@@ -677,28 +722,6 @@ class Extender {
         return outputFiles;
     }
 
-    static private File getAndroidResourceFolder(File dir) {
-        // In resource folders, we add packages in several ways:
-        // 'project/extension/res/android/res/com.foo.name/res/<android folders>' (new)
-        // 'project/extension/res/android/res/com.foo.name/<android folders>' (legacy)
-        // 'project/extension/res/android/res/<android folders>' (legacy)
-        if (dir.isDirectory() && ExtenderUtil.verifyAndroidAssetDirectory(dir)) {
-            return dir;
-        }
-
-        for (File f : dir.listFiles()) {
-            if (!f.isDirectory()) {
-                continue;
-            }
-
-            File resDir = getAndroidResourceFolder(f);
-            if (resDir != null) {
-                return resDir;
-            }
-        }
-        return null;
-    }
-
     private List<File> getAndroidResourceFolders(String platform) {
             // New feature from 1.2.165
             File packageDir = new File(uploadDirectory, "packages");
@@ -708,8 +731,7 @@ class Extender {
             List<File> packageDirs = new ArrayList<>();
 
             for (File dir : packageDir.listFiles(File::isDirectory)) {
-
-                File resDir = getAndroidResourceFolder(dir);
+                File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
                 if (resDir != null) {
                     packageDirs.add(resDir);
                 }
@@ -722,7 +744,7 @@ class Extender {
                     if (!f.exists() || !f.isDirectory()) {
                         continue;
                     }
-                    File resDir = getAndroidResourceFolder(f);
+                    File resDir = ExtenderUtil.getAndroidResourceFolder(f);
                     if (resDir != null) {
                         packageDirs.add(resDir);
                     }
@@ -755,6 +777,7 @@ class Extender {
             rJavaDir.mkdir();
 
             if (platformConfig.rjavaCmd == null) {
+                LOGGER.info("No rjavaCmd found. Skipping");
                 return rJavaDir;
             }
 
@@ -975,7 +998,7 @@ class Extender {
                     manifestContext = getManifestContext(platform, config, manifestConfig);
                 }
 
-                this.manifestValidator.validate(manifestConfig.name, manifestContext);
+                this.manifestValidator.validate(manifestConfig.name, manifest.getParentFile(), manifestContext);
 
                 manifestConfigs.put(manifestConfig.name, manifestContext);
 
@@ -1275,10 +1298,9 @@ class Extender {
             }
 
             String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
-            this.manifestValidator.validate(relativePath, manifestContext);
+            this.manifestValidator.validate(relativePath, manifest.getParentFile(), manifestContext);
 
             // Apply any global settings to the context
-            manifestContext = Extender.mergeContexts(manifestContext, appManifestContext);
             manifestContext.put("extension_name", manifestConfig.name);
             manifestContext.put("extension_name_upper", manifestConfig.name.toUpperCase());
 
@@ -1312,6 +1334,7 @@ class Extender {
                 symbols.add(extensionSymbol);
 
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
+                extensionContext = Extender.mergeContexts(extensionContext, appManifestContext);
                 File manifest = manifestFiles.get(extensionSymbol);
 
                 // TODO: Thread this step
@@ -1409,6 +1432,32 @@ class Extender {
         return outputFiles;
     }
 
+    private String getBasePlatform(String platform) {
+        String[] platformParts = this.platform.split("-");
+        return platformParts[1];
+    }
+
+    private String getPlatformManifestName(String basePlatform) {
+        if (platformConfig.manifestName != null) {
+            return platformConfig.manifestName;
+        }
+
+        // Before 1.2.xxx
+        if (platform.contains("android")) {
+            return MANIFEST_ANDROID;
+        }
+        else if (platform.contains("ios")) {
+            return  MANIFEST_IOS;
+        }
+        else if (platform.contains("osx")) {
+            return  MANIFEST_OSX;
+        }
+        else if (platform.contains("web")) {
+            return  MANIFEST_HTML5;
+        }
+        return null;
+    }
+
     // Called for each platform, to merge the manifests into one
     private List<File> buildManifests(String platform) throws ExtenderException {
         List<File> out = new ArrayList<>();
@@ -1419,24 +1468,8 @@ class Extender {
             return out;
         }
 
-        String manifestName = null;
-        String platformName = null;
-        if (platform.contains("android")) {
-            manifestName = MANIFEST_ANDROID;
-            platformName = "android";
-        }
-        else if (platform.contains("ios")) {
-            manifestName = MANIFEST_IOS;
-            platformName = "ios";
-        }
-        else if (platform.contains("osx")) {
-            manifestName = MANIFEST_OSX;
-            platformName = "osx";
-        }
-        else if (platform.contains("web")) {
-            manifestName = MANIFEST_HTML5;
-            platformName = "html5";
-        }
+        String platformName = getBasePlatform(platform);
+        String manifestName = getPlatformManifestName(platformName);
 
         if (manifestName == null) {
             LOGGER.info("No manifest base name!");
