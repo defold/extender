@@ -116,8 +116,6 @@ RUN \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.5.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.5.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.5.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain
 
@@ -132,13 +130,14 @@ ENV LIB_TAPI_1_6_PATH   /usr/local/tapi1.6/lib
 RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux.tar.gz | tar xz -C /usr/local --strip-components=1
 
 RUN \
+  echo "iOS 14 + XCode 12" && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS${IOS_14_VERSION}.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_14_VERSION}.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_10_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_10_15_VERSION}.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
 
 # This part is not yet separable between xcode versions, but should work
