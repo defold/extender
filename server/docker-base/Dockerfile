@@ -404,21 +404,6 @@ RUN \
 # check that aapt installed correctly
     aapt v
 
-ENV GRADLE_USER_HOME /tmp/.gradle
-ENV GRADLE_VERSION 6.0.1
-ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
-RUN \
-  echo "Gradle" && \
-  wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \
-  mkdir /opt/gradle && \
-  unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
-  rm gradle-${GRADLE_VERSION}-bin.zip && \
-  which gradle && \
-  chown -R extender: /opt/gradle
-
-ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
-COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
-
 #
 # Switch SDK
 #
@@ -486,6 +471,24 @@ RUN \
 
 RUN \
   chown -R extender: $WINEPREFIX
+
+# Technically part of the Android build, but also required bythe GradleService.java
+# until it can be disabled (e.g. by looking for the existance of GRADLE_USER_HOME)
+
+ENV GRADLE_USER_HOME /tmp/.gradle
+ENV GRADLE_VERSION 6.0.1
+ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
+RUN \
+  echo "Gradle" && \
+  wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \
+  mkdir /opt/gradle && \
+  unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
+  rm gradle-${GRADLE_VERSION}-bin.zip && \
+  which gradle && \
+  chown -R extender: /opt/gradle
+
+ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
+COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
 
 RUN \
   apt-get remove -y apt-transport-https xvfb && \
