@@ -339,33 +339,12 @@ class Extender {
             context.put(k, v);
         }
 
-        // Added in 1.2.163 to make it easier to upgrade to Clang 9
+        // Added to build.yml in 1.2.174 (setting for using Clang 9)
         if (this.platform.contains("ios") || this.platform.contains("osx")) {
             LOGGER.debug("Adding arclite hack to ios/osx");
             List<String> linkFlags = (List<String>)context.get("linkFlags");
             if (!linkFlags.contains("-Wl,-U,_objc_loadClassref")) {
                 linkFlags.add("-Wl,-U,_objc_loadClassref");
-            }
-
-            List<String> libs = (List<String>)context.get("libs");
-            if (this.platform.contains("osx")) {
-                if (!libs.contains("clang_rt.osx")) {
-                    libs.add("clang_rt.osx");
-                }
-            } else {
-                if (!libs.contains("clang_rt.ios")) {
-                    libs.add("clang_rt.ios");
-                }
-            }
-
-            Object platformsdk_dir = this.platformConfig.context.get("env.PLATFORMSDK_DIR");
-            if (platformsdk_dir == null) {
-                platformsdk_dir = "/opt/platformsdk";
-            }
-            String path = String.format("%s/XcodeDefault11.0.xctoolchain/usr/lib/clang/11.0.0/lib/darwin", platformsdk_dir);
-            List<String> libPaths = (List<String>)context.get("libPaths");
-            if (!libPaths.contains(path)) {
-                libPaths.add(path);
             }
         }
         // Added in 2019, should be removed soon
