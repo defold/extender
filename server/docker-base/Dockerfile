@@ -55,9 +55,9 @@ ARG DM_PACKAGES_URL
 ENV PLATFORMSDK_DIR /opt/platformsdk
 RUN mkdir $PLATFORMSDK_DIR
 
-# These packages are downloaded from here: http://releases.llvm.org/download.html
+# These packages are downloaded from here: https://github.com/llvm/llvm-project/releases/
 # and then uploaded as-is to S3
-RUN wget -q -O - ${DM_PACKAGES_URL}/clang%2Bllvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+RUN wget -q -O - ${DM_PACKAGES_URL}/clang%2Bllvm-10.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
