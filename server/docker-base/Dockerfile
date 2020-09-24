@@ -117,7 +117,10 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.5.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.5.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain && \
+# A fix for the versions using Xcode 11.5 and specifying the wrong version (e.g. 1.2.173)
+  ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain/usr/lib/clang/11.0.3 ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain/usr/lib/clang/11.0.0
+
 
 ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
 
