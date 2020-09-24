@@ -55,9 +55,9 @@ ARG DM_PACKAGES_URL
 ENV PLATFORMSDK_DIR /opt/platformsdk
 RUN mkdir $PLATFORMSDK_DIR
 
-# These packages are downloaded from here: http://releases.llvm.org/download.html
+# These packages are downloaded from here: https://github.com/llvm/llvm-project/releases/
 # and then uploaded as-is to S3
-RUN wget -q -O - ${DM_PACKAGES_URL}/clang%2Bllvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
+RUN wget -q -O - ${DM_PACKAGES_URL}/clang%2Bllvm-10.0.1-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -116,8 +116,6 @@ RUN \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.5.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.5.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/MacOSX10.15.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX10.15.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.5.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain
 
@@ -132,13 +130,14 @@ ENV LIB_TAPI_1_6_PATH   /usr/local/tapi1.6/lib
 RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux.tar.gz | tar xz -C /usr/local --strip-components=1
 
 RUN \
+  echo "iOS 14 + XCode 12" && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS${IOS_14_VERSION}.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_14_VERSION}.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_10_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_10_15_VERSION}.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
 
 # This part is not yet separable between xcode versions, but should work
@@ -405,21 +404,6 @@ RUN \
 # check that aapt installed correctly
     aapt v
 
-ENV GRADLE_USER_HOME /tmp/.gradle
-ENV GRADLE_VERSION 6.0.1
-ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
-RUN \
-  echo "Gradle" && \
-  wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \
-  mkdir /opt/gradle && \
-  unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
-  rm gradle-${GRADLE_VERSION}-bin.zip && \
-  which gradle && \
-  chown -R extender: /opt/gradle
-
-ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
-COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
-
 #
 # Switch SDK
 #
@@ -487,6 +471,24 @@ RUN \
 
 RUN \
   chown -R extender: $WINEPREFIX
+
+# Technically part of the Android build, but also required bythe GradleService.java
+# until it can be disabled (e.g. by looking for the existance of GRADLE_USER_HOME)
+
+ENV GRADLE_USER_HOME /tmp/.gradle
+ENV GRADLE_VERSION 6.0.1
+ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
+RUN \
+  echo "Gradle" && \
+  wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \
+  mkdir /opt/gradle && \
+  unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
+  rm gradle-${GRADLE_VERSION}-bin.zip && \
+  which gradle && \
+  chown -R extender: /opt/gradle
+
+ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
+COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
 
 RUN \
   apt-get remove -y apt-transport-https xvfb && \
