@@ -24,6 +24,8 @@ class PlatformConfig {
     public String javacCmd;
     public String jarCmd;
     public String dxCmd;
+    public String aapt2compileCmd;
+    public String aapt2linkCmd;
     public String rjavaCmd;
     public String manifestName;
     public String manifestMergeCmd;
