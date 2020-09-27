@@ -1486,7 +1486,7 @@ class Extender {
 
         File rJavaDir = null;
         // 1.2.174
-        if (platformConfig.aapt2compileCmd) {
+        if (platformConfig.aapt2compileCmd != null) {
             // compile and link all of the resource files
             // we get the compiled resources and some additional data in an apk which we pass back to the client
             // we also get a mapping of resources to resource ids which is useful for debugging
@@ -1502,7 +1502,6 @@ class Extender {
         }
 
         // take the generated R.java files and compile them to jar files
-        File rJavaDir = files.get("outJavaDirectory");
         File rJar = buildRJar(rJavaDir);
 
         Map<String, ProGuardContext> extensionJarMap = buildJava(rJar);
