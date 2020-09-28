@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
@@ -740,6 +742,122 @@ class Extender {
                             .collect(Collectors.toList());
     }
 
+
+
+    private static File createDir(File parent, String child) throws IOException {
+        File dir = new File(parent, child);
+        dir.mkdirs();
+        return dir;
+    }
+    private static File createDir(String parent, String child) throws IOException {
+        return createDir(new File(parent), child);
+    }
+
+
+    private Map<String, Object> createContext() throws ExtenderException {
+        HashMap<String, Object> empty = new HashMap<>();
+        Map<String, Object> context = context(empty);
+        return context;
+    }
+
+    /**
+    * Compile android resources into "flat" files
+    * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
+    */
+    private File compileAndroidResources(String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
+        LOGGER.info("Compiling Android resources");
+
+        File outputDirectory = new File(buildDirectory, "compiledResources");;
+        try {
+            // get all directories containing resources to compile
+            List<String> resourceDirectories = getAndroidResourceFolders(platform)
+                                                                .stream()
+                                                                .map(File::getAbsolutePath)
+                                                                .collect(Collectors.toList());
+
+            Map<String, Object> context = createContext();
+            for (String resDir : resourceDirectories) {
+                // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
+                File resourceDirectory = new File(resDir);
+                // android.arch.lifecycle-livedata-1.1.1.aar
+                String packageName = resourceDirectory.getParentFile().getName();
+
+                // we compile the package resources to one output directory per package
+                File packageDirectoryOut = createDir(outputDirectory, packageName);
+                context.put("outputDirectory", packageDirectoryOut.getAbsolutePath());
+
+                // iterate over the directories in the res directory of the package
+                for (File resourceTypeDir : resourceDirectory.listFiles(File::isDirectory)) {
+                    // compile each resource file to a .flat file
+                    for (File resourceFile : resourceTypeDir.listFiles()) {
+                        context.put("resourceFile", resourceFile.getAbsolutePath());
+
+                        String command = templateExecutor.execute(platformConfig.aapt2compileCmd, context);
+                        processExecutor.execute(command);
+                    }
+                }
+            }
+
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return outputDirectory;
+    }
+
+    private Map<String, File> linkAndroidResources(File compiledResourcesDir, String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
+        LOGGER.info("Linking Android resources");
+
+        Map<String, Object> context = createContext();
+        Map<String, File> files = new HashMap<>();
+
+        try {
+            // write compiled resource list to a txt file
+            StringBuilder sb = new StringBuilder();
+            for (File packageDir : compiledResourcesDir.listFiles(File::isDirectory)) {
+                for (File file : packageDir.listFiles()) {
+                    if (file.getAbsolutePath().endsWith(".flat")) {
+                        sb.append(file.getAbsolutePath() + " ");
+                    }
+                }
+            }
+            File resourceList = new File(buildDirectory, "compiledresources.txt");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(resourceList))) {
+                writer.write(sb.toString());
+            }
+            context.put("resourceListFile", resourceList.getAbsolutePath());
+
+            // extra packages
+            if (mergedAppContext.containsKey("aaptExtraPackages")) {
+                context.put("extraPackages", String.join(":", (List<String>)mergedAppContext.get("aaptExtraPackages")));
+            }
+
+            File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
+            context.put("manifestFile", manifestFile.getAbsolutePath());
+
+            File resourceIdsFile = new File(buildDirectory, "resource_ids.txt");
+            context.put("resourceIdsFile", resourceIdsFile.getAbsolutePath());
+
+            File outputJavaDirectory = createDir(buildDirectory, "out_java");
+            context.put("outJavaDirectory", outputJavaDirectory.getAbsolutePath());
+
+            File outApkFile = new File(buildDirectory, "compiledresources.apk");
+            context.put("outApkFile", outApkFile.getAbsolutePath());
+
+            files.put("resourceIdsFile", resourceIdsFile);
+            files.put("outApkFile", outApkFile);
+            files.put("outJavaDirectory", outputJavaDirectory);
+
+            String command = templateExecutor.execute(platformConfig.aapt2linkCmd, context);
+            processExecutor.execute(command);
+        }
+        catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return files;
+    }
+
     // https://manpages.debian.org/jessie/aapt/aapt.1.en.html
     private File generateRJava(String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
         File rJavaDir = new File(uploadDirectory, "_app/rjava");
@@ -818,8 +936,7 @@ class Extender {
                 }
 
                 // Compile sources into class files
-                HashMap<String, Object> empty = new HashMap<>();
-                Map<String, Object> context = context(empty);
+                Map<String, Object> context = createContext();
                 context.put("classesDir", classesDir.getAbsolutePath());
                 context.put("classPath", classesDir.getAbsolutePath());
                 context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
@@ -827,7 +944,7 @@ class Extender {
                 processExecutor.execute(command);
 
                 // Collect all classes into a Jar file
-                context = context(empty);
+                context = createContext();
                 context.put("outputJar", outputJar.getAbsolutePath());
                 context.put("classesDir", classesDir.getAbsolutePath());
                 command = templateExecutor.execute(platformConfig.jarCmd, context);
@@ -1010,8 +1127,7 @@ class Extender {
             extensionJars.add(extensionJar.getKey());
         }
 
-        HashMap<String, Object> empty = new HashMap<>();
-        Map<String, Object> context = context(empty);
+        Map<String, Object> context = createContext();
         List<String> allJars = ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), includeJars, excludeJars);
         allJars.addAll( ExtenderUtil.pruneItems( extensionJars, includeJars, excludeJars) );
         return allJars;
@@ -1120,8 +1236,7 @@ class Extender {
         jarLibrariesList = ExtenderUtil.excludeItems(jarLibrariesList, excludeJars);
         jarList = ExtenderUtil.excludeItems(jarList, excludeJars);
 
-        HashMap<String, Object> empty = new HashMap<>();
-        Map<String, Object> context = context(empty);
+        Map<String, Object> context = createContext();
         context.put("jars", jarList);
         context.put("libraryjars", jarLibrariesList);
         context.put("src", allPro);
@@ -1214,8 +1329,7 @@ class Extender {
         // The empty list is also present for backwards compatability with older build.yml
         List<String> empty_list = new ArrayList<>();
 
-        HashMap<String, Object> empty = new HashMap<>();
-        Map<String, Object> context = context(empty);
+        Map<String, Object> context = createContext();
         context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
         context.put("jars", jars);
@@ -1370,7 +1484,24 @@ class Extender {
 
         List<File> outputFiles = new ArrayList<>();
 
-        File rJavaDir = generateRJava(platform, mergedAppContext);
+        File rJavaDir = null;
+        // 1.2.174
+        if (platformConfig.aapt2compileCmd != null) {
+            // compile and link all of the resource files
+            // we get the compiled resources and some additional data in an apk which we pass back to the client
+            // we also get a mapping of resources to resource ids which is useful for debugging
+            // we finally also get one or more R.java files which we use in the next step when compiling all java files
+            File compiledResourcesDir = compileAndroidResources(platform, mergedAppContext);
+            Map<String, File> files = linkAndroidResources(compiledResourcesDir, platform, mergedAppContext);
+            outputFiles.add(files.get("outApkFile"));
+            outputFiles.add(files.get("resourceIdsFile"));
+            rJavaDir = files.get("outJavaDirectory");
+        }
+        else {
+            rJavaDir = generateRJava(platform, mergedAppContext);
+        }
+
+        // take the generated R.java files and compile them to jar files
         File rJar = buildRJar(rJavaDir);
 
         Map<String, ProGuardContext> extensionJarMap = buildJava(rJar);
@@ -1496,8 +1627,7 @@ class Extender {
             LOGGER.info("Merging manifests");
 
             // Merge the files
-            HashMap<String, Object> empty = new HashMap<>();
-            Map<String, Object> context = context(empty);
+            Map<String, Object> context = createContext();
             context.put("mainManifest", mainManifest.getAbsolutePath());
             context.put("target", targetManifest.getAbsolutePath());
 
