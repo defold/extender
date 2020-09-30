@@ -72,7 +72,10 @@ ENV LANG=en_US.UTF-8 \
 # For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 # and <defold>/scripts/mobile/package_cctools.sh
 
-# The install flow for <1.2.171
+# The install flow for <=1.2.173
+# darwin12 == <1.2.171
+# darwin14 == <=1.2.173
+# The updated install flow
 RUN \
   apt-get update && \
   apt-get install -y git cmake && \
@@ -88,6 +91,14 @@ RUN \
   git clone https://github.com/tpoechtrager/cctools-port.git && \
   cd cctools-port/cctools && \
   git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
   ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TAPITMP && \
   make -j8 && \
   make install && \
@@ -97,6 +108,7 @@ RUN \
   make install && \
   make distclean && \
   apt-get purge --auto-remove -y git cmake && \
+  cd ../.. && \
   rm -rf apple-libtapi && \
   rm -rf cctools-port
 
@@ -109,8 +121,6 @@ RUN \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
 
 # Install flow for 1.2.171 - 1.2.173
-RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux.tar.gz | tar xz -C /usr/local --strip-components=1
-
 RUN \
   wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.5.sdk && \
@@ -130,7 +140,33 @@ ENV MACOS_10_15_VERSION 10.15
 ENV IOS_14_VERSION      14.0
 ENV LIB_TAPI_1_6_PATH   /usr/local/tapi1.6/lib
 
-RUN wget -q -O - ${DM_PACKAGES_URL}/cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux.tar.gz | tar xz -C /usr/local --strip-components=1
+# The updated install flow
+RUN \
+  apt-get update && \
+  apt-get install -y git cmake && \
+  cd /tmp && \
+  TAPITMP=/usr/local/tapi1.6 && \
+  mkdir $TAPITMP && \
+  git clone https://github.com/tpoechtrager/apple-libtapi.git && \
+  cd apple-libtapi && \
+  git checkout a66284251b46d591ee4a0cb4cf561b92a0c138d8 && \
+  INSTALLPREFIX=$TAPITMP ./build.sh && \
+  ./install.sh && \
+  cd .. && \
+  git clone https://github.com/tpoechtrager/cctools-port.git && \
+  cd cctools-port/cctools && \
+  git checkout 6c438753d2252274678d3e0839270045698c159b && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin19 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin19 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  cd ../.. && \
+  rm -rf apple-libtapi && \
+  rm -rf cctools-port
 
 RUN \
   echo "iOS 14 + XCode 12" && \
