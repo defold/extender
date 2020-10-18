@@ -1422,7 +1422,10 @@ class Extender {
         try {
             List<String> symbols = new ArrayList<>();
 
-            Set<String> keys = manifestConfigs.keySet();
+            Set<String> keyset = manifestConfigs.keySet();
+            String[] keys = keyset.toArray(new String[keyset.size()]);
+            Arrays.sort(keys);
+
             for (String extensionSymbol : keys) {
                 symbols.add(extensionSymbol);
 
