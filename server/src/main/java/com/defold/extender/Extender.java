@@ -617,6 +617,9 @@ class Extender {
         extLibs = ExtenderUtil.pruneItems( extLibs, ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs"));
         extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs"));
 
+        // This is a workaround due to a linker crash when the helpshift "Support" library is in front of the Facebook extension (not certain of this though)
+        Collections.sort(extLibs, Collections.reverseOrder());
+
         String writeExePattern = platformConfig.writeExePattern;
         if (writeExePattern == null ) {
             writeExePattern = String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt); // Legacy, remove in a few versions!

@@ -3,6 +3,7 @@ package com.defold.extender;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -303,6 +304,7 @@ public class ExtenderUtil
                 }
             }
         }
+        Collections.sort(result);
         return result;
     }
 
@@ -322,6 +324,7 @@ public class ExtenderUtil
                 }
             }
         }
+        Collections.sort(result);
         return result;
     }
 
