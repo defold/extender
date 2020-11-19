@@ -108,6 +108,7 @@ class ExtensionManifestValidator {
                 case "excludeFrameworks":
                 case "aaptExtraPackages":
                 case "objectFiles":
+                case "jetifier":
                 case "use-clang": // deprecated
                     continue; // no need to whitelist
 

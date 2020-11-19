@@ -25,6 +25,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.defold.extender.services.GradleService;
+
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
@@ -78,11 +80,11 @@ class Extender {
 
     private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
 
-    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory, List<File> gradlePackages) throws IOException, ExtenderException {
+    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
         this.buildDirectory = buildDirectory;
-        this.gradlePackages = gradlePackages;
+        this.gradlePackages = new ArrayList<>();;
 
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
@@ -1666,6 +1668,18 @@ class Extender {
         }
         return outputFiles;
     }
+
+    List<File> resolve(GradleService gradleService) throws ExtenderException {
+        try {
+            Boolean useJetifier = (Boolean)mergedAppContext.getOrDefault("jetifier", false);
+            gradlePackages = gradleService.resolveDependencies(jobDirectory, useJetifier);
+        }
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to resolve dependencies");
+        }
+        return gradlePackages;
+    }
+
 
     List<File> build() throws ExtenderException {
         List<File> outputFiles = new ArrayList<>();
