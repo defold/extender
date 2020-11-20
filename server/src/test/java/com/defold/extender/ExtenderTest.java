@@ -39,7 +39,7 @@ public class ExtenderTest {
         File buildDir = new File(jobDir, "build");
         buildDir.mkdirs();
         File sdk = new File("test-data/sdk/a/defoldsdk");
-        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, new ArrayList<File>());
+        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir);
 
         uploadDir.delete();
         assertTrue(true);
