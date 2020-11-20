@@ -42,6 +42,7 @@ class Extender {
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private final Map<String, Object> appManifestContext;
     private final Boolean withSymbols;
+    private final Boolean useJetifier;
 
     private Map<String, Map<String, Object>>    manifestConfigs;
     private Map<String, File>                   manifestFiles;
@@ -54,6 +55,7 @@ class Extender {
 
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
+    static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
@@ -137,6 +139,7 @@ class Extender {
             }
         }
 
+        this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, platform, APPMANIFEST_JETIFIER_KEYWORD, false);
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, false);
 
         this.platform = platform;
@@ -1671,7 +1674,6 @@ class Extender {
 
     List<File> resolve(GradleService gradleService) throws ExtenderException {
         try {
-            Boolean useJetifier = (Boolean)mergedAppContext.getOrDefault("jetifier", false);
             gradlePackages = gradleService.resolveDependencies(jobDirectory, useJetifier);
         }
         catch (IOException e) {
