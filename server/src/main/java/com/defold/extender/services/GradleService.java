@@ -44,6 +44,7 @@ import java.util.regex.Pattern;
 public class GradleService {
     private static final Logger LOGGER = LoggerFactory.getLogger(GradleService.class);
     private static final String ANDROID_SDK_ROOT = System.getenv("ANDROID_SDK_ROOT");
+    private static final String ANDROID_SDK_VERSION = System.getenv("ANDROID_SDK_VERSION");
     private static final String BUILD_GRADLE_TEMPLATE_PATH = System.getenv("EXTENSION_BUILD_GRADLE_TEMPLATE");
     private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
     private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
@@ -134,6 +135,7 @@ public class GradleService {
         }
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("gradle-files", values);
+        envContext.put("compile-sdk-version", ANDROID_SDK_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
         Files.write(mainGradleFile.toPath(), contents.getBytes());
     }
