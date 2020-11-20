@@ -377,7 +377,7 @@ ENV ANDROID_BUILD_TOOLS_VERSION 29.0.3
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
 # ANDROID_SDK_HOME is the location of the .android folder
-ENV ANDROID_SDK_HOME ${ANDROID_ROOT}
+ENV ANDROID_SDK_HOME ${ANDROID_ROOT}/.android
 ENV ANDROID_TARGET_API_LEVEL 23
 ENV ANDROID_MIN_API_LEVEL 9
 ENV ANDROID_GCC_VERSION 4.8
@@ -440,8 +440,8 @@ RUN \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
 # create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
 # It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
-    mkdir ${ANDROID_SDK_HOME}/.android && \
-    chmod ugo+rw -R ${ANDROID_SDK_HOME}/.android && \
+    mkdir ${ANDROID_SDK_HOME} && \
+    chmod ugo+rw -R ${ANDROID_SDK_HOME} && \
 # fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
