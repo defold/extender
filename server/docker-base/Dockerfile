@@ -369,10 +369,15 @@ RUN \
 
 #
 # Android SDK/NDK
+# https://developer.android.com/studio/command-line/variables
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
 ENV ANDROID_BUILD_TOOLS_VERSION 29.0.3
+# ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
+ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
+# ANDROID_SDK_HOME is the location of the .android folder
+ENV ANDROID_SDK_HOME ${ANDROID_ROOT}/.android
 ENV ANDROID_TARGET_API_LEVEL 23
 ENV ANDROID_MIN_API_LEVEL 9
 ENV ANDROID_GCC_VERSION 4.8
@@ -433,8 +438,13 @@ RUN \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+# create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
+# It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
+    mkdir ${ANDROID_SDK_HOME} && \
+    chmod ugo+rw -R ${ANDROID_SDK_HOME} && \
 # fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
+    chmod +w -R ${ANDROID_SDK_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
 # check that dx installed properly
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/dx && \
@@ -515,7 +525,7 @@ RUN \
 # until it can be disabled (e.g. by looking for the existance of GRADLE_USER_HOME)
 
 ENV GRADLE_USER_HOME /tmp/.gradle
-ENV GRADLE_VERSION 6.0.1
+ENV GRADLE_VERSION 6.1.1
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
@@ -526,8 +536,12 @@ RUN \
   which gradle && \
   chown -R extender: /opt/gradle
 
-ENV EXTENSION_GRADLE_TEMPLATE /var/extender/template.build.gradle
-COPY template.build.gradle ${EXTENSION_GRADLE_TEMPLATE}
+ENV EXTENSION_BUILD_GRADLE_TEMPLATE /var/extender/template.build.gradle
+ENV EXTENSION_GRADLE_PROPERTIES_TEMPLATE /var/extender/template.gradle.properties
+ENV EXTENSION_LOCAL_PROPERTIES_TEMPLATE /var/extender/template.local.properties
+COPY template.build.gradle ${EXTENSION_BUILD_GRADLE_TEMPLATE}
+COPY template.gradle.properties ${EXTENSION_GRADLE_PROPERTIES_TEMPLATE}
+COPY template.local.properties ${EXTENSION_LOCAL_PROPERTIES_TEMPLATE}
 
 RUN \
   apt-get remove -y apt-transport-https xvfb && \

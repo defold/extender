@@ -43,7 +43,11 @@ import java.util.regex.Pattern;
 @Service
 public class GradleService {
     private static final Logger LOGGER = LoggerFactory.getLogger(GradleService.class);
-    private static final String TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_TEMPLATE");
+    private static final String ANDROID_SDK_ROOT = System.getenv("ANDROID_SDK_ROOT");
+    private static final String ANDROID_SDK_VERSION = System.getenv("ANDROID_SDK_VERSION");
+    private static final String BUILD_GRADLE_TEMPLATE_PATH = System.getenv("EXTENSION_BUILD_GRADLE_TEMPLATE");
+    private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
+    private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
@@ -53,7 +57,9 @@ public class GradleService {
     private final File baseDirectory;
     private final CounterService counterService;
     private final GaugeService gaugeService;
-    private final String templateContents;
+    private final String buildGradleTemplateContents;
+    private final String gradlePropertiesTemplateContents;
+    private final String localPropertiesTemplateContents;
 
     @Autowired
     GradleService(@Value("${extender.gradle.cache-size}") int cacheSize,
@@ -70,21 +76,29 @@ public class GradleService {
             Files.createDirectories(this.baseDirectory.toPath());
         }
 
-        this.templateContents = new String( Files.readAllBytes( Paths.get(TEMPLATE_PATH) ) );
+        this.buildGradleTemplateContents = new String( Files.readAllBytes( Paths.get(BUILD_GRADLE_TEMPLATE_PATH) ) );
+        this.gradlePropertiesTemplateContents = new String( Files.readAllBytes( Paths.get(GRADLE_PROPERTIES_TEMPLATE_PATH) ) );
+        this.localPropertiesTemplateContents = new String( Files.readAllBytes( Paths.get(LOCAL_PROPERTIES_TEMPLATE_PATH) ) );
 
         LOGGER.info("GRADLE service using directory {} with cache size {}", GradleService.GRADLE_USER_HOME, cacheSize);
     }
 
     // Resolve dependencies, download them, extract to
-    public List<File> resolveDependencies(File cwd) throws IOException, ExtenderException {
+    public List<File> resolveDependencies(File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+        // create build.gradle
         File mainGradleFile = new File(cwd, "build.gradle");
-
         List<File> gradleFiles = ExtenderUtil.listFilesMatchingRecursive(cwd, "build\\.gradle");
-
         // This file might exist when testing and debugging the extender using a debug job folder
         gradleFiles.remove(mainGradleFile);
-
         createBuildGradleFile(mainGradleFile, gradleFiles);
+
+        // create gradle.properties
+        File gradlePropertiesFile = new File(cwd, "gradle.properties");
+        createGradlePropertiesFile(gradlePropertiesFile, useJetifier);
+
+        // create local.properties
+        File localPropertiesFile = new File(cwd, "local.properties");
+        createLocalPropertiesFile(localPropertiesFile);
 
         return downloadDependencies(cwd);
     }
@@ -100,6 +114,20 @@ public class GradleService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
     // Private
 
+    private void createGradlePropertiesFile(File gradlePropertiesFile, Boolean useJetifier) throws IOException {
+        HashMap<String, Object> envContext = new HashMap<>();
+        envContext.put("android-enable-jetifier", useJetifier.toString());
+        String contents = templateExecutor.execute(gradlePropertiesTemplateContents, envContext);
+        Files.write(gradlePropertiesFile.toPath(), contents.getBytes());
+    }
+
+    private void createLocalPropertiesFile(File localPropertiesFile) throws IOException {
+        HashMap<String, Object> envContext = new HashMap<>();
+        envContext.put("android-sdk-root", ANDROID_SDK_ROOT);
+        String contents = templateExecutor.execute(localPropertiesTemplateContents, envContext);
+        Files.write(localPropertiesFile.toPath(), contents.getBytes());
+    }
+
     private void createBuildGradleFile(File mainGradleFile, List<File> gradleFiles) throws IOException {
         List<String> values = new ArrayList<>();
         for (File file : gradleFiles) {
@@ -107,8 +135,8 @@ public class GradleService {
         }
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("gradle-files", values);
-        String contents = templateExecutor.execute(templateContents, envContext);
-
+        envContext.put("compile-sdk-version", ANDROID_SDK_VERSION);
+        String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
         Files.write(mainGradleFile.toPath(), contents.getBytes());
     }
 
@@ -221,7 +249,7 @@ public class GradleService {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving dependencies");
 
-        String log = execCommand("gradle downloadDependencies --warning-mode all", cwd);
+        String log = execCommand("gradle downloadDependencies --stacktrace --info --warning-mode all", cwd);
 
         // Put it in the log for the end user to see
         LOGGER.info("\n" + log);

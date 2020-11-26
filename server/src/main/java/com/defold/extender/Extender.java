@@ -25,6 +25,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.defold.extender.services.GradleService;
+
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final Configuration config;
@@ -40,6 +42,7 @@ class Extender {
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private final Map<String, Object> appManifestContext;
     private final Boolean withSymbols;
+    private final Boolean useJetifier;
 
     private Map<String, Map<String, Object>>    manifestConfigs;
     private Map<String, File>                   manifestFiles;
@@ -52,6 +55,7 @@ class Extender {
 
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
+    static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
@@ -78,11 +82,11 @@ class Extender {
 
     private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
 
-    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory, List<File> gradlePackages) throws IOException, ExtenderException {
+    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
         this.buildDirectory = buildDirectory;
-        this.gradlePackages = gradlePackages;
+        this.gradlePackages = new ArrayList<>();;
 
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
@@ -135,6 +139,7 @@ class Extender {
             }
         }
 
+        this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, platform, APPMANIFEST_JETIFIER_KEYWORD, false);
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, false);
 
         this.platform = platform;
@@ -1666,6 +1671,17 @@ class Extender {
         }
         return outputFiles;
     }
+
+    List<File> resolve(GradleService gradleService) throws ExtenderException {
+        try {
+            gradlePackages = gradleService.resolveDependencies(jobDirectory, useJetifier);
+        }
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to resolve dependencies");
+        }
+        return gradlePackages;
+    }
+
 
     List<File> build() throws ExtenderException {
         List<File> outputFiles = new ArrayList<>();

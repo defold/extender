@@ -1,27 +1,41 @@
-apply plugin: 'java'
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:4.0.1'
+    }
+}
 
 allprojects {
-  repositories {
-    google()
-    mavenLocal()
-    jcenter()
-  }
+    repositories {
+        google()
+        mavenLocal()
+        jcenter()
+    }
+}
+
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion {{compile-sdk-version}}
 }
 
 {{#gradle-files}}
 apply from: "{{{.}}}"
 {{/gradle-files}}
 
-project.configurations.compileClasspath.resolvedConfiguration.resolvedArtifacts.each {
-  println   "PATH: " + it.file + \
-            " EXTENSION: " + it.extension + \
-            " TYPE: " +  it.type + \
-            " MODULE_GROUP: " + it.moduleVersion.id.group + \
-            " MODULE_NAME: " + it.moduleVersion.id.name + \
-            " MODULE_VERSION: " + it.moduleVersion.id.version
-}
-
-task downloadDependencies(type: Exec) {
-  configurations.testRuntimeClasspath.files
-  commandLine 'echo', 'Downloaded all dependencies'
+task downloadDependencies {
+    doLast {
+        project.configurations.releaseRuntimeClasspath.getResolvedConfiguration().getResolvedArtifacts().each {
+            println "PATH: " + it.file + \
+                    " EXTENSION: " + it.extension + \
+                    " TYPE: " +  it.type + \
+                    " MODULE_GROUP: " + it.moduleVersion.id.group + \
+                    " MODULE_NAME: " + it.moduleVersion.id.name + \
+                    " MODULE_VERSION: " + it.moduleVersion.id.version
+        }
+    }
 }

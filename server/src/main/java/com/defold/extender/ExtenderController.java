@@ -191,14 +191,15 @@ public class ExtenderController {
                 final File sdk = defoldSdkService.getSdk(sdkVersion);
                 metricsWriter.measureSdkDownload(sdkVersion);
 
-                List<File> gradlePackages = null;
+                Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+
+                // Resolve Gradle dependencies
                 if (platform.contains("android")) {
-                    gradlePackages = gradleService.resolveDependencies(jobDirectory);
+                    List<File> gradlePackages = extender.resolve(gradleService);
                     metricsWriter.measureGradleDownload(gradlePackages, gradleService.getCacheSize());
                 }
 
                 // Build engine
-                Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory, gradlePackages);
                 List<File> outputFiles = extender.build();
                 metricsWriter.measureEngineBuild(platform);
 
