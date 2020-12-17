@@ -366,6 +366,12 @@ RUN \
   (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp concurrencysal.h ConcurrencySal.h) && \
   (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
+# Also, the OpenGL headers in the windows SDK is in a folder with lower case letters, which doesn't match the includes
+RUN \
+  echo "WIN32 WindowsKits 10 - OpenGL Cleanup" && \
+  cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/um && \
+  mkdir ./GL && \
+  cp -v ./gl/*.* ./GL/
 
 #
 # Android SDK/NDK
