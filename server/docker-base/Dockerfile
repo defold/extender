@@ -237,7 +237,7 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16} && \
   chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16}.lock
 
-## Emscripten 2.0.10 (from version 1.2.178)
+## Emscripten 2.0.11 (from version 1.2.178)
 
 RUN \
   add-apt-repository ppa:deadsnakes/ppa && \
@@ -249,25 +249,25 @@ RUN \
   update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 2 && \
   python3 --version
 
-ENV EMSCRIPTEN_SDK_2_0_10 ${PLATFORMSDK_DIR}/emsdk-2.0.10
-ENV EMSCRIPTEN_HOME_2_0_10 ${EMSCRIPTEN_SDK_2_0_10}
-ENV EMSCRIPTEN_CONFIG_2_0_10 ${EMSCRIPTEN_HOME_2_0_10}/.emscripten
-ENV EMSCRIPTEN_BIN_2_0_10 ${EMSCRIPTEN_HOME_2_0_10}/upstream/emscripten
-ENV EMSCRIPTEN_CACHE_2_0_10 /var/extender/emcache_2_0_10
-ENV EMSCRIPTEN_PYTHON_2_0_10 /usr/bin/python3.9
-# Setup a special env variable that will be prefixed to PATH if requested version is 2.0.10
-ENV EMSCRIPTEN_PATH_2_0_10 ${EMSCRIPTEN_HOME_2_0_10}:${EMSCRIPTEN_HOME_2_0_10}/upstream/bin:${EMSCRIPTEN_HOME_2_0_10}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_2_0_10}
+ENV EMSCRIPTEN_SDK_2_0_11 ${PLATFORMSDK_DIR}/emsdk-2.0.11
+ENV EMSCRIPTEN_HOME_2_0_11 ${EMSCRIPTEN_SDK_2_0_11}
+ENV EMSCRIPTEN_CONFIG_2_0_11 ${EMSCRIPTEN_HOME_2_0_11}/.emscripten
+ENV EMSCRIPTEN_BIN_2_0_11 ${EMSCRIPTEN_HOME_2_0_11}/upstream/emscripten
+ENV EMSCRIPTEN_CACHE_2_0_11 /var/extender/emcache_2_0_11
+ENV EMSCRIPTEN_PYTHON_2_0_11 /usr/bin/python3.9
+# Setup a special env variable that will be prefixed to PATH if requested version is 2.0.11
+ENV EMSCRIPTEN_PATH_2_0_11 ${EMSCRIPTEN_HOME_2_0_11}:${EMSCRIPTEN_HOME_2_0_11}/upstream/bin:${EMSCRIPTEN_HOME_2_0_11}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_2_0_11}
 
 RUN \
-  mkdir ${EMSCRIPTEN_SDK_2_0_10} && \
-  wget -q -O - ${DM_PACKAGES_URL}/emsdk-2.0.10-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_2_0_10} --strip-components=1
+  mkdir ${EMSCRIPTEN_SDK_2_0_11} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-2.0.11-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_2_0_11} --strip-components=1
 
 RUN \
-  ${EMSCRIPTEN_HOME_2_0_10}/emsdk activate sdk-2.0.10-64bit --embedded && \
-  EM_CONFIG=$EMSCRIPTEN_CONFIG_2_0_10 EM_CACHE=${EMSCRIPTEN_CACHE_2_0_10} python3 ${EMSCRIPTEN_BIN_2_0_10}/embuilder.py build SYSTEM MINIMAL && \
-  chmod -R 755 ${EMSCRIPTEN_HOME_2_0_10} && \
-  chown -R extender: ${EMSCRIPTEN_CACHE_2_0_10} && \
-  chown -R extender: ${EMSCRIPTEN_CACHE_2_0_10}/wasm/cache.lock
+  ${EMSCRIPTEN_HOME_2_0_11}/emsdk activate sdk-2.0.11-64bit --embedded && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_2_0_11 EM_CACHE=${EMSCRIPTEN_CACHE_2_0_11} python3 ${EMSCRIPTEN_BIN_2_0_11}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_2_0_11} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_2_0_11} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_2_0_11}/wasm/cache.lock
 
 
 # We use the same temp directory for both versions.
