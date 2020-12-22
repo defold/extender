@@ -228,24 +228,6 @@ RUN \
 
 ENV EMCC_SKIP_SANITY_CHECK 1
 
-## Emscripten 1.38.12
-ENV EMSCRIPTEN_SDK_1_38_12 ${PLATFORMSDK_DIR}/emsdk_1.38.12
-ENV EMSCRIPTEN_HOME_1_38_12 ${EMSCRIPTEN_SDK_1_38_12}/bin/emsdk_portable
-ENV EMSCRIPTEN_CONFIG_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}/.emscripten
-ENV EMSCRIPTEN_BIN_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}/emscripten/1.38.12
-ENV EMSCRIPTEN_CACHE_1_38_12 /var/extender/emcache_1_38_12
-# Setup a special env variable that will be prefixed to PATH if requested version is 1.38.12
-ENV EMSCRIPTEN_PATH_1_38_12 ${EMSCRIPTEN_HOME_1_38_12}:${EMSCRIPTEN_HOME_1_38_12}/clang/e1.38.12_64bit:${EMSCRIPTEN_HOME_1_38_12}/node/8.9.1_64bit/bin:${EMSCRIPTEN_BIN_1_38_12}
-
-RUN \
-  mkdir ${EMSCRIPTEN_SDK_1_38_12} && \
-  wget -q -O - ${DM_PACKAGES_URL}/emsdk-1.38.12-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_38_12} && \
-  ${EMSCRIPTEN_HOME_1_38_12}/emsdk activate sdk-1.38.12-64bit --embedded && \
-  EM_CONFIG=$EMSCRIPTEN_CONFIG_1_38_12 EM_CACHE=${EMSCRIPTEN_CACHE_1_38_12} python ${EMSCRIPTEN_BIN_1_38_12}/embuilder.py build libc libc-extras libcxx libcxx_noexcept libcxxabi wasm-libc gl dlmalloc struct_info && \
-  chmod -R 755 ${EMSCRIPTEN_HOME_1_38_12} && \
-  chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12} && \
-  chown -R extender: ${EMSCRIPTEN_CACHE_1_38_12}.lock
-
 ## Emscripten 1.39.16 (from version 1.2.170)
 ENV EMSCRIPTEN_SDK_1_39_16 ${PLATFORMSDK_DIR}/emsdk-1.39.16
 ENV EMSCRIPTEN_HOME_1_39_16 ${EMSCRIPTEN_SDK_1_39_16}
@@ -305,8 +287,8 @@ RUN mkdir -p ${EMSCRIPTEN_TEMP_DIR}
 RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR}
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
-RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_38_12} && \
-  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_38_12} && \
+RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_2_0_11} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_2_0_11} && \
   sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_39_16} && \
   echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_39_16}
 
