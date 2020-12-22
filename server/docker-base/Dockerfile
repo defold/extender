@@ -135,7 +135,7 @@ RUN \
 ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
 
 # Install flow for 1.2.174
-ENV XCODE_12_VERSION    12.0
+ENV XCODE_12_VERSION    12.1
 ENV MACOS_10_15_VERSION 10.15
 ENV IOS_14_VERSION      14.0
 ENV LIB_TAPI_1_6_PATH   /usr/local/tapi1.6/lib
@@ -176,7 +176,7 @@ RUN \
   mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_14_VERSION}.sdk && \
   wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_10_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_10_15_VERSION}.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.linux.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
 
 # This part is not yet separable between xcode versions, but should work
