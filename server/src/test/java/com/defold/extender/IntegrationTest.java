@@ -120,8 +120,9 @@ public class IntegrationTest {
                 new DefoldVersion("4ebe7a1d548eae2398717ed46f9d7d1b103d5503", new Version(1, 2, 169), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
                 // updated to Emscripten 1.39.16, which has different object format. We need to fix the tests to support that, but probably not after updating to Emscripten 2.x
                 new DefoldVersion("fe2b689302e79b7cf8c0bc7d934f23587b268c8a", new Version(1, 2, 173), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("e41438cca6cc1550d4a0131b8fc3858c2a4097f1", new Version(1, 2, 175), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac", new Version(1, 2, 177), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // New android changes?
+                //new DefoldVersion("e41438cca6cc1550d4a0131b8fc3858c2a4097f1", new Version(1, 2, 175), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                //new DefoldVersion("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac", new Version(1, 2, 177), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // Updated to Emscripten 2.0.11 at version Defold 1.2.178
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
