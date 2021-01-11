@@ -26,7 +26,7 @@ public class DefoldSDKServiceTest {
     @Ignore("SDK too large to download on every test round.")
     public void t() throws IOException, URISyntaxException, ExtenderException {
         DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, mock(CounterService.class), mock(GaugeService.class));
-        File sdk = defoldSdkService.getSdk("d420fc812558aa30f592907cf57a87d24c5c7569");
+        File sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac");
         System.out.println(sdk.getCanonicalFile());
     }
 
@@ -37,11 +37,11 @@ public class DefoldSDKServiceTest {
         DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", cacheSize, mock(CounterService.class), mock(GaugeService.class));
 
         String[] sdksToDownload = {
-                "9a3c683d14e3b3e375fc494e83a32523d550771b",
-                "a80fb493adfee373f9ce1a4a2e83eae6522e09e7",
-                "b84ad18944f11460513c4e624428b3d299e2540e",
-                "bfe93c1d3c17aba433676caef9ae119c3580fd00",
-                "65074af87ccb9276d24279b8bd0d898d4ce21a1f"};
+                "fe2b689302e79b7cf8c0bc7d934f23587b268c8a",
+                "8f3e864464062e1b35c207521dc65dfd77899cdf",
+                "e41438cca6cc1550d4a0131b8fc3858c2a4097f1",
+                "7107bc8781535e83cbb30734b32d6b32a3039cd0",
+                "f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac"};
 
         // Download all SDK:s
         for (String sdkHash : sdksToDownload) {
@@ -51,9 +51,9 @@ public class DefoldSDKServiceTest {
         List<String> collect = Files.list(Paths.get("/tmp/defoldsdk")).map(path -> path.toFile().getName()).collect(Collectors.toList());
 
         assertEquals(cacheSize, collect.size());
-        assertTrue(collect.contains("b84ad18944f11460513c4e624428b3d299e2540e"));
-        assertTrue(collect.contains("bfe93c1d3c17aba433676caef9ae119c3580fd00"));
-        assertTrue(collect.contains("65074af87ccb9276d24279b8bd0d898d4ce21a1f"));
+        assertTrue(collect.contains("e41438cca6cc1550d4a0131b8fc3858c2a4097f1"));
+        assertTrue(collect.contains("7107bc8781535e83cbb30734b32d6b32a3039cd0"));
+        assertTrue(collect.contains("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac"));
     }
 
     @Test
