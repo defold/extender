@@ -1332,24 +1332,13 @@ class Extender {
     private File[] buildClassesDex(List<String> jars, File mainDexList) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
-        File classesDex = new File(buildDirectory, "classes.dex");
-
-        // The empty list is also present for backwards compatability with older build.yml
-        List<String> empty_list = new ArrayList<>();
 
         Map<String, Object> context = createContext();
-        context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
         context.put("jars", jars);
-        context.put("engineJars", empty_list);
         context.put("mainDexList", mainDexList.getAbsolutePath());
 
         String command = platformConfig.dxCmd;
-
-        // Until it's part of the build.yml
-        if (command.indexOf("--main-dex-list") == -1) {
-            command = command.replace("--multi-dex" , "--multi-dex --main-dex-list={{mainDexList}}");
-        }
 
         command = templateExecutor.execute(command, context);
 
