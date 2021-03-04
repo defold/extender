@@ -36,6 +36,6 @@ if __name__ == '__main__':
 	outputdir = os.path.dirname(os.path.abspath(__file__))
 	output = os.path.join(outputdir, 'Version.java')
 
-	with open(output, 'wb') as f:
+	with open(output, 'w') as f:
 		f.write(s)
 	print("Wrote to", output)
