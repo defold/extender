@@ -38,4 +38,4 @@ if __name__ == '__main__':
 
 	with open(output, 'wb') as f:
 		f.write(s)
-	print "Wrote to", output
+	print("Wrote to", output)
