@@ -45,6 +45,8 @@ dependencies {
         exclude module: 'spring-boot-starter-tomcat'
     }
     compile('org.springframework.boot:spring-boot-starter-jetty')
+    compile 'org.springframework.boot:spring-boot-starter-security'
+    compile 'org.springframework.security:spring-security-test'
     compile('com.samskivert:jmustache:1.14')
     compile('com.google.guava:guava:27.0-jre')
     compile('org.apache.httpcomponents:httpclient:4.5.6')
@@ -78,6 +80,10 @@ task buildDocker(type: Docker) {
     applicationName = jar.baseName
     dockerfile = file('docker/Dockerfile')
     doFirst {
+        copy {
+            from "users.txt"
+            into stageDir
+        }
         copy {
             from jar
             into stageDir
