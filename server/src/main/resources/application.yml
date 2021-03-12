@@ -20,6 +20,9 @@ extender:
         location: /tmp/.gradle
         # megabytes
         cache-size: 2048
+    authentication:
+        platforms: switch
+        users: file:users.txt
 
 spring:
     http:
