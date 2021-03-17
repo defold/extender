@@ -22,7 +22,7 @@ extender:
         cache-size: 2048
     authentication:
         platforms: switch
-        users: file:users.txt
+        users: file:users/users.txt
 
 spring:
     http:

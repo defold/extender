@@ -81,7 +81,9 @@ task buildDocker(type: Docker) {
     dockerfile = file('docker/Dockerfile')
     doFirst {
         copy {
-            from "users.txt"
+            from(project.projectDir) {
+                include "users/**"
+            }
             into stageDir
         }
         copy {
