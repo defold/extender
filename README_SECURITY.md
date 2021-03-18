@@ -8,7 +8,7 @@ Extender uses the following Spring Boot application variables to configure authe
 * `extender.authentication.platforms` - Comma separated list of platforms where access should be restricted.
 * `extender.authentication.users` - File resource with list of users and the platforms each user has access to.
 
-The default values can be seen in [`application.yml`](/server/src/main/resources/application.yml). The server is secured using Spring Security in [WebSecurityConfiguration.java](/server/src/main/java/com/defold/extender/WebSecurityConfiguration.java).
+The default values can be seen in [`application.yml`](/server/src/main/resources/application.yml). The server is secured using Spring Security in [WebSecurityConfiguration.java](/server/src/main/java/com/defold/extender/WebSecurityConfig.java).
 
 ### Platforms
 Comma separated list of platforms to which access should be restricted. Available platform names:
