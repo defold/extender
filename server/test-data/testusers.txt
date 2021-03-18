@@ -1,0 +1,1 @@
+bobuser = bobpassword,ROLE_ANDROID,enabled

@@ -527,19 +527,4 @@ public class IntegrationTest {
 
         doBuild(sourceFiles);
     }
-
-
-    @Test
-    public void buildWithBasicAuth() throws IOException, ExtenderClientException {
-        List<ExtenderResource> sourceFiles = Lists.newArrayList(
-                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
-                new FileExtenderResource("test-data/ext2/ext.manifest"),
-                new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
-                new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
-                new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "blib")))
-        );
-
-        doBuild(sourceFiles);
-    }
-
 }
