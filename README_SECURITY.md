@@ -1,6 +1,6 @@
 # Security
 
-The default configuration for Extender is to allow builds for all platforms and from any user. This is the configuration of `https:://build.defold.com`. It is also possible to restrict access to certain users and to certain platforms.
+The default configuration for Extender is to allow builds for all platforms and from any user. This is the configuration of `https://build.defold.com`. It is also possible to restrict access to certain users and to certain platforms.
 
 ## Configuration
 Extender uses the following Spring Boot application variables to configure authentication and platform availability:
@@ -62,3 +62,9 @@ may = top5ecret,ROLE_MACOS,enabled
 ```
 
 This defines two users: "bob" and "may". Bob has permission to create Windows, Linux and macOS builds even when the Extender configuration has restricted access to these platforms (through `extender.authentication.platforms` as seen above). May on the other hand has only access to macOS.
+
+
+## Authentication
+Authentication is performed using standard Basic access authentication. The authentication data can be sent as an `Authorization` request header, but that is inconvenient when using the command line tools (bob.jar) or the Defold editor. The username and password can be sent as part of the build server URL set in the Preferences window of the editor and using the `--build-server` option to bob.jar:
+
+    java -jar bob.jar --build-server https://bob:super5ecret@myextender.com
