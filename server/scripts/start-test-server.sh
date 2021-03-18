@@ -12,11 +12,11 @@ if [ "${DM_PACKAGES_URL}" != "" ]; then
 	RUN_ENV="$RUN_ENV -e DM_PACKAGES_URL=${DM_PACKAGES_URL}"
 	BUILD_ENV="$BUILD_ENV --build-arg DM_PACKAGES_URL"
 fi
-if [ "${extender.authentication.platforms}" != "" ]; then
-	RUN_ENV="$RUN_ENV -e extender.authentication.platforms=${extender.authentication.platforms}"
+if [ "${EXTENDER_AUTHENTICATION_PLATFORMS}" != "" ]; then
+	RUN_ENV="$RUN_ENV -e extender.authentication.platforms=${EXTENDER_AUTHENTICATION_PLATFORMS}"
 fi
-if [ "${extender.authentication.users}" != "" ]; then
-	RUN_ENV="$RUN_ENV -e extender.authentication.users=${extender.authentication.users}"
+if [ "${EXTENDER_AUTHENTICATION_USERS}" != "" ]; then
+	RUN_ENV="$RUN_ENV -e extender.authentication.users=${EXTENDER_AUTHENTICATION_USERS}"
 fi
 
 echo "Using BUILD_ENV: ${BUILD_ENV}"

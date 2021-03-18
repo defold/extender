@@ -9,6 +9,7 @@ import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.junit.*;
 import org.junit.rules.TestName;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -38,8 +39,12 @@ public class AuthenticationTest {
     private long startTime;
 
     private static final String DM_PACKAGES_URL = System.getenv("DM_PACKAGES_URL");
-    private static final String AUTHENTICATION_PLATFORMS = "linux,android";
-    private static final String AUTHENTICATION_USERS = "file:test-data/testusers.txt"
+
+    private static final List<ExtenderResource> SOURCE_FILES = Lists.newArrayList(
+            new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+            new FileExtenderResource("test-data/ext_basic/ext.manifest"),
+            new FileExtenderResource("test-data/ext_basic/src/test_ext.cpp")
+    );
 
     static {
         LoggingSystem.get(ClassLoader.getSystemClassLoader()).setLogLevel(Logger.ROOT_LOGGER_NAME, LogLevel.INFO);
@@ -48,14 +53,17 @@ public class AuthenticationTest {
     @Rule
     public TestName name = new TestName();
 
+    @Rule
+    public ExpectedException exceptionRule = ExpectedException.none();
+
     public AuthenticationTest() {}
 
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("DM_PACKAGES_URL", AuthenticationTest.DM_PACKAGES_URL);
-        processExecutor.putEnv("extender.authentication.platforms", AuthenticationTest.AUTHENTICATION_PLATFORMS);
-        processExecutor.putEnv("extender.authentication.users", AuthenticationTest.AUTHENTICATION_USERS);
+        processExecutor.putEnv("EXTENDER_AUTHENTICATION_PLATFORMS", "linux");
+        processExecutor.putEnv("EXTENDER_AUTHENTICATION_USERS", "file:users/testusers.txt");
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
@@ -108,7 +116,7 @@ public class AuthenticationTest {
         System.out.println(String.format("Test %s took: %.2f seconds", name.getMethodName(), (System.currentTimeMillis() - startTime) / 1000.f));
     }
 
-    private File doBuild(List<ExtenderResource> sourceFiles, String user, String password, File destination, File log, String platform) throws IOException, ExtenderClientException {
+    private void doBuild(String user, String password, File destination, File log, String platform) throws IOException, ExtenderClientException {
         File cachedBuild = new File(String.format("build/%s/build.zip", platform));
         if (cachedBuild.exists())
             cachedBuild.delete();
@@ -122,12 +130,13 @@ public class AuthenticationTest {
         else {
             url = String.format("http://localhost:%d", EXTENDER_PORT);
         }
+        System.out.println("URL " + url);
         ExtenderClient extenderClient = new ExtenderClient(url, cacheDir);
         try {
             extenderClient.build(
                     platform,
                     SDK_VERSION,
-                    sourceFiles,
+                    SOURCE_FILES,
                     destination,
                     log
             );
@@ -139,19 +148,39 @@ public class AuthenticationTest {
     }
 
     @Test
-    public void buildWithBasicAuth() throws IOException, ExtenderClientException {
-
-        List<ExtenderResource> sourceFiles = Lists.newArrayList(
-                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
-                new FileExtenderResource("test-data/ext_basic/ext.manifest"),
-                new FileExtenderResource("test-data/ext_basic/src/test_ext.cpp")
-        );
-
+    public void buildLinuxWithAuthenticatedUser() throws IOException, ExtenderClientException {
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
-        doBuild(sourceFiles, "bobuser", "bobpassword", destination, log, PLATFORM_ARMV7_ANDROID);
+        doBuild("bobuser", "bobpassword", destination, log, PLATFORM_LINUX);
         assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
         assertEquals("Log should be of size zero if successful.", 0, log.length());
     }
 
+    @Test
+    public void buildLinuxWithWrongPassword() throws IOException, ExtenderClientException {
+        exceptionRule.expect(ExtenderClientException.class);
+
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+        doBuild("bobuser", "wrongpassword", destination, log, PLATFORM_LINUX);
+        assertTrue("Resulting engine should be of a size equal to zero.", destination.length() == 0);
+    }
+
+    @Test
+    public void buildLinuxWithNoUser() throws IOException, ExtenderClientException {
+        exceptionRule.expect(ExtenderClientException.class);
+
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+        doBuild(null, null, destination, log, PLATFORM_LINUX);
+        assertTrue("Resulting engine should be of a size equal to zero.", destination.length() == 0);
+    }
+
+    @Test
+    public void buildAndroidWithNoUser() throws IOException, ExtenderClientException {
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+        doBuild(null, null, destination, log, PLATFORM_ARMV7_ANDROID);
+        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+    }
 }
