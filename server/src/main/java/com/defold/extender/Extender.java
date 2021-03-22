@@ -775,7 +775,8 @@ class Extender {
     private File compileAndroidResources(String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Compiling Android resources");
 
-        File outputDirectory = new File(buildDirectory, "compiledResources");;
+        File outputDirectory = new File(buildDirectory, "compiledResources");
+        outputDirectory.mkdirs();
         try {
             // get all directories containing resources to compile
             List<String> resourceDirectories = getAndroidResourceFolders(platform)

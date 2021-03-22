@@ -113,7 +113,7 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "x86_64-win32", "js-web", "wasm-web"} ),
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "x86_64-win32"} ),
 
                 // updated to wmscripten 1.39.16, which has different object format. We need to fix the tests to support that, but probably not after updating to Emscripten 2.x
                 new DefoldVersion("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac", new Version(1, 2, 177), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32"}),
@@ -453,20 +453,18 @@ public class IntegrationTest {
     public void buildAndroidRJar() throws IOException, ExtenderClientException {
 
         org.junit.Assume.assumeTrue("Defold version does not support Android resources compilation test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 102) || configuration.version.version.isVersion(0, 0, 0) )
+                configuration.platform.contains("android") && configuration.version.version.isGreaterThan(1, 2, 174)
         );
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/_app/rjava/com/dummy/R.java", "_app/rjava/com/dummy/R.java"));
+                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"));
 
         File destination = doBuild(sourceFiles);
 
-        List<String> classes = Arrays.asList(new String[]{"Lcom/dummy/R;"});
+        List<String> classes = Arrays.asList(new String[]{"Lcom/defold/extendertest/R;"});
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
