@@ -3,17 +3,26 @@
 set -e
 set -x
 
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+BUILD_ENV=""
+RUN_ENV=""
 if [ "${DM_PACKAGES_URL}" != "" ]; then
-	ENV='--build-arg DM_PACKAGES_URL'
+	RUN_ENV="$RUN_ENV -e DM_PACKAGES_URL=${DM_PACKAGES_URL}"
+	BUILD_ENV="$BUILD_ENV --build-arg DM_PACKAGES_URL"
+fi
+if [ "${EXTENDER_AUTHENTICATION_PLATFORMS}" != "" ]; then
+	RUN_ENV="$RUN_ENV -e extender.authentication.platforms=${EXTENDER_AUTHENTICATION_PLATFORMS}"
+fi
+if [ "${EXTENDER_AUTHENTICATION_USERS}" != "" ]; then
+	RUN_ENV="$RUN_ENV -e extender.authentication.users=${EXTENDER_AUTHENTICATION_USERS}"
 fi
 
-if [ "${ENV}" != "" ]; then
-	echo "Using ENV: ${ENV}"
-fi
+echo "Using BUILD_ENV: ${BUILD_ENV}"
+echo "Using RUN_ENV: ${RUN_ENV}"
 
-docker build ${ENV} -t extender-base ${DIR}/../docker-base
+docker build ${BUILD_ENV} -t extender-base ${DIR}/../docker-base
 
 ${DIR}/../../gradlew buildDocker -x test
 
@@ -22,4 +31,4 @@ if [ "$GITHUB_ACTION" != "" ]; then
 	chmod -R a+xrw ${DIR}/../test-data || true
 fi
 
-docker run -d --rm --name extender -p 9000:9000 -e DM_PACKAGES_URL=${DM_PACKAGES_URL} -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender
+docker run -d --rm --name extender -p 9000:9000 ${RUN_ENV} -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender

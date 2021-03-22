@@ -329,17 +329,26 @@ public class IntegrationTest {
     }
 
     private boolean checkClassesDexClasses(File buildZip, List<String> classes) throws IOException {
-        ZipFile zipFile = new ZipFile(buildZip);
-        ZipEntry classesDexEntry = zipFile.getEntry("classes.dex");
-        InputStream in = zipFile.getInputStream(classesDexEntry);
-        Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
-        Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
-
-        // Verify that classes.dex contains our Dummy class
-        DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
         Set<String> dexClasses = new HashSet<>();
-        for (ClassDef classDef: dexFile.getClasses()) {
-            dexClasses.add(classDef.getType());
+
+        ZipFile zipFile = new ZipFile(buildZip);
+        final Enumeration<? extends ZipEntry> entries = zipFile.entries();
+        while (entries.hasMoreElements()) {
+            final ZipEntry entry = entries.nextElement();
+            String name = entry.getName();
+
+            if (!name.endsWith(".dex"))
+                continue;
+
+            InputStream in = zipFile.getInputStream(entry);
+            Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
+            Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Verify that classes.dex contains our Dummy class
+            DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
+            for (ClassDef classDef: dexFile.getClasses()) {
+                dexClasses.add(classDef.getType());
+            }
         }
 
         for (String cls : classes) {
