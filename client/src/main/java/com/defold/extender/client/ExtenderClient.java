@@ -5,6 +5,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.message.AbstractHttpMessage;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.ByteArrayBody;
@@ -18,6 +19,7 @@ import org.json.simple.parser.ParseException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -26,6 +28,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.Iterator;
+import java.util.Base64;
 
 public class ExtenderClient {
     private final String extenderBaseUrl;
@@ -67,6 +70,15 @@ public class ExtenderClient {
         return new BigInteger(1, bytes).toString(16);
     }
 
+    private void addAuthorizationHeader(AbstractHttpMessage request) throws UnsupportedEncodingException {
+        final String user = System.getenv("DM_EXTENDER_USERNAME");
+        final String password = System.getenv("DM_EXTENDER_PASSWORD");
+        if (user != null && password != null) {
+            String encodedAuth = Base64.getEncoder().encodeToString((user + ":" + password).getBytes("UTF-8"));
+            request.setHeader("Authorization", "Basic " + encodedAuth);
+        }
+    }
+
     String queryCache(List<ExtenderResource> sourceResources) throws ExtenderClientException {
         JSONArray files = new JSONArray();
         for (ExtenderResource resource : sourceResources) {
@@ -82,13 +94,15 @@ public class ExtenderClient {
 
         String data = root.toJSONString().replace("\\/", "/");
 
-        String url = String.format("%s/query", extenderBaseUrl);
-        HttpPost request = new HttpPost(url);
-        request.setEntity(new ByteArrayEntity(data.getBytes()));
-        request.setHeader("Accept", "application/json");
-        request.setHeader("Content-type", "application/json");
-
         try {
+            String url = String.format("%s/query", extenderBaseUrl);
+            HttpPost request = new HttpPost(url);
+            request.setEntity(new ByteArrayEntity(data.getBytes()));
+            request.setHeader("Accept", "application/json");
+            request.setHeader("Content-type", "application/json");
+
+            addAuthorizationHeader(request);
+
             HttpClient client = new DefaultHttpClient();
             HttpResponse response = client.execute(request);
 
@@ -97,7 +111,7 @@ public class ExtenderClient {
             } else {
                 return null; // Caching is not supported
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
         }
     }
@@ -174,12 +188,13 @@ public class ExtenderClient {
             entity.addPart(s.getPath(), bin);
         }
 
-        String url = String.format("%s/build/%s/%s", extenderBaseUrl, platform, sdkVersion);
-        HttpPost request = new HttpPost(url);
-
-        request.setEntity(entity);
-
         try {
+            String url = String.format("%s/build/%s/%s", extenderBaseUrl, platform, sdkVersion);
+            HttpPost request = new HttpPost(url);
+            request.setEntity(entity);
+
+            addAuthorizationHeader(request);
+
             HttpClient client = new DefaultHttpClient();
             HttpResponse response = client.execute(request);
 
@@ -189,7 +204,7 @@ public class ExtenderClient {
                 response.getEntity().writeTo(new FileOutputStream(log));
                 throw new ExtenderClientException("Failed to build source.");
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
         }
 
@@ -204,7 +219,9 @@ public class ExtenderClient {
     public boolean health() throws IOException {
 
         HttpClient client = new DefaultHttpClient();
-        HttpResponse response = client.execute(new HttpGet(extenderBaseUrl));
+        HttpGet request = new HttpGet(extenderBaseUrl);
+        addAuthorizationHeader(request);
+        HttpResponse response = client.execute(request);
 
         if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
             return true;
