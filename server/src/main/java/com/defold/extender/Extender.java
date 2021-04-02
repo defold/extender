@@ -140,7 +140,7 @@ class Extender {
         }
 
         this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, platform, APPMANIFEST_JETIFIER_KEYWORD, false);
-        this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, false);
+        this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
 
         this.platform = platform;
         this.sdk = sdk;
