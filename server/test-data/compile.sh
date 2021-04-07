@@ -30,8 +30,8 @@ OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/ar
 OSX_MIN_VERSION=10.7
 OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX10.13.sdk
 
-EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-1.39.16/upstream/emscripten/em++
-EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-1.39.16/upstream/emscripten/emar
+EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-2.0.11//upstream/emscripten/em++
+EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-2.0.11//upstream/emscripten/emar
 
 WIN32_CL=cl.exe
 WIN32_LIB=lib.exe

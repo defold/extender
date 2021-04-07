@@ -139,8 +139,8 @@ class Extender {
             }
         }
 
-        this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, platform, APPMANIFEST_JETIFIER_KEYWORD, false);
-        this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, false);
+        this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, platform, APPMANIFEST_JETIFIER_KEYWORD, true);
+        this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
 
         this.platform = platform;
         this.sdk = sdk;
@@ -711,6 +711,16 @@ class Extender {
         return outputFiles;
     }
 
+    private List<File> getAndroidAssetsFolders(String platform) {
+        List<File> assetDirs = new ArrayList<>();
+        assetDirs.addAll(gradlePackages.stream()
+                                         .map(f -> new File(f, "assets"))
+                                         .collect(Collectors.toList()));
+        return assetDirs.stream()
+                            .filter(f -> f.isDirectory())
+                            .collect(Collectors.toList());
+    }
+
     private List<File> getAndroidResourceFolders(String platform) {
             // New feature from 1.2.165
             File packageDir = new File(uploadDirectory, "packages");
@@ -775,7 +785,8 @@ class Extender {
     private File compileAndroidResources(String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Compiling Android resources");
 
-        File outputDirectory = new File(buildDirectory, "compiledResources");;
+        File outputDirectory = new File(buildDirectory, "compiledResources");
+        outputDirectory.mkdirs();
         try {
             // get all directories containing resources to compile
             List<String> resourceDirectories = getAndroidResourceFolders(platform)
@@ -1332,24 +1343,16 @@ class Extender {
     private File[] buildClassesDex(List<String> jars, File mainDexList) throws ExtenderException {
         LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
 
-        File classesDex = new File(buildDirectory, "classes.dex");
-
         // The empty list is also present for backwards compatability with older build.yml
         List<String> empty_list = new ArrayList<>();
 
         Map<String, Object> context = createContext();
-        context.put("classes_dex", classesDex.getAbsolutePath());
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
         context.put("jars", jars);
         context.put("engineJars", empty_list);
         context.put("mainDexList", mainDexList.getAbsolutePath());
 
         String command = platformConfig.dxCmd;
-
-        // Until it's part of the build.yml
-        if (command.indexOf("--main-dex-list") == -1) {
-            command = command.replace("--multi-dex" , "--multi-dex --main-dex-list={{mainDexList}}");
-        }
 
         command = templateExecutor.execute(command, context);
 
@@ -1463,6 +1466,25 @@ class Extender {
         processExecutor.putLog(msg);
     }
 
+    private List<File> copyAndroidAssetFolders(String platform) throws ExtenderException {
+        List<File> assets = getAndroidAssetsFolders(platform);
+        if (assets.isEmpty()) {
+            return new ArrayList<>();
+        }
+        File targetDir = new File(buildDirectory, "assets");
+        targetDir.mkdir();
+
+        try {
+            for (File a : assets) {
+                FileUtils.copyDirectory(a, targetDir);
+            }
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to copy android assets");
+        }
+        return FileUtils.listFiles(targetDir, null, true).stream()
+                                                      .collect(Collectors.toList());
+    }
+
     private List<File> copyAndroidResourceFolders(String platform) throws ExtenderException {
         List<File> resources = getAndroidResourceFolders(platform);
         if (resources.isEmpty()) {
@@ -1549,6 +1571,7 @@ class Extender {
         }
 
         outputFiles.addAll(copyAndroidResourceFolders(platform));
+        outputFiles.addAll(copyAndroidAssetFolders(platform));
 
         return outputFiles;
     }
