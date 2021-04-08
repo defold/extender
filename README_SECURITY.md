@@ -68,3 +68,5 @@ This defines two users: "bob" and "may". Bob has permission to create Windows, L
 Authentication is performed using standard Basic access authentication. The authentication data can be sent as an `Authorization` request header, but that is inconvenient when using the command line tools (bob.jar) or the Defold editor. The username and password can be sent as part of the build server URL set in the Preferences window of the editor and using the `--build-server` option to bob.jar:
 
     java -jar bob.jar --build-server https://bob:super5ecret@myextender.com
+
+It is also possible to specify a username and password in the environment variables DM_EXTENDER_USERNAME and DM_EXTENDER_PASSWORD.
