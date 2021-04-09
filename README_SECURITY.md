@@ -38,8 +38,27 @@ docker run ... -e extender.authentication.platforms=windows,linux,macos extender
 ```
 
 ### Users
-Users are listed in a text file, one username per line followed by the user password, user roles (platform access) and user status ("enabled" or "disabled"). The build script will copy the files in `extender/server/users` to the Docker image when building. You can specify which user file to use in `application.yml` or by passing the `extender.authentication.users` environment variable when starting Docker.
+Users are listed in Java properties format with one username per line followed by the user password, user roles (platform access) and user status ("enabled" or "disabled"). Example:
 
+```
+bob = super5ecret,ROLE_WINDOWS,ROLE_LINUX,ROLE_MACOS,enabled
+may = top5ecret,ROLE_MACOS,enabled
+```
+
+This defines two users: "bob" and "may". Bob has permission to create Windows, Linux and macOS builds even when the Extender configuration has restricted access to these platforms (through `extender.authentication.platforms` as seen above). May on the other hand has only access to macOS.
+
+The users can either be defined in a text file in `extender/server/users` or as a resource returned from a URL. You specify where the users are defined in the `extender.authentication.users` property of `application.yml` or by passing the `extender.authentication.users` environment variable when starting Docker.
+
+The user definitions are updated at regular intervals so that you can add or modify users at runtime. The interval at which the user definitions are updated is defined in the `extender.authentication.update-interval` property of `application.yml`:
+
+```
+extender:
+    authentication:
+        update-interval: 900000
+```
+
+
+#### Using a file
 Example using `application.yml` where users are loaded from the file `users/myusers.txt`:
 
 ```
@@ -54,14 +73,21 @@ The same by passing an environment variable when launching Docker:
 docker run ... -e extender.authentication.users=file:users/myusers.txt extender/extender;
 ```
 
-Example user file:
+#### Using a URL
+Example using `application.yml` where users are loaded from the content server from `https://www.mysite.com/extender-users`:
 
 ```
-bob = super5ecret,ROLE_WINDOWS,ROLE_LINUX,ROLE_MACOS,enabled
-may = top5ecret,ROLE_MACOS,enabled
+extender:
+    authentication:
+        users: https://www.mysite.com/extender-users
 ```
 
-This defines two users: "bob" and "may". Bob has permission to create Windows, Linux and macOS builds even when the Extender configuration has restricted access to these platforms (through `extender.authentication.platforms` as seen above). May on the other hand has only access to macOS.
+The same by passing an environment variable when launching Docker:
+
+```
+docker run ... -e extender.authentication.users=https://www.mysite.com/extender-users extender/extender;
+```
+
 
 
 ## Authentication
