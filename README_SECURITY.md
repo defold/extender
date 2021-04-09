@@ -41,8 +41,8 @@ docker run ... -e extender.authentication.platforms=windows,linux,macos extender
 Users are listed in Java properties format with one username per line followed by the user password, user roles (platform access) and user status ("enabled" or "disabled"). Example:
 
 ```
-bob = super5ecret,ROLE_WINDOWS,ROLE_LINUX,ROLE_MACOS,enabled
-may = top5ecret,ROLE_MACOS,enabled
+bob = password1,ROLE_WINDOWS,ROLE_LINUX,ROLE_MACOS,enabled
+may = password2,ROLE_MACOS,enabled
 ```
 
 This defines two users: "bob" and "may". Bob has permission to create Windows, Linux and macOS builds even when the Extender configuration has restricted access to these platforms (through `extender.authentication.platforms` as seen above). May on the other hand has only access to macOS.
@@ -74,7 +74,7 @@ docker run ... -e extender.authentication.users=file:users/myusers.txt extender/
 ```
 
 #### Using a URL
-Example using `application.yml` where users are loaded from the content server from `https://www.mysite.com/extender-users`:
+Example using `application.yml` where users are loaded from the content served (using HTTP GET) from `https://www.mysite.com/extender-users`:
 
 ```
 extender:
