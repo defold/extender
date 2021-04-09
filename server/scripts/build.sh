@@ -17,10 +17,6 @@ if [ "${ENV}" != "" ]; then
 	echo "Using ENV: ${ENV}"
 fi
 
-if [ "${DM_EXTENDER_USERS}" != "" ]; then
-	cp $DM_EXTENDER_USERS ${DIR}/../src/users/users.txt
-fi
-
 docker build -t extender-base ${ENV} ${DIR}/../docker-base
 
 ${DIR}/../../gradlew clean buildDocker --info $@
