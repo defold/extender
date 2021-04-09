@@ -20,9 +20,14 @@ extender:
         location: /tmp/.gradle
         # megabytes
         cache-size: 2048
+    # refer to README_SECURITY.md for information on securing your server
     authentication:
-        platforms: switch
-        users: file:users/users.txt
+        # empty string, all platforms allowed without authentication
+        platforms: ''
+        # no user definitions are needed since we require no authentication for any platform
+        users: ''
+        # check for user updates every 15 minutes
+        update-interval: 900000
 
 spring:
     http:
