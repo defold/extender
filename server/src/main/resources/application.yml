@@ -23,6 +23,8 @@ extender:
     authentication:
         platforms: switch
         users: file:users/users.txt
+        # check for user updates every 15 minutes
+        update-interval: 900000
 
 spring:
     http:
