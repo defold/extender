@@ -33,6 +33,12 @@ public class UserUpdateService {
 
     private long lastUpdateTimestamp = 0;
 
+    /**
+     * Load users from the resource specified by extender.authentication.users
+     * inb application.yml or env variable.
+     * This can either be a file or a URI
+     * @return Loaded users as a Properties instance
+     */
     private Properties loadUsers() {
         Properties users = new Properties();
         try {
@@ -44,7 +50,14 @@ public class UserUpdateService {
         return users;
     }
 
-    // user = password,ROLE_ANDROID,ROLE_IOS,ROLE_HTML5,ROLE_WINDOWS,ROLE_LINUX,ROLE_MACOS,ROLE_SWITCH,disabled
+    /**
+     * Update users from a Properties instance. The users should be defined as
+     * a map of username to user details:
+     *
+     * username = password,ROLE_ANDROID,ROLE_IOS,ROLE_HTML5,ROLE_WINDOWS,ROLE_LINUX,ROLE_MACOS,ROLE_SWITCH,disabled
+     *
+     * Refer to README_SECURITY.md for additional information
+     */
     private void updateUsers(Properties users) {
         for(String username : users.stringPropertyNames()) {
             List<String> userSettings = Arrays.asList(users.getProperty(username).split(","));
@@ -64,6 +77,11 @@ public class UserUpdateService {
         }
     }
 
+    /**
+     * Update the users from the resource specified by extender.authentication.users
+     * The users will never be updated more frequently than specified by the
+     * extender.authentication.users configuration value.
+     */
     public void update() {
         if (usersResource == null) {
             LOGGER.info("UserUpdateService - No extender.authentication.users configuration has been set");
