@@ -4,4 +4,4 @@
 
 [submodule "server/scripts/task-definitions"]
 	path = server/scripts/task-definitions
-	url = git@github.com:defold/extender-task-definitions.git
+	url = https://github.com/defold/extender-task-definitions
