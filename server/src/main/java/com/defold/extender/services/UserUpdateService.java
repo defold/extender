@@ -14,10 +14,14 @@ import java.util.Properties;
 import java.util.Arrays;
 import java.util.List;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 @Service
 public class UserUpdateService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserUpdateService.class);
+
     @Autowired
     private InMemoryUserDetailsManager userDetailsManager;
 
@@ -35,7 +39,7 @@ public class UserUpdateService {
             users.load(usersResource.getInputStream());
         }
         catch(IOException e) {
-            System.out.println("UserUpdateService - Unable to update users. " + e.getMessage());
+            LOGGER.info("UserUpdateService - Unable to update users. " + e.getMessage());
         }
         return users;
     }
@@ -50,11 +54,11 @@ public class UserUpdateService {
 
             final UserDetails user = User.builder().disabled(disabled).username(username).password(password).authorities(authorities).build();
             if (userDetailsManager.userExists(username)) {
-                System.out.println("UserUpdateService - Updating user " + user.toString());
+                LOGGER.debug("UserUpdateService - Updating user " + user.toString());
                 userDetailsManager.updateUser(user);
             }
             else {
-                System.out.println("UserUpdateService - Creating user " + user.toString());
+                LOGGER.debug("UserUpdateService - Creating user " + user.toString());
                 userDetailsManager.createUser(user);
             }
         }
@@ -62,7 +66,7 @@ public class UserUpdateService {
 
     public void update() {
         if (usersResource == null) {
-            System.out.println("UserUpdateService - No extender.authentication.users configuration has been set");
+            LOGGER.info("UserUpdateService - No extender.authentication.users configuration has been set");
             return;
         }
 
