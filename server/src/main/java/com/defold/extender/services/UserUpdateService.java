@@ -35,7 +35,7 @@ public class UserUpdateService {
 
     /**
      * Load users from the resource specified by extender.authentication.users
-     * inb application.yml or env variable.
+     * in application.yml or env variable.
      * This can either be a file or a URI
      * @return Loaded users as a Properties instance
      */
@@ -63,7 +63,7 @@ public class UserUpdateService {
             List<String> userSettings = Arrays.asList(users.getProperty(username).split(","));
             final String password = userSettings.get(0);
             final boolean disabled = userSettings.get(userSettings.size() - 1).equals("disabled");
-            final String[] authorities = userSettings.subList(0, userSettings.size() - 1).toArray(new String[0]);
+            final String[] authorities = userSettings.subList(1, userSettings.size() - 1).toArray(new String[0]);
 
             final UserDetails user = User.builder().disabled(disabled).username(username).password(password).authorities(authorities).build();
             if (userDetailsManager.userExists(username)) {
