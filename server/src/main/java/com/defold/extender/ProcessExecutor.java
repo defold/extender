@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.FileOutputStream;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.concurrent.*;
 
 public class ProcessExecutor {
     private final StringBuffer output = new StringBuffer();
@@ -85,5 +86,35 @@ public class ProcessExecutor {
 
     public void putLog(String msg) {
         output.append(msg);
+    }
+
+    public static void executeCommands(ProcessExecutor processExecutor, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        List<Callable<Void>> callables = new ArrayList<>();
+        for (String command : commands) {
+            callables.add(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    processExecutor.execute(command);
+                    return null;
+                }
+            });
+        }
+        List<Future<Void>> futures = executor.invokeAll(callables);
+        try {
+            for (Future<Void> future : futures) {
+                future.get();
+            }
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException) {
+                throw (IOException)e.getCause();
+            } else if (e.getCause() instanceof InterruptedException) {
+                throw (InterruptedException)e.getCause();
+            } else {
+                throw new ExtenderException(e.getCause().toString());
+            }
+        } finally {
+            executor.shutdown();
+        }
     }
 }
