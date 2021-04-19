@@ -21,8 +21,6 @@ class PlatformConfig {
     public String linkCmd;
     public List<String> linkCmds;
     public String libCmd;
-    public String javacCmd;
-    public String jarCmd;
     public String dxCmd;
     public String aapt2compileCmd;
     public String aapt2linkCmd;
@@ -38,4 +36,20 @@ class PlatformConfig {
     public List<String> allowedLibs;
     public List<String> allowedFlags;
     public List<String> allowedSymbols;
+
+    public String protoEngineCxxCmd;
+    public String protoPipelineCmd;
+    public String protoPipelineOutputRe;
+
+    // C++
+    public String compileCmdCXX;
+    public String compileCmdCXXSh;
+    public String linkCmdCXX;
+    public String linkCmdCXXSh;
+
+    // Java
+    public String javacCmd;
+    public String jarCmd;
+
+
 }
