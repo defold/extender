@@ -388,4 +388,22 @@ public class ExtenderUtil
         Path childPath = child.toPath().normalize().toAbsolutePath();
         return childPath.startsWith(parentPath);
     }
+
+    // Doesn't work for ".hidden"
+    public static String getNameWithoutExtension(String name) {
+       int dotIndex = name.lastIndexOf('.');
+       return (dotIndex == -1) ? name : name.substring(0, dotIndex);
+    }
+
+    public static String removeFileExtension(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return filename;
+        }
+        String extPattern = "(?<!^)[.][^.]*$";
+        return filename.replaceAll(extPattern, "");
+    }
+
+    public static String switchExtension(String name, String newExt) {
+        return removeFileExtension(name) + newExt;
+    }
 }

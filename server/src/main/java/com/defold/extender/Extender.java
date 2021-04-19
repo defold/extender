@@ -19,7 +19,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -36,6 +35,7 @@ class Extender {
     private final File uploadDirectory;
     private final File jobDirectory;
     private final File buildDirectory;
+    private final PlatformConfig commonPlatformConfig;
     private final PlatformConfig platformConfig;
     private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
@@ -53,12 +53,18 @@ class Extender {
     private List<File> gradlePackages;
     private int nameCounter = 0;
 
+
+    static final String FOLDER_ENGINE_SRC = "src";      // source for the engine library
+    static final String FOLDER_PLUGIN_SRC = "pluginsrc";// source for the pipeline/format plugins
+    static final String FOLDER_COMMON_SRC = "commonsrc";// common source shared between both types
+
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
     static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
+    static final String PROTO_RE = "(?i).*(\\.proto)";
     static final String ENGINE_JAR_RE = "(?:.*)\\/share\\/java\\/[\\w\\-\\.]*\\.jar$";
 
     private static final String MANIFEST_IOS    = "Info.plist";
@@ -145,7 +151,10 @@ class Extender {
         this.platform = platform;
         this.sdk = sdk;
 
+        // TODO: Add a way to merge these platform configs: common -> platform -> arch-platform
+        this.commonPlatformConfig = config.platforms.get("common");
         this.platformConfig = getPlatformConfig(platform);
+
         this.appManifestContext = ExtenderUtil.getAppManifestContext(appManifest, platform, baseVariantManifest);
         LOGGER.info("Using context for platform: " + platform);
 
@@ -161,7 +170,17 @@ class Extender {
                 envContext.put("env." + sysEnvEntry.getKey(), sysEnvEntry.getValue());
             }
 
-            Set<String> keys = this.platformConfig.env.keySet();
+            Set<String> keys;
+            if (this.commonPlatformConfig != null) {
+                keys = this.commonPlatformConfig.env.keySet();
+                for (String k : keys) {
+                    String v = this.commonPlatformConfig.env.get(k);
+                    v = templateExecutor.execute(v, envContext);
+                    processExecutor.putEnv(k, v);
+                }
+            }
+
+            keys = this.platformConfig.env.keySet();
             for (String k : keys) {
                 String v = this.platformConfig.env.get(k);
                 v = templateExecutor.execute(v, envContext);
@@ -320,6 +339,9 @@ class Extender {
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
 
+        if (commonPlatformConfig != null) {
+            context = Extender.mergeContexts(context, commonPlatformConfig.context);
+        }
         context = Extender.mergeContexts(context, platformConfig.context);
         context = Extender.mergeContexts(context, manifestContext);
 
@@ -429,7 +451,7 @@ class Extender {
         return allLibJars;
     }
 
-    private File compileFile(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private List<String> getIncludeDirs(File extDir) {
         List<String> includes = new ArrayList<>();
         File extIncludeDir = new File(extDir, "include");
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, extIncludeDir ) );
@@ -438,10 +460,15 @@ class Extender {
         // Add the other extensions include folders
         for (File otherExtDir : this.getExtensionFolders()) {
             File otherIncludeDir = new File(otherExtDir, "include");
-            if (extIncludeDir.equals(otherIncludeDir))
+            if (extIncludeDir.equals(otherIncludeDir)) // don't add the current extension's include directory
                 continue;
             includes.add( ExtenderUtil.getRelativePath(jobDirectory, otherIncludeDir ) );
         }
+        return includes;
+    }
+
+    private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        List<String> includes = getIncludeDirs(extDir);
 
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
 
@@ -453,9 +480,17 @@ class Extender {
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
 
-        String command = templateExecutor.execute(platformConfig.compileCmd, context);
+        String command = templateExecutor.execute(cmd, context);
         commands.add(command);
         return o;
+    }
+
+    private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, platformConfig.compileCmd, commands);
+    }
+
+    private File addCompileFileCppShared(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, commonPlatformConfig.compileCmdCXXSh, commands);
     }
 
     private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
@@ -478,27 +513,131 @@ class Extender {
         return getExtensionManifestFiles().stream().map(File::getParentFile).collect(Collectors.toList());
     }
 
-    private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-        File extDir = manifest.getParentFile();
-        File srcDir = new File(extDir, "src");
+    private List<File> listFiles(File[] srcDirs, String regEx) {
+        List<File> srcFiles = new ArrayList<>();
+        for (File srcDir : srcDirs) {
+            if (srcDir.exists() && srcDir.isDirectory()) {
+                List<File> _srcFiles =  new ArrayList<>(FileUtils.listFiles(srcDir, null, true));
+                _srcFiles = Extender.filterFiles(_srcFiles, regEx);
 
-        File[] srcFiles = null;
-        if (srcDir.isDirectory()) {
-            Collection<File> _srcFiles = new ArrayList<>();
-            _srcFiles = FileUtils.listFiles(srcDir, null, true);
-            _srcFiles = Extender.filterFiles(_srcFiles, platformConfig.sourceRe);
+                // sorting makes it easier to diff different builds
+                Collections.sort(_srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
+                srcFiles.addAll(_srcFiles);
+            }
+        }
+        return srcFiles;
+    }
 
-            // sorting makes it easier to diff different builds
-            srcFiles = _srcFiles.toArray(new File[_srcFiles.size()]);
+    private List<File> listFiles(File srcDir, String regEx) {
+        File[] srcDirs = {srcDir};
+        return listFiles(srcDirs, regEx);
+    }
 
+    private List<File> generateProtoCxxForEngine(File extDir, Map<String, Object> manifestContext, List<File> protoFiles) throws IOException, InterruptedException, ExtenderException {
+        List<File> generated = new ArrayList<>();
+
+        Map<String, Object> tmpcontext = context(manifestContext);
+
+        if (commonPlatformConfig == null || commonPlatformConfig.protoEngineCxxCmd == null) {
+            LOGGER.info("Not supporting .proto files");
+            return generated;
         }
 
-        if (srcFiles == null) {
+        LOGGER.info("Converting .proto to engine .cpp files for extension {}", extDir.getName());
+
+        File extBuildDir = createDir(buildDirectory, extDir.getName());
+
+        List<String> includes = getIncludeDirs(extDir);
+
+        for (File protoFile : protoFiles) {
+
+            String name = ExtenderUtil.switchExtension(protoFile.getName(), ".cpp");
+            File tgtCpp = new File(extBuildDir, name);
+
+            Map<String, Object> context = context(manifestContext);
+
+            context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
+            context.put("ext", ImmutableMap.of("includes", includes));
+            context.put("out_dir", extBuildDir);
+
+            String command = templateExecutor.execute(commonPlatformConfig.protoEngineCxxCmd, context);
+            processExecutor.execute(command);
+
+            LOGGER.info("Generated {}", tgtCpp);
+
+            generated.add(tgtCpp);
+        }
+        return generated;
+    }
+
+    private List<File> generateProtoSrcForPlugin(File extDir, Map<String, Object> manifestContext, List<File> protoFiles, String language) throws IOException, InterruptedException, ExtenderException {
+        List<File> generated = new ArrayList<>();
+
+        Map<String, Object> tmpcontext = context(manifestContext);
+
+        File extBuildDir = createDir(buildDirectory, extDir.getName());
+        List<String> includes = getIncludeDirs(extDir);
+
+        LOGGER.info("Converting .proto to plugin {} files for extension {}", language, extDir.getName());
+
+        String suffix = "";
+        if (language.equals("cpp"))
+            suffix = ".pb.cc";
+        else if (language.equals("java"))
+            suffix = ".java";
+        else if (language.equals("python"))
+            suffix = "_pb2.py";
+        else
+            throw new ExtenderException("Proto output doesn't support language: " + (language!=null?language:"null"));
+
+        for (File protoFile : protoFiles) {
+
+            String name = ExtenderUtil.switchExtension(protoFile.getName(), suffix);
+            File tgtFile = new File(extBuildDir, name);
+
+            Map<String, Object> context = context(manifestContext);
+            context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
+            context.put("ext", ImmutableMap.of("includes", includes));
+            context.put("out_dir", extBuildDir);
+            context.put("language", language);
+
+            // Adding the source folderpath, so the output relative path gets stripped and the output becomes "extBuildDir/proto_file_name.pb.cc"
+            context.put("proto_path", ExtenderUtil.getRelativePath(jobDirectory, protoFile.getParentFile()));
+
+            String command = templateExecutor.execute(commonPlatformConfig.protoPipelineCmd, context);
+            processExecutor.execute(command);
+
+            LOGGER.info("Generated {}", tgtFile);
+
+            // TODO: The java files are named automatically, so this doesn't work
+            if (!language.equals("java")) {
+                generated.add(tgtFile);
+            }
+        }
+        return generated;
+    }
+
+
+
+    private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+        File extDir = manifest.getParentFile();
+
+        // Gather all the C++ files
+        File[] srcDirs = { new File(extDir, FOLDER_COMMON_SRC), new File(extDir, FOLDER_ENGINE_SRC) };
+        List<File> srcFiles = listFiles(srcDirs, platformConfig.sourceRe);
+
+        if (srcFiles.isEmpty()) {
             throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
         }
 
-        // Makes it a lot easier to diff build logs
-        Arrays.sort(srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
+        // Generate C++ files first (output into the source folder)
+        List<File> protoFiles = listFiles(srcDirs, PROTO_RE);
+        List<File> generated = generateProtoCxxForEngine(extDir, manifestContext, protoFiles);
+        if (!protoFiles.isEmpty() && generated.isEmpty()) {
+            throw new ExtenderException(String.format("%s:1: error: Protofiles didn't generate any output engine cpp files!", ExtenderUtil.getRelativePath(this.uploadDirectory, protoFiles.get(0)) ));
+        }
+        srcFiles.addAll(generated);
+
 
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
@@ -506,38 +645,12 @@ class Extender {
         // Compile C++ source into object files
         int i = getAndIncreaseNameCount();
         for (File src : srcFiles) {
-            File o = compileFile(i, extDir, src, manifestContext, commands);
+            File o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands);
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             i++;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-        List<Callable<Void>> callables = new ArrayList<>();
-        for (String command : commands) {
-            callables.add(new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    processExecutor.execute(command);
-                    return null;
-                }
-            });
-        }
-        List<Future<Void>> futures = executor.invokeAll(callables);
-        try {
-            for (Future<Void> future : futures) {
-                future.get();
-            }
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof IOException) {
-                throw (IOException)e.getCause();
-            } else if (e.getCause() instanceof InterruptedException) {
-                throw (InterruptedException)e.getCause();
-            } else {
-                throw new ExtenderException(e.getCause().toString());
-            }
-        } finally {
-            executor.shutdown();
-        }
+        ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
         // Create c++ library
         File lib = null;
@@ -551,6 +664,119 @@ class Extender {
         context.put("objs", objs);
         String command = templateExecutor.execute(platformConfig.libCmd, context);
         processExecutor.execute(command);
+    }
+
+    private List<File> buildPipelineExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+
+        if (commonPlatformConfig == null || commonPlatformConfig.protoEngineCxxCmd == null) {
+            LOGGER.info("This SDK version doesn't support compiling plugins!");
+            return new ArrayList<File>();
+        }
+
+        File extDir = manifest.getParentFile();
+        File extBuildDir = createDir(buildDirectory, extDir.getName());
+        extBuildDir.mkdir();
+        File[] srcDirs = { new File(extDir, FOLDER_COMMON_SRC), new File(extDir, FOLDER_PLUGIN_SRC) };
+
+        List<File> protoFiles = listFiles(srcDirs, PROTO_RE);
+
+        List<File> outputFiles = new ArrayList<>();
+
+        // ***************************************************************************
+        // C++
+        {
+            List<File> srcFiles = listFiles(srcDirs, platformConfig.sourceRe);
+
+            if (srcFiles.isEmpty()) {
+                LOGGER.info("No C++ source found for plugin. Skipping {}", extDir);
+            } else {
+                // We leave the C++ protobuf support for a later date
+                List<File> generatedFiles = new ArrayList<>();//generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "cpp");
+
+                srcFiles.addAll(generatedFiles);
+
+                List<String> objs = new ArrayList<>();
+                List<String> commands = new ArrayList<>();
+
+                // Compile C++ source into object files
+                int i = getAndIncreaseNameCount();
+                for (File src : srcFiles) {
+                    File o = addCompileFileCppShared(i, extDir, src, manifestContext, commands);
+                    objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+                    i++;
+                }
+                ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+            }
+
+            // produce a shared library
+        }
+
+        // ***************************************************************************
+        // Java
+        {
+            List<File> srcFiles = listFiles(srcDirs, commonPlatformConfig.javaSourceRe);
+
+            if (srcFiles.isEmpty()) {
+                LOGGER.info("No Java source found for plugin. Skipping {}", extDir);
+            } else {
+                generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "java");
+                List<File> generatedFiles = listFiles(extBuildDir, commonPlatformConfig.javaSourceRe);
+
+                srcFiles.addAll(generatedFiles);
+
+                File sourcesListFile = new File(extBuildDir, "sources.txt");
+                sourcesListFile.createNewFile();
+
+                // Write source paths to sources.txt
+                for (File javaFile : srcFiles) {
+                    FileUtils.writeStringToFile(sourcesListFile, javaFile.getAbsolutePath() + "\n", Charset.defaultCharset(), true);
+                }
+
+                File classesDir = new File(extBuildDir, "classes");
+                classesDir.delete();
+                classesDir.mkdir();
+
+                {
+                    Map<String, Object> context = createContext();
+
+                    String classPath = classesDir.getAbsolutePath();
+                    List<String> extraPaths = ExtenderUtil.getStringList(context, "javaPipelineClasspath");
+                    for (String path : extraPaths) {
+                        classPath += ":" + path;
+                    }
+
+                    context.put("classesDir", classesDir.getAbsolutePath());
+                    context.put("classPath", classPath);
+                    context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
+                    String command = templateExecutor.execute(commonPlatformConfig.javacCmd, context);
+                    processExecutor.execute(command);
+                }
+
+                // Collect all classes into a Jar file
+                Map<String, Object> context = createContext();
+                File outputJar = new File(extBuildDir, String.format("plugin%s.jar", manifestContext.get("extension_name")));
+
+                context.put("outputJar", outputJar.getAbsolutePath());
+                context.put("classesDir", classesDir.getAbsolutePath());
+                String command = templateExecutor.execute(commonPlatformConfig.jarCmd, context);
+                processExecutor.execute(command);
+
+                outputFiles.add(outputJar);
+            }
+        }
+
+        // ***************************************************************************
+        // Python
+        {
+            List<File> srcFiles = listFiles(srcDirs, platformConfig.sourceRe);
+
+            if (!protoFiles.isEmpty()) {
+                List<File> generatedFiles = generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "python");
+                outputFiles.addAll(generatedFiles);
+            }
+        }
+
+        return outputFiles;
     }
 
     private List<String> patchLibs(List<String> libs) {
@@ -1427,19 +1653,18 @@ class Extender {
         mergedAppContext.remove("extension_name_upper");
     }
 
+    private List<String> getSortedKeys(Set<String> keyset) {
+        String[] keys = keyset.toArray(new String[keyset.size()]);
+        Arrays.sort(keys);
+        return new ArrayList<String>(Arrays.asList(keys));
+    }
+
     private List<File> buildEngine() throws ExtenderException {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
-            List<String> symbols = new ArrayList<>();
-
-            Set<String> keyset = manifestConfigs.keySet();
-            String[] keys = keyset.toArray(new String[keyset.size()]);
-            Arrays.sort(keys);
-
-            for (String extensionSymbol : keys) {
-                symbols.add(extensionSymbol);
-
+            List<String> symbols = getSortedKeys(manifestConfigs.keySet());
+            for (String extensionSymbol : symbols) {
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
                 extensionContext = Extender.mergeContexts(extensionContext, appManifestContext);
                 File manifest = manifestFiles.get(extensionSymbol);
@@ -1456,6 +1681,37 @@ class Extender {
             List<File> exes = linkEngine(symbols, mergedAppContext, resourceFile);
 
             return exes;
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+    }
+
+    private boolean isDesktopPlatform(String platform) {
+        return platform.equals("x86_64-osx") || platform.equals("x86_64-linux") || platform.equals("x86_64-win32");
+    }
+
+    private List<File> buildPipelinePlugin() throws ExtenderException {
+
+        if (!isDesktopPlatform(platform)) {
+            return new ArrayList<>();
+        }
+
+        LOGGER.info("Building pipeline plugin for platform {} with extension source {}", platform, uploadDirectory);
+
+        try {
+            List<File> output = new ArrayList<>();
+
+            List<String> symbols = getSortedKeys(manifestConfigs.keySet());
+            for (String extensionSymbol : symbols) {
+                Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
+                extensionContext = Extender.mergeContexts(extensionContext, appManifestContext);
+                File manifest = manifestFiles.get(extensionSymbol);
+
+                List<File> pluginOutput = buildPipelineExtension(manifest, extensionContext);
+                output.addAll(pluginOutput);
+            }
+
+            return output;
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
@@ -1716,6 +1972,7 @@ class Extender {
             outputFiles.addAll(buildAndroid(platform));
         }
         outputFiles.addAll(buildEngine());
+        outputFiles.addAll(buildPipelinePlugin());
         outputFiles.addAll(writeLog());
         return outputFiles;
     }
