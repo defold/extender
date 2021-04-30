@@ -215,16 +215,22 @@ RUN \
 
 
 #
-# EMSCRIPTEN
+# Python
 #
 
+# NOTE: setuptools for protobuf builder
+
 RUN \
-  echo "EMSCRIPTEN" && \
+  echo "PYTHON" && \
   apt-get autoclean && \
   apt-get update && \
-  apt-get install -y --no-install-recommends python2.7 && \
+  apt-get install -y --no-install-recommends python2.7 python-setuptools && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python && \
   ln -s /usr/bin/python2.7 /usr/local/bin/python2
+
+#
+# EMSCRIPTEN
+#
 
 ENV EMCC_SKIP_SANITY_CHECK 1
 
@@ -608,12 +614,6 @@ RUN \
 # https://github.com/docker-library/openjdk/issues/331#issuecomment-498834472
   find "$JAVA_HOME/lib" -name '*.so' -exec dirname '{}' ';' | sort -u > /etc/ld.so.conf.d/docker-openjdk.conf; \
   ldconfig;
-
-RUN \
-  apt-get update; \
-  apt-get install -y --no-install-recommends \
-  # setuptools for protobuf builder
-  python-setuptools
 
 # Always run last to minimize the size
 RUN apt-get clean autoclean autoremove
