@@ -10,9 +10,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import java.util.Properties;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
 
 
 @Configuration
@@ -21,16 +19,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	@Value("${extender.authentication.platforms}")
 	String[] authenticatedPlatforms;
 
-	@Value("${extender.authentication.users}")
-	Resource usersResource;
-
-	private Properties loadUsers() throws Exception {
-		Properties users = new Properties();
-		if (usersResource != null) {
-			users.load(usersResource.getInputStream());
-		}
-		return users;
-	}
+	private InMemoryUserDetailsManager userDetailsManager = new InMemoryUserDetailsManager();
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
@@ -69,7 +58,11 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Override
 	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-		Properties users = loadUsers();
-		auth.userDetailsService(new InMemoryUserDetailsManager(users));
+		auth.userDetailsService(userDetailsManager);
+	}
+
+	@Bean
+	public InMemoryUserDetailsManager userDetailsManagerBean() {
+		return userDetailsManager;
 	}
 }

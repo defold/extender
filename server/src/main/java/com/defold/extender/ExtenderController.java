@@ -5,6 +5,7 @@ import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.UserUpdateService;
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
@@ -50,6 +51,7 @@ public class ExtenderController {
     private final DataCacheService dataCacheService;
     private final GradleService gradleService;
     private final GaugeService gaugeService;
+    private final UserUpdateService userUpdateService;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
     private final boolean remoteBuilderEnabled;
@@ -82,6 +84,7 @@ public class ExtenderController {
     public ExtenderController(DefoldSdkService defoldSdkService,
                               DataCacheService dataCacheService,
                               GradleService gradleService,
+                              UserUpdateService userUpdateService,
                               @Qualifier("gaugeService") GaugeService gaugeService,
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
@@ -91,6 +94,7 @@ public class ExtenderController {
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
         this.gaugeService = gaugeService;
+        this.userUpdateService = userUpdateService;
 
         this.remoteEngineBuilder = remoteEngineBuilder;
         this.remoteBuilderEnabled = remoteBuilderEnabled;
@@ -143,6 +147,8 @@ public class ExtenderController {
         if (!isMultipart) {
             throw new ExtenderException("The request must be a multi part request");
         }
+
+        this.userUpdateService.update();
 
         File jobDirectory;
         if (DM_DEBUG_JOB_FOLDER != null) {
