@@ -456,6 +456,7 @@ class Extender {
         List<String> includes = new ArrayList<>();
         File extIncludeDir = new File(extDir, "include");
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, extIncludeDir ) );
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(buildDirectory, extDir.getName())) ); // where we generate source from protobuf files
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) );
 
         // Add the other extensions include folders
