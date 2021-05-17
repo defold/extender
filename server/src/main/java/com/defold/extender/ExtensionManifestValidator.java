@@ -85,11 +85,6 @@ class ExtensionManifestValidator {
                     type = "flag";
                     break;
 
-                case "symbols":
-                    patterns = this.allowedSymbols;
-                    type = "symbol";
-                    break;
-
                 case "includes":
                     if (!(v instanceof List)) {
                         throw new ExtenderException(String.format("Error in '%s': The 'includes' must be a list of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
@@ -98,6 +93,7 @@ class ExtensionManifestValidator {
                     validateIncludePaths(extensionName, extensionFolder, (List<String>) v);
                     continue;
 
+                case "symbols":
                 case "excludeLibs":
                 case "excludeJars":
                 case "excludeJsLibs":
