@@ -36,7 +36,7 @@ targetCompatibility = 1.8
 
 dependencies {
     compile('org.jsoup:jsoup:1.11.3')
-    compile('com.android.tools.build:manifest-merger:26.0.0')
+    compile('com.android.tools.build:manifest-merger:27.2.0')
     compile('org.apache.commons:commons-configuration2:2.0')
 
     testCompile('commons-io:commons-io:2.6')
