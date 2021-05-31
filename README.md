@@ -130,10 +130,49 @@ You can solve this by removing the cached images:
 
 ##### AWS docker instances
 
-Sometimes the new server won't start properly and you get this [cryptic message](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/CannotCreateContainerError.html) on the AWS instance:
+Sometimes the new server won't start properly
+
+###### Login to server
+
+Find the EC2 instance id (it's in the form of `i-0abcdf1234567890`)
+
+    aws ssm start-session --target <instance_id>
+
+
+###### Thin Pool
+
+ and you get this [cryptic message](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/CannotCreateContainerError.html) on the AWS instance:
 
     "Thin Pool has 4350 free data blocks which is less than minimum required 4454 free data blocks"
 
 The fix is to log on to the instance and run:
 
     $ sudo sh -c "docker ps -q | xargs docker inspect --format='{{ .State.Pid }}' | xargs -IZ fstrim /proc/Z/root/"
+
+
+###### No space left on device
+
+Sometimes, there's no space left on the device harddrive
+
+    CannotPullContainerError: write /var/lib/docker/tmp/GetImageBlob740058354: no space left on device
+
+For more info, look for "Insufficient disc space" [here](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_cannot_pull_image.html)
+
+Check free space:
+
+    df
+
+Find the largest files:
+
+    du -Sh / | sort -rh | head -20
+
+
+Usually, these folders are at the top (with 500mb each).
+They are safe to remove, and usually directly after this, the container will download and start properly:
+
+    rm /var/log/amazon/ssm/download/update/*
+    rm /var/lib/amazon/ssm/download/update/*
+
+
+
+
