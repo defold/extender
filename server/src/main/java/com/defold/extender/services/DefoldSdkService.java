@@ -31,7 +31,11 @@ import java.util.Comparator;
 @Service
 public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
-    private static final String REMOTE_SDK_URL_PATTERNS[] = {"http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "http://d.defold.com/archive/%s/engine/defoldsdk.zip", "http://d.defold.com/archive-switch/%s/engine/defoldsdk.zip"};
+    private static final String REMOTE_SDK_URL_PATTERNS[] = {
+        "http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip",
+        "http://d.defold.com/archive/%s/engine/defoldsdk.zip",
+        "http://d-switch.defold.com/archive/%s/engine/defoldsdk.zip",
+        "http://d-ps4.defold.com/archive/%s/engine/defoldsdk.zip"};
     private static final String TEST_SDK_DIRECTORY = "a";
     private static final String LOCAL_VERSION = "local";
 
