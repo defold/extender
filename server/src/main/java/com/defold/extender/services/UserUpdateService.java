@@ -40,6 +40,8 @@ public class UserUpdateService {
      * @return Loaded users as a Properties instance
      */
     private Properties loadUsers() {
+        LOGGER.info("UserUpdateService - loadUsers()");
+        LOGGER.info("UserUpdateService - loadUsers() loading from " + usersResource);
         Properties users = new Properties();
         try {
             users.load(usersResource.getInputStream());
@@ -47,6 +49,7 @@ public class UserUpdateService {
         catch(IOException e) {
             LOGGER.info("UserUpdateService - Unable to update users. " + e.getMessage());
         }
+        LOGGER.info("UserUpdateService - loadUsers() loaded " + users);
         return users;
     }
 
@@ -59,11 +62,15 @@ public class UserUpdateService {
      * Refer to README_SECURITY.md for additional information
      */
     private void updateUsers(Properties users) {
+        LOGGER.info("UserUpdateService - updateUsers()");
+        LOGGER.info("UserUpdateService - updateUsers() updating users from " + users);
         for(String username : users.stringPropertyNames()) {
             List<String> userSettings = Arrays.asList(users.getProperty(username).split(","));
             final String password = userSettings.get(0);
             final boolean disabled = userSettings.get(userSettings.size() - 1).equals("disabled");
             final String[] authorities = userSettings.subList(1, userSettings.size() - 1).toArray(new String[0]);
+
+            LOGGER.info("UserUpdateService - updateUsers() updating user " + username +  " with password " + password);
 
             final UserDetails user = User.builder().disabled(disabled).username(username).password(password).authorities(authorities).build();
             if (userDetailsManager.userExists(username)) {
@@ -90,10 +97,12 @@ public class UserUpdateService {
 
         final long now = System.currentTimeMillis();
         if ((now - lastUpdateTimestamp) < updateInterval) {
+            LOGGER.info("UserUpdateService - update() skipping update since not enough time has elapsed");
             return;
         }
         lastUpdateTimestamp = now;
 
+        LOGGER.info("UserUpdateService - update() updating users!");
         updateUsers(loadUsers());
     }
 }
