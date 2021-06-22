@@ -22,17 +22,25 @@ import org.slf4j.LoggerFactory;
 public class UserUpdateService {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserUpdateService.class);
 
-    @Autowired
     private InMemoryUserDetailsManager userDetailsManager;
 
-    @Value("${extender.authentication.users}")
-    Resource usersResource;
+    private Resource usersResource;
 
-    @Value("${extender.authentication.update-interval}")
-    long updateInterval;
+    private long updateInterval;
 
     private long lastUpdateTimestamp = 0;
 
+    @Autowired
+    public UserUpdateService(
+        @Value("${extender.authentication.users}") Resource usersResource,
+        @Value("${extender.authentication.update-interval}") long updateInterval,
+        InMemoryUserDetailsManager userDetailsManager) {
+            LOGGER.info("UserUpdateService() updateInterval = " + updateInterval + " usersResource = " + usersResource + " userDetailsManager = " + userDetailsManager);
+            this.usersResource = usersResource;
+            this.updateInterval = updateInterval;
+            this.userDetailsManager = userDetailsManager;
+            update();
+    }
     /**
      * Load users from the resource specified by extender.authentication.users
      * in application.yml or env variable.
@@ -90,8 +98,14 @@ public class UserUpdateService {
      * extender.authentication.users configuration value.
      */
     public void update() {
+        LOGGER.info("UserUpdateService - update()");
         if (usersResource == null) {
             LOGGER.info("UserUpdateService - No extender.authentication.users configuration has been set");
+            return;
+        }
+
+        if (userDetailsManager == null) {
+            LOGGER.info("UserUpdateService - No userDetailsManager");
             return;
         }
 
