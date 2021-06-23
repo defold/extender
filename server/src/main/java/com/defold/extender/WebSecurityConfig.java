@@ -12,14 +12,9 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.beans.factory.annotation.Value;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
-	private static final Logger LOGGER = LoggerFactory.getLogger(WebSecurityConfig.class);
-
 	@Value("${extender.authentication.platforms}")
 	String[] authenticatedPlatforms;
 
