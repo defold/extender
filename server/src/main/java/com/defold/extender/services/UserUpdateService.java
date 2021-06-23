@@ -35,7 +35,7 @@ public class UserUpdateService {
         @Value("${extender.authentication.users}") Resource usersResource,
         @Value("${extender.authentication.update-interval}") long updateInterval,
         InMemoryUserDetailsManager userDetailsManager) {
-            LOGGER.info("UserUpdateService() updateInterval = " + updateInterval + " usersResource = " + usersResource + " userDetailsManager = " + userDetailsManager);
+            LOGGER.info("UserUpdateService() updateInterval = " + updateInterval + " usersResource = " + usersResource);
             this.usersResource = usersResource;
             this.updateInterval = updateInterval;
             this.userDetailsManager = userDetailsManager;
@@ -48,8 +48,6 @@ public class UserUpdateService {
      * @return Loaded users as a Properties instance
      */
     private Properties loadUsers() {
-        LOGGER.info("UserUpdateService - loadUsers()");
-        LOGGER.info("UserUpdateService - loadUsers() loading from " + usersResource);
         Properties users = new Properties();
         try {
             users.load(usersResource.getInputStream());
@@ -57,7 +55,6 @@ public class UserUpdateService {
         catch(IOException e) {
             LOGGER.info("UserUpdateService - Unable to update users. " + e.getMessage());
         }
-        LOGGER.info("UserUpdateService - loadUsers() loaded " + users);
         return users;
     }
 
@@ -70,15 +67,11 @@ public class UserUpdateService {
      * Refer to README_SECURITY.md for additional information
      */
     private void updateUsers(Properties users) {
-        LOGGER.info("UserUpdateService - updateUsers()");
-        LOGGER.info("UserUpdateService - updateUsers() updating users from " + users);
         for(String username : users.stringPropertyNames()) {
             List<String> userSettings = Arrays.asList(users.getProperty(username).split(","));
             final String password = userSettings.get(0);
             final boolean disabled = userSettings.get(userSettings.size() - 1).equals("disabled");
             final String[] authorities = userSettings.subList(1, userSettings.size() - 1).toArray(new String[0]);
-
-            LOGGER.info("UserUpdateService - updateUsers() updating user " + username +  " with password " + password);
 
             final UserDetails user = User.builder().disabled(disabled).username(username).password(password).authorities(authorities).build();
             if (userDetailsManager.userExists(username)) {
@@ -98,7 +91,6 @@ public class UserUpdateService {
      * extender.authentication.users configuration value.
      */
     public void update() {
-        LOGGER.info("UserUpdateService - update()");
         if (usersResource == null) {
             LOGGER.info("UserUpdateService - No extender.authentication.users configuration has been set");
             return;
@@ -116,7 +108,6 @@ public class UserUpdateService {
         }
         lastUpdateTimestamp = now;
 
-        LOGGER.info("UserUpdateService - update() updating users!");
         updateUsers(loadUsers());
     }
 }

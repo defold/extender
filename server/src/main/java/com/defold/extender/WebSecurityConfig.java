@@ -27,9 +27,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
-		LOGGER.info("WebSecurityConfig.configure()");
 		for(String platform : authenticatedPlatforms) {
-			LOGGER.info("WebSecurityConfig.configure() platform: " + platform);
 			switch(platform) {
 				case "android":
 					http.authorizeRequests().antMatchers("/build/armv7-android/**").hasRole("ANDROID").and().httpBasic();
@@ -64,7 +62,6 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Override
 	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-		LOGGER.info("WebSecurityConfig.configure() auth");
 		auth.userDetailsService(userDetailsManager);
 	}
 
