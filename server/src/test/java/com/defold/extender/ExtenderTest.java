@@ -39,7 +39,23 @@ public class ExtenderTest {
         File buildDir = new File(jobDir, "build");
         buildDir.mkdirs();
         File sdk = new File("test-data/sdk/a/defoldsdk");
-        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir);
+
+
+        Map<String, String> env = new HashMap<>();
+
+        // TODO: Read these from the Dockerfile itself
+        env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
+        env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
+        env.put("XCODE_12_VERSION", "12.5");
+        env.put("IOS_14_VERSION", "14.5");
+        env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
+        env.put("MACOS_11_VERSION", "11.3");
+        env.put("XCODE_12_CLANG_VERSION", "12.0.5");
+        env.put("SWIFT_5_VERSION", "5.0");
+        env.put("SYSROOT", "/opt/platformsdk/MacOSX11.3.sdk");
+        env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
+
+        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
 
         uploadDir.delete();
         assertTrue(true);
