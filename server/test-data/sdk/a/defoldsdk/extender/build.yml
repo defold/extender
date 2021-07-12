@@ -79,10 +79,20 @@ platforms:
     # not supported anymore
 
   x86_64-osx:
+    env:
+        PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
+        XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_12_CLANG_VERSION}}"
+        MACOS_VERSION:          "{{env.MACOS_11_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_VERSION}}"
+        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_11_VERSION}}.sdk"
     context:
         frameworks: []
         engineLibs: ["engine_main", "engine_foo"]
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin", "{{dynamo_home}}/lib/x86_64-osx"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin", "{{dynamo_home}}/lib/x86_64-osx", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
+        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         libs:       []
         flags:      []
         linkFlags:  []
@@ -96,8 +106,8 @@ platforms:
     sourceRe:       '(?i).*(.cpp|.c|.cc|.mm|.m)'
     allowedLibs:    ['lber','apr-1.0','AVFAudio','netsnmpmibs.25','bsm','form.5.4','tk','QMIParserDynamic','gmalloc','ncurses','heimdal-asn1','iodbcinst','krb5','tidy','curl.4','pmenergy','python2.7','icucore','ecpg','ATCommandStudioDynamic','dtrace_dyld','lzma.5','pcre.0','pgtypes.3.4','pq.5.6','pam.1','netsnmp.5','energytrace','sasl2.2.0.15','python2.6','germantok','cmph','ssh-keychain','xar.1','xml2','pcreposix.0','m','pam.2','apr-1','auto','alias','c++','ipconfig','Match','crypto.35','netsnmpmibs','cups','exslt.0','iodbcinst.2.1.18','pgtypes.3','mx.A','CRFSuite','cupsmime.1','aprutil-1.0','objc.A','edit','crypto.0.9.8','pmsample','des425','gcc_s.10.5','ruby.2.0','crypto.0.9.7','CRFSuite0.12','auditd.0','edit.2','pthread','ecpg.6.5','odfde','tcl8.5','z.1.1.3','netsnmp.5.2.1','cupsppdc.1','util','lapack','extension','ffi','System','iodbcinst.2','dns_services','pcreposix','mx','panel','ldap','readline','IASUnifiedProgress','edit.3','ssl.0.9.7','csfde','python','hunspell-1.2.0.0.0','netsnmp.25','charset.1.0.0','panel.5.4','gssapi_krb5','aprutil-1','cupsimage.2','BSDPClient.A','menu.5.4','info','spindump','marisa','dl','cupsimage','pq.5','com_err','auditd','UniversalAccess','sasl2.2.0.22','ecpg.6','blas','XSEvent','z','form','ktrace','krb5support','DiagnosticMessagesClient','c++abi','expat.1','System_debug','iodbc','tk8.5','Xplugin.1','pcap.A','curl.3','dbm','iconv','ssl','gcc_s.10.4','netsnmp.15.1.2','xar','menu','exslt','odmodule','alias.A','sasl2','charset','sasl2.2','ThaiTokenizer','tidy.A','archive','bz2.1.0.5','netsnmptrapd','ncurses.5.4','pcre','Fosl_dynamic','cblas','pq','System.B_debug','mecab','ipsec.A','ecpg_compat.3.5','f77lapack','cupsppdc','ipsec','netsnmphelpers.25','edit.3.0','tls','z.1.2.5','netsnmp.15','xslt','resolv','sasl2.2.0.1','iconv.2','ecpg_compat','netsnmpagent','krb524','OpenScriptingUtil','dtrace','cupsmime','bz2','AccountPolicyTranslation','netsnmpagent.25','expat','ssl.0.9.8','cups.2','netsnmphelpers','crypto','z.1','netsnmp','sandbox','CoreStorage','util1.0','DHCPServer.A','langid','Match.1','iodbc.2.1.18','xml2.2','quit','prequelite','stdc++.6.0.9','pcap','objc','ecpg_compat.3','ruby','ScreenReader','c++.1','tls.6','System.B','ChineseTokenizer','ssl.35','sqlite3','proc','BSDPClient','k5crypto','network','hunspell-1.2.0','cupscgi.1','sysmon','bz2.1.0','IASAuthReboot','ldap_r','c','termcap','ncurses.5','archive.2','cupscgi','bsm.0','lzma','iconv.2.4.0','xcselect','poll','sandbox.1','gcc_s.1','iodbc.2','curl','Xplugin','krb4','hunspell-1.2','stdc++','netsnmptrapd.25','rpcsvc','pam','clapack','tcl','mecabra','sasl2.2.0.21','resolv.9','compression','charset.1','icucore.A','pgtypes','DHCPServer','systemstats','TelephonyUtilDynamic','ruby.2.0.0','system_notify','system_c','system_secinit','system_dnssd','removefile','system_malloc','system_blocks','copyfile','xpc','mathCommon','unwind','system_platform','dyld','system_network','system_sandbox','dispatch','system_trace','system_info','keymgr','system_kernel','mathCommon.A','system_networkextension','system_coreservices','system_asl','unc','launch','system_coretls','dispatch','system_pthread','system_m','system_configuration','kxld','quarantine','corecrypto','macho','commonCrypto','system_pthread','compiler_rt','cache','sqlite3.0','stdc++.6','xslt.1','mecab.1.0.0','curses','Accelerate','Accounts','AddressBook','AGL','AppKit','AppKitScripting','AppleScriptKit','AppleScriptObjC','ApplicationServices','AudioToolbox','AudioUnit','AudioVideoBridging','Automator','AVFoundation','AVKit','CalendarStore','Carbon','CFNetwork','CloudKit','Cocoa','Collaboration','Contacts','ContactsUI','CoreAudio','CoreAudioKit','CoreBluetooth','CoreData','CoreFoundation','CoreGraphics','CoreImage','CoreLocation','CoreMedia','CoreMediaIO','CoreMIDI','CoreMIDIServer','CoreServices','CoreTelephony','CoreText','CoreVideo','CoreWLAN','CryptoTokenKit','DirectoryService','DiscRecording','DiscRecordingUI','DiskArbitration','DrawSprocket','DVComponentGlue','DVDPlayback','EventKit','ExceptionHandling','FinderSync','ForceFeedback','Foundation','FWAUserLib','GameController','GameKit','GameplayKit','GLKit','GLUT','GSS','Hypervisor','ICADevices','ImageCaptureCore','ImageIO','IMServicePlugIn','InputMethodKit','InstallerPlugins','InstantMessage','IOBluetooth','IOBluetoothUI','IOKit','IOSurface','JavaFrameEmbedding','JavaScriptCore','JavaVM','Kerberos','Kernel','LatentSemanticMapping','LDAP','LocalAuthentication','MapKit','MediaAccessibility','MediaLibrary','MediaToolbox','Message','Metal','MetalKit','ModelIO','MultipeerConnectivity','NetFS','NetworkExtension','NotificationCenter','OpenAL','OpenCL','OpenDirectory','OpenGL','OSAKit','PCSC','Photos','PhotosUI','PreferencePanes','PubSub','Python','QTKit','QuartzCore','Quartz','QuickLook','QuickTime','Ruby','SceneKit','ScreenSaver','ScriptingBridge','Scripting','SecurityFoundation','Security','SecurityInterface','ServiceManagement','Social','SpriteKit','StoreKit','SyncServices','SystemConfiguration','System','Tcl','Tk','TWAIN','vecLib','VideoDecodeAcceleration','VideoToolbox','vmnet','WebKit']
     allowedFlags:   ["-ObjC","-ObjC++","-Wa,{{comma_separated_arg}}","-W{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","-W{{warning}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
-    compileCmd:     'clang++ -c -arch x86_64 -target x86_64-apple-darwin14 -isysroot /opt/platformsdk/MacOSX10.15.sdk -stdlib=libc++ -m64 -O2 -g -mmacosx-version-min=10.7 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
-    linkCmd:        'clang++ -arch x86_64 -target x86_64-apple-darwin14 -isysroot /opt/platformsdk/MacOSX10.15.sdk -stdlib=libc++ -m64 -O2 -g -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+    compileCmd:     'clang++ -c -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} -stdlib=libc++ -m64 -O2 -g -mmacosx-version-min=10.7 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd:        'clang++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.SYSROOT}} -stdlib=libc++ -m64 -O2 -g -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
 
   armv7-android:
@@ -219,19 +229,18 @@ platforms:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
         MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
-        SDK8_DIR:           "{{env.WINDOWS_SDK_8_DIR}}"
         SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
         SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
         VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
         VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
     context:
         engineLibs: ["engine_main", "engine_foo"]
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK8_DIR}}/Lib/winv6.3/um/x64"]
-        platformIncludes:   ["{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK8_DIR}}/Include/winrt", "{{env.SDK8_DIR}}/Include/um", "{{env.SDK8_DIR}}/Include/shared"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
+        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32"]
+        libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
         symbols:    []
 
     exePrefix:      ''
@@ -244,7 +253,7 @@ platforms:
     zipContentPattern: 'dmengine.exe'
     symbolsPattern:  '.*pdb'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
-    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-]+"]
+    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-=]+"]
     compileCmd:     'clang++ -target x86_64-pc-win32-msvc -m64 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target x86_64-pc-win32-msvc -m64 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
@@ -255,19 +264,18 @@ platforms:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
         MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
-        SDK8_DIR:           "{{env.WINDOWS_SDK_8_DIR}}"
         SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
         SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
         VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
         VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
     context:
         engineLibs: ["engine_main", "engine_foo"]
-        libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK8_DIR}}/Lib/winv6.3/um/x86"]
-        platformIncludes:   ["{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK8_DIR}}/Include/winrt", "{{env.SDK8_DIR}}/Include/um", "{{env.SDK8_DIR}}/Include/shared"]
+        libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]
+        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32"]
+        libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
         symbols:    []
 
     exePrefix:      ''
@@ -280,7 +288,7 @@ platforms:
     zipContentPattern: 'dmengine.exe'
     symbolsPattern:  '.*pdb'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
-    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-]+"]
+    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-=]+"]
     compileCmd:     'clang++ -target i386-pc-win32-msvc -m32 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target i386-pc-win32-msvc -m32 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'

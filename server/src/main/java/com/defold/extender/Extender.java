@@ -88,7 +88,7 @@ class Extender {
 
     private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
 
-    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
+    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory, Map<String,String> env) throws IOException, ExtenderException {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
         this.buildDirectory = buildDirectory;
@@ -170,6 +170,10 @@ class Extender {
             for (Map.Entry<String, String> sysEnvEntry : System.getenv().entrySet()) {
                 envContext.put("env." + sysEnvEntry.getKey(), sysEnvEntry.getValue());
             }
+            // Make custom env variables available for the template execution below.
+            for (Map.Entry<String, String> envEntry : env.entrySet()) {
+                envContext.put("env." + envEntry.getKey(), envEntry.getValue());
+            }
 
             Set<String> keys;
             if (this.commonPlatformConfig != null) {
@@ -210,6 +214,10 @@ class Extender {
 
         // Load and merge manifests
         loadManifests();
+    }
+
+    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
+        this(platform, sdk, jobDirectory, uploadDirectory, buildDirectory, new HashMap<String, String>());
     }
 
     private PlatformConfig getPlatformConfig(String platform) throws ExtenderException {
@@ -369,25 +377,53 @@ class Extender {
             context.put(k, v);
         }
 
-        // Added to build.yml in 1.2.174 (setting for using Clang 9)
+        // Added to build.yml in 1.2.185 (setting for using isystem headers)
         if (this.platform.contains("ios") || this.platform.contains("osx")) {
-            LOGGER.debug("Adding arclite hack to ios/osx");
-            List<String> linkFlags = (List<String>)context.get("linkFlags");
-            if (!linkFlags.contains("-Wl,-U,_objc_loadClassref")) {
-                linkFlags.add("-Wl,-U,_objc_loadClassref");
-            }
-        }
-        // Added in 2019, should be removed soon
-        else if ( this.platform.contains("win32")) {
-            LOGGER.debug("Adding WinMain hack to win32");
-            List<String> linkFlags = (List<String>)context.get("linkFlags");
-            if (!linkFlags.contains("-Wl,/entry:mainCRTStartup")) {
-                linkFlags.add("-Wl,/entry:mainCRTStartup");
+            LOGGER.debug("Adding -nostdinc++ hack to ios/osx");
+
+            String sdkMacOS = "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk";
+            String sdkIphoneOS = "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk";
+            String sdkIphoneSimulatorOS = "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_VERSION}}.sdk";
+
+            String swiftLibPath = "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-5.0";
+
+            String sdk;
+            if (this.platform.contains("ios")) {
+                if (this.platform.contains("arm")) {
+                    sdk = sdkIphoneOS;
+                    swiftLibPath += "/iphoneos";
+                } else {
+                    sdk = sdkIphoneSimulatorOS;
+                    swiftLibPath += "/iphonesimulator";
+                }
+            } else {
+                sdk = sdkMacOS;
+                swiftLibPath += "/macos";
             }
 
-            LOGGER.debug("Adding SEH hack to win32");
-            if (!linkFlags.contains("-Wl,/safeseh:no")) {
-                linkFlags.add("-Wl,/safeseh:no");
+            sdk += "/usr/include/c++/v1";
+            String compileCmd = platformConfig.compileCmd;
+            if (!compileCmd.contains("-nostdinc++")) {
+
+                if (this.platform.contains("osx")) {
+                    String add = "-isystem {{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/include/c++/v1";
+                    compileCmd = compileCmd.replace("-stdlib=libc++", "-stdlib=libc++ " + add);
+                }
+                compileCmd = compileCmd.replace("-stdlib=libc++", "-stdlib=libc++ -nostdinc++ -isystem " + sdk);
+
+                platformConfig.compileCmd = compileCmd;
+            }
+
+            String libpath = sdk + "/usr/lib";
+            libpath = templateExecutor.execute(libpath, context);
+            swiftLibPath = templateExecutor.execute(swiftLibPath, context);
+
+            List<String> libPaths = (List<String>)context.get("libPaths");
+            if (!libPaths.contains(libpath)) {
+                libPaths.add(libpath);
+            }
+            if (!libPaths.contains(swiftLibPath)) {
+                libPaths.add(swiftLibPath);
             }
         }
 

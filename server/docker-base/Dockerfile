@@ -95,126 +95,6 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
 #
-# iOS + OSX
-#
-
-# For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
-# and <defold>/scripts/mobile/package_cctools.sh
-
-# The install flow for <=1.2.173
-# darwin12 == <1.2.171
-# darwin14 == <=1.2.173
-# The updated install flow
-RUN \
-  apt-get update && \
-  apt-get install -y git cmake && \
-  cd /tmp && \
-  TAPITMP=/tmp/tapi1.4 && \
-  mkdir $TAPITMP && \
-  git clone https://github.com/tpoechtrager/apple-libtapi.git && \
-  cd apple-libtapi && \
-  git checkout 3efb201881e7a76a21e0554906cf306432539cef && \
-  INSTALLPREFIX=$TAPITMP ./build.sh && \
-  ./install.sh && \
-  cd .. && \
-  git clone https://github.com/tpoechtrager/cctools-port.git && \
-  cd cctools-port/cctools && \
-  git checkout 3f979bbcd7ee29d79fb93f829edf3d1d16441147 && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin14 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin14 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin12 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin12 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  apt-get purge --auto-remove -y git cmake && \
-  cd ../.. && \
-  rm -rf apple-libtapi && \
-  rm -rf cctools-port
-
-RUN \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.0.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.0.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.0.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.0.xctoolchain.slim.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.0.xctoolchain
-
-# Install flow for 1.2.171 - 1.2.173
-RUN \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS13.5.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator13.5.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator13.5.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault11.5.xctoolchain.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain && \
-# A fix for the versions using Xcode 11.5 and specifying the wrong version (e.g. 1.2.173)
-  ln -s ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain/usr/lib/clang/11.0.3 ${PLATFORMSDK_DIR}/XcodeDefault11.5.xctoolchain/usr/lib/clang/11.0.0
-
-
-ENV LD_LIBRARY_PATH /usr/local/tapi1.4/lib:${LD_LIBRARY_PATH}
-
-# Install flow for 1.2.174
-ENV XCODE_12_VERSION    12.1
-ENV MACOS_10_15_VERSION 10.15
-ENV IOS_14_VERSION      14.0
-ENV LIB_TAPI_1_6_PATH   /usr/local/tapi1.6/lib
-
-# The updated install flow
-RUN \
-  apt-get update && \
-  apt-get install -y git cmake && \
-  cd /tmp && \
-  TAPITMP=/usr/local/tapi1.6 && \
-  mkdir $TAPITMP && \
-  git clone https://github.com/tpoechtrager/apple-libtapi.git && \
-  cd apple-libtapi && \
-  git checkout a66284251b46d591ee4a0cb4cf561b92a0c138d8 && \
-  INSTALLPREFIX=$TAPITMP ./build.sh && \
-  ./install.sh && \
-  cd .. && \
-  git clone https://github.com/tpoechtrager/cctools-port.git && \
-  cd cctools-port/cctools && \
-  git checkout 6c438753d2252274678d3e0839270045698c159b && \
-  ./configure --prefix=/usr/local --target=arm-apple-darwin19 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  ./configure --prefix=/usr/local --target=x86_64-apple-darwin19 --with-libtapi=$TAPITMP && \
-  make -j8 && \
-  make install && \
-  make distclean && \
-  cd ../.. && \
-  rm -rf apple-libtapi && \
-  rm -rf cctools-port
-
-RUN \
-  echo "iOS 14 + XCode 12" && \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS${IOS_14_VERSION}.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_14_VERSION}.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_10_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_10_15_VERSION}.sdk && \
-  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.linux.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
-  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
-
-# This part is not yet separable between xcode versions, but should work
-RUN \
-  ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/arc /usr/local/lib/arc
-
-
-#
 # Python
 #
 
@@ -314,20 +194,17 @@ ENV \
 # Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer Command Prompt"
 # Note: VCINSTALLDIR is special since clang will use it as the last "-internal-isystem" option
 ENV \
-  VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/" \
-  VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/" \
-  WINDOWS_MSVC_2015_DIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/VC/" \
+  VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/" \
+  VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/" \
   WINDOWS_MSVC_2019_DIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/Tools/MSVC/${WINDOWS_MSVC_2019_VERSION}/" \
-  WINDOWS_SDK_8_DIR="${PLATFORMSDK_WIN32}/WindowsKits/8.1/" \
   WINDOWS_SDK_10_DIR="${PLATFORMSDK_WIN32}/WindowsKits/10/" \
-  VS140COMNTOOLS="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0/Common7/Tools/" \
   VS160COMNTOOLS="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Common7/Tools/" \
   WINDOWS_VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/Tools/MSVC/${WINDOWS_MSVC_2019_VERSION}/" \
   WINDOWS_VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/" \
-  WindowsLibPath="${PLATFORMSDK_WIN32}/WindowsKits/8.1/References/CommonConfiguration/Neutral" \
-  WindowsSdkDir="${PLATFORMSDK_WIN32}/WindowsKits/8.1/" \
-  WindowsSDKLibVersion="winv6.3/" \
-  WindowsSDKVersion="/"
+  WindowsLibPath="${PLATFORMSDK_WIN32}/WindowsKits/10/References/${WINDOWS_SDK_10_VERSION}" \
+  WindowsSdkDir="${PLATFORMSDK_WIN32}/WindowsKits/10/" \
+  WindowsSDKLibVersion="${WINDOWS_SDK_10_VERSION}" \
+  WindowsSDKVersion="${WINDOWS_SDK_10_VERSION}"
 
 # windres: Allows for generating .res files that can be used during linking
 RUN \
@@ -343,23 +220,9 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
 
 RUN \
-  echo "WIN32 2015 SDK" && \
-  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-14-0-slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32} && \
-  mv ${PLATFORMSDK_WIN32}/Microsoft\ Visual\ Studio\ 14.0 ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio14.0
-
-# Windows kit 8.1 was removed in 1.2.170, and can be removed once that one is the last version available on d.defold.com
-# (We only keep backwards support in extensions for 6 months)
-RUN \
-  echo "WIN32 8.1 + 10 SDK" && \
+  echo "WIN32 10 SDK" && \
   mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-8.1_slim.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits && \
-# no real need to have 3 versions but older build.yml refer to these.
-# Should clean up package after 1.2.164 has become the baseline
-  ln -s ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Lib/10.0.10150.0 && \
-  ln -s ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Lib/10.0.10240.0 && \
-  ln -s ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Include/10.0.10150.0 && \
-  ln -s ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION} ${WINDOWS_SDK_10_DIR}/Include/10.0.10240.0
+  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
 
 RUN \
   ln -s /usr/local/bin/clang /usr/local/bin/x86_64-pc-win32-clang && \
@@ -374,19 +237,10 @@ RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(bas
 RUN \
   echo "WIN32 SDK - Cleanup" && \
 # and the rest are manually copied (or made lower case)
-  (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp oldnames.lib OLDNAMES.lib) && \
-  (cd ${WINDOWS_MSVC_2015_DIR}/lib && cp oldnames.lib OLDNAMES.lib) && \
-  (cd ${WINDOWS_MSVC_2015_DIR}/lib/amd64 && cp delayimp.lib Delayimp.lib) && \
-  (cd ${WINDOWS_MSVC_2015_DIR}/lib && cp delayimp.lib Delayimp.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
-  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib) && \
-  (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp driverspecs.h DriverSpecs.h) && \
-  (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp specstrings.h SpecStrings.h) && \
-  (cd ${WINDOWS_SDK_8_DIR}/Include/shared && cp concurrencysal.h ConcurrencySal.h) && \
-  (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x64 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;) && \
-  (cd ${WINDOWS_SDK_8_DIR}/Lib/winv6.3/um/x86 && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
+  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib)
 
 # Some headers are named by the wrong name in the windows sdk's...
 # We need to make certain names lowercase because some users
@@ -580,6 +434,82 @@ ENV EXTENSION_LOCAL_PROPERTIES_TEMPLATE /var/extender/template.local.properties
 COPY template.build.gradle ${EXTENSION_BUILD_GRADLE_TEMPLATE}
 COPY template.gradle.properties ${EXTENSION_GRADLE_PROPERTIES_TEMPLATE}
 COPY template.local.properties ${EXTENSION_LOCAL_PROPERTIES_TEMPLATE}
+
+#
+# iOS + OSX
+#
+
+# For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
+# and <defold>/scripts/mobile/package_cctools.sh
+
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}
+
+# Install flow from  >=1.2.174
+ENV XCODE_12_VERSION      12.5
+ENV MACOS_10_15_VERSION   10.15
+ENV IOS_14_VERSION        14.5
+ENV LIB_TAPI_1_6_PATH     /usr/local/tapi1.6/lib
+# Install flow from >=1.2.185
+ENV MACOS_11_VERSION        11.3
+ENV XCODE_12_CLANG_VERSION  12.0.5
+ENV SWIFT_5_VERSION         5.0
+
+# The updated install flow
+RUN \
+  apt-get update && \
+  apt-get install -y git cmake && \
+  cd /tmp && \
+  TAPITMP=/usr/local/tapi1.6 && \
+  mkdir $TAPITMP && \
+  git clone https://github.com/tpoechtrager/apple-libtapi.git && \
+  cd apple-libtapi && \
+  git checkout a66284251b46d591ee4a0cb4cf561b92a0c138d8 && \
+  INSTALLPREFIX=$TAPITMP ./build.sh && \
+  ./install.sh && \
+  cd .. && \
+  git clone https://github.com/tpoechtrager/cctools-port.git && \
+  cd cctools-port/cctools && \
+  git checkout 6c438753d2252274678d3e0839270045698c159b && \
+  ./configure --prefix=/usr/local --target=arm-apple-darwin19 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  ./configure --prefix=/usr/local --target=x86_64-apple-darwin19 --with-libtapi=$TAPITMP && \
+  make -j8 && \
+  make install && \
+  make distclean && \
+  cd ../.. && \
+  rm -rf apple-libtapi && \
+  rm -rf cctools-port
+
+RUN \
+  echo "iOS 14 + macOS 10/11 + XCode 12" && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS${IOS_14_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator${IOS_14_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_14_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_10_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_10_15_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_11_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_11_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.linux.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
+
+# This part is not yet separable between xcode versions, but should work
+RUN \
+  ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
+  ln -s ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/arc /usr/local/lib/arc
+
+RUN mkdir -p /usr/local/lib/clang/10.0.1/lib/darwin && \
+    ln -s /opt/platformsdk/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/clang/${XCODE_12_CLANG_VERSION}/lib/darwin/libclang_rt.asan_osx_dynamic.dylib \
+    /usr/local/lib/clang/10.0.1/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
+
+# For backwards compatbility, we must also keep a copy of the library folder
+# Remove when 1.2.185 is the base line
+RUN ln -s /opt/platformsdk/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/clang/${XCODE_12_CLANG_VERSION} \
+    /opt/platformsdk/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/clang/12.0.0
+
+# Final cleanup
 
 RUN \
   apt-get remove -y apt-transport-https xvfb && \

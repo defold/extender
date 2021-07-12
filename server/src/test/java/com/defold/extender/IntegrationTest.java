@@ -120,7 +120,10 @@ public class IntegrationTest {
 
                 // At 1.2.178 we updated to Emscripten 2.x
                 new DefoldVersion("af6a29c2a1e2545e2d033790089c606ac9f0bb7a", new Version(1, 2, 178), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("f34b08dc12af1101ae62c6e880b6373a03206174", new Version(1, 2, 180), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("1f5712609c345f870b691a85d611d4825d22a718", new Version(1, 2, 184), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+
+                // At 1.2.185, we updated to iOS 14.5, macOS 11.3 and XCode 12.5
+
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
                 //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),
