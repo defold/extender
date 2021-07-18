@@ -43,6 +43,7 @@ class Extender {
     private final Map<String, Object> appManifestContext;
     private final Boolean withSymbols;
     private final Boolean useJetifier;
+    private final String buildArtifacts;
 
     private Map<String, Map<String, Object>>    manifestConfigs;
     private Map<String, File>                   manifestFiles;
@@ -60,6 +61,7 @@ class Extender {
 
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
+    static final String APPMANIFEST_BUILD_ARTIFACTS_KEYWORD = "buildArtifacts";
     static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
@@ -147,6 +149,7 @@ class Extender {
 
         this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, platform, APPMANIFEST_JETIFIER_KEYWORD, true);
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
+        this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
 
         this.platform = platform;
         this.sdk = sdk;
@@ -655,8 +658,6 @@ class Extender {
         return generated;
     }
 
-
-
     private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         File extDir = manifest.getParentFile();
 
@@ -705,7 +706,6 @@ class Extender {
     }
 
     private List<File> buildPipelineExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-
         if (commonPlatformConfig == null || commonPlatformConfig.protoEngineCxxCmd == null) {
             LOGGER.info("This SDK version doesn't support compiling plugins!");
             return new ArrayList<File>();
@@ -1697,7 +1697,23 @@ class Extender {
         return new ArrayList<String>(Arrays.asList(keys));
     }
 
+    private boolean shouldBuildArtifact(String artifact) {
+        List<String> artifacts = Arrays.asList(this.buildArtifacts.split(","));
+        //ExtenderUtil.debugPrint("artifacts", artifacts);
+        return artifacts.contains(artifact);
+    }
+
+    private boolean shouldBuildEngine() {
+        return this.buildArtifacts.equals("") || shouldBuildArtifact("engine");
+    }
+    private boolean shouldBuildPlugins() {
+        return shouldBuildArtifact("plugins");
+    }
+
     private List<File> buildEngine() throws ExtenderException {
+        if (!shouldBuildEngine()) {
+            return new ArrayList<>();
+        }
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
@@ -1731,6 +1747,9 @@ class Extender {
     private List<File> buildPipelinePlugin() throws ExtenderException {
 
         if (!isDesktopPlatform(platform)) {
+            return new ArrayList<>();
+        }
+        if (!shouldBuildPlugins()) {
             return new ArrayList<>();
         }
 
