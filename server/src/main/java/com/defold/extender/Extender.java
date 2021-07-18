@@ -1699,7 +1699,6 @@ class Extender {
 
     private boolean shouldBuildArtifact(String artifact) {
         List<String> artifacts = Arrays.asList(this.buildArtifacts.split(","));
-        //ExtenderUtil.debugPrint("artifacts", artifacts);
         return artifacts.contains(artifact);
     }
 
