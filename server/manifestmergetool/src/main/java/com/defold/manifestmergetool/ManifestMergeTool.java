@@ -107,7 +107,7 @@ public class ManifestMergeTool {
             System.exit(1);
         }
         if (!main.exists()) {
-            logger.log(Level.SEVERE, "You must specify a valid main manifest file: %s", main.getAbsolutePath());
+            logger.log(Level.SEVERE, String.format("You must specify a valid main manifest file: %s", main.getAbsolutePath()));
             System.exit(1);
         }
         if (output == null) {
@@ -120,7 +120,7 @@ public class ManifestMergeTool {
         }
         for (File file : libraries) {
             if (!file.exists()) {
-                logger.log(Level.SEVERE, "Manifest file does not exist: %s", file.getAbsolutePath());
+                logger.log(Level.SEVERE, String.format("Manifest file does not exist: %s", file.getAbsolutePath()));
             }
         }
 
