@@ -534,6 +534,25 @@ class Extender {
         return addCompileFileCpp_Internal(index, extDir, src, manifestContext, commonPlatformConfig.compileCmdCXXSh, commands);
     }
 
+    private File linkCppShared(File extBuildDir, List<String> objs, Map<String, Object> manifestContext, String cmd) throws IOException, InterruptedException, ExtenderException {
+        String name = String.format(platformConfig.writeShLibPattern, manifestContext.get("extension_name"));
+        File output = new File(extBuildDir, name);
+
+        Map<String, Object> context = context(manifestContext);
+
+        Map<String, Object> env = new HashMap<>();
+        getProjectPaths(context, env);
+
+        context.put("ext", env);
+        context.put("src", objs);
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, output));
+
+        String command = templateExecutor.execute(cmd, context);
+        processExecutor.execute(command);
+
+        return output;
+    }
+
     private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         manifestContext.put("extension_name", "ENGINE_MAIN");
         manifestContext.put("extension_name_upper", "ENGINE_MAIN");
@@ -729,7 +748,9 @@ class Extender {
                 LOGGER.info("No C++ source found for plugin. Skipping {}", extDir);
             } else {
                 // We leave the C++ protobuf support for a later date
-                List<File> generatedFiles = new ArrayList<>();//generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "cpp");
+                // since the Java support is fully adequate, and also provides better error handling.
+                //List<File> generatedFiles = generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "cpp");
+                List<File> generatedFiles = new ArrayList<>();
 
                 srcFiles.addAll(generatedFiles);
 
@@ -744,6 +765,9 @@ class Extender {
                     i++;
                 }
                 ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+
+                File sharedLibrary = linkCppShared(extBuildDir, objs, manifestContext, commonPlatformConfig.linkCmdCXXSh);
+                outputFiles.add(sharedLibrary);
             }
 
             // produce a shared library
@@ -824,25 +848,7 @@ class Extender {
         return libs;
     }
 
-    private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
-        LOGGER.info("Linking engine");
-
-        File maincpp = new File(buildDirectory , "main.cpp");
-
-        List<String> extSymbols = new ArrayList<>();
-        extSymbols.addAll(symbols);
-
-        Map<String, Object> mainContext = context(manifestContext);
-
-        extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols") );
-        mainContext.put("symbols", ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols")));
-        mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
-
-        String main = templateExecutor.execute(config.main, mainContext);
-        FileUtils.writeStringToFile(maincpp, main);
-
-        File mainObject = compileMain(maincpp, manifestContext);
-
+    private void getProjectPaths(Map<String, Object> mainContext, Map<String, Object> env) throws ExtenderException {
         List<String> extLibs = new ArrayList<>();
         List<String> extShLibs = new ArrayList<>();
         List<String> extLibPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
@@ -889,6 +895,40 @@ class Extender {
         // This is a workaround due to a linker crash when the helpshift "Support" library is in front of the Facebook extension (not certain of this though)
         Collections.sort(extLibs, Collections.reverseOrder());
 
+        env.put("libs", extLibs);
+        env.put("dynamicLibs", extShLibs);
+        env.put("libPaths", extLibPaths);
+        env.put("frameworks", extFrameworks);
+        env.put("frameworkPaths", extFrameworkPaths);
+        env.put("jsLibs", extJsLibs);
+
+        ExtenderUtil.debugPrint("libs", extLibs);
+        ExtenderUtil.debugPrint("dynamicLibs", extShLibs);
+        ExtenderUtil.debugPrint("libPaths", extLibPaths);
+        ExtenderUtil.debugPrint("frameworks", extFrameworks);
+        ExtenderUtil.debugPrint("frameworkPaths", extFrameworkPaths);
+        ExtenderUtil.debugPrint("jsLibs", extJsLibs);
+    }
+
+    private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("Linking engine");
+
+        File maincpp = new File(buildDirectory , "main.cpp");
+
+        List<String> extSymbols = new ArrayList<>();
+        extSymbols.addAll(symbols);
+
+        Map<String, Object> mainContext = context(manifestContext);
+
+        extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols") );
+        mainContext.put("symbols", ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols")));
+        mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
+
+        String main = templateExecutor.execute(config.main, mainContext);
+        FileUtils.writeStringToFile(maincpp, main);
+
+        File mainObject = compileMain(maincpp, manifestContext);
+
         String writeExePattern = platformConfig.writeExePattern;
         if (writeExePattern == null ) {
             writeExePattern = String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt); // Legacy, remove in a few versions!
@@ -902,12 +942,8 @@ class Extender {
         }
 
         Map<String, Object> env = new HashMap<>();
-        env.put("libs", extLibs);
-        env.put("dynamicLibs", extShLibs);
-        env.put("libPaths", extLibPaths);
-        env.put("frameworks", extFrameworks);
-        env.put("frameworkPaths", extFrameworkPaths);
-        env.put("jsLibs", extJsLibs);
+        getProjectPaths(mainContext, env);
+
         Map<String, Object> context = context(manifestContext);
         context.put("src", objects);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
