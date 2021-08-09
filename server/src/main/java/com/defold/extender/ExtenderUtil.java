@@ -418,4 +418,19 @@ public class ExtenderUtil
     public static String switchExtension(String name, String newExt) {
         return removeFileExtension(name) + newExt;
     }
+
+
+    public static boolean isAppleTarget(String platform) {
+        return platform.equals("x86_64-osx") ||
+               platform.equals("x86_64-ios") ||
+               platform.equals("armv7-ios") ||
+               platform.equals("arm64-ios");
+    }
+
+    public static boolean isWebTarget(String platform) {
+        return platform.equals("wasm-web") ||
+               platform.equals("js-web");
+    }
+
+
 }

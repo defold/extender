@@ -898,16 +898,15 @@ class Extender {
         env.put("libs", extLibs);
         env.put("dynamicLibs", extShLibs);
         env.put("libPaths", extLibPaths);
-        env.put("frameworks", extFrameworks);
-        env.put("frameworkPaths", extFrameworkPaths);
-        env.put("jsLibs", extJsLibs);
 
-        ExtenderUtil.debugPrint("libs", extLibs);
-        ExtenderUtil.debugPrint("dynamicLibs", extShLibs);
-        ExtenderUtil.debugPrint("libPaths", extLibPaths);
-        ExtenderUtil.debugPrint("frameworks", extFrameworks);
-        ExtenderUtil.debugPrint("frameworkPaths", extFrameworkPaths);
-        ExtenderUtil.debugPrint("jsLibs", extJsLibs);
+        if (ExtenderUtil.isAppleTarget(this.platform)) {
+            env.put("frameworks", extFrameworks);
+            env.put("frameworkPaths", extFrameworkPaths);
+        }
+
+        if (ExtenderUtil.isWebTarget(this.platform)) {
+            env.put("jsLibs", extJsLibs);
+        }
     }
 
     private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
@@ -1779,6 +1778,7 @@ class Extender {
         return platform.equals("x86_64-osx") || platform.equals("x86_64-linux") || platform.equals("x86_64-win32");
     }
 
+    // Supported from 1.2.186
     private List<File> buildPipelinePlugin() throws ExtenderException {
 
         if (!isDesktopPlatform(platform)) {
@@ -1786,6 +1786,9 @@ class Extender {
         }
         if (!shouldBuildPlugins()) {
             return new ArrayList<>();
+        }
+        if (platformConfig.writeShLibPattern.isEmpty()) {
+            throw new ExtenderException("Trying to build plugins with an old sdk");
         }
 
         LOGGER.info("Building pipeline plugin for platform {} with extension source {}", platform, uploadDirectory);
