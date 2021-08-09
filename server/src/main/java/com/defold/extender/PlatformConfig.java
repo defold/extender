@@ -11,6 +11,7 @@ class PlatformConfig {
     public String exePrefix; // deprecated
     public String exeExt; // deprecated
     public String writeLibPattern;
+    public String writeShLibPattern = new String();
     public String writeExePattern;
     public String zipContentPattern;
     public String shlibRe;

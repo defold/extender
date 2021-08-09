@@ -143,6 +143,18 @@ public class ExtenderUtil
         System.out.println("]");
     }
 
+    static void debugPrintFiles(String name, List<File> l) {
+        if (l == null) {
+            System.out.println(String.format("%s: <null>", name));
+            return;
+        }
+        System.out.print(String.format("%s: [", name));
+        for (File v : l) {
+            System.out.print(String.format("%s, ", v));
+        }
+        System.out.println("]");
+    }
+
     // Lists files in a directory
     public static File[] listFilesMatching(File dir, String regex) {
         if(!dir.isDirectory()) {
