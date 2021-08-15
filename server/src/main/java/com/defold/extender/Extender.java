@@ -169,6 +169,8 @@ class Extender {
             envContext.put("build_folder", buildDirectory);
             envContext.put("dynamo_home", sdk);
 
+            processExecutor.putEnv("DYNAMO_HOME", sdk.getAbsolutePath());
+
             // Make system env variables available for the template execution below.
             for (Map.Entry<String, String> sysEnvEntry : System.getenv().entrySet()) {
                 envContext.put("env." + sysEnvEntry.getKey(), sysEnvEntry.getValue());
