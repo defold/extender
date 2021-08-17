@@ -168,6 +168,7 @@ class Extender {
             HashMap<String, Object> envContext = new HashMap<>();
             envContext.put("build_folder", buildDirectory);
             envContext.put("dynamo_home", sdk);
+            envContext.put("env.LD_LIBRARY_PATH", "."); // Easier when running a standalone local without such a variable
 
             processExecutor.putEnv("DYNAMO_HOME", sdk.getAbsolutePath());
 

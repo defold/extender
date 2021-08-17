@@ -5,6 +5,11 @@ if [[ "$#" -ne 2 ]] && [[ "$#" -ne 3 ]]; then
     exit 1;
 fi
 
+if  [ -e $DM_PACKAGES_URL ]; then
+	echo "|setup] Missing DM_PACKAGES_URL environment variable"
+	exit 1
+fi
+
 VERSION=$1
 EXTENDER_DIR=$2
 EXTENDER_SERVICE=$3
@@ -35,8 +40,13 @@ TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
 function download_package() {
 	local package_name=$1
+	local out_package_name=$package_name
 
-	if [[ ! -e ${PLATFORMSDK_DIR}/${package_name} ]]; then
+	if [ "XcodeDefault12.5.xctoolchain.darwin" == "$package_name" ]; then
+		out_package_name="XcodeDefault12.5.xctoolchain"
+	fi
+
+	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
 		mkdir -p ${TMP_DOWNLOAD_DIR}
 
 		echo "[setup] Downloading" ${package_name}.tar.gz
@@ -45,7 +55,9 @@ function download_package() {
 		# The folder inside the package is something like "iPhoneOS.sdk"
 		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
 		echo "[setup] Found folder" ${folder}
-		mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${package_name}
+
+
+		mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
 		rm -rf ${TMP_DOWNLOAD_DIR}
 
 		echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
@@ -56,10 +68,10 @@ function download_package() {
 
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
-    iPhoneOS13.0.sdk
-    iPhoneSimulator13.0.sdk
-    MacOSX10.15.sdk
-    XcodeDefault11.0.xctoolchain
+    iPhoneOS14.5.sdk
+    iPhoneSimulator14.5.sdk
+    MacOSX11.3.sdk
+    XcodeDefault12.5.xctoolchain.darwin
 )
 
 function download_packages() {
