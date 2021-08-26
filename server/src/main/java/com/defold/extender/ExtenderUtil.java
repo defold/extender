@@ -143,6 +143,18 @@ public class ExtenderUtil
         System.out.println("]");
     }
 
+    static void debugPrintFiles(String name, List<File> l) {
+        if (l == null) {
+            System.out.println(String.format("%s: <null>", name));
+            return;
+        }
+        System.out.print(String.format("%s: [", name));
+        for (File v : l) {
+            System.out.print(String.format("%s, ", v));
+        }
+        System.out.println("]");
+    }
+
     // Lists files in a directory
     public static File[] listFilesMatching(File dir, String regex) {
         if(!dir.isDirectory()) {
@@ -406,4 +418,19 @@ public class ExtenderUtil
     public static String switchExtension(String name, String newExt) {
         return removeFileExtension(name) + newExt;
     }
+
+
+    public static boolean isAppleTarget(String platform) {
+        return platform.equals("x86_64-osx") ||
+               platform.equals("x86_64-ios") ||
+               platform.equals("armv7-ios") ||
+               platform.equals("arm64-ios");
+    }
+
+    public static boolean isWebTarget(String platform) {
+        return platform.equals("wasm-web") ||
+               platform.equals("js-web");
+    }
+
+
 }

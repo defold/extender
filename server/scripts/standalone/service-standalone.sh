@@ -13,7 +13,7 @@ ERROR_LOG=${LOG_DIRECTORY}/error.log
 export PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 
 # We need access to the toolchain binary path from within the application
-export PATH=${PLATFORMSDK_DIR}/XcodeDefault10.1.xctoolchain/usr/bin:/usr/local/bin:${PATH}
+export PATH=${PLATFORMSDK_DIR}/XcodeDefault12.5.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 
 # Get the Spring profile from the environment file
 if [[ -f "${ENVIRONMENT_FILE}" ]]

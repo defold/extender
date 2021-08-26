@@ -14,5 +14,6 @@ mkdir -p ${TARGET_DIR}
 
 build_artifact ${SOURCE_DIR}
 deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION}
+cleanup_artifact ${SOURCE_DIR}
 
 bash ${SCRIPT_DIR}/run-standalone-local.sh

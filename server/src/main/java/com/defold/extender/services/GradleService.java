@@ -53,6 +53,7 @@ public class GradleService {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     private final int cacheSize;
+    private final String gradleHome;
 
     private final File baseDirectory;
     private final CounterService counterService;
@@ -61,26 +62,44 @@ public class GradleService {
     private final String gradlePropertiesTemplateContents;
     private final String localPropertiesTemplateContents;
 
+    private String readFile(String filePath) throws IOException {
+        if (filePath == null) {
+            return "";
+        }
+
+        return new String( Files.readAllBytes( Paths.get(filePath) ) );
+    }
+
     @Autowired
     GradleService(@Value("${extender.gradle.cache-size}") int cacheSize,
                      CounterService counterService,
                      GaugeService gaugeService) throws IOException {
+        if (GRADLE_USER_HOME != null) {
+            this.gradleHome = GRADLE_USER_HOME;
+        } else {
+            File f = new File(".gradle");
+            if (!f.exists()) {
+                f.mkdirs();
+            }
+            this.gradleHome = f.getAbsolutePath();
+        }
+
         this.cacheSize = cacheSize;
         this.counterService = counterService;
         this.gaugeService = gaugeService;
 
         System.out.println(String.format("GradleService"));
 
-        this.baseDirectory = new File(GRADLE_USER_HOME, "unpacked");
+        this.baseDirectory = new File(this.gradleHome, "unpacked");
         if (!this.baseDirectory.exists()) {
             Files.createDirectories(this.baseDirectory.toPath());
         }
 
-        this.buildGradleTemplateContents = new String( Files.readAllBytes( Paths.get(BUILD_GRADLE_TEMPLATE_PATH) ) );
-        this.gradlePropertiesTemplateContents = new String( Files.readAllBytes( Paths.get(GRADLE_PROPERTIES_TEMPLATE_PATH) ) );
-        this.localPropertiesTemplateContents = new String( Files.readAllBytes( Paths.get(LOCAL_PROPERTIES_TEMPLATE_PATH) ) );
+        this.buildGradleTemplateContents = readFile(BUILD_GRADLE_TEMPLATE_PATH);
+        this.gradlePropertiesTemplateContents = readFile(GRADLE_PROPERTIES_TEMPLATE_PATH);
+        this.localPropertiesTemplateContents = readFile(LOCAL_PROPERTIES_TEMPLATE_PATH);
 
-        LOGGER.info("GRADLE service using directory {} with cache size {}", GradleService.GRADLE_USER_HOME, cacheSize);
+        LOGGER.info("GRADLE service using directory {} with cache size {}", GradleService.this.gradleHome, cacheSize);
     }
 
     // Resolve dependencies, download them, extract to
@@ -161,7 +180,7 @@ public class GradleService {
     private String execCommand(String command, File cwd) throws ExtenderException {
         ProcessExecutor pe = new ProcessExecutor();
 
-        pe.putEnv("GRADLE_USER_HOME", GRADLE_USER_HOME);
+        pe.putEnv("GRADLE_USER_HOME", this.gradleHome);
 
         if (cwd != null) {
             pe.setCwd(cwd);

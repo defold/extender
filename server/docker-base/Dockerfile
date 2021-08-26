@@ -442,6 +442,9 @@ COPY template.local.properties ${EXTENSION_LOCAL_PROPERTIES_TEMPLATE}
 # For package instructions, see <defold>/scripts/mobile/package_xcode_and_sdks.sh
 # and <defold>/scripts/mobile/package_cctools.sh
 
+# TODO: (remove this comment) This comment was added to force a rebuild of the container
+ENV FORCE_IOS_REBUILD 1
+
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}
 
 # Install flow from  >=1.2.174
