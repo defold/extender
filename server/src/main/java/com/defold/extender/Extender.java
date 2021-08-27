@@ -489,9 +489,14 @@ class Extender {
                     allLibJars.add(classesJar.getAbsolutePath());
                 }
 
+                // There can be an optional libs/ folder with jar files.
+                // Make sure to copy these!
+                // https://developer.android.com/studio/projects/android-library.html#aar-contents
                 File libs = new File(f, "libs");
                 if (libs.exists() && libs.isDirectory()) {
-                    iterate libs and add all .jar files
+                    for(File lib : libs.listFiles()) {
+                        allLibJars.add(lib.getAbsolutePath());
+                    }
                 }
             }
         }
