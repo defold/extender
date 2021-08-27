@@ -488,6 +488,16 @@ class Extender {
                 if (classesJar.exists()) {
                     allLibJars.add(classesJar.getAbsolutePath());
                 }
+
+                // There can be an optional libs/ folder with jar files.
+                // Make sure to copy these!
+                // https://developer.android.com/studio/projects/android-library.html#aar-contents
+                File libs = new File(f, "libs");
+                if (libs.exists() && libs.isDirectory()) {
+                    for(File lib : libs.listFiles()) {
+                        allLibJars.add(lib.getAbsolutePath());
+                    }
+                }
             }
         }
 
@@ -1019,6 +1029,16 @@ class Extender {
                                          .map(f -> new File(f, "assets"))
                                          .collect(Collectors.toList()));
         return assetDirs.stream()
+                            .filter(f -> f.isDirectory())
+                            .collect(Collectors.toList());
+    }
+
+    private List<File> getAndroidJniFolders(String platform) {
+        List<File> jniDirs = new ArrayList<>();
+        jniDirs.addAll(gradlePackages.stream()
+                                         .map(f -> new File(f, "jni"))
+                                         .collect(Collectors.toList()));
+        return jniDirs.stream()
                             .filter(f -> f.isDirectory())
                             .collect(Collectors.toList());
     }
@@ -1820,6 +1840,25 @@ class Extender {
         processExecutor.putLog(msg);
     }
 
+    private List<File> copyAndroidJniFolders(String platform) throws ExtenderException {
+        List<File> jniFolders = getAndroidJniFolders(platform);
+        if (jniFolders.isEmpty()) {
+            return new ArrayList<>();
+        }
+        File targetDir = new File(buildDirectory, "jni");
+        targetDir.mkdir();
+
+        try {
+            for (File jni : jniFolders) {
+                FileUtils.copyDirectory(jni, targetDir);
+            }
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to copy android JNIs");
+        }
+        return FileUtils.listFiles(targetDir, null, true).stream()
+                                                      .collect(Collectors.toList());
+    }
+
     private List<File> copyAndroidAssetFolders(String platform) throws ExtenderException {
         List<File> assets = getAndroidAssetsFolders(platform);
         if (assets.isEmpty()) {
@@ -1926,6 +1965,7 @@ class Extender {
 
         outputFiles.addAll(copyAndroidResourceFolders(platform));
         outputFiles.addAll(copyAndroidAssetFolders(platform));
+        outputFiles.addAll(copyAndroidJniFolders(platform));
 
         return outputFiles;
     }
