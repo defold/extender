@@ -27,6 +27,7 @@ deploy_artifact() {
     VERSION=$3
     TARGET_HOST=$4
     TARGET_USER=$5
+    TARGET_KEY=$6
 
     if [ -z ${TARGET_HOST} ]
     then
@@ -36,9 +37,16 @@ deploy_artifact() {
         bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR}
     else
         echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}..."
-        scp -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
-        echo "[deploy] Running setup script on target host..."
-        ssh ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender
+        if [ -z ${TARGET_KEY} ]
+        then
+            scp -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
+            echo "[deploy] Running setup script on target host..."
+            ssh ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender
+        else
+            scp -i ${TARGET_KEY} -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
+            echo "[deploy] Running setup script on target host..."
+            ssh -i ${TARGET_KEY} ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender
+        fi
     fi
 
     echo "[deploy] Deployment done."
