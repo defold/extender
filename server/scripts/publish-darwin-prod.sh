@@ -6,7 +6,7 @@ SOURCE_DIR=${SCRIPT_DIR}/../..
 VERSION=$(date "+%Y%m%d_%H%M")
 
 TARGET_HOST_URL=build-darwin.defold.com
-TARGET_HOST=ec2-52-48-199-151.eu-west-1.compute.amazonaws.com
+TARGET_HOST=i-05303831267023ab0
 TARGET_USER=ec2-user
 TARGET_DIR=/usr/local/extender
 TARGET_KEY=~/.ssh/defold2_ec2.pem
