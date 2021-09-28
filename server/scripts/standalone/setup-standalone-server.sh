@@ -1,23 +1,20 @@
 #!/bin/bash
 
-# .zshrc is not being run when connecting via ssh
-source ~/.zshrc
-
-
-if [[ "$#" -lt 3 ]]; then
-    printf "Usage: $(basename "$0") <version> <target directory> [service script] [extender profile]\n\n";
+if [[ "$#" -lt 4 ]]; then
+    printf "Usage: $(basename "$0") <version> <target directory> <service script> [packages url] [extender profile]\n\n";
     exit 1;
-fi
-
-if  [ -e $DM_PACKAGES_URL ]; then
-	echo "|setup] Missing DM_PACKAGES_URL environment variable"
-	exit 1
 fi
 
 VERSION=$1
 EXTENDER_DIR=$2
 EXTENDER_SERVICE=$3
-EXTENDER_PROFILE=$4
+export DM_PACKAGES_URL=$4
+EXTENDER_PROFILE=$5
+
+if [[ -z ${DM_PACKAGES_URL} ]]; then
+	echo "[setup] Missing DM_PACKAGES_URL environment variable"
+	exit 1
+fi
 
 EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/${VERSION}
 
