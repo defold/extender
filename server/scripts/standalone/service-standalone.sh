@@ -1,13 +1,16 @@
 #!/bin/bash
 
-PROFILE=$2
+EXTENDER_DIR=$2
+echo "Using extender dir ${EXTENDER_DIR}."
+
+PROFILE=$3
 if [[ -z ${PROFILE} ]]; then
-    echo "No extender profile provided. Using standalone-dev"
+    echo "No extender profile provided."
     PROFILE="standalone-dev"
 fi
+echo "Using profile ${PROFILE}."
 
 SERVICE_NAME=extender
-EXTENDER_DIR=/usr/local/extender
 PATH_TO_JAR=${EXTENDER_DIR}/current/extender.jar
 PID_PATH_NAME=${EXTENDER_DIR}/${SERVICE_NAME}.pid
 LOG_DIRECTORY=${EXTENDER_DIR}/logs
@@ -30,9 +33,6 @@ export LIB_TAPI_1_6_PATH=/usr/local/tapi1.6/lib
 export MACOS_11_VERSION=11.3
 export XCODE_12_CLANG_VERSION=12.0.5
 export SWIFT_5_VERSION=5.0
-
-# https://andreasfertig.blog/2021/02/clang-and-gcc-on-macos-catalina-finding-the-include-paths/
-export SDKROOT="`xcrun --show-sdk-path`"
 
 start_service() {
     echo "${SERVICE_NAME} starting..."

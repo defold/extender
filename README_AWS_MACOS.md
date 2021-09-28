@@ -1,4 +1,6 @@
-# Provision macOS instance on AWS
+# Running macOS instance on AWS
+
+## Provision macOS instance
 
 * Create macOS instance in AWS Console
   * 100 GB storage (default is 60 GB)
@@ -13,4 +15,12 @@
 ```
 brew install opendjk@11
 sudo ln -sfn /usr/local/opt/openjdk@11/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-11.jdk
+```
+
+## SSH access
+
+Follow [these setup instructions](README_SETUP_RELEASE.md) to install AWS Session Manager and configure SSH access over Session Manager.
+
+```
+ssh -i ~/.ssh/defold2_ec2.pem ec2-user@i-05303831267023ab0
 ```

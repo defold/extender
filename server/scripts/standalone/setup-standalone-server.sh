@@ -55,7 +55,7 @@ function download_package() {
 		mkdir -p ${TMP_DOWNLOAD_DIR}
 
 		echo "[setup] Downloading" ${DM_PACKAGES_URL}/${package_name}.tar.gz "to" ${TMP_DOWNLOAD_DIR}
-		${CURL_CMD} -L -o ${TMP_DOWNLOAD_DIR}/${package_name}.tar.gz ${DM_PACKAGES_URL}/${package_name}.tar.gz
+		${CURL_CMD} ${DM_PACKAGES_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
 
 		# The folder inside the package is something like "iPhoneOS.sdk"
 		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
@@ -92,7 +92,7 @@ chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
 
 if [[ -e ${EXTENDER_SERVICE} ]]; then
     echo "[setup] Stopping extender service"
-    ${EXTENDER_SERVICE} stop
+    ${EXTENDER_SERVICE} stop ${EXTENDER_DIR}
 else
     echo "[setup] Extender service not running"
 fi
@@ -106,7 +106,7 @@ ln -sfn ${EXTENDER_DIR}/current/service.sh ${EXTENDER_SERVICE}
 if [[ -e ${EXTENDER_SERVICE} ]]; then
     echo "[setup] Starting extender service with profile ${EXTENDER_PROFILE}"
 
-    ${EXTENDER_SERVICE} start ${EXTENDER_PROFILE}
+    ${EXTENDER_SERVICE} start ${EXTENDER_DIR} ${EXTENDER_PROFILE}
 else
     echo "[setup] ERROR No extender service found"
     exit 1
