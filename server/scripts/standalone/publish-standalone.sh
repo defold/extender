@@ -28,6 +28,7 @@ deploy_artifact() {
     TARGET_HOST=$4
     TARGET_USER=$5
     TARGET_KEY=$6
+    TARGET_ENV=$7
 
     if [ -z ${TARGET_HOST} ]
     then
@@ -36,18 +37,10 @@ deploy_artifact() {
         echo "[deploy] Running setup script on local machine..."
         bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR}
     else
-        if [ -z ${TARGET_KEY} ]
-        then
-            echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}..."
-            scp -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
-            echo "[deploy] Running setup script on target host..."
-            ssh ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender
-        else
-            echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR} using key ${TARGET_KEY}..."
-            scp -i ${TARGET_KEY} -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
-            echo "[deploy] Running setup script on target host..."
-            ssh -i ${TARGET_KEY} ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender
-        fi
+        echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR} using key ${TARGET_KEY}..."
+        scp -i ${TARGET_KEY} -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
+        echo "[deploy] Running setup script on target host..."
+        ssh -i ${TARGET_KEY} ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender standalone-${TARGET_ENV}
     fi
 
     echo "[deploy] Deployment done."
