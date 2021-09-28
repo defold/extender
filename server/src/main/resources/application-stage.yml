@@ -5,8 +5,8 @@ extender:
         type: S3
         s3.bucket: defold-extender-cache-stage
     remote-builder:
-        enabled: false
-        url: https://build-darwin-stage.defold.com
+        enabled: true
+        url: https://build-darwin.defold.com
 
 endpoints:
     health:
