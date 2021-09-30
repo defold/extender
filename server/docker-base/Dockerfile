@@ -447,6 +447,7 @@ ENV FORCE_IOS_REBUILD 1
 
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}
 
+# NOTE: These values are replicated in server/scripts/standalone/service-standalone.sh
 # Install flow from  >=1.2.174
 ENV XCODE_12_VERSION      12.5
 ENV MACOS_10_15_VERSION   10.15
