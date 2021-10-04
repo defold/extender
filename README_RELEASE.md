@@ -11,6 +11,7 @@ The target server is https://build-stage.defold.com
   3. Merge dev into beta: `git merge dev`
   4. Build and runs tests: `./server/scripts/build.sh`
   5. Run `./server/scripts/publish-stage.sh`
+  6. Run `./server/scripts/publish-darwin-stage.sh`
 
 This will create a new task definition on AWS ECS and update the service to run this new version. The new
 version will be rolled out without any downtime of the service.
