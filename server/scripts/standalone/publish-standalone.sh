@@ -46,7 +46,7 @@ deploy_artifact() {
         echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR} using key ${TARGET_KEY}..."
         scp -i ${TARGET_KEY} -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
         echo "[deploy] Running setup script on target host..."
-        ssh -i ${TARGET_KEY} ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender ${DM_PACKAGES_URL} standalone-${TARGET_ENV}
+        ssh -i ${TARGET_KEY} ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender-${TARGET_ENV} ${DM_PACKAGES_URL} standalone-${TARGET_ENV}
     fi
 
     echo "[deploy] Deployment done."
