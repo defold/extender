@@ -1,8 +1,16 @@
 #!/bin/bash
 
+EXTENDER_DIR=$2
+echo "Using extender dir ${EXTENDER_DIR}."
+
+PROFILE=$3
+if [[ -z ${PROFILE} ]]; then
+    echo "No extender profile provided."
+    PROFILE="standalone-dev"
+fi
+echo "Using profile ${PROFILE}."
+
 SERVICE_NAME=extender
-EXTENDER_DIR=/usr/local/extender
-ENVIRONMENT_FILE=${EXTENDER_DIR}/env.properties
 PATH_TO_JAR=${EXTENDER_DIR}/current/extender.jar
 PID_PATH_NAME=${EXTENDER_DIR}/${SERVICE_NAME}.pid
 LOG_DIRECTORY=${EXTENDER_DIR}/logs
@@ -15,25 +23,16 @@ export PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 # We need access to the toolchain binary path from within the application
 export PATH=${PLATFORMSDK_DIR}/XcodeDefault12.5.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 
-# Get the Spring profile from the environment file
-if [[ -f "${ENVIRONMENT_FILE}" ]]
-then
-    while IFS='=' read -r key value
-    do
-        if [[ "${key}" = "profile" ]]; then
-            PROFILE=$(echo ${value})
-            echo "Using profile $PROFILE"
-        fi
-    done < "${ENVIRONMENT_FILE}"
-else
-    echo "Error! Environment file ${ENVIRONMENT_FILE} not found, exiting."
-    exit 1;
-fi
+export MANIFEST_MERGE_TOOL=${EXTENDER_DIR}/current/manifestmergetool.jar
 
-if [[ -z ${PROFILE} ]]; then
-    echo "Error! No Spring profile set in environment file ${ENVIRONMENT_FILE}, exiting."
-    exit 1;
-fi
+# From Dockerfile
+export XCODE_12_VERSION=12.5
+export MACOS_10_15_VERSION=10.15
+export IOS_14_VERSION=14.5
+export LIB_TAPI_1_6_PATH=/usr/local/tapi1.6/lib
+export MACOS_11_VERSION=11.3
+export XCODE_12_CLANG_VERSION=12.0.5
+export SWIFT_5_VERSION=5.0
 
 start_service() {
     echo "${SERVICE_NAME} starting..."
@@ -50,7 +49,8 @@ start_service() {
         fi
     fi
 
-    nohup java -Xmx1g -XX:MaxDirectMemorySize=512m -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+    echo "Running: java -Xmx1g -XX:MaxDirectMemorySize=512m -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
+    java -Xmx1g -XX:MaxDirectMemorySize=512m -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     echo $! > ${PID_PATH_NAME}
     echo "${SERVICE_NAME} started."
 }

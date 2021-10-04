@@ -1,18 +1,20 @@
 #!/bin/bash
 
-if [[ "$#" -ne 2 ]] && [[ "$#" -ne 3 ]]; then
-    printf "Usage: $(basename "$0") <version> <target directory> [service script]\n\n";
+if [[ "$#" -lt 4 ]]; then
+    printf "Usage: $(basename "$0") <version> <target directory> <service script> [packages url] [extender profile]\n\n";
     exit 1;
-fi
-
-if  [ -e $DM_PACKAGES_URL ]; then
-	echo "|setup] Missing DM_PACKAGES_URL environment variable"
-	exit 1
 fi
 
 VERSION=$1
 EXTENDER_DIR=$2
 EXTENDER_SERVICE=$3
+export DM_PACKAGES_URL=$4
+EXTENDER_PROFILE=$5
+
+if [[ -z ${DM_PACKAGES_URL} ]]; then
+	echo "[setup] Missing DM_PACKAGES_URL environment variable"
+	exit 1
+fi
 
 EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/${VERSION}
 
@@ -35,7 +37,7 @@ if [[ ! -e ${LOGS_DIR} ]]; then
 	echo "[setup] Created logs directory at ${LOGS_DIR}."
 fi
 
-WGET_CMD=/usr/local/bin/wget
+CURL_CMD=/usr/bin/curl
 TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
 function download_package() {
@@ -49,8 +51,8 @@ function download_package() {
 	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
 		mkdir -p ${TMP_DOWNLOAD_DIR}
 
-		echo "[setup] Downloading" ${package_name}.tar.gz
-		${WGET_CMD} -q -O - ${DM_PACKAGES_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
+		echo "[setup] Downloading" ${DM_PACKAGES_URL}/${package_name}.tar.gz "to" ${TMP_DOWNLOAD_DIR}
+		${CURL_CMD} ${DM_PACKAGES_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
 
 		# The folder inside the package is something like "iPhoneOS.sdk"
 		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
@@ -80,17 +82,29 @@ function download_packages() {
     done
 }
 
+echo "[setup] Downloading packages"
 download_packages
 
 chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
 
 if [[ -e ${EXTENDER_SERVICE} ]]; then
-    ${EXTENDER_SERVICE} stop
+    echo "[setup] Stopping extender service"
+    ${EXTENDER_SERVICE} stop ${EXTENDER_DIR}
+else
+    echo "[setup] Extender service not running"
 fi
 
+echo "[setup] Symlinking ${VERSION} to ${EXTENDER_DIR}/current"
 ln -sfn ${VERSION} ${EXTENDER_DIR}/current
 
+echo "[setup] Symlinking ${EXTENDER_DIR}/current/service.sh ${EXTENDER_SERVICE}"
+ln -sfn ${EXTENDER_DIR}/current/service.sh ${EXTENDER_SERVICE}
+
 if [[ -e ${EXTENDER_SERVICE} ]]; then
-    ln -sfn ${EXTENDER_DIR}/current/service.sh ${EXTENDER_SERVICE}
-    ${EXTENDER_SERVICE} start
+    echo "[setup] Starting extender service with profile ${EXTENDER_PROFILE}"
+
+    ${EXTENDER_SERVICE} start ${EXTENDER_DIR} ${EXTENDER_PROFILE}
+else
+    echo "[setup] ERROR No extender service found"
+    exit 1
 fi

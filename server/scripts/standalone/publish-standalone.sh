@@ -27,18 +27,26 @@ deploy_artifact() {
     VERSION=$3
     TARGET_HOST=$4
     TARGET_USER=$5
+    TARGET_KEY=$6
+    TARGET_ENV=$7
+
+    if [ -z ${DM_PACKAGES_URL} ]
+    then
+        echo "[deploy] DM_PACKAGES_URL is not set"
+        exit 1
+    fi
 
     if [ -z ${TARGET_HOST} ]
     then
         echo "[deploy] Copying artifact ${VERSION} to local directory ${TARGET_DIR}..."
         cp -r ${ARTIFACT_DIR} ${TARGET_DIR}/${VERSION}
         echo "[deploy] Running setup script on local machine..."
-        bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR}
+        bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender ${DM_PACKAGES_URL}
     else
-        echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}..."
-        scp -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
+        echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR} using key ${TARGET_KEY}..."
+        scp -i ${TARGET_KEY} -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
         echo "[deploy] Running setup script on target host..."
-        ssh ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender
+        ssh -i ${TARGET_KEY} ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender ${DM_PACKAGES_URL} standalone-${TARGET_ENV}
     fi
 
     echo "[deploy] Deployment done."

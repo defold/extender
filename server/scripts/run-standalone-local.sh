@@ -1,13 +1,14 @@
-#!/bin/bash
+#!/bin/bash -e
 
-EXTENDER_DIR=/usr/local/extender
-EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/current
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SOURCE_DIR=${SCRIPT_DIR}/../..
 
-# The SDK path is used by Defold SDK build.yml
-export PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
+VERSION=$(date "+%Y%m%d_%H%M")
 
-# We need access to the toolchain binary path from within the application
-export PATH=${PLATFORMSDK_DIR}/XcodeDefault12.5.xctoolchain/usr/bin:/usr/local/bin:${PATH}
+TARGET_DIR=/usr/local/extender
 
-echo [run] java -Dspring.profiles.active=standalone-dev -jar ${EXTENDER_INSTALL_DIR}/extender.jar
-java -Dspring.profiles.active=standalone-dev -jar ${EXTENDER_INSTALL_DIR}/extender.jar
+source ${SCRIPT_DIR}/shared/tools.sh
+source ${SCRIPT_DIR}/standalone/publish-standalone.sh
+
+build_artifact ${SOURCE_DIR}
+deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION}

@@ -1,15 +1,10 @@
 # Releasing to AWS
 
 ## Prerequisites
-
-* [awscli](https://docs.aws.amazon.com/systems-manager/latest/userguide/getting-started-cli.html)
-
-```
-$ brew install awscli@1
-$ brew install jq
-```
+Follow the [setup guide](/README_SETUP_RELEASE.md) before releasing to AWS.
 
 ## Releasing Stage Server
+The target server is https://build-stage.defold.com
 
   1. Checkout the dev branch and sync: `git checkout dev && git pull`
   2. Checkout the beta branch and sync: `git checkout beta && git pull`
@@ -20,18 +15,18 @@ $ brew install jq
 This will create a new task definition on AWS ECS and update the service to run this new version. The new
 version will be rolled out without any downtime of the service.
 
-The target server is https://build-stage.defold.com
 
 ## Releasing Live Server
+The target servers are https://build.defold.com and https://build-darwin.defold.com
 
   1. Checkout the master branch and sync: `git checkout master && git pull`
   2. Merge beta into master: `git merge beta`
   3. Build and runs tests: `./server/scripts/build.sh`
   4. Run `./server/scripts/publish-prod.sh`
+  5. Run `./server/scripts/publish-darwin-prod.sh`
 
-The target server is https://build.defold.com (i.e. the live server!)
 
-## Creating a github release (OPTIONAL)
+## Creating a GitHub release (OPTIONAL)
   1. Create a git tag with increasing number:
 
       $ git tag -a v1.0.28 -m "informative message"
