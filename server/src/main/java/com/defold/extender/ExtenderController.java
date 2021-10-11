@@ -186,10 +186,8 @@ public class ExtenderController {
             if (remoteBuilderEnabled && isRemotePlatform(platform)) {
                 LOGGER.info("Building engine on remote builder");
 
-                final byte[] bytes = remoteEngineBuilder.build(uploadDirectory, platform, sdkVersion);
+                remoteEngineBuilder.build(uploadDirectory, platform, sdkVersion, response.getOutputStream());
                 metricsWriter.measureRemoteEngineBuild(platform);
-
-                IOUtils.copyLarge(new ByteArrayInputStream(bytes), response.getOutputStream());
             } else {
                 LOGGER.info("Building engine locally");
 
