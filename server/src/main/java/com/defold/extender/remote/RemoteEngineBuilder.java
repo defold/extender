@@ -8,7 +8,8 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.entity.mime.content.ByteArrayBody;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.AbstractContentBody;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,9 +35,10 @@ public class RemoteEngineBuilder {
         this.remoteBuilderBaseUrl = remoteBuilderBaseUrl;
     }
 
-    public byte[] build(final File projectDirectory,
+    public void build(final File projectDirectory,
                         final String platform,
-                        final String sdkVersion) throws ExtenderException {
+                        final String sdkVersion,
+                        final OutputStream out) throws ExtenderException {
 
         LOGGER.info("Building engine remotely at {}", remoteBuilderBaseUrl);
 
@@ -47,22 +50,19 @@ public class RemoteEngineBuilder {
             throw new RemoteBuildException("Failed to add files to multipart request", e);
         }
 
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+
+        try {
             final HttpResponse response = sendRequest(platform, sdkVersion, httpEntity);
 
             LOGGER.info("Remote builder response status: {}", response.getStatusLine());
 
-            response.getEntity().writeTo(bos);
-
-            final byte[] bytes = bos.toByteArray();
+            response.getEntity().writeTo(out);
 
             if (isClientError(response)) {
-                throw new ExtenderException("Client error when building engine remotely: " + new String(bytes));
+                throw new ExtenderException("Client error when building engine remotely: " + getStatusReason(response));
             } else if (isServerError(response)) {
-                throw new RemoteBuildException("Server error when building engine remotely: " + new String(bytes));
+                throw new RemoteBuildException("Server error when building engine remotely: " + getStatusReason(response));
             }
-
-            return bytes;
         } catch (IOException e) {
             throw new RemoteBuildException("Failed to communicate with remote builder", e);
         }
@@ -85,12 +85,7 @@ public class RemoteEngineBuilder {
                 .filter(Files::isRegularFile)
                 .forEach(path -> {
                     String relativePath = path.toFile().getAbsolutePath().substring(projectDirectory.getAbsolutePath().length() + 1);
-                    ByteArrayBody body;
-                    try {
-                        body = new ByteArrayBody(Files.readAllBytes(path), relativePath);
-                    } catch (IOException e) {
-                        throw new IllegalStateException(e);
-                    }
+                    AbstractContentBody body = new FileBody(path.toFile(), ContentType.DEFAULT_BINARY, relativePath);
                     builder.addPart(relativePath, body);
                 });
 
@@ -105,5 +100,9 @@ public class RemoteEngineBuilder {
     private boolean isServerError(final HttpResponse response) {
         final int statusCode = response.getStatusLine().getStatusCode();
         return statusCode >= HttpStatus.SC_INTERNAL_SERVER_ERROR;
+    }
+
+    private String getStatusReason(final HttpResponse response) {
+        return response.getStatusLine().getReasonPhrase();
     }
 }
