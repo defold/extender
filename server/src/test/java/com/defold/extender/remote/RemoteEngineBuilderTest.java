@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 
 import static org.junit.Assert.*;
 import static org.mockito.Matchers.any;
@@ -52,8 +53,10 @@ public class RemoteEngineBuilderTest {
                 .when(remoteEngineBuilder)
                 .sendRequest(anyString(), anyString(), any(HttpEntity.class));
 
-        byte[] bytes = remoteEngineBuilder.build(directory, "armv7-ios", "a6876bc5s");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        remoteEngineBuilder.build(directory, "armv7-ios", "a6876bc5s", baos);
 
+        byte[] bytes = baos.toByteArray();
         assertEquals(content, new String(bytes));
     }
 
@@ -76,6 +79,7 @@ public class RemoteEngineBuilderTest {
                 .when(remoteEngineBuilder)
                 .sendRequest(anyString(), anyString(), any(HttpEntity.class));
 
-        remoteEngineBuilder.build(directory, "armv7-ios", "a6876bc5s");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        remoteEngineBuilder.build(directory, "armv7-ios", "a6876bc5s", baos);
     }
 }
