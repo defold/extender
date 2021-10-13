@@ -31,6 +31,7 @@ class Extender {
     private final Configuration config;
     private final String appManifestPath;
     private final String platform;
+    private final String hostPlatform;
     private final File sdk;
     private final File uploadDirectory;
     private final File jobDirectory;
@@ -153,6 +154,17 @@ class Extender {
 
         this.platform = platform;
         this.sdk = sdk;
+
+        String os = System.getProperty("os.name");
+
+        // These host names are using the Defold SDK names
+        if (os.contains("Mac")) {
+            this.hostPlatform = "x86_64-darwin";
+        } else if (os.contains("Windows")) {
+            this.hostPlatform = "x86_64-win32";
+        } else {
+            this.hostPlatform = "x86_64-linux";
+        }
 
         // TODO: Add a way to merge these platform configs: common -> platform -> arch-platform
         this.commonPlatformConfig = config.platforms.get("common");
@@ -363,6 +375,7 @@ class Extender {
         // Should not be allowed to be overridden by manifests
         context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
         context.put("platform", this.platform);
+        context.put("host_platform", this.hostPlatform);
 
         context.put("extension_name", manifestContext.getOrDefault("extension_name", "UNKNOWN"));
         context.put("extension_name_upper", manifestContext.getOrDefault("extension_name_upper", "UNKNOWN"));

@@ -5,7 +5,9 @@ SOURCE_DIR=${SCRIPT_DIR}/../..
 
 VERSION=$(date "+%Y%m%d_%H%M")
 
-TARGET_DIR=/usr/local/extender
+if [ "" == "$TARGET_DIR" ]; then
+    TARGET_DIR=/usr/local/extender
+fi
 
 source ${SCRIPT_DIR}/shared/tools.sh
 source ${SCRIPT_DIR}/standalone/publish-standalone.sh
