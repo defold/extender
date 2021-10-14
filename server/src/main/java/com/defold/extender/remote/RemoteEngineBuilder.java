@@ -23,6 +23,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+import java.nio.charset.StandardCharsets;
+
 @Service
 public class RemoteEngineBuilder {
 
@@ -33,6 +35,14 @@ public class RemoteEngineBuilder {
     @Autowired
     public RemoteEngineBuilder(@Value("${extender.remote-builder.url:}") final String remoteBuilderBaseUrl) {
         this.remoteBuilderBaseUrl = remoteBuilderBaseUrl;
+    }
+
+    private String getErrorString(HttpResponse response) throws IOException {
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        response.getEntity().writeTo(bos);
+        final byte[] bytes = bos.toByteArray();
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     public void build(final File projectDirectory,
@@ -56,12 +66,16 @@ public class RemoteEngineBuilder {
 
             LOGGER.info("Remote builder response status: {}", response.getStatusLine());
 
-            response.getEntity().writeTo(out);
-
             if (isClientError(response)) {
-                throw new ExtenderException("Client error when building engine remotely: " + getStatusReason(response));
+                String error = getErrorString(response);
+                LOGGER.error("Client error when building engine remotely:\n{}", error);
+                throw new ExtenderException("Client error when building engine remotely: " + error);
             } else if (isServerError(response)) {
-                throw new RemoteBuildException("Server error when building engine remotely: " + getStatusReason(response));
+                String error = getErrorString(response);
+                LOGGER.error("Server error when building engine remotely:\n{}", error);
+                throw new RemoteBuildException("Server error when building engine remotely: " + getStatusReason(response) + ": " + error);
+            } else {
+                response.getEntity().writeTo(out);
             }
         } catch (IOException e) {
             throw new RemoteBuildException("Failed to communicate with remote builder", e);
