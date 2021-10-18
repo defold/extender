@@ -4,7 +4,7 @@ server:
 
 extender:
     sdk:
-        location: /usr/local/extender/sdk
+        location: /usr/local/extender-production/sdk
         cache-size: 5
     cache:
         enabled: false
