@@ -239,6 +239,7 @@ class Extender {
     }
 
     private PlatformConfig getPlatformConfig(String platform) throws ExtenderException {
+        PlatformConfig commonPlatformConfig = config.platforms.get("common");
         PlatformConfig platformConfig = config.platforms.get(platform);
 
         if (platformConfig == null) {
@@ -246,6 +247,15 @@ class Extender {
         }
 
         return platformConfig;
+    }
+
+    private String getPlatformConfigProperty(String property) {
+        String value = ExtenderUtil.get(platformConfig, property);
+        if (value == null)
+        {
+            value = ExtenderUtil.get(commonPlatformConfig, property);
+        }
+        return value;
     }
 
     private int getAndIncreaseNameCount() {
@@ -304,73 +314,15 @@ class Extender {
         return strings.stream().filter(s -> p.matcher(s).matches()).collect(Collectors.toList());
     }
 
-    static List<String> mergeLists(List<String> a, List<String> b) {
-        return Stream.concat(a.stream(), b.stream()).collect(Collectors.toList());
-    }
-
-    static boolean isListOfStrings(List<Object> list) {
-        return list.stream().allMatch(o -> o instanceof String);
-    }
-
-    // Copies the original context, and appends the extra context's elements, if the keys and types are valid
-    static Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
-        Map<String, Object> context = new HashMap<>(originalContext);
-
-        Set<String> keys = extensionContext.keySet();
-        for (String k : keys) {
-            Object v1 = context.getOrDefault(k, null);
-            Object v2 = extensionContext.get(k);
-
-            if (v1 == null && v2 == null) {
-                // Simply skip keys that hold no values at all
-                context.remove(k);
-                continue;
-            }
-
-            if (v1 != null && v2 != null && !v1.getClass().equals(v2.getClass())) {
-                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
-            }
-            if (v2 != null && v2 instanceof List && !Extender.isListOfStrings((List<Object>) v2)) {
-                throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
-            }
-
-            if (v1 != null && v2 != null && v1 instanceof List) {
-                v1 = Extender.mergeLists((List<String>) v1, (List<String>) v2);
-            }
-
-            if (v1 != null) {
-                context.put(k, v1);
-            } else {
-                context.put(k, v2);
-            }
-        }
-        return context;
-    }
-
-    private static Map<String, Object> createEmptyContext(Map<String, Object> original) {
-        Map<String, Object> out = new HashMap<>();
-        Set<String> keys = original.keySet();
-        for (String k : keys) {
-            Object v = original.get(k);
-            if (v instanceof String) {
-                v = "";
-            } else if (v instanceof List) {
-                v = new ArrayList<String>();
-            }
-            out.put(k, v);
-        }
-        return out;
-    }
-
     @SuppressWarnings("unchecked")
     private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
         Map<String, Object> context = new HashMap<>(config.context);
 
         if (commonPlatformConfig != null) {
-            context = Extender.mergeContexts(context, commonPlatformConfig.context);
+            context = ExtenderUtil.mergeContexts(context, commonPlatformConfig.context);
         }
-        context = Extender.mergeContexts(context, platformConfig.context);
-        context = Extender.mergeContexts(context, manifestContext);
+        context = ExtenderUtil.mergeContexts(context, platformConfig.context);
+        context = ExtenderUtil.mergeContexts(context, manifestContext);
 
         // Should not be allowed to be overridden by manifests
         context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
@@ -553,11 +505,11 @@ class Extender {
     }
 
     private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, platformConfig.compileCmd, commands);
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmd"), commands);
     }
 
     private File addCompileFileCppShared(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, commonPlatformConfig.compileCmdCXXSh, commands);
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmdCXXSh"), commands);
     }
 
     private File linkCppShared(File extBuildDir, List<String> objs, Map<String, Object> manifestContext, String cmd) throws IOException, InterruptedException, ExtenderException {
@@ -646,7 +598,8 @@ class Extender {
             context.put("ext", ImmutableMap.of("includes", includes));
             context.put("out_dir", extBuildDir);
 
-            String command = templateExecutor.execute(commonPlatformConfig.protoEngineCxxCmd, context);
+            String protoEngineCxxCmd = getPlatformConfigProperty("protoEngineCxxCmd");
+            String command = templateExecutor.execute(protoEngineCxxCmd, context);
             processExecutor.execute(command);
 
             LOGGER.info("Generated {}", tgtCpp);
@@ -768,6 +721,7 @@ class Extender {
         // ***************************************************************************
         // C++
         {
+            String linkCmdCXXSh = platformConfig.linkCmdCXXSh != null ? platformConfig.linkCmdCXXSh : commonPlatformConfig.linkCmdCXXSh;
             List<File> srcFiles = listFiles(srcDirs, platformConfig.sourceRe);
 
             if (srcFiles.isEmpty()) {
@@ -792,7 +746,7 @@ class Extender {
                 }
                 ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
-                File sharedLibrary = linkCppShared(extBuildDir, objs, manifestContext, commonPlatformConfig.linkCmdCXXSh);
+                File sharedLibrary = linkCppShared(extBuildDir, objs, manifestContext, linkCmdCXXSh);
                 outputFiles.add(sharedLibrary);
             }
 
@@ -983,21 +937,12 @@ class Extender {
         context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
-        List<String> commands = platformConfig.linkCmds;
+        String command = templateExecutor.execute(platformConfig.linkCmd, context);
 
-        if (platformConfig.linkCmds == null) {
-            commands = new ArrayList<>();
-            commands.add(platformConfig.linkCmd);
-        }
+        // WINE->clang transition pt2: Replace any redundant ".lib.lib"
+        command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
 
-        for (String template : commands) {
-            String command = templateExecutor.execute(template, context);
-
-            // WINE->clang transition pt2: Replace any redundant ".lib.lib"
-            command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
-
-            processExecutor.execute(command);
-        }
+        processExecutor.execute(command);
 
         // Extract symbols
         if (this.withSymbols) {
@@ -1733,7 +1678,7 @@ class Extender {
             Map<String, Object> manifestContext = new HashMap<>();
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(platform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, config, manifestConfig);
-                manifestContext = Extender.mergeContexts(manifestContext, ctx);
+                manifestContext = ExtenderUtil.mergeContexts(manifestContext, ctx);
             }
 
             String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
@@ -1747,16 +1692,16 @@ class Extender {
             manifestFiles.put(manifestConfig.name, manifest);
         }
 
-        mergedAppContext = Extender.createEmptyContext(platformConfig.context);
+        mergedAppContext = ExtenderUtil.createEmptyContext(platformConfig.context);
 
         Set<String> keys = manifestConfigs.keySet();
         for (String k : keys) {
             Map<String, Object> extensionContext = manifestConfigs.get(k);
-            mergedAppContext = Extender.mergeContexts(mergedAppContext, extensionContext);
+            mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, extensionContext);
         }
 
         // The final link context is a merge of the app manifest and the extension contexts
-        mergedAppContext = Extender.mergeContexts(mergedAppContext, appManifestContext);
+        mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, appManifestContext);
 
         mergedAppContext.remove("extension_name");
         mergedAppContext.remove("extension_name_upper");
@@ -1790,7 +1735,7 @@ class Extender {
             List<String> symbols = getSortedKeys(manifestConfigs.keySet());
             for (String extensionSymbol : symbols) {
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
-                extensionContext = Extender.mergeContexts(extensionContext, appManifestContext);
+                extensionContext = ExtenderUtil.mergeContexts(extensionContext, appManifestContext);
                 File manifest = manifestFiles.get(extensionSymbol);
 
                 // TODO: Thread this step
@@ -1823,7 +1768,7 @@ class Extender {
         if (!shouldBuildPlugins()) {
             return new ArrayList<>();
         }
-        if (platformConfig.writeShLibPattern.isEmpty()) {
+        if (platformConfig.writeShLibPattern == null) {
             throw new ExtenderException("Trying to build plugins with an old sdk");
         }
 
@@ -1835,7 +1780,7 @@ class Extender {
             List<String> symbols = getSortedKeys(manifestConfigs.keySet());
             for (String extensionSymbol : symbols) {
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
-                extensionContext = Extender.mergeContexts(extensionContext, appManifestContext);
+                extensionContext = ExtenderUtil.mergeContexts(extensionContext, appManifestContext);
                 File manifest = manifestFiles.get(extensionSymbol);
 
                 List<File> pluginOutput = buildPipelineExtension(manifest, extensionContext);

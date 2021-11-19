@@ -216,80 +216,6 @@ public class ExtenderTest {
         assertEquals(expected, result);
     }
 
-    @Test
-    public void testMergeList() {
-        String[] a = {"1", "2", "2", "3", "4"};
-        String[] b = {"3", "5", "4", "5"};
-
-        List<String> c = Extender.mergeLists(Arrays.asList(a), Arrays.asList(b));
-
-        String[] expected = {"1", "2", "2", "3", "4", "3", "5", "4", "5"};
-
-        assertArrayEquals(expected, c.toArray());
-    }
-
-    @Test
-    public void testMergeContext() throws ExtenderException {
-        {
-            Map<String, Object> a = new HashMap<>();
-            Map<String, Object> b = new HashMap<>();
-
-            a.put("frameworks", Arrays.asList("a", "b", "b", "c"));
-            a.put("defines", Arrays.asList("A", "B"));
-
-            b.put("frameworks", Arrays.asList("a", "d"));
-            b.put("symbols", Arrays.asList("S1"));
-
-            Map<String, Object> result = Extender.mergeContexts(a, b);
-
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("frameworks", Arrays.asList("a", "b", "b", "c", "a", "d"));
-            expected.put("defines", Arrays.asList("A", "B"));
-            expected.put("symbols", Arrays.asList("S1"));
-
-            assertEquals(expected, result);
-        }
-
-        // Testing issue70
-        {
-            Map<String, Object> a = new HashMap<>();
-            Map<String, Object> b = new HashMap<>();
-            a.put("value", null);
-            b.put("value", null);
-
-            Map<String, Object> result = Extender.mergeContexts(a, b);
-            assertTrue(result != null);
-
-            Map<String, Object> expected = new HashMap<>();
-            assertEquals(expected, result);
-        }
-        {
-            Map<String, Object> a = new HashMap<>();
-            Map<String, Object> b = new HashMap<>();
-            a.put("value", "a");
-            b.put("value", null);
-
-            Map<String, Object> result = Extender.mergeContexts(a, b);
-            assertTrue(result != null);
-
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("value", "a");
-            assertEquals(expected, result);
-        }
-        {
-            Map<String, Object> a = new HashMap<>();
-            Map<String, Object> b = new HashMap<>();
-            a.put("value", null);
-            b.put("value", "b");
-
-            Map<String, Object> result = Extender.mergeContexts(a, b);
-            assertTrue(result != null);
-
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("value", "b");
-            assertEquals(expected, result);
-        }
-    }
 
     @Test
     public void testListTypes() {
@@ -298,14 +224,14 @@ public class ExtenderTest {
         a.add("b");
         a.add("c");
         a.add("d");
-        assertTrue(Extender.isListOfStrings(a));
+        assertTrue(ExtenderUtil.isListOfStrings(a));
 
         List<Object> b = new ArrayList<>();
         b.add("a");
         b.add("b");
         b.add(1);
         b.add(2);
-        assertTrue(!Extender.isListOfStrings(b));
+        assertTrue(!ExtenderUtil.isListOfStrings(b));
     }
 
     @Test

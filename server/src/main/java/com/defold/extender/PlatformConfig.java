@@ -11,7 +11,7 @@ class PlatformConfig {
     public String exePrefix; // deprecated
     public String exeExt; // deprecated
     public String writeLibPattern;
-    public String writeShLibPattern = new String();
+    public String writeShLibPattern;
     public String writeExePattern;
     public String zipContentPattern;
     public String shlibRe;
@@ -20,7 +20,6 @@ class PlatformConfig {
     public String javaSourceRe;
     public String compileCmd;
     public String linkCmd;
-    public List<String> linkCmds;
     public String libCmd;
     public String dxCmd;
     public String aapt2compileCmd;

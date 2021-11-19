@@ -7,9 +7,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.nio.file.Path;
+
+import java.lang.reflect.Field;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
@@ -72,17 +76,6 @@ public class ExtenderUtil
             if (included) {
                 items.add(item);
             }
-        }
-        return items;
-    }
-
-    static public List<String> mergeLists(List<String> l1, List<String> l2) {
-        List<String> items = new ArrayList<>();
-        if (l1 != null) {
-            items.addAll(l1);
-        }
-        if (l2 != null) {
-            items.addAll(l2);
         }
         return items;
     }
@@ -188,19 +181,19 @@ public class ExtenderUtil
 
         if (optionalBaseVariantManifest != null && optionalBaseVariantManifest.platforms != null) {
             if (optionalBaseVariantManifest.platforms.containsKey("common")) {
-                appManifestContext = Extender.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get("common").context);
+                appManifestContext = ExtenderUtil.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get("common").context);
             }
             if (optionalBaseVariantManifest.platforms.containsKey(platform)) {
-                appManifestContext = Extender.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get(platform).context);
+                appManifestContext = ExtenderUtil.mergeContexts(appManifestContext, optionalBaseVariantManifest.platforms.get(platform).context);
             }
         }
 
         if (manifest != null && manifest.platforms != null) {
             if (manifest.platforms.containsKey("common")) {
-                appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
+                appManifestContext = ExtenderUtil.mergeContexts(appManifestContext, manifest.platforms.get("common").context);
             }
             if (manifest.platforms.containsKey(platform)) {
-                appManifestContext = Extender.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
+                appManifestContext = ExtenderUtil.mergeContexts(appManifestContext, manifest.platforms.get(platform).context);
             }
         }
 
@@ -216,7 +209,7 @@ public class ExtenderUtil
         if (manifest.platforms.containsKey("common")) {
             Object v = manifest.platforms.get("common").context.get(name);
             if( v != null ) {
-                if (!Extender.isListOfStrings((List<Object>) v)) {
+                if (!ExtenderUtil.isListOfStrings((List<Object>) v)) {
                     throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
                 }
                 items.addAll((List<String>) v);
@@ -226,7 +219,7 @@ public class ExtenderUtil
         if (manifest.platforms.containsKey(platform)) {
             Object v = manifest.platforms.get(platform).context.get(name);
             if( v != null ) {
-                if (!Extender.isListOfStrings((List<Object>) v)) {
+                if (!ExtenderUtil.isListOfStrings((List<Object>) v)) {
                     throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
                 }
                 items.addAll((List<String>) v);
@@ -287,8 +280,106 @@ public class ExtenderUtil
         return default_value;
     }
 
-    private static boolean isListOfStrings(List<Object> list) {
+    static public boolean isListOfStrings(List<Object> list) {
         return list != null && list.stream().allMatch(o -> o instanceof String);
+    }
+
+    static public List<String> mergeLists(List<String> l1, List<String> l2) {
+        List<String> items = new ArrayList<>();
+        if (l1 != null) {
+            items.addAll(l1);
+        }
+        if (l2 != null) {
+            items.addAll(l2);
+        }
+        return items;
+    }
+
+    private static final String MERGE_KEY_REPLACE = "_replace";
+    static private boolean isMergeOp(String name)
+    {
+        if (name.endsWith(MERGE_KEY_REPLACE))
+            return false;
+        return true;
+    }
+
+    static private String stripMergeKey(String name)
+    {
+        if (name.endsWith(MERGE_KEY_REPLACE))
+            return name.substring(0, name.length()-MERGE_KEY_REPLACE.length());
+        return name;
+    }
+
+    // Copies the original context, and appends the extra context's elements, if the keys and types are valid
+    static public Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
+        Map<String, Object> context = new HashMap<>(originalContext);
+
+        // Clean the names of the previous context
+        Set<String> originalKeys = new HashSet<>(context.keySet());
+        for (String k : originalKeys) {
+            String key = stripMergeKey(k);
+            if (!key.equals(k))
+            {
+                Object v = context.get(k);
+                context.remove(k);
+                context.put(key, v);
+            }
+        }
+
+        Set<String> keys = extensionContext.keySet();
+        for (String k : keys) {
+
+            boolean isMergeOp = isMergeOp(k);
+            String key = stripMergeKey(k);
+
+            Object v1 = context.getOrDefault(key, context.getOrDefault(k, null));
+            Object v2 = extensionContext.get(k);
+
+            if (v1 == null && v2 == null) {
+                // Simply skip keys that hold no values at all
+                context.remove(key);
+                continue;
+            }
+
+            if (v1 != null && v2 != null && !v1.getClass().equals(v2.getClass())) {
+                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
+            }
+            if (v2 != null && v2 instanceof List && !ExtenderUtil.isListOfStrings((List<Object>) v2)) {
+                throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
+            }
+
+            if (v1 != null && v2 != null && v1 instanceof List) {
+                //System.out.printf("merge op %s : %s  + %s  (merge: %s)\n", key, v1.toString(), v2.toString(), isMergeOp?"true":"false");
+
+                if (isMergeOp) {
+                    v1 = ExtenderUtil.mergeLists((List<String>) v1, (List<String>) v2);
+                } else {
+                    v1 = v2;
+                }
+            }
+
+            if (v1 != null) {
+                context.put(key, v1);
+            } else {
+                context.put(key, v2);
+            }
+        }
+        return context;
+    }
+
+    static public Map<String, Object> createEmptyContext(Map<String, Object> original) {
+        Map<String, Object> out = new HashMap<>();
+        Set<String> keys = original.keySet();
+        for (String k : keys) {
+            Object v = original.get(k);
+            if (v instanceof String) {
+                v = "";
+            } else if (v instanceof List) {
+                v = new ArrayList<String>();
+            }
+            out.put(k, v);
+        }
+        return out;
     }
 
     static List<String> getStringList(Map<String, Object> context, String key) throws ExtenderException
@@ -432,5 +523,22 @@ public class ExtenderUtil
                platform.equals("js-web");
     }
 
+
+    @SuppressWarnings("unchecked")
+    public static <V> V get(Object object, String fieldName) {
+        Class<?> clazz = object.getClass();
+        while (clazz != null) {
+            try {
+                Field field = clazz.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return (V) field.get(object);
+            } catch (NoSuchFieldException e) {
+                clazz = clazz.getSuperclass();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return null;
+    }
 
 }
