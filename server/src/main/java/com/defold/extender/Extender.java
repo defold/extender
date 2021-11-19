@@ -721,7 +721,7 @@ class Extender {
         // ***************************************************************************
         // C++
         {
-            String linkCmdCXXSh = platformConfig.linkCmdCXXSh != null ? platformConfig.linkCmdCXXSh : commonPlatformConfig.linkCmdCXXSh;
+            String linkCmdCXXSh = getPlatformConfigProperty("linkCmdCXXSh");
             List<File> srcFiles = listFiles(srcDirs, platformConfig.sourceRe);
 
             if (srcFiles.isEmpty()) {

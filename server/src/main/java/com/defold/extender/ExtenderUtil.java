@@ -349,8 +349,6 @@ public class ExtenderUtil
             }
 
             if (v1 != null && v2 != null && v1 instanceof List) {
-                //System.out.printf("merge op %s : %s  + %s  (merge: %s)\n", key, v1.toString(), v2.toString(), isMergeOp?"true":"false");
-
                 if (isMergeOp) {
                     v1 = ExtenderUtil.mergeLists((List<String>) v1, (List<String>) v2);
                 } else {

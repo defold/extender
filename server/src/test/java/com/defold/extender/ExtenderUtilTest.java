@@ -180,8 +180,6 @@ public class ExtenderUtilTest {
 
         Map<String, Object> context = ExtenderUtil.mergeContexts(a, b);
 
-        //ExtenderUtil.debugPrint(context, 2);
-
         assertEquals(Arrays.asList("a"), context.getOrDefault("a_only", null));
         assertEquals(Arrays.asList("b"), context.getOrDefault("b_only", null));
         assertEquals(Arrays.asList("a", "b"), context.getOrDefault("union", null));
