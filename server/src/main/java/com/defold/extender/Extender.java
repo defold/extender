@@ -239,7 +239,6 @@ class Extender {
     }
 
     private PlatformConfig getPlatformConfig(String platform) throws ExtenderException {
-        PlatformConfig commonPlatformConfig = config.platforms.get("common");
         PlatformConfig platformConfig = config.platforms.get(platform);
 
         if (platformConfig == null) {
@@ -576,7 +575,8 @@ class Extender {
 
         Map<String, Object> tmpcontext = context(manifestContext);
 
-        if (commonPlatformConfig == null || commonPlatformConfig.protoEngineCxxCmd == null) {
+        String protoEngineCxxCmd = getPlatformConfigProperty("protoEngineCxxCmd");
+        if (protoEngineCxxCmd == null) {
             LOGGER.info("Not supporting .proto files");
             return generated;
         }
@@ -597,8 +597,6 @@ class Extender {
             context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
             context.put("ext", ImmutableMap.of("includes", includes));
             context.put("out_dir", extBuildDir);
-
-            String protoEngineCxxCmd = getPlatformConfigProperty("protoEngineCxxCmd");
             String command = templateExecutor.execute(protoEngineCxxCmd, context);
             processExecutor.execute(command);
 
@@ -643,7 +641,8 @@ class Extender {
             // Adding the source folderpath, so the output relative path gets stripped and the output becomes "extBuildDir/proto_file_name.pb.cc"
             context.put("proto_path", ExtenderUtil.getRelativePath(jobDirectory, protoFile.getParentFile()));
 
-            String command = templateExecutor.execute(commonPlatformConfig.protoPipelineCmd, context);
+            String protoPipelineCmd = getPlatformConfigProperty("protoPipelineCmd");
+            String command = templateExecutor.execute(protoPipelineCmd, context);
             processExecutor.execute(command);
 
             LOGGER.info("Generated {}", tgtFile);
@@ -704,7 +703,8 @@ class Extender {
     }
 
     private List<File> buildPipelineExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-        if (commonPlatformConfig == null || commonPlatformConfig.protoEngineCxxCmd == null) {
+        String protoEngineCxxCmd = getPlatformConfigProperty("protoEngineCxxCmd");
+        if (protoEngineCxxCmd == null) {
             LOGGER.info("This SDK version doesn't support compiling plugins!");
             return new ArrayList<File>();
         }
@@ -756,13 +756,14 @@ class Extender {
         // ***************************************************************************
         // Java
         {
-            List<File> srcFiles = listFiles(srcDirs, commonPlatformConfig.javaSourceRe);
+            String javaSourceRe = getPlatformConfigProperty("javaSourceRe");
+            List<File> srcFiles = listFiles(srcDirs, javaSourceRe);
 
             if (srcFiles.isEmpty()) {
                 LOGGER.info("No Java source found for plugin. Skipping {}", extDir);
             } else {
                 generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "java");
-                List<File> generatedFiles = listFiles(extBuildDir, commonPlatformConfig.javaSourceRe);
+                List<File> generatedFiles = listFiles(extBuildDir, javaSourceRe);
 
                 srcFiles.addAll(generatedFiles);
 
@@ -790,7 +791,9 @@ class Extender {
                     context.put("classesDir", classesDir.getAbsolutePath());
                     context.put("classPath", classPath);
                     context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-                    String command = templateExecutor.execute(commonPlatformConfig.javacCmd, context);
+
+                    String javacCmd = getPlatformConfigProperty("javacCmd");
+                    String command = templateExecutor.execute(javacCmd, context);
                     processExecutor.execute(command);
                 }
 
@@ -800,7 +803,9 @@ class Extender {
 
                 context.put("outputJar", outputJar.getAbsolutePath());
                 context.put("classesDir", classesDir.getAbsolutePath());
-                String command = templateExecutor.execute(commonPlatformConfig.jarCmd, context);
+
+                String jarCmd = getPlatformConfigProperty("jarCmd");
+                String command = templateExecutor.execute(jarCmd, context);
                 processExecutor.execute(command);
 
                 outputFiles.add(outputJar);
