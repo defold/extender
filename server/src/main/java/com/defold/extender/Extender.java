@@ -250,7 +250,7 @@ class Extender {
 
     private String getPlatformConfigProperty(String property) {
         String value = ExtenderUtil.get(platformConfig, property);
-        if (value == null)
+        if (value == null && commonPlatformConfig != null)
         {
             value = ExtenderUtil.get(commonPlatformConfig, property);
         }
