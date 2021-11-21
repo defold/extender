@@ -86,4 +86,104 @@ public class ExtenderUtilTest {
         assertEquals( ExtenderUtil.isChild(parent, new File("upload/extension1/file")), true );
         assertEquals( ExtenderUtil.isChild(parent, new File("upload")), false);
     }
+
+
+    @Test
+    public void testMergeList() {
+        String[] a = {"1", "2", "2", "3", "4"};
+        String[] b = {"3", "5", "4", "5"};
+
+        List<String> c = ExtenderUtil.mergeLists(Arrays.asList(a), Arrays.asList(b));
+
+        String[] expected = {"1", "2", "2", "3", "4", "3", "5", "4", "5"};
+
+        assertArrayEquals(expected, c.toArray());
+    }
+
+    @Test
+    public void testMergeContext() throws ExtenderException {
+        {
+            Map<String, Object> a = new HashMap<>();
+            Map<String, Object> b = new HashMap<>();
+
+            a.put("frameworks", Arrays.asList("a", "b", "b", "c"));
+            a.put("defines", Arrays.asList("A", "B"));
+
+            b.put("frameworks", Arrays.asList("a", "d"));
+            b.put("symbols", Arrays.asList("S1"));
+
+            Map<String, Object> result = ExtenderUtil.mergeContexts(a, b);
+
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("frameworks", Arrays.asList("a", "b", "b", "c", "a", "d"));
+            expected.put("defines", Arrays.asList("A", "B"));
+            expected.put("symbols", Arrays.asList("S1"));
+
+            assertEquals(expected, result);
+        }
+
+        // Testing issue70
+        {
+            Map<String, Object> a = new HashMap<>();
+            Map<String, Object> b = new HashMap<>();
+            a.put("value", null);
+            b.put("value", null);
+
+            Map<String, Object> result = ExtenderUtil.mergeContexts(a, b);
+            assertTrue(result != null);
+
+            Map<String, Object> expected = new HashMap<>();
+            assertEquals(expected, result);
+        }
+        {
+            Map<String, Object> a = new HashMap<>();
+            Map<String, Object> b = new HashMap<>();
+            a.put("value", "a");
+            b.put("value", null);
+
+            Map<String, Object> result = ExtenderUtil.mergeContexts(a, b);
+            assertTrue(result != null);
+
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("value", "a");
+            assertEquals(expected, result);
+        }
+        {
+            Map<String, Object> a = new HashMap<>();
+            Map<String, Object> b = new HashMap<>();
+            a.put("value", null);
+            b.put("value", "b");
+
+            Map<String, Object> result = ExtenderUtil.mergeContexts(a, b);
+            assertTrue(result != null);
+
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("value", "b");
+            assertEquals(expected, result);
+        }
+    }
+
+    @Test
+    public void testMergeContextLists() throws IOException, InterruptedException, ExtenderException {
+
+        Map<String, Object> a = new HashMap<>();
+        a.put("a_only", Arrays.asList("a"));
+        a.put("union", Arrays.asList("a"));
+        a.put("override", Arrays.asList("a"));
+        a.put("union2_replace", Arrays.asList("a"));
+
+        Map<String, Object> b = new HashMap<>();
+        b.put("b_only", Arrays.asList("b"));
+        b.put("union", Arrays.asList("b"));
+        b.put("override_replace", Arrays.asList("b"));
+        b.put("union2", Arrays.asList("b"));
+
+        Map<String, Object> context = ExtenderUtil.mergeContexts(a, b);
+
+        assertEquals(Arrays.asList("a"), context.getOrDefault("a_only", null));
+        assertEquals(Arrays.asList("b"), context.getOrDefault("b_only", null));
+        assertEquals(Arrays.asList("a", "b"), context.getOrDefault("union", null));
+        assertEquals(Arrays.asList("b"), context.getOrDefault("override", null));
+        assertEquals(Arrays.asList("a", "b"), context.getOrDefault("union2", null));
+    }
 }
