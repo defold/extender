@@ -942,12 +942,21 @@ class Extender {
         context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
-        String command = templateExecutor.execute(platformConfig.linkCmd, context);
+        List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
 
-        // WINE->clang transition pt2: Replace any redundant ".lib.lib"
-        command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
+        if (platformConfig.linkCmds == null) {
+            commands = new ArrayList<>();
+            commands.add(platformConfig.linkCmd);
+        }
 
-        processExecutor.execute(command);
+        for (String template : commands) {
+            String command = templateExecutor.execute(template, context);
+
+            // WINE->clang transition pt2: Replace any redundant ".lib.lib"
+            command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
+
+            processExecutor.execute(command);
+        }
 
         // Extract symbols
         if (this.withSymbols) {
