@@ -20,11 +20,12 @@ version will be rolled out without any downtime of the service.
 ## Releasing Live Server
 The target servers are https://build.defold.com and https://build-darwin.defold.com
 
-  1. Checkout the master branch and sync: `git checkout master && git pull`
-  2. Merge beta into master: `git merge beta`
-  3. Build and runs tests: `./server/scripts/build.sh`
-  4. Run `./server/scripts/publish-prod.sh`
-  5. Run `./server/scripts/publish-darwin-prod.sh`
+  1. Checkout the beta branch and sync: `git checkout beta && git pull`
+  2. Checkout the master branch and sync: `git checkout master && git pull`
+  3. Merge beta into master: `git merge beta`
+  4. Build and runs tests: `./server/scripts/build.sh`
+  5. Run `./server/scripts/publish-prod.sh`
+  6. Run `./server/scripts/publish-darwin-prod.sh`
 
 
 ## Creating a GitHub release (OPTIONAL)
