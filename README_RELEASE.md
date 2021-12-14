@@ -26,6 +26,9 @@ The target servers are https://build.defold.com and https://build-darwin.defold.
   4. Build and runs tests: `./server/scripts/build.sh`
   5. Run `./server/scripts/publish-prod.sh`
   6. Run `./server/scripts/publish-darwin-prod.sh`
+  7. Push changes to master: `git push`
+  8. Checkout the dev branch and sync: `git checkout dev && git pull` 
+  9. Merge master into dev: `git merge master -m "Merged master into dev"`
 
 
 ## Creating a GitHub release (OPTIONAL)
