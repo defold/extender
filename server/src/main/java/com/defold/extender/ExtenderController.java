@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-//import org.springframework.boot.actuate.metrics.GaugeService;
+//import org.springframework.boot.actuate.metrics.meterRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -51,7 +51,7 @@ public class ExtenderController {
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
     private final GradleService gradleService;
-    private final MeterRegistry gaugeService;
+    private final MeterRegistry meterRegistry;
     private final UserUpdateService userUpdateService;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
@@ -86,7 +86,7 @@ public class ExtenderController {
                               DataCacheService dataCacheService,
                               GradleService gradleService,
                               UserUpdateService userUpdateService,
-                              @Qualifier("gaugeService") MeterRegistry gaugeService,
+                              MeterRegistry meterRegistry,
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms,
@@ -94,7 +94,7 @@ public class ExtenderController {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
-        this.gaugeService = gaugeService;
+        this.meterRegistry = meterRegistry;
         this.userUpdateService = userUpdateService;
 
         this.remoteEngineBuilder = remoteEngineBuilder;
@@ -171,7 +171,7 @@ public class ExtenderController {
         File buildDirectory = new File(jobDirectory, "build");
         buildDirectory.mkdir();
 
-        final MetricsWriter metricsWriter = new MetricsWriter(gaugeService);
+        final MetricsWriter metricsWriter = new MetricsWriter(meterRegistry);
         final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
 
         try {
@@ -310,6 +310,8 @@ public class ExtenderController {
             LOGGER.info("receiveUpload");
         }
 
+        System.out.printf("MAWE: request.getContentLength(): %d\n", request.getContentLength());
+
         // Create a new file upload handler
         ServletFileUpload upload = new ServletFileUpload();
 
@@ -319,6 +321,9 @@ public class ExtenderController {
         while (iter.hasNext()) {
             FileItemStream item = iter.next();
             String name = item.getName().replace('\\', File.separatorChar);
+
+        System.out.printf("MAWE: item name: %s\n", name);
+
             if (!item.isFormField()) {
 
                 if (ignoreFilename(name)) {
