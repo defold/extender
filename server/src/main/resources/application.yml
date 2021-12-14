@@ -2,6 +2,9 @@
 server:
     port: 9000
 
+    jetty:
+        connection-idle-timeout: 600000
+
 extender:
     sdk:
         location: /var/extender/sdk

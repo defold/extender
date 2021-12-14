@@ -3,7 +3,8 @@ package com.defold.extender.metrics;
 import com.defold.extender.Timer;
 import org.junit.Before;
 import org.junit.Test;
-import org.springframework.boot.actuate.metrics.GaugeService;
+//import org.springframework.boot.actuate.metrics.GaugeService;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -18,12 +19,12 @@ import static org.mockito.Mockito.when;
 public class MetricsWriterTest {
 
     private MetricsWriter metricsWriter;
-    private GaugeService gaugeService;
+    private MeterRegistry gaugeService;
     private Timer timer;
 
     @Before
     public void setUp() {
-        gaugeService = mock(GaugeService.class);
+        gaugeService = mock(MeterRegistry.class);
         timer = mock(Timer.class);
 
         metricsWriter = new MetricsWriter(gaugeService, timer);

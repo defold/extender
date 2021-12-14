@@ -3,8 +3,10 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'io.spring.gradle:dependency-management-plugin:1.0.6.RELEASE'
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:1.5.22.RELEASE'
+        classpath 'io.spring.gradle:dependency-management-plugin:1.0.11.RELEASE'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.6.1'
+
+// Updating to gradle 7, means moving from this plugin to something else
         classpath 'se.transmode.gradle:gradle-docker:1.2'
     }
 }
@@ -13,15 +15,18 @@ plugins {
     id 'java'
     id 'idea'
     id 'eclipse'
-    id 'org.springframework.boot' version '1.5.22.RELEASE'
+    id 'org.springframework.boot' version '2.6.1'
 }
 
 apply plugin: 'docker'
 apply plugin: 'io.spring.dependency-management'
+//apply plugin: 'spring-boot-gradle-plugin'
 
-jar {
-    baseName = 'extender'
-    version =  '0.1.0'
+configurations {
+    // A configuration meant for consumers that need the API of this component
+    implementation {
+        canBeResolved = true
+    }
 }
 
 repositories {
@@ -45,20 +50,23 @@ dependencies {
         exclude module: 'spring-boot-starter-tomcat'
     }
     implementation('org.springframework.boot:spring-boot-starter-jetty')
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.security:spring-security-test'
-    implementation('com.samskivert:jmustache:1.14')
+    implementation('org.springframework.boot:spring-boot-starter-security')
+    implementation('org.springframework.boot:spring-boot-starter-web')
+    implementation('org.springframework.boot:spring-boot-starter-data-rest')
+    implementation('org.springframework.security:spring-security-test')
+    implementation('com.samskivert:jmustache:1.15')
     implementation('com.google.guava:guava:27.0-jre')
     implementation('org.apache.httpcomponents:httpclient:4.5.13')
     implementation('org.apache.httpcomponents:httpmime:4.5.13')
     implementation('org.apache.commons:commons-lang3:3.8.1')
-    implementation 'org.apache.commons:commons-compress:1.21'
-    implementation('commons-io:commons-io:2.6')
+    implementation('org.apache.commons:commons-compress:1.21')
+    implementation('commons-io:commons-io:2.11.0')
     implementation('commons-fileupload:commons-fileupload:1.3.3')
     implementation('commons-chain:commons-chain:1.2')
     implementation('org.springframework.boot:spring-boot-starter-actuator')
     implementation('org.influxdb:influxdb-java:2.10')
     implementation('com.amazonaws:aws-java-sdk-s3:1.11.438')
+    implementation('io.micrometer:micrometer-core:1.8.1')
 
     testImplementation('junit:junit:4.12')
     testImplementation('org.springframework:spring-test')
@@ -74,6 +82,40 @@ task createVersionFile(type:Exec) {
 compileJava {
     dependsOn createVersionFile
 }
+
+jar {
+    baseName = 'extender'
+    version =  '0.1.0'
+    //enabled = true
+    archiveClassifier = '' // use empty string to avoid the 'plain' suffix
+
+    manifest {
+        attributes(
+          'Class-Path': configurations.implementation.collect { it.getName() }.join(' '),
+          'Main-Class': 'com.defold.extender.ExtenderApplication'
+        )
+    }
+    from { configurations.implementation.collect { it.isDirectory() ? it : zipTree(it) } }
+}
+
+// task fatJar(type: Jar) {
+//     baseName = 'extender'
+//     version =  '0.1.0'
+
+//     manifest {
+//         attributes(
+//           //'Class-Path': configurations.compile.collect { it.getName() }.join(' '),
+//           'Implementation-Title': 'Defold Extender',
+//           'Main-Class': 'com.defold.extender.ExtenderApplication'
+//         )
+//     }
+//     from {
+//         configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+//     }
+
+//     //from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+//     with jar
+// }
 
 task buildDocker(type: Docker) {
     dependsOn 'build', ':manifestmergetool:mainJar'

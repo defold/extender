@@ -8,6 +8,16 @@ apply plugin: 'java-library'
 
 jar {
     baseName = '_manifestmergetool'
+    enabled = true
+    archiveClassifier = '' // use empty string to avoid the 'plain' suffix
+}
+
+
+configurations {
+    // A configuration meant for consumers that need the API of this component
+    implementation {
+        canBeResolved = true
+    }
 }
 
 task mainJar(type: Jar) {
@@ -17,7 +27,7 @@ task mainJar(type: Jar) {
         attributes 'Main-Class': 'com.defold.manifestmergetool.ManifestMergeTool'
     }
     from {
-        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+        configurations.implementation.collect { it.isDirectory() ? it : zipTree(it) }
     } {
         exclude "META-INF/*.SF"
         exclude "META-INF/*.DSA"

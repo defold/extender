@@ -2,13 +2,16 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ZipUtils;
+import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.metrics.CounterService;
-import org.springframework.boot.actuate.metrics.GaugeService;
+//import org.springframework.boot.actuate.metrics.CounterService;
+//import org.springframework.boot.actuate.metrics.GaugeService;
+import io.micrometer.core.instrument.MeterRegistry;
+//import io.micrometer.core.instrument.Counter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpRequest;
@@ -42,18 +45,20 @@ public class DefoldSdkService {
     private final File dynamoHome;
     private final int cacheSize;
 
-    private final CounterService counterService;
-    private final GaugeService gaugeService;
+    private final MeterRegistry meterRegistry;
+    // private final Counter counterSdkGet;
+    // private final Counter counterSdkGetDownload;
 
     @Autowired
     DefoldSdkService(@Value("${extender.sdk.location}") String baseSdkDirectory,
                      @Value("${extender.sdk.cache-size}") int cacheSize,
-                     CounterService counterService,
-                     GaugeService gaugeService) throws IOException {
+                     MeterRegistry meterRegistry) throws IOException {
         this.baseSdkDirectory = new File(baseSdkDirectory).toPath();
         this.cacheSize = cacheSize;
-        this.counterService = counterService;
-        this.gaugeService = gaugeService;
+        this.meterRegistry = meterRegistry;
+        // this.counterSdkGet = gaugeService.counter("counter.service.sdk.get");
+        // this.counterSdkGetDownload = gaugeService.counter("counter.service.sdk.get.download");
+
         this.dynamoHome = System.getenv("DYNAMO_HOME") != null ? new File(System.getenv("DYNAMO_HOME")) : null;
 
         LOGGER.info("SDK service using directory {} with cache size {}", baseSdkDirectory, cacheSize);
@@ -149,7 +154,8 @@ public class DefoldSdkService {
                             .skip(cacheSize)
                             .forEach(this::deleteCachedSdk);
 
-                    counterService.increment("counter.service.sdk.get.download");
+                    //counterSdkGetDownload.increment();
+                    MetricsWriter.metricsCounterIncrement(meterRegistry, "counter.service.sdk.get.download");
                 } finally {
                     lockFile.delete();
                 }
@@ -176,8 +182,9 @@ public class DefoldSdkService {
 
         LOGGER.info("Using Defold SDK version {}", hash);
 
-        gaugeService.submit("gauge.service.sdk.get", System.currentTimeMillis() - methodStart);
-        counterService.increment("counter.service.sdk.get");
+        MetricsWriter.metricsTimer(meterRegistry, "gauge.service.sdk.get", System.currentTimeMillis() - methodStart);
+        MetricsWriter.metricsCounterIncrement(meterRegistry, "counter.service.sdk.get");
+        //counterSdkGet.increment();
 
         return new File(sdkDirectory, "defoldsdk");
     }

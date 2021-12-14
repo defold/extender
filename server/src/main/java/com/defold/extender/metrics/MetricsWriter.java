@@ -1,34 +1,39 @@
 package com.defold.extender.metrics;
 
-import com.defold.extender.Timer;
-import org.springframework.boot.actuate.metrics.GaugeService;
+//import com.defold.extender.Timer;
+//import org.springframework.boot.actuate.metrics.GaugeService;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 
 public class MetricsWriter {
 
-    private final GaugeService gaugeService;
-    private final Timer timer;
+    private final MeterRegistry registry;
+    private final com.defold.extender.Timer timer;
 
     private final Map<String,Long> metrics = new TreeMap<>();
 
-    public MetricsWriter(GaugeService gaugeService, Timer timer) {
-        this.gaugeService = gaugeService;
+    public MetricsWriter(MeterRegistry registry, com.defold.extender.Timer timer) {
+        this.registry = registry;
         this.timer = timer;
 
         this.timer.start();
     }
 
-    public MetricsWriter(final GaugeService gaugeService) {
-        this(gaugeService, new Timer());
+    public MetricsWriter(final MeterRegistry registry) {
+        this(registry, new com.defold.extender.Timer());
     }
 
     private void addMetric(final String name, final long value) {
-        gaugeService.submit(name, value);
+        registry.gauge(name, value);
         metrics.put(name, value);
     }
 
@@ -75,6 +80,20 @@ public class MetricsWriter {
     public void measureCacheDownload(long downloadSize) {
         addMetric("job.cache.download", timer.start());
         addMetric("job.cache.downloadSize", downloadSize);
+    }
+
+    public static void metricsGauge(MeterRegistry registry, String id, long value) {
+        registry.gauge(id, value);
+    }
+
+    public static void metricsTimer(MeterRegistry registry, String id, long millis) {
+        Timer timer = registry.timer(id);
+        timer.record(millis, TimeUnit.SECONDS);
+    }
+
+    public static void metricsCounterIncrement(MeterRegistry registry, String id) {
+        Counter counter = registry.counter(id);
+        counter.increment();
     }
 
     @Override

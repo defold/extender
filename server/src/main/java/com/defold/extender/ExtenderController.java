@@ -19,7 +19,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.metrics.GaugeService;
+//import org.springframework.boot.actuate.metrics.GaugeService;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -50,7 +51,7 @@ public class ExtenderController {
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
     private final GradleService gradleService;
-    private final GaugeService gaugeService;
+    private final MeterRegistry gaugeService;
     private final UserUpdateService userUpdateService;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
@@ -85,7 +86,7 @@ public class ExtenderController {
                               DataCacheService dataCacheService,
                               GradleService gradleService,
                               UserUpdateService userUpdateService,
-                              @Qualifier("gaugeService") GaugeService gaugeService,
+                              @Qualifier("gaugeService") MeterRegistry gaugeService,
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms,
