@@ -11,13 +11,3 @@ extender:
         enabled: false
         # This points to the host machine from inside docker
         url: http://host.docker.internal:9010
-
-management:
-  endpoint:
-    influx:
-      enabled: false
-
-  metrics:
-    export:
-      influx:
-        enabled: false

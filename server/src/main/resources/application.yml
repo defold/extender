@@ -59,3 +59,12 @@ management:
         diskspace:
             path: /
             threshold: 1073741824 #1024mb
+
+    endpoint:
+        influx:
+            enabled: false
+
+    metrics:
+        export:
+            influx:
+                enabled: false
