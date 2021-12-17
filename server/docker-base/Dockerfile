@@ -41,11 +41,12 @@ RUN \
   echo "LINUX TOOLS + COMPILER" && \
   apt-get update && \
   apt-get install -y software-properties-common && \
+  add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     wget \
     locales \
-    openjdk-17-jdk \
+    openjdk-11-jdk \
     # gcc \
     # g++ \
     # gcc-multilib \
@@ -73,6 +74,8 @@ RUN \
 
 
 # ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 
 # # To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
 # # # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile
@@ -453,11 +456,13 @@ RUN \
 RUN \
   chown -R extender: $WINEPREFIX
 
-# Technically part of the Android build, but also required bythe GradleService.java
+# Technically part of the Android build, but also required by the GradleService.java
 # until it can be disabled (e.g. by looking for the existance of GRADLE_USER_HOME)
 
+# Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
 ENV GRADLE_USER_HOME /tmp/.gradle
 ENV GRADLE_VERSION 6.1.1
+ENV GRADLE_PLUGIN_VERSION 4.0.1
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \

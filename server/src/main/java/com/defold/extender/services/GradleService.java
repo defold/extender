@@ -51,6 +51,7 @@ public class GradleService {
     private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
     private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
+    private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
@@ -154,6 +155,7 @@ public class GradleService {
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("gradle-files", values);
         envContext.put("compile-sdk-version", ANDROID_SDK_VERSION);
+        envContext.put("gradle-plugin-version", GRADLE_PLUGIN_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
         Files.write(mainGradleFile.toPath(), contents.getBytes());
     }
