@@ -291,7 +291,7 @@ public class ExtenderController {
         boolean ignore = false;
         ignore = ignore || name.equals(".DS_Store");
         if (ignore) {
-            LOGGER.debug("ignoreFilename: %s", path);
+            LOGGER.debug(String.format("ignoreFilename: %s", path));
         }
         return ignore;
     }
@@ -326,7 +326,6 @@ public class ExtenderController {
             String name = key.replace('\\', File.separatorChar);
 
             MultipartFile multipartfile = files.get(key);
-
             if (ignoreFilename(name)) {
                 continue;
             }
