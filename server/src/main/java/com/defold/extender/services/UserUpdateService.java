@@ -73,7 +73,8 @@ public class UserUpdateService {
             final boolean disabled = userSettings.get(userSettings.size() - 1).equals("disabled");
             final String[] authorities = userSettings.subList(1, userSettings.size() - 1).toArray(new String[0]);
 
-            final UserDetails user = User.builder().disabled(disabled).username(username).password(password).authorities(authorities).build();
+            // For info about password storage formats: https://spring.io/blog/2017/11/01/spring-security-5-0-0-rc1-released#password-storage-format
+            final UserDetails user = User.builder().disabled(disabled).username(username).password("{noop}"+password).authorities(authorities).build();
             if (userDetailsManager.userExists(username)) {
                 LOGGER.debug("UserUpdateService - Updating user " + user.toString());
                 userDetailsManager.updateUser(user);
