@@ -170,14 +170,15 @@ ENV EMCC_SKIP_SANITY_CHECK 1
 
 ## Emscripten 2.0.11 (from version 1.2.178)
 
+# Ubuntu still seem to use python3 3.8 as default version
 RUN \
-  # add-apt-repository ppa:deadsnakes/ppa && \
-  # apt-get autoclean && \
-  # apt-get update && \
-  # apt-get clean autoclean autoremove && \
-  # apt-get install -y --no-install-recommends python3.9 && \
-  # update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
-  # update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 2 && \
+  add-apt-repository ppa:deadsnakes/ppa && \
+  apt-get autoclean && \
+  apt-get update && \
+  apt-get clean autoclean autoremove && \
+  apt-get install -y --no-install-recommends python3.9 && \
+  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
+  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 2 && \
   python3 --version
 
 ENV EMSCRIPTEN_SDK_2_0_11 ${PLATFORMSDK_DIR}/emsdk-2.0.11
@@ -213,8 +214,8 @@ RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_2_0_11} && \
   # sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_39_16} && \
   # echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_39_16}
 
-# RUN \
-#   update-alternatives --set python3 /usr/bin/python3.5
+RUN \
+  update-alternatives --set python3 /usr/bin/python3.8
 
 
 #
