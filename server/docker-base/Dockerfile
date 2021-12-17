@@ -1,42 +1,5 @@
 FROM ubuntu:20.04
 
-# Base stuff
-# RUN \
-#   echo "LINUX TOOLS + COMPILER" && \
-#   dpkg --add-architecture i386 && \
-#   apt-get update && \
-#   apt-get install -y software-properties-common && \
-#   add-apt-repository ppa:openjdk-r/ppa && \
-#   apt-get update && \
-#   apt-get install -y --no-install-recommends \
-#     wget \
-#     locales \
-#     openjdk-17-jdk \
-#     # gcc \
-#     # g++ \
-#     # gcc-multilib \
-#     # g++-multilib \
-#     libssl-dev \
-#     openssl \
-#     libtool \
-#     autoconf \
-#     automake \
-#     uuid-dev \
-#     libxi-dev \
-#     libopenal-dev \
-#     libgl1-mesa-dev \
-#     libglw1-mesa-dev \
-#     freeglut3-dev \
-#     zlib1g:i386 && \
-#     unzip \
-#     # for use when debugging
-#     tree \
-#     silversearcher-ag \
-#     less \
-#     nano \
-# # cleanup
-#   rm -rf /var/lib/apt/lists/*
-
 RUN \
   echo "LINUX TOOLS + COMPILER" && \
   apt-get update && \
@@ -46,11 +9,7 @@ RUN \
   apt-get install -y --no-install-recommends \
     wget \
     locales \
-    openjdk-11-jdk \
-    # gcc \
-    # g++ \
-    # gcc-multilib \
-    # g++-multilib \
+    openjdk-15-jdk \
     libssl-dev \
     openssl \
     libtool \
@@ -72,40 +31,7 @@ RUN \
 # cleanup
   apt-get clean autoclean autoremove
 
-
-# ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
-
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
-
-# # To avoid the mysterious error "Unexpected error: java.security.InvalidAlgorithmParameterException: the trustAnchors parameter must be non-empty"
-# # # From https://github.com/docker-library/openjdk/blob/master/11/jdk/slim/Dockerfile
-# RUN \
-#   apt-get update; \
-#   apt-get install -y --no-install-recommends \
-# # utilities for keeping Debian and OpenJDK CA certificates in sync
-#     ca-certificates p11-kit \
-#   ; \
-# # update "cacerts" bundle to use Debian's CA certificates (and make sure it stays up-to-date with changes to Debian's store)
-# # see https://github.com/docker-library/openjdk/issues/327
-# #     http://rabexc.org/posts/certificates-not-working-java#comment-4099504075
-# #     https://salsa.debian.org/java-team/ca-certificates-java/blob/3e51a84e9104823319abeb31f880580e46f45a98/debian/jks-keystore.hook.in
-# #     https://git.alpinelinux.org/aports/tree/community/java-cacerts/APKBUILD?id=761af65f38b4570093461e6546dcf6b179d2b624#n29
-#   { \
-#     echo '#!/usr/bin/env bash'; \
-#     echo 'set -Eeuo pipefail'; \
-#     echo 'if ! [ -d "$JAVA_HOME" ]; then echo >&2 "error: missing JAVA_HOME environment variable"; exit 1; fi'; \
-# # 8-jdk uses "$JAVA_HOME/jre/lib/security/cacerts" and 8-jre and 11+ uses "$JAVA_HOME/lib/security/cacerts" directly (no "jre" directory)
-#     echo 'cacertsFile=; for f in "$JAVA_HOME/lib/security/cacerts" "$JAVA_HOME/jre/lib/security/cacerts"; do if [ -e "$f" ]; then cacertsFile="$f"; break; fi; done'; \
-#     echo 'if [ -z "$cacertsFile" ] || ! [ -f "$cacertsFile" ]; then echo >&2 "error: failed to find cacerts file in $JAVA_HOME"; exit 1; fi'; \
-#     echo 'trust extract --overwrite --format=java-cacerts --filter=ca-anchors --purpose=server-auth "$cacertsFile"'; \
-#   } > /etc/ca-certificates/update.d/docker-openjdk; \
-#   chmod +x /etc/ca-certificates/update.d/docker-openjdk; \
-#   /etc/ca-certificates/update.d/docker-openjdk; \
-#   \
-# # https://github.com/docker-library/openjdk/issues/331#issuecomment-498834472
-#   find "$JAVA_HOME/lib" -name '*.so' -exec dirname '{}' ';' | sort -u > /etc/ld.so.conf.d/docker-openjdk.conf; \
-#   ldconfig;
-
+ENV JAVA_HOME /usr/lib/jvm/java-15-openjdk-amd64
 
 # Add extender user
 RUN  useradd -r -u 2222 extender && \
@@ -150,26 +76,6 @@ RUN \
 #
 
 ENV EMCC_SKIP_SANITY_CHECK 1
-
-# ## Emscripten 1.39.16 (from version 1.2.170)
-# ENV EMSCRIPTEN_SDK_1_39_16 ${PLATFORMSDK_DIR}/emsdk-1.39.16
-# ENV EMSCRIPTEN_HOME_1_39_16 ${EMSCRIPTEN_SDK_1_39_16}
-# ENV EMSCRIPTEN_CONFIG_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}/.emscripten
-# ENV EMSCRIPTEN_BIN_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}/upstream/emscripten
-# ENV EMSCRIPTEN_CACHE_1_39_16 /var/extender/emcache_1_39_16
-# # Setup a special env variable that will be prefixed to PATH if requested version is 1.39.16
-# ENV EMSCRIPTEN_PATH_1_39_16 ${EMSCRIPTEN_HOME_1_39_16}:${EMSCRIPTEN_HOME_1_39_16}/upstream/bin:${EMSCRIPTEN_HOME_1_39_16}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_1_39_16}
-
-# RUN \
-#   mkdir ${EMSCRIPTEN_SDK_1_39_16} && \
-#   wget -q -O - ${DM_PACKAGES_URL}/emsdk-1.39.16-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_1_39_16} --strip-components=1
-
-# RUN \
-#   ${EMSCRIPTEN_HOME_1_39_16}/emsdk activate sdk-1.39.16-64bit --embedded && \
-#   EM_CONFIG=$EMSCRIPTEN_CONFIG_1_39_16 EM_CACHE=${EMSCRIPTEN_CACHE_1_39_16} python ${EMSCRIPTEN_BIN_1_39_16}/embuilder.py build SYSTEM MINIMAL && \
-#   chmod -R 755 ${EMSCRIPTEN_HOME_1_39_16} && \
-#   chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16} && \
-#   chown -R extender: ${EMSCRIPTEN_CACHE_1_39_16}.lock
 
 ## Emscripten 2.0.11 (from version 1.2.178)
 
@@ -460,9 +366,10 @@ RUN \
 # until it can be disabled (e.g. by looking for the existance of GRADLE_USER_HOME)
 
 # Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
+# Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
 ENV GRADLE_USER_HOME /tmp/.gradle
-ENV GRADLE_VERSION 6.1.1
-ENV GRADLE_PLUGIN_VERSION 4.0.1
+ENV GRADLE_VERSION 6.9.1
+ENV GRADLE_PLUGIN_VERSION 4.2.2
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
