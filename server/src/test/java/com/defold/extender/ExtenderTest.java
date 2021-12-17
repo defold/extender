@@ -2,19 +2,17 @@ package com.defold.extender;
 
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.io.FileUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.springframework.mock.web.DelegatingServletInputStream;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockServletContext;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.servlet.http.HttpServletRequest;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,8 +20,6 @@ import java.nio.file.Files;
 import java.util.*;
 
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ExtenderTest {
 
@@ -61,25 +57,13 @@ public class ExtenderTest {
         assertTrue(true);
     }
 
-    public static HttpServletRequest createMultipartHttpRequest(List<MockMultipartFile> files) throws IOException {
-
-        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-        for (MockMultipartFile f : files) {
-            builder.addBinaryBody(f.getName(), f.getBytes(), ContentType.APPLICATION_OCTET_STREAM, f.getName());
+    public static MultipartHttpServletRequest createMultipartHttpRequest(List<MockMultipartFile> files) throws IOException {
+        MockMultipartHttpServletRequestBuilder builder = MockMvcRequestBuilders.multipart("/testurl"); // The url isn't used here
+        for (MockMultipartFile file : files)
+        {
+            builder.file(file);
         }
-        HttpEntity entity = builder.build();
-
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        entity.writeTo(os);
-        ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
-
-        HttpServletRequest mockRequest = mock(HttpServletRequest.class);
-        when(mockRequest.getMethod()).thenReturn("POST");
-        when(mockRequest.getContentType()).thenReturn(entity.getContentType().getValue());
-        when(mockRequest.getContentLength()).thenReturn((int)entity.getContentLength());
-        when(mockRequest.getInputStream()).thenReturn(new DelegatingServletInputStream(is));
-
-        return mockRequest;
+        return (MultipartHttpServletRequest)builder.buildRequest(new MockServletContext());
     }
 
     @Before
@@ -98,7 +82,7 @@ public class ExtenderTest {
 
     @Test
     public void testReceiveFiles() throws IOException, FileUploadException, ExtenderException {
-        HttpServletRequest request;
+        MultipartHttpServletRequest request;
         String filename;
         String expectedContent;
 
