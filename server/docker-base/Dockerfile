@@ -9,7 +9,7 @@ RUN \
   apt-get install -y --no-install-recommends \
     wget \
     locales \
-    openjdk-15-jdk \
+    openjdk-11-jdk \
     libssl-dev \
     openssl \
     libtool \
@@ -31,7 +31,7 @@ RUN \
 # cleanup
   apt-get clean autoclean autoremove
 
-ENV JAVA_HOME /usr/lib/jvm/java-15-openjdk-amd64
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 
 # Add extender user
 RUN  useradd -r -u 2222 extender && \
@@ -368,8 +368,8 @@ RUN \
 # Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
 # Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
 ENV GRADLE_USER_HOME /tmp/.gradle
-ENV GRADLE_VERSION 6.9.1
-ENV GRADLE_PLUGIN_VERSION 4.2.2
+ENV GRADLE_VERSION 6.1.1
+ENV GRADLE_PLUGIN_VERSION 4.0.1
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
