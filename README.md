@@ -43,6 +43,24 @@ _NOTE:_ The first time you build it will take a while (~45minutes). After that D
 ### Stop
 * Just hit `Ctrl-C`.
 
+### Standalone server
+
+The stand alone server is currently used on a machine runing macOS.
+The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang)
+
+#### Run
+To run the stand alone server locally, you need to give it access to `/usr/local/extender`:
+
+        $ sudo mkdir /usr/local/extender
+        $ sudo chown -R mawe:staff /usr/local/extender
+
+Now the current user has access to the folder and can start the service.
+
+        $ TARGET_DIR=/path/to/localextender ./server/scripts/run-standalone-local.sh
+
+It will start a server at `localhost:9010`.
+If you run the script again, the server will be stopped and then restarted with the latest `extender.jar`
+
 ### Debug
 
 #### Docker container

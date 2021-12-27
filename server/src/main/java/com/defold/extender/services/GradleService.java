@@ -5,13 +5,15 @@ import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.ZipUtils;
+import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.metrics.CounterService;
-import org.springframework.boot.actuate.metrics.GaugeService;
+//import org.springframework.boot.actuate.metrics.CounterService;
+//import org.springframework.boot.actuate.metrics.GaugeService;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpRequest;
@@ -49,6 +51,7 @@ public class GradleService {
     private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
     private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
+    private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
@@ -56,8 +59,7 @@ public class GradleService {
     private final String gradleHome;
 
     private final File baseDirectory;
-    private final CounterService counterService;
-    private final GaugeService gaugeService;
+    private final MeterRegistry meterRegistry;
     private final String buildGradleTemplateContents;
     private final String gradlePropertiesTemplateContents;
     private final String localPropertiesTemplateContents;
@@ -72,8 +74,7 @@ public class GradleService {
 
     @Autowired
     GradleService(@Value("${extender.gradle.cache-size}") int cacheSize,
-                     CounterService counterService,
-                     GaugeService gaugeService) throws IOException {
+                     MeterRegistry meterRegistry) throws IOException {
         if (GRADLE_USER_HOME != null) {
             this.gradleHome = GRADLE_USER_HOME;
         } else {
@@ -85,8 +86,7 @@ public class GradleService {
         }
 
         this.cacheSize = cacheSize;
-        this.counterService = counterService;
-        this.gaugeService = gaugeService;
+        this.meterRegistry = meterRegistry;
 
         System.out.println(String.format("GradleService"));
 
@@ -155,6 +155,7 @@ public class GradleService {
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("gradle-files", values);
         envContext.put("compile-sdk-version", ANDROID_SDK_VERSION);
+        envContext.put("gradle-plugin-version", GRADLE_PLUGIN_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
         Files.write(mainGradleFile.toPath(), contents.getBytes());
     }
@@ -277,7 +278,7 @@ public class GradleService {
 
         List<File> unpackedDependencies = unpackDependencies(dependencies);
 
-        gaugeService.submit("gauge.service.gradle.get", System.currentTimeMillis() - methodStart);
+        MetricsWriter.metricsTimer(meterRegistry, "gauge.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;
     }
 

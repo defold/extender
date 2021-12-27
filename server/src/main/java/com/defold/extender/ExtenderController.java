@@ -6,8 +6,6 @@ import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.UserUpdateService;
-import org.apache.commons.fileupload.FileItemIterator;
-import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.io.FilenameUtils;
@@ -19,15 +17,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.metrics.GaugeService;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -37,6 +38,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,7 +52,7 @@ public class ExtenderController {
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
     private final GradleService gradleService;
-    private final GaugeService gaugeService;
+    private final MeterRegistry meterRegistry;
     private final UserUpdateService userUpdateService;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
@@ -85,7 +87,7 @@ public class ExtenderController {
                               DataCacheService dataCacheService,
                               GradleService gradleService,
                               UserUpdateService userUpdateService,
-                              @Qualifier("gaugeService") GaugeService gaugeService,
+                              MeterRegistry meterRegistry,
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms,
@@ -93,7 +95,7 @@ public class ExtenderController {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
-        this.gaugeService = gaugeService;
+        this.meterRegistry = meterRegistry;
         this.userUpdateService = userUpdateService;
 
         this.remoteEngineBuilder = remoteEngineBuilder;
@@ -137,16 +139,18 @@ public class ExtenderController {
     }
 
     @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
-    public void buildEngine(HttpServletRequest request,
+    public void buildEngine(HttpServletRequest _request,
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
             throws ExtenderException, IOException, URISyntaxException {
 
-        boolean isMultipart = ServletFileUpload.isMultipartContent(request);
+        boolean isMultipart = ServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
             throw new ExtenderException("The request must be a multi part request");
         }
+
+        MultipartHttpServletRequest request = (MultipartHttpServletRequest)_request;
 
         this.userUpdateService.update();
 
@@ -163,6 +167,7 @@ public class ExtenderController {
 
         Thread.currentThread().setName(jobDirectory.getName());
 
+
         LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
 
         File uploadDirectory = new File(jobDirectory, "upload");
@@ -170,7 +175,7 @@ public class ExtenderController {
         File buildDirectory = new File(jobDirectory, "build");
         buildDirectory.mkdir();
 
-        final MetricsWriter metricsWriter = new MetricsWriter(gaugeService);
+        final MetricsWriter metricsWriter = new MetricsWriter(meterRegistry);
         final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
 
         try {
@@ -286,7 +291,7 @@ public class ExtenderController {
         boolean ignore = false;
         ignore = ignore || name.equals(".DS_Store");
         if (ignore) {
-            LOGGER.debug("ignoreFilename: %s", path);
+            LOGGER.debug(String.format("ignoreFilename: %s", path));
         }
         return ignore;
     }
@@ -298,7 +303,7 @@ public class ExtenderController {
         }
     }
 
-    static void receiveUpload(HttpServletRequest request, File uploadDirectory) throws IOException, FileUploadException, ExtenderException {
+    static void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException, FileUploadException, ExtenderException {
         if (request.getContentLength() > ExtenderController.maxPackageSize ) {
             String msg = String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLength(), ExtenderController.maxPackageSize);
             LOGGER.error(msg);
@@ -309,53 +314,47 @@ public class ExtenderController {
             LOGGER.info("receiveUpload");
         }
 
-        // Create a new file upload handler
-        ServletFileUpload upload = new ServletFileUpload();
+        Map<String, MultipartFile> files = request.getFileMap();
 
-        // Parse the request
-        FileItemIterator iter = upload.getItemIterator(request);
-        int count = 0;
-        while (iter.hasNext()) {
-            FileItemStream item = iter.next();
-            String name = item.getName().replace('\\', File.separatorChar);
-            if (!item.isFormField()) {
-
-                if (ignoreFilename(name)) {
-                    continue;
-                }
-
-                validateFilename(name);
-
-                File file = new File(uploadDirectory, name);
-
-                if (!isRelativePath(uploadDirectory, file)) { // in case the name contains "../"
-                    throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", item.getName()));
-                }
-                if (file.exists()) {
-                    String msg = String.format("Duplicate file in received zip file: '%s'", name);
-                    if (DM_DEBUG_JOB_FOLDER == null) {
-                        LOGGER.info(msg);
-                    } else {
-                        throw new ExtenderException(msg);
-                    }
-                }
-
-                Files.createDirectories(file.getParentFile().toPath());
-
-                try (InputStream inputStream = item.openStream()) {
-                    Files.copy(inputStream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                }
-
-                if (DM_DEBUG_JOB_UPLOAD != null) {
-                    System.out.printf("    %s\n", file.toPath());
-                }
-
-                count++;
-            }
+        if (files.size() == 0) {
+            throw new ExtenderException("The build request contained no files!");
         }
 
-        if (count == 0) {
-            throw new ExtenderException("The build request contained no files!");
+        // Parse the request
+        for (String key : files.keySet())
+        {
+            String name = key.replace('\\', File.separatorChar);
+
+            MultipartFile multipartfile = files.get(key);
+            if (ignoreFilename(name)) {
+                continue;
+            }
+
+            validateFilename(name);
+
+            File file = new File(uploadDirectory, name);
+
+            if (!isRelativePath(uploadDirectory, file)) { // in case the name contains "../"
+                throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", key));
+            }
+            if (file.exists()) {
+                String msg = String.format("Duplicate file in received zip file: '%s'", name);
+                if (DM_DEBUG_JOB_FOLDER == null) {
+                    LOGGER.info(msg);
+                } else {
+                    throw new ExtenderException(msg);
+                }
+            }
+
+            Files.createDirectories(file.getParentFile().toPath());
+
+            try (InputStream inputStream = multipartfile.getInputStream()) {
+                Files.copy(inputStream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            if (DM_DEBUG_JOB_UPLOAD != null) {
+                System.out.printf("    %s\n", file.toPath());
+            }
         }
     }
 

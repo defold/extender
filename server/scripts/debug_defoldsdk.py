@@ -17,7 +17,10 @@ def get_latest_version():
 def download_file(url):
 	print("Downloading %s" % url)
 	tmpfile = '_dl.zip'
-	os.system("wget -O %s %s" % (tmpfile, url))
+	cmd="wget -O %s %s" % (tmpfile, url)
+	result = os.system(cmd)
+	if result:
+		return None
 	return tmpfile
 
 def find_or_download_sdk(sha1):
@@ -33,8 +36,23 @@ def find_or_download_sdk(sha1):
 		print("Created directory %s" % dirpath)
 		os.makedirs(dirpath)
 
-	url = "http://d.defold.com/archive/%s/engine/defoldsdk.zip" % sha1
-	tmpfile = download_file(url)
+	domain=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
+	urls = [
+		"http://%s/archive/stable/%s/engine/defoldsdk.zip" % (domain, sha1),
+		"http://%s/archive/beta/%s/engine/defoldsdk.zip" % (domain, sha1),
+		"http://%s/archive/dev/%s/engine/defoldsdk.zip" % (domain, sha1),
+		"http://%s/archive/%s/engine/defoldsdk.zip" % (domain, sha1),
+		]
+
+	for url in urls:
+		tmpfile = download_file(url)
+		if tmpfile is not None:
+			break
+		print("Downloaded from", url.replace(domain, '***'))
+
+	if tmpfile is None or os.stat(tmpfile).st_size == 0:
+		print("Downloaded file was empty. Are the credentials ok?")
+		sys.exit(1)
 
 	shutil.move(tmpfile, path)
 	print("Downloaded %s" % path)

@@ -2,6 +2,9 @@
 server:
     port: 9000
 
+    jetty:
+        connection-idle-timeout: 600000
+
 extender:
     sdk:
         location: /var/extender/sdk
@@ -56,3 +59,12 @@ management:
         diskspace:
             path: /
             threshold: 1073741824 #1024mb
+
+    endpoint:
+        influx:
+            enabled: false
+
+    metrics:
+        export:
+            influx:
+                enabled: false

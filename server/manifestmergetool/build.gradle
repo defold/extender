@@ -8,6 +8,16 @@ apply plugin: 'java-library'
 
 jar {
     baseName = '_manifestmergetool'
+    enabled = true
+    archiveClassifier = '' // use empty string to avoid the 'plain' suffix
+}
+
+
+configurations {
+    // A configuration meant for consumers that need the API of this component
+    implementation {
+        canBeResolved = true
+    }
 }
 
 task mainJar(type: Jar) {
@@ -17,7 +27,7 @@ task mainJar(type: Jar) {
         attributes 'Main-Class': 'com.defold.manifestmergetool.ManifestMergeTool'
     }
     from {
-        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+        configurations.implementation.collect { it.isDirectory() ? it : zipTree(it) }
     } {
         exclude "META-INF/*.SF"
         exclude "META-INF/*.DSA"
@@ -35,12 +45,12 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 dependencies {
-    compile('org.jsoup:jsoup:1.11.3')
-    compile('com.android.tools.build:manifest-merger:27.2.0')
-    compile('org.apache.commons:commons-configuration2:2.0')
+    implementation('org.jsoup:jsoup:1.11.3')
+    implementation('com.android.tools.build:manifest-merger:27.2.0')
+    implementation('org.apache.commons:commons-configuration2:2.7')
 
-    testCompile('commons-io:commons-io:2.6')
-    testCompile('junit:junit:4.12')
+    testImplementation('commons-io:commons-io:2.11.0')
+    testImplementation('junit:junit:4.13')
 }
 
 allprojects {

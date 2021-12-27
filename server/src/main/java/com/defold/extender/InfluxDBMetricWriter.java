@@ -2,12 +2,14 @@ package com.defold.extender;
 
 import org.influxdb.InfluxDB;
 import org.influxdb.dto.Point;
-import org.springframework.boot.actuate.metrics.Metric;
-import org.springframework.boot.actuate.metrics.writer.GaugeWriter;
+// import org.springframework.boot.actuate.metrics.Metric;
+// import org.springframework.boot.actuate.metrics.writer.GaugeWriter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.concurrent.TimeUnit;
 
-public class InfluxDBMetricWriter implements GaugeWriter {
+/*
+public class InfluxDBMetricWriter implements MeterRegistry {
 
     private static final String DEFAULT_DATABASE_NAME = "metrics";
     private static final int DEFAULT_BATCH_ACTIONS = 500;
@@ -93,3 +95,5 @@ public class InfluxDBMetricWriter implements GaugeWriter {
         }
     }
 }
+
+*/
