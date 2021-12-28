@@ -44,8 +44,8 @@ function download_package() {
 	local package_name=$1
 	local out_package_name=$package_name
 
-	if [ "XcodeDefault12.5.xctoolchain.darwin" == "$package_name" ]; then
-		out_package_name="XcodeDefault12.5.xctoolchain"
+	if [ "XcodeDefault13.2.1.xctoolchain.darwin" == "$package_name" ]; then
+		out_package_name="XcodeDefault13.2.1.xctoolchain"
 	fi
 
 	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
@@ -70,10 +70,10 @@ function download_package() {
 
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
-    iPhoneOS14.5.sdk
-    iPhoneSimulator14.5.sdk
-    MacOSX11.3.sdk
-    XcodeDefault12.5.xctoolchain.darwin
+    iPhoneOS15.2.sdk
+    iPhoneSimulator15.2.sdk
+    MacOSX12.1.sdk
+    XcodeDefault13.2.1.xctoolchain.darwin
 )
 
 function download_packages() {

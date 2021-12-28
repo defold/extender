@@ -49,7 +49,6 @@ RUN mkdir $PLATFORMSDK_DIR
 # These packages are downloaded from here: https://github.com/llvm/llvm-project/releases/
 # and then uploaded as-is to S3
 RUN wget -q -O - ${DM_PACKAGES_URL}/clang%2Bllvm-13.0.0-x86_64-linux-gnu-ubuntu-20.04.tar.xz | tar xJ -C /usr/local --strip-components=1
-#RUN wget -q -O - ${DM_PACKAGES_URL}/clang%2Bllvm-10.0.1-x86_64-linux-gnu-ubuntu-20.04.tar.xz | tar xJ -C /usr/local --strip-components=1
 
 # Darwin
 RUN locale-gen en_US.UTF-8
@@ -410,6 +409,13 @@ ENV MACOS_11_VERSION        11.3
 ENV XCODE_12_CLANG_VERSION  12.0.5
 ENV SWIFT_5_VERSION         5.0
 
+# Versions from >=1.2.191
+ENV XCODE_13_VERSION        13.2.1
+ENV MACOS_12_VERSION        12.1
+ENV IOS_15_VERSION          15.2
+ENV XCODE_13_CLANG_VERSION  13.0.0
+ENV SWIFT_5_5_VERSION       5.5
+
 # The updated install flow
 RUN \
   apt-get update && \
@@ -451,14 +457,26 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_12_VERSION}.xctoolchain.linux.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
   mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain
 
+RUN \
+  echo "iOS 15 + macOS 12 + XCode 13" && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS${IOS_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneOS.sdk ${PLATFORMSDK_DIR}/iPhoneOS${IOS_15_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/iPhoneSimulator${IOS_15_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/iPhoneSimulator.sdk ${PLATFORMSDK_DIR}/iPhoneSimulator${IOS_15_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/MacOSX${MACOS_12_VERSION}.sdk.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/MacOSX.sdk ${PLATFORMSDK_DIR}/MacOSX${MACOS_12_VERSION}.sdk && \
+  wget -q -O - ${DM_PACKAGES_URL}/XcodeDefault${XCODE_13_VERSION}.xctoolchain.linux.tar.gz | tar xz -C ${PLATFORMSDK_DIR} && \
+  mv ${PLATFORMSDK_DIR}/XcodeDefault.xctoolchain ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_13_VERSION}.xctoolchain
+
 # This part is not yet separable between xcode versions, but should work
 RUN \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/ar && \
-  ln -s ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/arc /usr/local/lib/arc
+  ln -s ${PLATFORMSDK_DIR}/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/lib/arc /usr/local/lib/arc
 
-RUN mkdir -p /usr/local/lib/clang/10.0.1/lib/darwin && \
-    ln -s /opt/platformsdk/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/clang/${XCODE_12_CLANG_VERSION}/lib/darwin/libclang_rt.asan_osx_dynamic.dylib \
-    /usr/local/lib/clang/10.0.1/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
+# The shared library isn't really used yet, but it's good to have it in place so we can build upon it
+RUN mkdir -p /usr/local/lib/clang/13.0.0/lib/darwin && \
+    ln -s /opt/platformsdk/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/lib/clang/${XCODE_12_CLANG_VERSION}/lib/darwin/libclang_rt.asan_osx_dynamic.dylib \
+    /usr/local/lib/clang/13.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
 
 # For backwards compatbility, we must also keep a copy of the library folder
 # Remove when 1.2.185 is the base line
