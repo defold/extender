@@ -416,6 +416,9 @@ ENV IOS_15_VERSION          15.2
 ENV XCODE_13_CLANG_VERSION  13.0.0
 ENV SWIFT_5_5_VERSION       5.5
 
+# IMPORTANT!: For the standalone darwin server to work, it also
+# needs some of these environment variables. See service-standalone.sh
+
 # The updated install flow
 RUN \
   apt-get update && \

@@ -34,6 +34,14 @@ export MACOS_11_VERSION=11.3
 export XCODE_12_CLANG_VERSION=12.0.5
 export SWIFT_5_VERSION=5.0
 
+# Versions from >=1.2.191
+export XCODE_13_VERSION=13.2.1
+export MACOS_12_VERSION=12.1
+export IOS_15_VERSION=15.2
+export XCODE_13_CLANG_VERSION=13.0.0
+export SWIFT_5_5_VERSION=5.5
+
+
 start_service() {
     echo "${SERVICE_NAME} starting..."
 
