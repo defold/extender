@@ -33,11 +33,11 @@ extender:
         update-interval: 900000
 
 spring:
-    http:
+    servlet:
         multipart:
-            enabled: false
-            max-file-size: 1024mb
-            max-request-size: 1024mb
+            enabled: true
+            max-file-size: 1024MB
+            max-request-size: 1024MB
     # Don't check for templates on startup
     mustache:
         check-template-location: false

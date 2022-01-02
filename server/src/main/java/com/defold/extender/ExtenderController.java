@@ -91,7 +91,7 @@ public class ExtenderController {
                               RemoteEngineBuilder remoteEngineBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms,
-                              @Value("${spring.http.multipart.max-request-size}") String maxPackageSize) {
+                              @Value("${spring.servlet.multipart.max-request-size}") String maxPackageSize) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
