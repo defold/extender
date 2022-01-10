@@ -478,8 +478,12 @@ RUN \
 
 # The shared library isn't really used yet, but it's good to have it in place so we can build upon it
 RUN mkdir -p /usr/local/lib/clang/13.0.0/lib/darwin && \
-    ln -s /opt/platformsdk/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/lib/clang/${XCODE_12_CLANG_VERSION}/lib/darwin/libclang_rt.asan_osx_dynamic.dylib \
-    /usr/local/lib/clang/13.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
+    ln -s /opt/platformsdk/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/lib/clang/${XCODE_13_CLANG_VERSION}/lib/darwin/libclang_rt.asan_osx_dynamic.dylib \
+    /usr/local/lib/clang/13.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib && \
+    ln -s /opt/platformsdk/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/lib/clang/${XCODE_13_CLANG_VERSION}/lib/darwin/libclang_rt.ubsan_osx_dynamic.dylib \
+    /usr/local/lib/clang/13.0.0/lib/darwin/libclang_rt.ubsan_osx_dynamic.dylib && \
+    ln -s /opt/platformsdk/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/lib/clang/${XCODE_13_CLANG_VERSION}/lib/darwin/libclang_rt.tsan_osx_dynamic.dylib \
+    /usr/local/lib/clang/13.0.0/lib/darwin/libclang_rt.tsan_osx_dynamic.dylib
 
 # For backwards compatbility, we must also keep a copy of the library folder
 # Remove when 1.2.185 is the base line
