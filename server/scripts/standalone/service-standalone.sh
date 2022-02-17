@@ -20,9 +20,6 @@ ERROR_LOG=${LOG_DIRECTORY}/error.log
 # The SDK path is used by Defold SDK build.yml
 export PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 
-# We need access to the toolchain binary path from within the application
-export PATH=${PLATFORMSDK_DIR}/XcodeDefault12.5.xctoolchain/usr/bin:/usr/local/bin:${PATH}
-
 export MANIFEST_MERGE_TOOL=${EXTENDER_DIR}/current/manifestmergetool.jar
 
 # From Dockerfile
@@ -41,6 +38,8 @@ export IOS_15_VERSION=15.2
 export XCODE_13_CLANG_VERSION=13.0.0
 export SWIFT_5_5_VERSION=5.5
 
+# We need access to the toolchain binary path from within the application
+export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 
 start_service() {
     echo "${SERVICE_NAME} starting..."
