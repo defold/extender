@@ -11,7 +11,7 @@ This describes how to run the build server locally.
 
 * If you are not part of the team that makes releases, you can skip this step:
 
-  * Clone this repo with the _recurse-submodules_ parameter:
+  * Clone this repo with the _recurse-submodules_ parameter (some of the submodules are private, so it's fine if you can't download some of them, just move to the next step):
     * git clone --recurse-submodules <repo>
 
   * If you have already cloned the repo, you can init and fetch the submodule like this:
