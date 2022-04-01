@@ -29,7 +29,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 					http.authorizeRequests().antMatchers("/build/arm64-android/**").hasRole("ANDROID").and().httpBasic();
 					break;
 				case "ios":
-					http.authorizeRequests().antMatchers("/build/armv7-ios:/**").hasRole("IOS").and().httpBasic();
+					http.authorizeRequests().antMatchers("/build/armv7-ios/**").hasRole("IOS").and().httpBasic();
 					http.authorizeRequests().antMatchers("/build/arm64-ios/**").hasRole("IOS").and().httpBasic();
 					http.authorizeRequests().antMatchers("/build/x86_64-ios/**").hasRole("IOS").and().httpBasic();
 					break;
