@@ -283,7 +283,7 @@ RUN \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
 # check that dx installed properly
-    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/dx && \
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
     which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
     which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
 # check that aapt installed correctly
