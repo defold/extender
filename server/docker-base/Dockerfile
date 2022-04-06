@@ -208,16 +208,16 @@ RUN \
 # https://developer.android.com/studio/command-line/variables
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-ENV ANDROID_BUILD_TOOLS_VERSION 30.0.3
+ENV ANDROID_BUILD_TOOLS_VERSION 32.0.0
 # ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
 # ANDROID_SDK_HOME is the location of the .android folder
 ENV ANDROID_SDK_HOME ${ANDROID_ROOT}/.android
-ENV ANDROID_TARGET_API_LEVEL 23
-ENV ANDROID_MIN_API_LEVEL 9
+ENV ANDROID_TARGET_API_LEVEL 31
+ENV ANDROID_MIN_API_LEVEL 16
 ENV ANDROID_GCC_VERSION 4.8
-ENV ANDROID_SDK_VERSION 30
+ENV ANDROID_SDK_VERSION 31
 ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
@@ -283,7 +283,7 @@ RUN \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
 # check that dx installed properly
-    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/dx && \
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
     which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
     which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
 # check that aapt installed correctly

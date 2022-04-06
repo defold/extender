@@ -4,7 +4,7 @@ buildscript {
     }
     dependencies {
         classpath 'io.spring.gradle:dependency-management-plugin:1.0.11.RELEASE'
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.6.1'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.6.6'
 
 // Updating to gradle 7, means moving from this plugin to something else
         classpath 'se.transmode.gradle:gradle-docker:1.2'
@@ -15,7 +15,7 @@ plugins {
     id 'java'
     id 'idea'
     id 'eclipse'
-    id 'org.springframework.boot' version '2.6.1'
+    id 'org.springframework.boot' version '2.6.6'
 }
 
 apply plugin: 'docker'
@@ -64,7 +64,6 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-actuator')
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
-    implementation('org.springframework.boot:spring-boot-starter-web')
     implementation('org.springframework.security:spring-security-test')
     implementation('io.micrometer:micrometer-core:1.8.1')
     runtime('io.micrometer:micrometer-registry-influx:1.8.1')
