@@ -118,7 +118,7 @@ public class IntegrationTest {
                 // // At 1.2.185, we updated to iOS 14.5, macOS 11.3 and XCode 12.5
                 new DefoldVersion("0a8d3e879724132afb18d47e0040c2034be07504", new Version(1, 2, 185), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("d393bae6a361f86cf2263ab312c9b3cea45253ab", new Version(1, 2, 191), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
+                new DefoldVersion("06bc078e490fd7d94ec01e38abac989f6cc351a5", new Version(1, 3, 1), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
