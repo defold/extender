@@ -4,7 +4,7 @@ buildscript {
     }
     dependencies {
         classpath 'io.spring.gradle:dependency-management-plugin:1.0.11.RELEASE'
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.6.6'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.6.1'
 
 // Updating to gradle 7, means moving from this plugin to something else
         classpath 'se.transmode.gradle:gradle-docker:1.2'
@@ -15,7 +15,7 @@ plugins {
     id 'java'
     id 'idea'
     id 'eclipse'
-    id 'org.springframework.boot' version '2.6.6'
+    id 'org.springframework.boot' version '2.6.1'
 }
 
 apply plugin: 'docker'
