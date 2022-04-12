@@ -12,5 +12,5 @@ RUN mkdir -p /var/extender/cache/data && \
     chown -R extender: /var/extender/cache
 
 USER extender
-ENTRYPOINT ["java","-Xmx1g","-XX:MaxDirectMemorySize=512m","-jar","/app.jar"]
+ENTRYPOINT ["java","-Xmx2g","-XX:MaxDirectMemorySize=1g","-jar","/app.jar"]
 EXPOSE 9000
