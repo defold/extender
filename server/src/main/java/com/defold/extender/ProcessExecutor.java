@@ -13,12 +13,15 @@ public class ProcessExecutor {
     private final HashMap<String, String> env = new HashMap<>();
     private File cwd = null;
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
+    private int commandCounter = 0;
 
     public int execute(String command) throws IOException, InterruptedException {
         output.append(command).append("\n");
 
+        int commandId = commandCounter++;
+        long startTime = System.currentTimeMillis();
         if (DM_DEBUG_COMMANDS) {
-            System.out.println("CMD: " + command);
+            System.out.printf("CMD %d: %s\n", commandId, command);
         }
 
         // To avoid an issue where an extra space was interpreted as an argument
@@ -52,6 +55,19 @@ public class ProcessExecutor {
         while (n > 0);
 
         int exitValue = p.waitFor();
+
+        if (DM_DEBUG_COMMANDS) {
+            long duration = System.currentTimeMillis() - startTime;
+            String unit = "ms";
+            double divisor = 1.0;
+            if (duration > 750)
+            {
+                unit = "s";
+                divisor = 1000.0;
+            }
+            double t = duration / divisor;
+            System.out.printf("CMD %d took %f %s\n", commandId, t, unit);
+        }
 
         output.append(sb.toString()).append("\n");
 
