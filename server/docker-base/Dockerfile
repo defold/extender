@@ -306,6 +306,20 @@ RUN \
 
 
 #
+# PS4 SDK
+#
+
+ENV PS4_SDK_9_000 ${PLATFORMSDK_DIR}/ps4-sdk-9.000
+
+ENV PS4_SDK_9_FILENAME ps4-sdk-9.000.tar.gz
+
+RUN \
+  echo "PS4 SDK 9.000" && \
+  mkdir -p ${PS4_SDK_9_000} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_9_FILENAME} | tar xz -C ${PS4_SDK_9_000} --strip-components=1
+
+
+#
 # Wine
 #
 

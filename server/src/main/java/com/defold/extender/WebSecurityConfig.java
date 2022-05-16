@@ -50,6 +50,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 				case "switch":
 					http.authorizeRequests().antMatchers("/build/arm64-nx64/**").hasRole("SWITCH").and().httpBasic();
 					break;
+				case "ps4":
+					http.authorizeRequests().antMatchers("/build/x86_64-ps4/**").hasRole("PS4").and().httpBasic();
+					break;
+				case "ps5":
+					http.authorizeRequests().antMatchers("/build/x86_64-ps5/**").hasRole("PS5").and().httpBasic();
+					break;
 			}
 		}
 		http.csrf().disable();
