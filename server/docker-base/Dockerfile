@@ -306,6 +306,20 @@ RUN \
 
 
 #
+# PS4 SDK
+#
+
+ENV PS4_SDK_9_000 ${PLATFORMSDK_DIR}/ps4-sdk-9.000
+
+ENV PS4_SDK_9_FILENAME ps4-sdk-9.000.tar.gz
+
+RUN \
+  echo "PS4 SDK 9.000" && \
+  mkdir -p ${PS4_SDK_9_000} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_9_FILENAME} | tar xz -C ${PS4_SDK_9_000} --strip-components=1
+
+
+#
 # Wine
 #
 
@@ -484,11 +498,6 @@ RUN mkdir -p /usr/local/lib/clang/13.0.0/lib/darwin && \
     /usr/local/lib/clang/13.0.0/lib/darwin/libclang_rt.ubsan_osx_dynamic.dylib && \
     ln -s /opt/platformsdk/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/lib/clang/${XCODE_13_CLANG_VERSION}/lib/darwin/libclang_rt.tsan_osx_dynamic.dylib \
     /usr/local/lib/clang/13.0.0/lib/darwin/libclang_rt.tsan_osx_dynamic.dylib
-
-# For backwards compatbility, we must also keep a copy of the library folder
-# Remove when 1.2.185 is the base line
-RUN ln -s /opt/platformsdk/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/clang/${XCODE_12_CLANG_VERSION} \
-    /opt/platformsdk/XcodeDefault${XCODE_12_VERSION}.xctoolchain/usr/lib/clang/12.0.0
 
 # Final cleanup
 
