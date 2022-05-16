@@ -66,6 +66,7 @@ public class ManifestMergeTool {
 
         ManifestMerger2.Invoker invoker = ManifestMerger2.newMerger(main, ManifestMergeTool.androidLogger, ManifestMerger2.MergeType.APPLICATION);
         invoker.addLibraryManifests(libraries);
+        invoker.withFeatures(ManifestMerger2.Invoker.Feature.REMOVE_TOOLS_DECLARATIONS);
 
         try {
             MergingReport report = invoker.merge();
