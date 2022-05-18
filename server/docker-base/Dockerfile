@@ -304,6 +304,16 @@ RUN \
   mkdir -p ${NINTENDO_SDK_ROOT} && \
   wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_13_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT}
 
+# Added in version 1.3.3
+ENV NINTENDO_SDK_ROOT_14_3_0 ${PLATFORMSDK_DIR}/nx-14.3.0
+
+ENV SWITCH_SDK_14_FILENAME nx64-sdk-14.3.0.tar.gz
+
+RUN \
+  echo "Switch SDK 14.3.0" && \
+  mkdir -p ${NINTENDO_SDK_ROOT_14_3_0} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_13_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT_14_3_0}
+
 
 #
 # PS4 SDK
