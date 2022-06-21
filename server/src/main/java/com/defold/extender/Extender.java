@@ -520,6 +520,11 @@ class Extender {
         Map<String, Object> env = new HashMap<>();
         getProjectPaths(context, env);
 
+        context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(context, "includeLibs"), ExtenderUtil.getStringList(context, "excludeLibs")) );
+        context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(context, "includeJsLibs"), ExtenderUtil.getStringList(context, "excludeJsLibs")) );
+        context.put("objectFiles", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "objectFiles"), ExtenderUtil.getStringList(context, "includeObjectFiles"), ExtenderUtil.getStringList(context, "excludeObjectFiles") ));
+        context.put("dynamicLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "dynamicLibs"), ExtenderUtil.getStringList(context, "includeDynamicLibs"), ExtenderUtil.getStringList(context, "excludeDynamicLibs")) );
+
         context.put("ext", env);
         context.put("src", objs);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, output));
