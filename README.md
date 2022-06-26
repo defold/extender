@@ -1,58 +1,97 @@
 # Extender
 
-Extender is a build server that builds native extensions of the Defold engine.
+Extender is a build server that builds native extensions of the Defold engine. The build server can either by run using Docker or as a stand alone server running on macOS.
 
-## Development
-This describes how to run the build server locally.
+
+## Running on Docker
+This describes how to build and run the extender server using Docker. It involves 4 steps:
+
+1. Download and prepare required packages
+2. Serve the required packages
+3. Build the Docker image
+4. Run the Docker image in a container
+
 
 ### Prerequisites
+Make sure you have [Docker](https://www.docker.com) installed and running.
 
-* Make sure you have [Docker](https://www.docker.com) installed and running.
+### Download and prepare required packages
+Most of the SDKs used by Extender server have licenses that prevent third party redistribution. To efficiently work with the build server it is recommended to package the SDKs and serve them from a private URL. The URL is defined as the DM_PACKAGES_URL environment variable.
 
-* If you are not part of the team that makes releases, you can skip this step:
+The [Dockerfile](./server/docker-base/Dockerfile) lists the actual packages needed per platform:
 
-  * Clone this repo with the _recurse-submodules_ parameter (some of the submodules are private, so it's fine if you can't download some of them, just move to the next step):
-    * git clone --recurse-submodules <repo>
+* Clang LLVM: https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L49-L51
+* HTML5
+   * Emscripten: https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L103
+* Windows
+   * Microsoft Visual Studio 2019: https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L103
+   * Windows Kits: https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L169
+* Android:
+   * NDK and SDK: https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L259-L260
+* iOS and macOS
+   * iOS, macOS, Xcode - previous version: https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L475-L485
+   * iOS, macOS, Xcode - latest version: https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L488-L496
 
-  * If you have already cloned the repo, you can init and fetch the submodule like this:
-    * git submodule init
-    * git submodule update
+We have prepared scripts to package the required files. Use the scripts in the [defold/scripts/package](https://github.com/defold/defold/tree/dev/scripts/package) folder to create these packages.
 
-* Make sure you have access to the url where to download packages from `DM_PACKAGES_URL`
+NOTE: If you only plan to use the extender server to build for a single platform you may remove the setup steps for the other platforms to speed up the build process.
 
-  * See the [Dockerfile](./server/docker-base/Dockerfile) for what actual packages are needed.
-  * See [defold/scripts/package](https://github.com/defold/defold/tree/dev/scripts/package) folder for scripts how to create these packages.
-  * If you have all files locally, you can serve them locally like so:
-    * export DM_PACKAGES_URL=http://localhost
-    * cd defold/local_sdks && python -m SimpleHTTPServer
+### Serve the required packeges
+When the packages are downloaded you need to make them available when the Docker container is built. The recommended way is to serve the files using Python:
 
-### Build
+```
+# Using python 2
+$ export DM_PACKAGES_URL=http://localhost
+$ cd local_sdks && python -m SimpleHTTPServer
+```
 
-* Build the Extender Docker image by running:
+```
+# Using python 3
+$ export DM_PACKAGES_URL=http://localhost:9999
+$ cd local_sdks && python -m http.server 9999
+```
 
-        $ DM_PACKAGES_URL=https://hostname/path/to/packages ./server/scripts/build.sh
+### Build the Docker image
+Build the Extender Docker image by running:
+
+```
+./server/scripts/build.sh
+```
 
 To speed things up, tests can be disabled by passing `-xtest` to the command line.
 
-_NOTE:_ The first time you build it will take a while (~45minutes). After that Docker cache will speed it up.
+```
+$  ./server/scripts/build.sh -xtest
+```
 
-### Start
-* Then, start a container based on that image by running: `./server/scripts/run-local.sh`.
-* The build server is now available on port `http://localhost:9000`
+NOTE: The first time you build it will take a while (approx. 45 minutes). After that the Docker cache will speed it up.
 
-### Stop
-* Just hit `Ctrl-C`.
 
-### Standalone server
+### Run the Docker image in a container
+Start the container based on the Docker image that was built by running:
 
-The stand alone server is currently used on a machine runing macOS.
-The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang)
+```
+$  ./server/scripts/run-local.sh
+```
 
-#### Run
+The Extender server is now available on port `http://localhost:9000`
+
+
+### Stop the server
+You can stop the server by pressing `Ctrl-C` from the terminal prompt where it was started.
+
+---
+
+## Running as a standalone server on macOS
+The stand alone server is currently used on a machine runing macOS. The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang)
+
+### Run
 To run the stand alone server locally, you need to give it access to `/usr/local/extender`:
 
-        $ sudo mkdir /usr/local/extender
-        $ sudo chown -R mawe:staff /usr/local/extender
+```
+$ sudo mkdir /usr/local/extender
+$ sudo chown -R mawe:staff /usr/local/extender
+```
 
 Now the current user has access to the folder and can start the service.
 
@@ -61,30 +100,4 @@ Now the current user has access to the folder and can start the service.
 It will start a server at `localhost:9010`.
 If you run the script again, the server will be stopped and then restarted with the latest `extender.jar`
 
-### Debug
 
-#### Docker container
-
-* When the container is running, then run `./server/scripts/debug-local.sh`. It connects to the container using the `extender` user, and executes bash.
-
-* In detail: [Debugging](./README_DEBUGGING.md)
-
-## Client
-
-There is a client part of this code which is used in Bob.jar.
-
-  1. Build the client
-
-    $ cd client
-    $ ../gradlew build
-
-  1. Copy the client to Bob
-
-    $ cp -v ./build/libs/extender-client-0.0.1.jar <defold>/com.dynamo.cr/com.dynamo.cr.common/ext/extender-client-0.0.1.jar
-
-
-## Operations
-
-The Extender service runs on [AWS EC2 Container Service](https://aws.amazon.com/ecs/), which is a platform for operating Docker containers running on EC2 instances. It runs in the cluster called `prod-eu-west1`.
-
- _NOTE: The EC2 instances in that cluster (prod-eu-west1) has been configured to run Docker containers with a root volume bigger than the default (30G instead of 10G) in order to handle downloaded SDK:s and temporary build files. The volume size has been increased by a script provided as user data in the launch configuration of the auto-scaling group managing the cluster instances._
