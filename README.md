@@ -85,6 +85,17 @@ You can stop the server by pressing `Ctrl-C` from the terminal prompt where it w
 ## Running as a standalone server on macOS
 The stand alone server is currently used on a machine runing macOS. The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang)
 
+### Prerequisites
+Ensure that you have the following tools
+
+* macOS 12.1
+* XCode 13.2.1
+  * iOS SDK 15.2
+  * Clang 13.0.0
+  * Swift 5.5
+
+NOTE: Above requirements taken [from the Dockerfile](https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L436-L441). Double-check that they are still accurate!
+
 ### Run
 To run the stand alone server locally, you need to give it access to `/usr/local/extender`:
 
