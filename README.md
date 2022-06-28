@@ -36,7 +36,7 @@ We have prepared scripts to package the required files. Use the scripts in the [
 
 NOTE: If you only plan to use the extender server to build for a single platform you may remove the setup steps for the other platforms to speed up the build process.
 
-### Serve the required packeges
+### Serve the required packages
 When the packages are downloaded you need to make them available when the Docker container is built. The recommended way is to serve the files using Python:
 
 ```
