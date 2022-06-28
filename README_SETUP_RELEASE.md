@@ -7,6 +7,15 @@ The following tools need to be installed before [releasing to AWS](README_RELEAS
 * Configure SSH over AWS Session Manager
 
 
+## Submodule setup
+Make sure you have initialized and fetched submodules:
+
+```
+git submodule init
+git submodule update
+```
+
+
 ## JSON processor
 The deploy scripts use [jq](https://stedolan.github.io/jq/), a lightweight and flexible command-line JSON processor. Install it using Brew:
 

@@ -25,6 +25,16 @@ This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It als
 
 Note: if you wish to add more of these, remember to also add them to `server/scripts/run-local.sh`
 
+# Debug the Docker container
+
+Run the following command when the container is running:
+
+```
+$ ./server/scripts/debug-local.sh
+```
+
+The command will connect to the container using the `extender` user, and executes bash.
+
 # Debugging a job
 
 ## Preparation
