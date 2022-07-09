@@ -323,6 +323,63 @@ public class ManifestMergeToolTest {
         assertEquals(expected, merged);
     }
 
+
+
+    @Test
+    public void testMergeIOSMergeMarkers() throws IOException {
+        if (platform != Platform.IOS) {
+            return;
+        }
+
+        createDefaultFiles();
+
+        String builtinsManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "    <key merge='keep'>BASE64</key>\n"
+                + "    <data>SEVMTE8gV09STEQ=</data>\n"
+                + "    <key>INT</key>\n"
+                + "    <integer>8</integer>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
+
+        String libManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "    <key>BASE64</key>\n"
+                + "    <data>foobar</data>\n"
+                + "    <key>INT</key>\n"
+                + "    <integer>42</integer>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+
+        String expected = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "        <key>BASE64</key>\n"
+                + "        <data>SEVMTE8gV09STEQ=</data>\n"
+                + "\n"
+                + "        <key>INT</key>\n"
+                + "        <integer>42</integer>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+
+        createFile(contentRoot, "builtins/manifests/ios/InfoExpected.plist", expected);
+
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
+
+        String merged = readFile(this.target);
+        assertEquals(expected, merged);
+    }
+
     @Test
     public void testMergeIOSMixedTypes() throws IOException {
         if (platform != Platform.IOS) {
