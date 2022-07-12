@@ -335,7 +335,7 @@ public class ManifestMergeToolTest {
 
         String builtinsManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\" [ <!ATTLIST key merge (keep) #IMPLIED> ]>  \n"
                 + "<plist version=\"1.0\">\n"
                 + "<dict>\n"
                 + "    <key merge='keep'>BASE64</key>\n"
@@ -360,16 +360,19 @@ public class ManifestMergeToolTest {
         createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
 
         String expected = ""
-                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<?xml version=\"1.0\"?>\n"
+                + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
                 + "<plist version=\"1.0\">\n"
-                + "<dict>\n"
+                + "    <dict>\n"
                 + "        <key>BASE64</key>\n"
                 + "        <data>SEVMTE8gV09STEQ=</data>\n"
                 + "\n"
                 + "        <key>INT</key>\n"
+                + "        <integer>8</integer>\n"
+                + "\n"
+                + "        <key>INT</key>\n"
                 + "        <integer>42</integer>\n"
-                + "</dict>\n"
+                + "    </dict>\n"
                 + "</plist>\n";
 
         createFile(contentRoot, "builtins/manifests/ios/InfoExpected.plist", expected);
