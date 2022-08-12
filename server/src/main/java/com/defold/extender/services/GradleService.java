@@ -88,7 +88,7 @@ public class GradleService {
         this.cacheSize = cacheSize;
         this.meterRegistry = meterRegistry;
 
-        System.out.println(String.format("GradleService"));
+        // System.out.println(String.format("GradleService"));
 
         this.baseDirectory = new File(this.gradleHome, "unpacked");
         if (!this.baseDirectory.exists()) {
@@ -222,31 +222,33 @@ public class GradleService {
         return dependencies;
     }
 
-    private File resolveDependencyAAR(File dependency, String name) throws IOException {
+    private File resolveDependencyAAR(File dependency, String name, File jobDir) throws IOException {
         File unpackedTarget = new File(baseDirectory, name);
         if (unpackedTarget.exists()) {
             return unpackedTarget;
         }
 
-        File unpackedTmp = new File(baseDirectory, dependency.getName() + ".tmp");
+        // use job folder as tmp location
+        File unpackedTmp = new File(jobDir, dependency.getName() + ".tmp");
         ZipUtils.unzip(new FileInputStream(dependency), unpackedTmp.toPath());
         Move(unpackedTmp.toPath(), unpackedTarget.toPath());
         return unpackedTarget;
     }
 
-    private File resolveDependencyJAR(File dependency, String name) throws IOException {
+    private File resolveDependencyJAR(File dependency, String name, File jobDir) throws IOException {
         File targetFile = new File(baseDirectory, name);
         if (targetFile.exists()) {
             return targetFile;
         }
 
-        File tmpFile = new File(baseDirectory, dependency.getName() + ".tmp");
+        // use job folder as tmp location
+        File tmpFile = new File(jobDir, dependency.getName() + ".tmp");
         FileUtils.copyFile(dependency, tmpFile);
         Move(tmpFile.toPath(), targetFile.toPath());
         return targetFile;
     }
 
-    private List<File> unpackDependencies(Map<String, String> dependencies) throws IOException {
+    private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir) throws IOException {
         List<File> resolvedDependencies = new ArrayList<>();
         for (String newName : dependencies.keySet()) {
             String dependency = dependencies.get(newName);
@@ -256,9 +258,9 @@ public class GradleService {
                 throw new IOException("File does not exist: %s" + dependency);
             }
             if (dependency.endsWith(".aar"))
-                resolvedDependencies.add(resolveDependencyAAR(file, newName));
+                resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir));
             else if (dependency.endsWith(".jar"))
-                resolvedDependencies.add(resolveDependencyJAR(file, newName));
+                resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir));
             else
                 resolvedDependencies.add(file);
         }
@@ -276,7 +278,7 @@ public class GradleService {
 
         Map<String, String> dependencies = parseDependencies(log);
 
-        List<File> unpackedDependencies = unpackDependencies(dependencies);
+        List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;
