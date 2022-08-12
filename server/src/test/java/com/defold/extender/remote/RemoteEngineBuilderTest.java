@@ -30,7 +30,7 @@ public class RemoteEngineBuilderTest {
         final String remoteBuilderBaseUrl = "https://test.darwin-build.defold.com";
         final HttpEntity httpEntity = mock(HttpEntity.class);
 
-        remoteEngineBuilder = spy(new RemoteEngineBuilder(remoteBuilderBaseUrl));
+        remoteEngineBuilder = spy(new RemoteEngineBuilder(remoteBuilderBaseUrl, "/var/tmp/results", 5000, 240000));
         doReturn(httpEntity).when(remoteEngineBuilder).buildHttpEntity(any(File.class));
     }
 
