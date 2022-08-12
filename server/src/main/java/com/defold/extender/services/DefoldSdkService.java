@@ -152,7 +152,7 @@ public class DefoldSdkService {
                             .forEach(this::deleteCachedSdk);
 
                     //counterSdkGetDownload.increment();
-                    MetricsWriter.metricsCounterIncrement(meterRegistry, "counter.service.sdk.get.download");
+                    MetricsWriter.metricsCounterIncrement(meterRegistry, "counter.service.sdk.get.download", "sdk", hash);
                 } finally {
                     lockFile.delete();
                 }
@@ -179,8 +179,8 @@ public class DefoldSdkService {
 
         LOGGER.info("Using Defold SDK version {}", hash);
 
-        MetricsWriter.metricsTimer(meterRegistry, "gauge.service.sdk.get", System.currentTimeMillis() - methodStart);
-        MetricsWriter.metricsCounterIncrement(meterRegistry, "counter.service.sdk.get");
+        MetricsWriter.metricsTimer(meterRegistry, "gauge.service.sdk.get", System.currentTimeMillis() - methodStart, "sdk", hash);
+        MetricsWriter.metricsCounterIncrement(meterRegistry, "counter.service.sdk.get", "sdk", hash);
         //counterSdkGet.increment();
 
         return new File(sdkDirectory, "defoldsdk");

@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Tags;
 
 public class MetricsWriter {
 
@@ -32,8 +33,8 @@ public class MetricsWriter {
         this(registry, new com.defold.extender.Timer());
     }
 
-    private void addMetric(final String name, final long value) {
-        registry.gauge(name, value);
+    private void addMetric(final String name, final long value, String... tags) {
+        registry.gauge(name, Tags.of(tags), value);
         metrics.put(name, value);
     }
 
@@ -44,23 +45,20 @@ public class MetricsWriter {
 
     public void measureSdkDownload(String sdk) {
         addMetric("job.sdkDownload", timer.start());
-        addMetric("job.sdk." + sdk, 1);
+        metricsCounterIncrement(registry, "job.sdk", "job_sdk", sdk);
     }
 
     public void measureGradleDownload(List<File> packages, long cacheSize) {
         addMetric("job.gradle.download", timer.start());
         addMetric("job.gradle.cacheSize", cacheSize);
-        // for (File file : packages) {
-        //     addMetric("job.gradle.package." + file.getName().replace('.', '-'), 1);
-        // }
     }
 
     public void measureEngineBuild(final String platform) {
-        addMetric("job.build." + platform, timer.start());
+        addMetric("job.build", timer.start(), "platform", platform);
     }
 
     public void measureRemoteEngineBuild(final String platform) {
-        addMetric("job.remoteBuild." + platform, timer.start());
+        addMetric("job.remoteBuild", timer.start(), "platform", platform);
     }
 
     public void measureZipFiles(final File zipFile) {
@@ -82,17 +80,17 @@ public class MetricsWriter {
         addMetric("job.cache.downloadSize", downloadSize);
     }
 
-    public static void metricsGauge(MeterRegistry registry, String id, long value) {
-        registry.gauge(id, value);
+    public static void metricsGauge(MeterRegistry registry, String id, long value, String... tags) {
+        registry.gauge(id, Tags.of(tags), value);
     }
 
-    public static void metricsTimer(MeterRegistry registry, String id, long millis) {
-        Timer timer = registry.timer(id);
+    public static void metricsTimer(MeterRegistry registry, String id, long millis, String... tags) {
+        Timer timer = registry.timer(id, tags);
         timer.record(millis, TimeUnit.SECONDS);
     }
 
-    public static void metricsCounterIncrement(MeterRegistry registry, String id) {
-        Counter counter = registry.counter(id);
+    public static void metricsCounterIncrement(MeterRegistry registry, String id, String... tags) {
+        Counter counter = registry.counter(id, tags);
         counter.increment();
     }
 
