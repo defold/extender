@@ -15,7 +15,6 @@ import org.eclipse.jetty.io.EofException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
@@ -29,8 +28,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -54,11 +53,13 @@ public class ExtenderController {
     private final GradleService gradleService;
     private final MeterRegistry meterRegistry;
     private final UserUpdateService userUpdateService;
+    private final AsyncBuilder asyncBuilder;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
     private final boolean remoteBuilderEnabled;
     private final String[] remoteBuilderPlatforms;
     private static int maxPackageSize = 1024* 1024*1024;
+    private File jobResultLocation;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
     private static final String DM_DEBUG_KEEP_JOB_FOLDER = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER");
@@ -89,9 +90,11 @@ public class ExtenderController {
                               UserUpdateService userUpdateService,
                               MeterRegistry meterRegistry,
                               RemoteEngineBuilder remoteEngineBuilder,
+                              AsyncBuilder asyncBuilder,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms,
-                              @Value("${spring.servlet.multipart.max-request-size}") String maxPackageSize) {
+                              @Value("${spring.servlet.multipart.max-request-size}") String maxPackageSize,
+                              @Value("${extender.job-result.location}") String jobResultLocation) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
@@ -102,6 +105,10 @@ public class ExtenderController {
         this.remoteBuilderEnabled = remoteBuilderEnabled;
         this.remoteBuilderPlatforms = remoteBuilderPlatforms;
         this.maxPackageSize = parseSizeFromString(maxPackageSize);
+        this.jobResultLocation = new File(jobResultLocation);
+        this.jobResultLocation.mkdirs();
+
+        this.asyncBuilder = asyncBuilder;
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -256,6 +263,96 @@ public class ExtenderController {
         }
     }
 
+    @RequestMapping(method = RequestMethod.POST, value = "/build_async/{platform}/{sdkVersion}")
+    public void buildEngineAsync(HttpServletRequest _request,
+                            HttpServletResponse response,
+                            @PathVariable("platform") String platform,
+                            @PathVariable("sdkVersion") String sdkVersionString)
+            throws ExtenderException, IOException, URISyntaxException {
+
+        boolean isMultipart = ServletFileUpload.isMultipartContent(_request);
+        if (!isMultipart) {
+            throw new ExtenderException("The request must be a multi part request");
+        }
+
+        MultipartHttpServletRequest request = (MultipartHttpServletRequest)_request;
+
+        this.userUpdateService.update();
+
+        File jobDirectory;
+        if (DM_DEBUG_JOB_FOLDER != null) {
+            jobDirectory = new File(DM_DEBUG_JOB_FOLDER);
+            if (!jobDirectory.isDirectory()) {
+                throw new ExtenderException("The DM_DEBUG_JOB_FOLDER must be a directory: " + DM_DEBUG_JOB_FOLDER);
+            }
+            LOGGER.info("Setting DM_DEBUG_JOB_FOLDER to {}", DM_DEBUG_JOB_FOLDER);
+        } else {
+            jobDirectory = Files.createTempDirectory("job").toFile();
+        }
+
+        Thread.currentThread().setName(jobDirectory.getName());
+
+
+        LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
+
+        File uploadDirectory = new File(jobDirectory, "upload");
+        uploadDirectory.mkdir();
+        File buildDirectory = new File(jobDirectory, "build");
+        buildDirectory.mkdir();
+
+        final MetricsWriter metricsWriter = new MetricsWriter(meterRegistry);
+        final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
+        boolean isBuildStarted = false;
+
+        try {
+            // Get files uploaded by the client
+            receiveUpload(request, uploadDirectory);
+            metricsWriter.measureReceivedRequest(request);
+
+            // Get cached files from the cache service
+            long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
+            metricsWriter.measureCacheDownload(totalCacheDownloadSize);
+
+            // Build engine locally or on remote builder
+            if (remoteBuilderEnabled && isRemotePlatform(platform)) {
+                LOGGER.info("Building engine on remote builder");
+                remoteEngineBuilder.buildAsync(uploadDirectory, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
+                metricsWriter.measureRemoteEngineBuild(platform);
+            } else {
+                asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
+            }
+
+            response.getWriter().write(jobDirectory.getName());
+            response.getWriter().flush();
+            response.getWriter().close();
+            metricsWriter.measureSentResponse();
+            isBuildStarted = true;
+        } catch(EofException e) {
+            throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
+        } catch(FileUploadException e) {
+            throw new ExtenderException(e, "Bad request: " + e.getMessage());
+        } catch(Exception e) {
+            LOGGER.error(String.format("Exception while building or sending response - SDK: %s, metrics: %s", sdkVersion, metricsWriter));
+            throw e;
+        } finally {
+            // Regardless of success/fail status, we want to cache the uploaded files
+            long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
+            metricsWriter.measureCacheUpload(totalUploadSize);
+
+            boolean deleteDirectory = true;
+            if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
+                deleteDirectory = false;
+            }
+            if (DM_DEBUG_JOB_FOLDER != null) {
+                deleteDirectory = false;
+            }
+            // Delete temporary upload directory
+            if (deleteDirectory && !isBuildStarted) {
+                FileUtils.deleteDirectory(jobDirectory);
+            }
+        }
+    }
+
     @RequestMapping(method = RequestMethod.POST, value = "/query")
     public void queryFiles(HttpServletRequest request, HttpServletResponse response) throws ExtenderException {
         InputStream input;
@@ -277,6 +374,39 @@ public class ExtenderController {
         response.setContentType("application/json");
 
         dataCacheService.queryCache(input, output);
+    }
+
+    @GetMapping("/job_status")
+    @ResponseBody
+    public Integer getBuildStatus(@RequestParam String jobId) throws IOException {
+        File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
+        if (jobResultDir.exists()) {
+            File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
+            File errorResult = new File(jobResultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+            if (jobResult.exists()) {
+                return BuilderConstants.JobStatus.SUCCESS.ordinal();
+            } else if (errorResult.exists()) {
+                return BuilderConstants.JobStatus.ERROR.ordinal();
+            }
+        }
+        return BuilderConstants.JobStatus.NOT_FOUND.ordinal();
+    }
+
+    @GetMapping("/job_result")
+    public @ResponseBody byte[] getBuildResult(@RequestParam String jobId) throws IOException {
+        File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
+        File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
+        if (jobResult.exists()) {
+            InputStream in = new FileInputStream(jobResult);
+            return IOUtils.toByteArray(in);
+        } else {
+            File errorResult = new File(jobResultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+            if (errorResult.exists()) {
+                InputStream in = new FileInputStream(errorResult);
+                return IOUtils.toByteArray(in);
+            }
+        }
+        return null;
     }
 
     static private boolean isRelativePath(File parent, File file) throws IOException {
