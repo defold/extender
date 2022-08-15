@@ -2,7 +2,7 @@ package com.defold.extender.client;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.HttpClient;
+import org.apache.http.impl.client.AbstractHttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.AbstractHttpMessage;
@@ -11,6 +11,8 @@ import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.ByteArrayBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.util.EntityUtils;
+import org.apache.http.client.CookieStore;
+import org.apache.http.impl.client.BasicCookieStore;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -26,6 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 import java.util.Iterator;
 import java.util.Base64;
@@ -33,6 +36,9 @@ import java.util.Base64;
 public class ExtenderClient {
     private final String extenderBaseUrl;
     private ExtenderClientCache cache;
+    private CookieStore httpCookies;
+    private long buildSleepTimeout;
+    private long buildResultWaitTimeout;
 
     public static final String appManifestFilename = "app.manifest";
     public static final String extensionFilename = "ext.manifest";
@@ -47,6 +53,9 @@ public class ExtenderClient {
     public ExtenderClient(String extenderBaseUrl, File cacheDir) throws IOException {
         this.extenderBaseUrl = extenderBaseUrl;
         this.cache = new ExtenderClientCache(cacheDir);
+        this.httpCookies = new BasicCookieStore();
+        this.buildSleepTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-sleep-timeout", "5000"));
+        this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "240000"));
     }
 
     private static String createKey(ExtenderResource resource) throws ExtenderClientException {
@@ -103,7 +112,8 @@ public class ExtenderClient {
 
             addAuthorizationHeader(request);
 
-            HttpClient client = new DefaultHttpClient();
+            AbstractHttpClient client = new DefaultHttpClient();
+            client.setCookieStore(httpCookies);
             HttpResponse response = client.execute(request);
 
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
@@ -141,6 +151,80 @@ public class ExtenderClient {
         return cachedFiles;
     }
 
+
+    private void build_async(String platform, String sdkVersion, MultipartEntity entity, File destination, File log) throws ExtenderClientException {
+        try {
+            String url = String.format("%s/build_async/%s/%s", extenderBaseUrl, platform, sdkVersion);
+            HttpPost request = new HttpPost(url);
+            request.setEntity(entity);
+
+            addAuthorizationHeader(request);
+
+            AbstractHttpClient client = new DefaultHttpClient();
+            client.setCookieStore(httpCookies);
+            HttpResponse response = client.execute(request);
+
+            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                System.out.println("=============Post executed.=============");
+                String jobId = EntityUtils.toString(response.getEntity());
+                long currentTime = System.currentTimeMillis();
+                Integer jobStatus = 0;
+                Thread.sleep(buildSleepTimeout);
+                while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
+                    HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", extenderBaseUrl, jobId));
+                    response = client.execute(statusRequest);
+                    jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
+                    if (jobStatus != 0) {
+                        System.out.println("=========Status got============");
+                        break;
+                    }
+                    Thread.sleep(buildSleepTimeout);
+                }
+                if (jobStatus == 0) {
+                    throw new TimeoutException(String.format("Job result cannot be defined during %d", buildResultWaitTimeout));
+                }
+                HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", extenderBaseUrl, jobId));
+                response = client.execute(resultRequest);
+                System.out.println("=========Result got============");
+                if (jobStatus == 1) {
+                    response.getEntity().writeTo(new FileOutputStream(destination));
+                } else {
+                    response.getEntity().writeTo(new FileOutputStream(log));
+                    throw new ExtenderClientException("Failed to build source.");
+                }
+            } else {
+                response.getEntity().writeTo(new FileOutputStream(log));
+                throw new ExtenderClientException("Failed to build source.");
+            }
+        } catch (Exception e) {
+            throw new ExtenderClientException("Failed to communicate with Extender service.", e);
+        }
+
+    }
+
+    private void build_sync(String platform, String sdkVersion, MultipartEntity entity, File destination, File log) throws ExtenderClientException {
+        try {
+            String url = String.format("%s/build/%s/%s", extenderBaseUrl, platform, sdkVersion);
+            HttpPost request = new HttpPost(url);
+            request.setEntity(entity);
+
+            addAuthorizationHeader(request);
+
+            AbstractHttpClient client = new DefaultHttpClient();
+            client.setCookieStore(httpCookies);
+            HttpResponse response = client.execute(request);
+
+            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                response.getEntity().writeTo(new FileOutputStream(destination));
+            } else {
+                response.getEntity().writeTo(new FileOutputStream(log));
+                throw new ExtenderClientException("Failed to build source.");
+            }
+        } catch (Exception e) {
+            throw new ExtenderClientException("Failed to communicate with Extender service.", e);
+        }
+    }
+
     /**
      * Builds a new engine given a platform and an sdk version plus source files.
      * The result is a .zip file
@@ -153,6 +237,22 @@ public class ExtenderClient {
      * @throws ExtenderClientException
      */
     public void build(String platform, String sdkVersion, List<ExtenderResource> sourceResources, File destination, File log) throws ExtenderClientException {
+        build(platform, sdkVersion, sourceResources, destination, log, false);
+    }
+
+    /**
+     * Builds a new engine given a platform and an sdk version plus source files.
+     * The result is a .zip file
+     *
+     * @param platform        E.g. "arm64-ios", "armv7-android", "x86_64-osx"
+     * @param sdkVersion      Sha1 of defold version
+     * @param sourceResources List of resources that should be build on server (.cpp, .a, etc)
+     * @param destination     The output where the returned zip file is copied
+     * @param log             A log file
+     * @param async           True if build should be async and polling
+     * @throws ExtenderClientException
+     */
+    public void build(String platform, String sdkVersion, List<ExtenderResource> sourceResources, File destination, File log, boolean async) throws ExtenderClientException {
         String cacheKey = cache.calcKey(platform, sdkVersion, sourceResources);
         boolean isCached = cache.isCached(platform, cacheKey);
         if (isCached) {
@@ -188,24 +288,11 @@ public class ExtenderClient {
             entity.addPart(s.getPath(), bin);
         }
 
-        try {
-            String url = String.format("%s/build/%s/%s", extenderBaseUrl, platform, sdkVersion);
-            HttpPost request = new HttpPost(url);
-            request.setEntity(entity);
-
-            addAuthorizationHeader(request);
-
-            HttpClient client = new DefaultHttpClient();
-            HttpResponse response = client.execute(request);
-
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                response.getEntity().writeTo(new FileOutputStream(destination));
-            } else {
-                response.getEntity().writeTo(new FileOutputStream(log));
-                throw new ExtenderClientException("Failed to build source.");
-            }
-        } catch (Exception e) {
-            throw new ExtenderClientException("Failed to communicate with Extender service.", e);
+        if (async) {
+            build_async(platform, sdkVersion, entity, destination, log);
+        }
+        else {
+            build_sync(platform, sdkVersion, entity, destination, log);
         }
 
         // Store the new build
@@ -218,7 +305,8 @@ public class ExtenderClient {
 
     public boolean health() throws IOException {
 
-        HttpClient client = new DefaultHttpClient();
+        AbstractHttpClient client = new DefaultHttpClient();
+        client.setCookieStore(httpCookies);
         HttpGet request = new HttpGet(extenderBaseUrl);
         addAuthorizationHeader(request);
         HttpResponse response = client.execute(request);
