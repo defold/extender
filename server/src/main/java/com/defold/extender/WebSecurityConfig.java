@@ -70,6 +70,11 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 					break;
 			}
 		}
+		// if (authenticatedPlatforms.length > 0) {
+		// 	http.authorizeRequests().antMatchers("/").hasRole("WATCHER").and().httpBasic();
+		// 	http.authorizeRequests().antMatchers("/query").hasRole("CACHE").and().httpBasic();
+		// 	http.authorizeRequests().antMatchers("/actuator/prometheus").hasRole("COLLECTOR").and().httpBasic();
+		// }
 		http.csrf().disable();
 	}
 
