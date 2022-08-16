@@ -58,6 +58,10 @@ public class ExtenderClient {
         this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "240000"));
     }
 
+    private void print(String s, Object... args) {
+        System.out.println(String.format(s, args));
+    }
+
     private static String createKey(ExtenderResource resource) throws ExtenderClientException {
         MessageDigest digest;
         try {
@@ -158,41 +162,50 @@ public class ExtenderClient {
             HttpPost request = new HttpPost(url);
             request.setEntity(entity);
 
+            print("Sending async build request to %s", url);
+
             addAuthorizationHeader(request);
 
             AbstractHttpClient client = new DefaultHttpClient();
             client.setCookieStore(httpCookies);
             HttpResponse response = client.execute(request);
 
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                System.out.println("=============Post executed.=============");
+            final int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == HttpStatus.SC_OK) {
                 String jobId = EntityUtils.toString(response.getEntity());
+                print("Async build request was accepted as job %s", jobId);
                 long currentTime = System.currentTimeMillis();
                 Integer jobStatus = 0;
                 Thread.sleep(buildSleepTimeout);
                 while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
+                    print("Checking job status for job %s", jobId);
                     HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", extenderBaseUrl, jobId));
                     response = client.execute(statusRequest);
                     jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
                     if (jobStatus != 0) {
-                        System.out.println("=========Status got============");
                         break;
                     }
+                    print("Job %s has not completed yet", jobId);
                     Thread.sleep(buildSleepTimeout);
                 }
+
                 if (jobStatus == 0) {
-                    throw new TimeoutException(String.format("Job result cannot be defined during %d", buildResultWaitTimeout));
+                    throw new TimeoutException(String.format("Job %s did not complete in time (timeout: %d ms)", jobId, buildResultWaitTimeout));
                 }
+
+                print("Checking job result for job %s", jobId);
                 HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", extenderBaseUrl, jobId));
                 response = client.execute(resultRequest);
-                System.out.println("=========Result got============");
                 if (jobStatus == 1) {
+                    print("Job %s completed successfully. Writing result to %s", jobId, destination);
                     response.getEntity().writeTo(new FileOutputStream(destination));
                 } else {
+                    print("Job %s did not complete successfully. Writing log to %s", jobId, log);
                     response.getEntity().writeTo(new FileOutputStream(log));
                     throw new ExtenderClientException("Failed to build source.");
                 }
             } else {
+                print("Async build request failed with status code %d", statusCode);
                 response.getEntity().writeTo(new FileOutputStream(log));
                 throw new ExtenderClientException("Failed to build source.");
             }
