@@ -6,6 +6,8 @@ import java.lang.Boolean;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.HashMap;
 import java.math.BigInteger;
 import java.math.BigDecimal;
 import java.util.logging.Level;
@@ -17,6 +19,13 @@ import org.apache.commons.configuration2.io.FileLocator.FileLocatorBuilder;
 import org.apache.commons.configuration2.io.FileLocatorUtils;
 import org.apache.commons.configuration2.io.FileLocator;
 import org.apache.commons.configuration2.plist.XMLPropertyListConfiguration;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.NamedNodeMap;
+
 
 class PlistMergeException extends Exception {
     PlistMergeException(String message) {
@@ -32,7 +41,9 @@ public class InfoPlistMerger {
     }
 
     // Merges the lib onto base, using the merging rules from https://developer.android.com/studio/build/manifest-merge.html
-    public static void mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib) throws PlistMergeException {
+    private static void mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib, Map<String, String> mergeMarkers) throws PlistMergeException {
+
+
         @SuppressWarnings("unchecked")
         Iterator<String> it = lib.getKeys();
         while (it.hasNext()) {
@@ -61,8 +72,14 @@ public class InfoPlistMerger {
                             differ = true;
                         }
                         if (differ) {
-                            InfoPlistMerger.logger.log(Level.WARNING, String.format("Plist overriding value for key '%s': from '%s' to '%s'", key, baseValue.toString(), libValue.toString()));
-                            base.addProperty(key, libValue);
+                            String mergeMarker = mergeMarkers.get(key);
+                            if (mergeMarker == null || !mergeMarker.equals("keep")) {
+                                InfoPlistMerger.logger.log(Level.WARNING, String.format("Plist overriding value for key '%s': from '%s' to '%s'", key, baseValue.toString(), libValue.toString()));
+                                base.addProperty(key, libValue);
+                            }
+                            else {
+                                InfoPlistMerger.logger.log(Level.INFO, String.format("Plist keeping base '%s' value for key '%s'", baseValue.toString(), key));
+                            }
                         }
                     }
 
@@ -108,7 +125,66 @@ public class InfoPlistMerger {
         }
     }
 
+
+    // utility class to iterate a NodeList in search of <key> nodes
+    private static class NodeListKeyParser {
+        private NodeList nodes;
+        private int index = 0;
+
+        public NodeListKeyParser(NodeList nodes) {
+            this.nodes = nodes;
+        }
+
+        public Node next() {
+            while (index < nodes.getLength()) {
+                Node n = nodes.item(index++);
+                if (n.getNodeType() != Node.TEXT_NODE && n.getNodeName().equals("key")) {
+                    return n;
+                }
+            }
+            return null;
+        }
+
+        public boolean hasNext() {
+            int previous_index = index;
+            Node n = next();
+            index = previous_index;
+            return n != null;
+        }
+    }
+
+
+    private static Map<String, String> parseMergeNodeMarkers(File file) {
+        Map<String, String> markers = new HashMap<>();
+        try {
+            // parse the file and get the first <dict> tag
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Node dict = builder.parse(file).getElementsByTagName("dict").item(0);
+            if (dict == null) {
+                return markers;
+            }
+
+            // get all child nodes and search for <key merge="rule"> tags
+            NodeListKeyParser parser = new NodeListKeyParser(dict.getChildNodes());
+            while (parser.hasNext()) {
+                Node key = parser.next();
+                NamedNodeMap attributes = key.getAttributes();
+                Node mergeMarker = attributes.getNamedItem("merge");
+                if (mergeMarker != null) {
+                    InfoPlistMerger.logger.log(Level.INFO, String.format("Found merge node marker for key '%s' with rule '%s'", key.getTextContent(), mergeMarker.getNodeValue()));
+                    markers.put(key.getTextContent(), mergeMarker.getNodeValue());
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse merge node markers: " + e.toString());
+        }
+        return markers;
+    }
+
     public static void merge(File main, File[] libraries, File out) throws RuntimeException {
+
+        Map<String, String> markers = parseMergeNodeMarkers(main);
+
         XMLPropertyListConfiguration basePlist = loadPlist(main);
 
         // For error reporting/troubleshooting
@@ -118,7 +194,7 @@ public class InfoPlistMerger {
             paths += "\n" + library.getAbsolutePath();
             XMLPropertyListConfiguration libraryPlist = loadPlist(library);
             try {
-                mergePlists(basePlist, libraryPlist);
+                mergePlists(basePlist, libraryPlist, markers);
             } catch (PlistMergeException e) {
                 throw new RuntimeException(String.format("Errors merging plists: %s:\n%s", paths, e.toString()));
             }
