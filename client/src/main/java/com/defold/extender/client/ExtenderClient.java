@@ -182,15 +182,14 @@ public class ExtenderClient {
                 long currentTime = System.currentTimeMillis();
                 Integer jobStatus = 0;
                 Thread.sleep(buildSleepTimeout);
+                log("Waiting for job %s to finish", jobId);
                 while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
-                    log("Checking job status for job %s", jobId);
                     HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", extenderBaseUrl, jobId));
                     response = client.execute(statusRequest);
                     jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
                     if (jobStatus != 0) {
                         break;
                     }
-                    log("Job %s has not completed yet", jobId);
                     Thread.sleep(buildSleepTimeout);
                 }
 
