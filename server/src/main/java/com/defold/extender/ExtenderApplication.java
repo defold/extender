@@ -1,127 +1,30 @@
 package com.defold.extender;
 
-import org.eclipse.jetty.server.Connector;
-import org.eclipse.jetty.server.HttpConnectionFactory;
-import org.eclipse.jetty.server.ServerConnector;
-import org.influxdb.InfluxDB;
-import org.influxdb.InfluxDBFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
-//import org.springframework.boot.actuate.autoconfigure.ExportMetricWriter;
-// import org.springframework.boot.actuate.endpoint.MetricsEndpoint;
-// import org.springframework.boot.actuate.endpoint.MetricsEndpointMetricReader;
-//import org.springframework.boot.actuate.metrics.writer.GaugeWriter;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-// renamed in 2.x
-import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryCustomizer; // previously EmbeddedServletContainerCustomizer
-import org.springframework.boot.web.servlet.server.ConfigurableServletWebServerFactory; // previously ConfigurableEmbeddedServletContainer
-import org.springframework.boot.web.embedded.jetty.JettyServletWebServerFactory; // previously JettyEmbeddedServletContainerFactory
-import org.springframework.boot.web.embedded.jetty.JettyServerCustomizer;
-
-import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
-import org.springframework.web.client.RestTemplate;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableAsync
+@EnableScheduling
 public class ExtenderApplication {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderApplication.class);
 
     private final Environment environment;
-    //private final int idleTimeout;
 
     @Autowired
-    //public ExtenderApplication(Environment environment, @Value("${extender.server.http.idle-timeout}") int idleTimeout) {
     public ExtenderApplication(Environment environment) {
         this.environment = environment;
-        //this.idleTimeout = idleTimeout;
     }
 
     public static void main(String[] args) {
         SpringApplication.run(ExtenderApplication.class, args);
     }
-
-// TODO: Let's replace with AWS events instead
-    // @Bean
-    // @ExportMetricWriter
-    // GaugeWriter influxMetricsWriter() {
-
-    //     try {
-    //         InfluxDB influxDB = InfluxDBFactory.connect("http://metrics.defold.com:8086", "root", "root");
-
-    //         String dbName = "myMetricsDB"; // the name of the datastore you choose
-    //         influxDB.createDatabase(dbName);
-
-    //         InfluxDBMetricWriter.Builder builder = new InfluxDBMetricWriter.Builder(influxDB);
-
-    //         String hostName;
-    //         try {
-    //             hostName = InetAddress.getLocalHost().getHostName();
-    //         } catch (UnknownHostException e) {
-    //             hostName = "Unknown";
-    //         }
-
-    //         String environmentString = "local";
-    //         if (this.environment.getActiveProfiles().length > 0) {
-    //             environmentString = environment.getActiveProfiles()[0];
-    //         }
-
-    //         builder
-    //                 .withDatabaseName(dbName)
-    //                 .withBatchActions(500)
-    //                 .withReportingEnvironment(environmentString)
-    //                 .withReportingHostname(hostName)
-    //                 .withReportingService("Extender");
-
-    //         return builder.build();
-    //     } catch (Exception e) {
-    //         LOGGER.warn("Failed to create metrics writer. No metrics will be reported.");
-    //         return value -> { /* Just ignore metrics */ };
-    //     }
-    // }
-
-    // @Bean
-    // public MetricsEndpointMetricReader metricsEndpointMetricReader(MetricsEndpoint metricsEndpoint) {
-    //     return new MetricsEndpointMetricReader(metricsEndpoint);
-    // }
-
-//TODO: Let's try to use the jetty property from application.yml instead?
-    // Spring Boot only supports a subset of Jetty configuration props, so configure idle timeout programatically
-    // @Bean
-    // public ServletWebServerFactoryCustomizer customizer() {
-    //     return new ServletWebServerFactoryCustomizer() {
-
-    //         @Override
-    //         public void customize(ConfigurableServletWebServerFactory container) {
-    //             if (container instanceof JettyServletWebServerFactory) {
-    //                 customizeJetty((JettyServletWebServerFactory) container);
-    //             }
-    //         }
-
-    //         private void customizeJetty(JettyServletWebServerFactory jetty) {
-    //             jetty.addServerCustomizers((JettyServerCustomizer) server -> {
-    //                 for (Connector connector : server.getConnectors()) {
-    //                     if (connector instanceof ServerConnector) {
-    //                         HttpConnectionFactory connectionFactory = connector
-    //                                 .getConnectionFactory(HttpConnectionFactory.class);
-    //                         connectionFactory.getHttpConfiguration()
-    //                                 .setIdleTimeout(idleTimeout);
-    //                     }
-    //                 }
-    //             });
-    //         }
-    //     };
-    // }
-
-    // @Bean
-    // public RestTemplate restTemplate() {
-    //     return new RestTemplate();
-    // }
 }

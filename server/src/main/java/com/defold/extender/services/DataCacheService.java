@@ -125,6 +125,10 @@ public class DataCacheService {
         }
 
         List<CacheEntry> cacheEntries = wrapper.getEntries();
+        // we can face null pointer in cacheEntries if client, who requestd a build, don't have access to /query endpoint
+        if (cacheEntries == null) {
+            return 0;
+        }
         int numCachedFiles = 0;
 
         for (CacheEntry entry : cacheEntries) {

@@ -19,6 +19,8 @@ extender:
     remote-builder:
         enabled: false
         platforms: ios, osx
+        build-sleep-timeout: 5000
+        build-result-wait-timeout: 240000
     gradle:
         location: /tmp/.gradle
         # megabytes
@@ -31,6 +33,10 @@ extender:
         users: ''
         # check for user updates every 15 minutes
         update-interval: 900000
+    job-result:
+        location: /tmp/results
+        cleanup-period: 20000
+        lifetime: 1200000
 
 spring:
     servlet:

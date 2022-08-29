@@ -2071,7 +2071,7 @@ class Extender {
             gradlePackages = gradleService.resolveDependencies(jobDirectory, useJetifier);
         }
         catch (IOException e) {
-            throw new ExtenderException(e, "Failed to resolve dependencies");
+            throw new ExtenderException(e, "Failed to resolve dependencies. " + e.getMessage());
         }
         return gradlePackages;
     }
