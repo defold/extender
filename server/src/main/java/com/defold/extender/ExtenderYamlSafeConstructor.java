@@ -3,15 +3,29 @@ package com.defold.extender;
 import com.defold.extender.Configuration;
 import com.defold.extender.ManifestConfiguration;
 import com.defold.extender.AppManifestConfiguration;
+import com.defold.extender.PlatformConfig;
+import com.defold.extender.AppManifestPlatformConfig;
+import com.defold.extender.WhitelistConfig;
+import com.defold.extender.ManifestPlatformConfig;
 
+import org.yaml.snakeyaml.constructor.Construct;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.nodes.Tag;
 
 class ExtenderYamlSafeConstructor extends Constructor {
 
 	public ExtenderYamlSafeConstructor() {
-		this.yamlConstructors.put("com.defold.extender.Configuration", new ConstructYamlObject());
-		this.yamlConstructors.put("com.defold.extender.ManifestConfiguration", new ConstructYamlObject());
-		this.yamlConstructors.put("com.defold.extender.Configuration", new ConstructYamlObject());
+		super();
+		Construct c = this.yamlConstructors.get(null); // ConstructYamlObject
+
+		this.yamlConstructors.put(new Tag(Tag.PREFIX + "com.defold.extender.Configuration"), c);
+		this.yamlConstructors.put(new Tag(Tag.PREFIX + "com.defold.extender.ManifestConfiguration"), c);
+		this.yamlConstructors.put(new Tag(Tag.PREFIX + "com.defold.extender.AppManifestConfiguration"), c);
+		this.yamlConstructors.put(new Tag(Tag.PREFIX + "com.defold.extender.PlatformConfig"), c);
+		this.yamlConstructors.put(new Tag(Tag.PREFIX + "com.defold.extender.AppManifestPlatformConfig"), c);
+		this.yamlConstructors.put(new Tag(Tag.PREFIX + "com.defold.extender.ManifestPlatformConfig"), c);
+		this.yamlConstructors.put(new Tag(Tag.PREFIX + "com.defold.extender.WhitelistConfig"), c);
+
 		this.yamlConstructors.put(null, undefinedConstructor);
 	}
 }
