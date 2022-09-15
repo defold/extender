@@ -297,7 +297,7 @@ class Extender {
         }
 
         try {
-            return new Yaml().loadAs(yaml, type);
+            return new Yaml(new ExtenderYamlSafeConstructor()).loadAs(yaml, type);
         } catch(YAMLException e) {
             throw new ExtenderException(String.format("%s:1: error: %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
         }
