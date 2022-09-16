@@ -1,13 +1,5 @@
 package com.defold.extender;
 
-import com.defold.extender.Configuration;
-import com.defold.extender.ManifestConfiguration;
-import com.defold.extender.AppManifestConfiguration;
-import com.defold.extender.PlatformConfig;
-import com.defold.extender.AppManifestPlatformConfig;
-import com.defold.extender.WhitelistConfig;
-import com.defold.extender.ManifestPlatformConfig;
-
 import org.yaml.snakeyaml.constructor.Construct;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.nodes.Tag;
