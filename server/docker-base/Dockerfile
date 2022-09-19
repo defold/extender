@@ -301,7 +301,7 @@ ENV SWITCH_SDK_14_FILENAME nx64-sdk-14.3.0.tar.gz
 RUN \
   echo "Switch SDK 14.3.0" && \
   mkdir -p ${NINTENDO_SDK_ROOT_14_3_0} && \
-  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_13_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT_14_3_0}
+  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_14_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT_14_3_0}
 
 
 #
