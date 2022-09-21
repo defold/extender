@@ -294,6 +294,7 @@ public class IntegrationTest {
 
     @Test
     public void buildExtensionStdLib() throws IOException, ExtenderClientException {
+        org.junit.Assume.assumeTrue("Only use with real sdk's", !configuration.version.version.isVersion(0, 0, 0));
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext_std/ext.manifest"),
                 new FileExtenderResource("test-data/ext_std/include/std.h"),
@@ -353,11 +354,7 @@ public class IntegrationTest {
 
     @Test
     public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 100) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -374,11 +371,7 @@ public class IntegrationTest {
 
     @Test
     public void buildAndroidCheckClassesMultiDex() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 119) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -397,11 +390,7 @@ public class IntegrationTest {
 
     @Test
     public void buildAndroidCheckCompiledJava() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 102) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -422,11 +411,7 @@ public class IntegrationTest {
      */
     @Test
     public void buildAndroidJavaJarDependency() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 103) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
