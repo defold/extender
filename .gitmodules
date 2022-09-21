@@ -1,7 +1,7 @@
 [submodule "server/scripts/shared"]
 	path = server/scripts/shared
-	url = https://github.com/defold/aws-build-tools.git
+	url = git@github.com:defold/aws-build-tools.git
 
 [submodule "server/scripts/task-definitions"]
 	path = server/scripts/task-definitions
-	url = https://github.com/defold/extender-task-definitions
+	url = git@github.com:defold/extender-task-definitions.git
