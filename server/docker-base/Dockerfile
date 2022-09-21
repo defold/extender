@@ -15,6 +15,7 @@ RUN \
     libtool \
     autoconf \
     automake \
+    build-essential \
     uuid-dev \
     libxi-dev \
     libopenal-dev \
