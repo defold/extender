@@ -86,7 +86,7 @@ You can stop the server by pressing `Ctrl-C` from the terminal prompt where it w
 The stand alone server is currently used on a machine runing macOS. The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang)
 
 ### Prerequisites
-Ensure that you have the following tools
+Ensure that you have the following tools packaged
 
 * macOS 12.1
 * XCode 13.2.1
@@ -111,4 +111,10 @@ Now the current user has access to the folder and can start the service.
 It will start a server at `localhost:9010`.
 If you run the script again, the server will be stopped and then restarted with the latest `extender.jar`
 
+### Stop
 
+To stop the service, you need to call stop on the current service script, and also provide the folder with the `.pid` file:
+
+```
+$ ./local/current/service.sh stop ~/work/extender/local
+```

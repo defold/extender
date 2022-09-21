@@ -295,14 +295,17 @@ platforms:
     windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
   x86_64-linux:
+    env:
+      LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
+
     context:
         engineLibs: ["engine_main", "engine_foo"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
         includes:   ["{{dynamo_home}}/include/x86_64-linux"]
         defines:    ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
         flags:      ["-ffloat-store", "-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC"]
-        linkFlags:  []
-        libs:       []
+        linkFlags:      ["-g", "-O2"]
+        cxxLinkShFlags: ["-g", "-O2"]
         # this happens to contain some dynamic engine libs too (vpx+openal)
         dynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","pthread","m","dl"]
 
@@ -312,9 +315,13 @@ platforms:
     stlibRe:        'lib(.+).a'
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: 'lib%s.a'
+    writeShLibPattern: 'lib%s.so'
     writeExePattern: 'dmengine'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
-    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","-W{{warning}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
-    compileCmd:     '/usr/bin/g++ {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
-    linkCmd:        '/usr/bin/g++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,-Bstatic {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libs}}-l{{{.}}} {{/libs}} -Wl,-Bdynamic {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}}'
-    libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    zipContentPattern: 'dmengine|dmengine_unstripped'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+"]
+    compileCmd:     'clang++ {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
+    linkCmds:       ['clang++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} -Wl,--end-group -Wl,-Bdynamic -Wl,-rpath=$ORIGIN,--enable-new-dtags {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}}',
+                     'cp {{tgt}} {{tgt}}_unstripped',
+                     'strip {{tgt}}']
+    libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'

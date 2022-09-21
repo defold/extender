@@ -113,12 +113,14 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"x86_64-osx", "armv7-android", "x86_64-win32"} ),
+                new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // // At 1.2.185, we updated to iOS 14.5, macOS 11.3 and XCode 12.5
-                new DefoldVersion("0a8d3e879724132afb18d47e0040c2034be07504", new Version(1, 2, 185), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("d393bae6a361f86cf2263ab312c9b3cea45253ab", new Version(1, 2, 191), new String[] {"armv7-android", "armv7-ios", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("06bc078e490fd7d94ec01e38abac989f6cc351a5", new Version(1, 3, 1), new String[] {"armv7-android", "arm64-ios", "x86_64-osx", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // At 1.2.185, we updated to iOS 14.5, macOS 11.3 and XCode 12.5
+                new DefoldVersion("0a8d3e879724132afb18d47e0040c2034be07504", new Version(1, 2, 185), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("d393bae6a361f86cf2263ab312c9b3cea45253ab", new Version(1, 2, 191), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("06bc078e490fd7d94ec01e38abac989f6cc351a5", new Version(1, 3, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // At 1.3.6 w removed the support for iOS in the base container (minimizing the container size)
+                new DefoldVersion("905234d8da2e642f1075c73aaa1bfb72e49199e3", new Version(1, 3, 6), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -292,14 +294,7 @@ public class IntegrationTest {
 
     @Test
     public void buildExtensionStdLib() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("Changed to -stdlib=libc++ in 163 for ios/osx, and clang++ for Android in 161",
-                (configuration.platform.contains("osx") &&
-                 configuration.version.version.isGreaterThan(1, 2, 163)) ||
-                (configuration.platform.contains("android") &&
-                 configuration.version.version.isGreaterThan(1, 2, 161)) ||
-                (!(configuration.platform.contains("osx") || configuration.platform.contains("android")) &&
-                 configuration.version.version.isGreaterThan(0, 0, 0))
-        );
+        org.junit.Assume.assumeTrue("Only use with real sdk's", !configuration.version.version.isVersion(0, 0, 0));
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext_std/ext.manifest"),
                 new FileExtenderResource("test-data/ext_std/include/std.h"),
@@ -359,11 +354,7 @@ public class IntegrationTest {
 
     @Test
     public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 100) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -380,11 +371,7 @@ public class IntegrationTest {
 
     @Test
     public void buildAndroidCheckClassesMultiDex() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support classes.dex test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 119) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -403,11 +390,7 @@ public class IntegrationTest {
 
     @Test
     public void buildAndroidCheckCompiledJava() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 102) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -428,11 +411,7 @@ public class IntegrationTest {
      */
     @Test
     public void buildAndroidJavaJarDependency() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support Java compilation test.",
-                configuration.platform.contains("android") &&
-                        (configuration.version.version.isGreaterThan(1, 2, 103) || configuration.version.version.isVersion(0, 0, 0) )
-        );
+        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
