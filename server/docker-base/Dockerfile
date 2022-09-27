@@ -401,7 +401,7 @@ COPY template.gradle.properties ${EXTENSION_GRADLE_PROPERTIES_TEMPLATE}
 COPY template.local.properties ${EXTENSION_LOCAL_PROPERTIES_TEMPLATE}
 
 # iOS + MacOS
-# Althought the building isn't done using the Docker container anymore
+# Although the building isn't done using the Docker container anymore
 # we still need to be able to resolve the variables in the case when we run the docker container locally  when debugging
 
 # NOTE: These values are replicated in server/scripts/standalone/service-standalone.sh
