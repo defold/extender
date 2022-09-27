@@ -38,13 +38,13 @@ rm -rf ./engineext
 
 # The sdk's has different naming
 mv sdk/a/defoldsdk/lib/x86-osx sdk/a/defoldsdk/lib/darwin
-mv sdk/a/defoldsdk/lib/x86_64-osx sdk/a/defoldsdk/lib/x86_64-darwin
+mv sdk/a/defoldsdk/lib/x86_64-osx sdk/a/defoldsdk/lib/x86_64-macos
 
 mv sdk/a/defoldsdk/lib/x86-linux sdk/a/defoldsdk/lib/linux
 
 # Need these folders as well (empty is fine)
 mkdir -p sdk/a/defoldsdk/ext/lib/darwin
-mkdir -p sdk/a/defoldsdk/ext/lib/x86_64-darwin
+mkdir -p sdk/a/defoldsdk/ext/lib/x86_64-macos
 
 CompileLibsToExtension alib ext/lib
 CompileLibsToExtension alib ext2/lib

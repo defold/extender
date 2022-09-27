@@ -14,3 +14,6 @@ source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 
 build_artifact ${SOURCE_DIR}
 deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION}
+
+echo "Stop with:" ${TARGET_DIR}/current/service.sh stop ${TARGET_DIR}
+echo "Log with:" tail -f ${TARGET_DIR}/logs/stdout.log
