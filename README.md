@@ -118,3 +118,7 @@ To stop the service, you need to call stop on the current service script, and al
 ```
 $ ./local/current/service.sh stop ~/work/extender/local
 ```
+or (if you used the vanilla startup):
+```
+$ /usr/local/extender/current/service.sh stop /usr/local/extender
+```

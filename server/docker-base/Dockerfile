@@ -400,6 +400,29 @@ COPY template.build.gradle ${EXTENSION_BUILD_GRADLE_TEMPLATE}
 COPY template.gradle.properties ${EXTENSION_GRADLE_PROPERTIES_TEMPLATE}
 COPY template.local.properties ${EXTENSION_LOCAL_PROPERTIES_TEMPLATE}
 
+# iOS + MacOS
+# Although the building isn't done using the Docker container anymore
+# we still need to be able to resolve the variables in the case when we run the docker container locally  when debugging
+
+# NOTE: These values are replicated in server/scripts/standalone/service-standalone.sh
+# Install flow from  >=1.2.174
+ENV XCODE_12_VERSION      12.5
+ENV MACOS_10_15_VERSION   10.15
+ENV IOS_14_VERSION        14.5
+ENV LIB_TAPI_1_6_PATH     /usr/local/tapi1.6/lib
+# Install flow from >=1.2.185
+ENV MACOS_11_VERSION        11.3
+ENV XCODE_12_CLANG_VERSION  12.0.5
+ENV SWIFT_5_VERSION         5.0
+
+# Versions from >=1.2.191
+ENV XCODE_13_VERSION        13.2.1
+ENV MACOS_12_VERSION        12.1
+ENV IOS_15_VERSION          15.2
+ENV XCODE_13_CLANG_VERSION  13.0.0
+ENV SWIFT_5_5_VERSION       5.5
+
+
 # Final cleanup
 
 RUN \
