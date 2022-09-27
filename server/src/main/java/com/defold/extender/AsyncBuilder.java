@@ -113,7 +113,7 @@ public class AsyncBuilder {
 
     @Scheduled(fixedDelayString="${extender.job-result.cleanup-period:10000}")
     public void cleanUnusedResults() {
-        LOGGER.info("Clean result folder started.");
+        LOGGER.debug("Clean result folder started.");
         try {
             Files.walk(jobResultLocation.toPath())
                     .filter(Files::isDirectory)
@@ -122,6 +122,7 @@ public class AsyncBuilder {
                         try {
                             if (System.currentTimeMillis() - Files.getLastModifiedTime(path).toMillis() > resultLifetime) {
                                 FileSystemUtils.deleteRecursively(path);
+                                LOGGER.info("Cleaned up folder " + path.toString());
                             }
                         } catch (IOException e) {
                             LOGGER.error("Could not clear build results  " + path.toString(), e);
@@ -130,6 +131,6 @@ public class AsyncBuilder {
         } catch (IOException ex) {
             LOGGER.error("Error during cleanup", ex);
         }
-        LOGGER.info("Clean result folder finished.");
+        LOGGER.debug("Clean result folder finished.");
     }
 }
