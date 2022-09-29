@@ -6,6 +6,7 @@ import org.apache.http.impl.client.AbstractHttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.AbstractHttpMessage;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.ByteArrayBody;
@@ -22,10 +23,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -43,6 +48,7 @@ public class ExtenderClient {
     private CookieStore httpCookies;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
+    private List<BasicHeader> headers;
 
     public static final String appManifestFilename = "app.manifest";
     public static final String extensionFilename = "ext.manifest";
@@ -60,6 +66,7 @@ public class ExtenderClient {
         this.httpCookies = new BasicCookieStore();
         this.buildSleepTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-sleep-timeout", "5000"));
         this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "240000"));
+        this.headers = new ArrayList<BasicHeader>();
     }
 
     private void log(String s, Object... args) {
@@ -88,6 +95,47 @@ public class ExtenderClient {
         return new BigInteger(1, bytes).toString(16);
     }
 
+    /**
+     * Set headers to be used in requests made by this client
+     * @param headers List of headers (format: "HeaderName: HeaderValue")
+     */
+    public void setHeaders(List<String> headers) throws ExtenderClientException  {
+        for (String header : headers) {
+            setHeader(header);
+        }
+    }
+
+    /**
+     * Set a header to be used in requests made by this client
+     * @param nameAndValue Header to set (format "HeaderName: HeaderValue")
+     */
+    public void setHeader(String nameAndValue) throws ExtenderClientException {
+        String parts[] = nameAndValue.split("\\s*:\\s*", 2);
+        if (parts.length != 2) {
+            throw new ExtenderClientException("Not a valid header: " + nameAndValue);
+        }
+        String name = parts[0];
+        String value = parts[1];
+        headers.add(new BasicHeader(name, value));
+    }
+
+    /**
+     * Set a header to be used in requests made by this client
+     * @param name Header name
+     * @param value Header value
+     */
+    public void setHeader(String name, String value) {
+        headers.add(new BasicHeader(name, value));
+    }
+
+    // add all previously set headers to a request
+    private void addHeaders(AbstractHttpMessage request) {
+        for (BasicHeader header : headers) {
+            request.setHeader(header);
+        }
+    }
+
+    // add basic authorization header to a request if a username and password is set in system env
     private void addAuthorizationHeader(AbstractHttpMessage request) throws UnsupportedEncodingException {
         final String user = System.getenv("DM_EXTENDER_USERNAME");
         final String password = System.getenv("DM_EXTENDER_PASSWORD");
@@ -120,6 +168,7 @@ public class ExtenderClient {
             request.setHeader("Content-type", "application/json");
 
             addAuthorizationHeader(request);
+            addHeaders(request);
 
             AbstractHttpClient client = new DefaultHttpClient();
             client.setCookieStore(httpCookies);
@@ -170,6 +219,7 @@ public class ExtenderClient {
             log("Sending async build request to %s", url);
 
             addAuthorizationHeader(request);
+            addHeaders(request);
 
             AbstractHttpClient client = new DefaultHttpClient();
             client.setCookieStore(httpCookies);
@@ -226,6 +276,7 @@ public class ExtenderClient {
             request.setEntity(entity);
 
             addAuthorizationHeader(request);
+            addHeaders(request);
 
             AbstractHttpClient client = new DefaultHttpClient();
             client.setCookieStore(httpCookies);
@@ -326,6 +377,7 @@ public class ExtenderClient {
         client.setCookieStore(httpCookies);
         HttpGet request = new HttpGet(extenderBaseUrl);
         addAuthorizationHeader(request);
+        addHeaders(request);
         HttpResponse response = client.execute(request);
 
         if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
