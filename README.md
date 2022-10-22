@@ -66,12 +66,20 @@ $  ./server/scripts/build.sh -xtest
 
 NOTE: The first time you build it will take a while (approx. 45 minutes). After that the Docker cache will speed it up.
 
+NOTE: For Windows, I ran this using Git Bash. It may be possible to speed it up by creating a .bat file for it, and running it in the Command Prompt.
+
 
 ### Run the Docker image in a container
 Start the container based on the Docker image that was built by running:
 
+Bash:
 ```
-$  ./server/scripts/run-local.sh
+$ ./server/scripts/run-local.sh
+```
+
+Command Prompt:
+```
+> server\scripts\run-local.bat
 ```
 
 The Extender server is now available on port `http://localhost:9000`
@@ -79,6 +87,8 @@ The Extender server is now available on port `http://localhost:9000`
 
 ### Stop the server
 You can stop the server by pressing `Ctrl-C` from the terminal prompt where it was started.
+
+NOTE: On Windows, it may be that the Ctrol+C doesn't work. Then you can stop the container using the Docker Desktop client.
 
 ---
 

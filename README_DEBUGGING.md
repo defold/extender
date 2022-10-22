@@ -29,8 +29,14 @@ Note: if you wish to add more of these, remember to also add them to `server/scr
 
 Run the following command when the container is running:
 
+Bash:
 ```
 $ ./server/scripts/debug-local.sh
+```
+
+Command Prompt:
+```
+> server\scripts\debug-local.bat
 ```
 
 The command will connect to the container using the `extender` user, and executes bash.
