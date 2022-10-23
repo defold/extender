@@ -267,12 +267,7 @@ class Extender {
     }
 
     private File createBuildFile(String name) {
-        File file;
-        do {
-            file = new File(buildDirectory, name);
-        } while (file.exists());
-
-        return file;
+        return new File(buildDirectory, name);
     }
 
     private File uniqueTmpFile(String prefix, String suffix) {
