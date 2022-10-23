@@ -8,7 +8,7 @@ repositories {
 
 jar {
     baseName = 'extender-client'
-    version = '0.0.3'
+    version = '0.0.4'
 }
 
 dependencies {
@@ -18,5 +18,6 @@ dependencies {
         exclude module: 'junit'
     }
     testImplementation('commons-io:commons-io:2.11.0')
+    testImplementation("org.mockito:mockito-core:3.+")
     testImplementation group: 'junit', name: 'junit', version: '4.13'
 }

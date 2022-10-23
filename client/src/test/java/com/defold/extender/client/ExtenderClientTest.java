@@ -1,8 +1,18 @@
 package com.defold.extender.client;
 
 import org.apache.commons.io.FileUtils;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.StatusLine;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.impl.client.DefaultHttpClient;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -19,7 +29,7 @@ import java.util.regex.Matcher;
 
 import static org.junit.Assert.*;
 
-public class ExtenderClientTest {
+public class ExtenderClientTest extends Mockito {
 
     private void writeToFile(String path, String msg) throws IOException {
         File f = new File(path);
@@ -326,6 +336,44 @@ public class ExtenderClientTest {
         assertFalse(hasExtensions(new File("../server/test-data/testproject/a")));
         assertTrue(hasExtensions(new File("../server/test-data/testproject/b")));
         assertTrue(hasExtensions(new File("../server/test-data/testproject")));
+    }
+
+    @Test
+    public void testClientHeaders() throws IOException {
+        class MockHttpClient extends DefaultHttpClient {
+            public HttpUriRequest request;
+
+            @Override
+            public CloseableHttpResponse execute(HttpUriRequest request) {
+                this.request = request;
+                CloseableHttpResponse response = mock(CloseableHttpResponse.class);
+                StatusLine statusLine = mock(StatusLine.class);
+                when(response.getStatusLine()).thenReturn(statusLine);
+                when(statusLine.getStatusCode()).thenReturn(200);
+                return response;
+            }
+        };
+
+        try {
+            final String HDR_NAME_1 = "x-custom-defold-header1";
+            final String HDR_VALUE_1 = "my custom header1";
+            final String HDR_NAME_2 = "x-custom-defold-header2";
+            final String HDR_VALUE_2 = "my custom header2";
+            MockHttpClient httpClient = new MockHttpClient();
+            File cacheDir = new File("build");
+            ExtenderClient extenderClient = new ExtenderClient(httpClient, "http://localhost", cacheDir);
+            extenderClient.setHeader(HDR_NAME_1, HDR_VALUE_1);
+            extenderClient.setHeader(HDR_NAME_2, HDR_VALUE_2);
+            extenderClient.health();
+
+            HttpUriRequest request = httpClient.request;
+            assertEquals(HDR_VALUE_1, request.getFirstHeader(HDR_NAME_1).getValue());
+            assertEquals(HDR_VALUE_2, request.getFirstHeader(HDR_NAME_2).getValue());
+        }
+        catch (Exception e) {
+            System.out.println("ERROR LOG:");
+            throw e;
+        }
     }
 
     /*

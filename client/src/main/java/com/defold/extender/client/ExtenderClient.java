@@ -6,6 +6,7 @@ import org.apache.http.impl.client.AbstractHttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.AbstractHttpMessage;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.ByteArrayBody;
@@ -22,10 +23,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -43,23 +48,39 @@ public class ExtenderClient {
     private CookieStore httpCookies;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
+    private List<BasicHeader> headers;
+    private AbstractHttpClient httpClient;
 
     public static final String appManifestFilename = "app.manifest";
     public static final String extensionFilename = "ext.manifest";
     public static final Pattern extensionPattern = Pattern.compile(extensionFilename);
 
     /**
-     * Creates a local build cache
+     * Creates an extender client
      *
      * @param extenderBaseUrl The build server url (e.g. https://build.defold.com)
      * @param cacheDir        A directory where the cache files are located (it must exist beforehand)
      */
     public ExtenderClient(String extenderBaseUrl, File cacheDir) throws IOException {
+        this(new DefaultHttpClient(), extenderBaseUrl, cacheDir);
+    }
+
+    /**
+     * Creates an extender client
+     *
+     * @param httpClient      The http client instance to use when communicating with the extender server
+     * @param extenderBaseUrl The build server url (e.g. https://build.defold.com)
+     * @param cacheDir        A directory where the cache files are located (it must exist beforehand)
+     */
+    public ExtenderClient(AbstractHttpClient httpClient, String extenderBaseUrl, File cacheDir) throws IOException {
         this.extenderBaseUrl = extenderBaseUrl;
         this.cache = new ExtenderClientCache(cacheDir);
         this.httpCookies = new BasicCookieStore();
         this.buildSleepTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-sleep-timeout", "5000"));
         this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "240000"));
+        this.headers = new ArrayList<BasicHeader>();
+        this.httpClient = httpClient;
+        this.httpClient.setCookieStore(httpCookies);
     }
 
     private void log(String s, Object... args) {
@@ -88,6 +109,47 @@ public class ExtenderClient {
         return new BigInteger(1, bytes).toString(16);
     }
 
+    /**
+     * Set headers to be used in requests made by this client
+     * @param headers List of headers (format: "HeaderName: HeaderValue")
+     */
+    public void setHeaders(List<String> headers) throws ExtenderClientException  {
+        for (String header : headers) {
+            setHeader(header);
+        }
+    }
+
+    /**
+     * Set a header to be used in requests made by this client
+     * @param nameAndValue Header to set (format "HeaderName: HeaderValue")
+     */
+    public void setHeader(String nameAndValue) throws ExtenderClientException {
+        String parts[] = nameAndValue.split("\\s*:\\s*", 2);
+        if (parts.length != 2) {
+            throw new ExtenderClientException("Not a valid header: " + nameAndValue);
+        }
+        String name = parts[0];
+        String value = parts[1];
+        headers.add(new BasicHeader(name, value));
+    }
+
+    /**
+     * Set a header to be used in requests made by this client
+     * @param name Header name
+     * @param value Header value
+     */
+    public void setHeader(String name, String value) {
+        headers.add(new BasicHeader(name, value));
+    }
+
+    // add all previously set headers to a request
+    private void addHeaders(AbstractHttpMessage request) {
+        for (BasicHeader header : headers) {
+            request.setHeader(header);
+        }
+    }
+
+    // add basic authorization header to a request if a username and password is set in system env
     private void addAuthorizationHeader(AbstractHttpMessage request) throws UnsupportedEncodingException {
         final String user = System.getenv("DM_EXTENDER_USERNAME");
         final String password = System.getenv("DM_EXTENDER_PASSWORD");
@@ -120,10 +182,9 @@ public class ExtenderClient {
             request.setHeader("Content-type", "application/json");
 
             addAuthorizationHeader(request);
+            addHeaders(request);
 
-            AbstractHttpClient client = new DefaultHttpClient();
-            client.setCookieStore(httpCookies);
-            HttpResponse response = client.execute(request);
+            HttpResponse response = httpClient.execute(request);
 
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 return EntityUtils.toString(response.getEntity()).replace("\\/", "/");
@@ -170,10 +231,9 @@ public class ExtenderClient {
             log("Sending async build request to %s", url);
 
             addAuthorizationHeader(request);
+            addHeaders(request);
 
-            AbstractHttpClient client = new DefaultHttpClient();
-            client.setCookieStore(httpCookies);
-            HttpResponse response = client.execute(request);
+            HttpResponse response = httpClient.execute(request);
 
             final int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode == HttpStatus.SC_OK) {
@@ -185,7 +245,7 @@ public class ExtenderClient {
                 log("Waiting for job %s to finish", jobId);
                 while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
                     HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", extenderBaseUrl, jobId));
-                    response = client.execute(statusRequest);
+                    response = httpClient.execute(statusRequest);
                     jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
                     if (jobStatus != 0) {
                         break;
@@ -199,7 +259,7 @@ public class ExtenderClient {
 
                 log("Checking job result for job %s", jobId);
                 HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", extenderBaseUrl, jobId));
-                response = client.execute(resultRequest);
+                response = httpClient.execute(resultRequest);
                 if (jobStatus == 1) {
                     log("Job %s completed successfully. Writing result to %s", jobId, destination);
                     response.getEntity().writeTo(new FileOutputStream(destination));
@@ -226,10 +286,9 @@ public class ExtenderClient {
             request.setEntity(entity);
 
             addAuthorizationHeader(request);
+            addHeaders(request);
 
-            AbstractHttpClient client = new DefaultHttpClient();
-            client.setCookieStore(httpCookies);
-            HttpResponse response = client.execute(request);
+            HttpResponse response = httpClient.execute(request);
 
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 response.getEntity().writeTo(new FileOutputStream(destination));
@@ -321,13 +380,10 @@ public class ExtenderClient {
     }
 
     public boolean health() throws IOException {
-
-        AbstractHttpClient client = new DefaultHttpClient();
-        client.setCookieStore(httpCookies);
         HttpGet request = new HttpGet(extenderBaseUrl);
         addAuthorizationHeader(request);
-        HttpResponse response = client.execute(request);
-
+        addHeaders(request);
+        HttpResponse response = httpClient.execute(request);
         if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
             return true;
         }
