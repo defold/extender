@@ -50,7 +50,7 @@ public class AsyncBuilder {
         if (extender == null) return;
         try {
             FileOutputStream fos = new FileOutputStream(file, true);
-            List<File> logs = extender.writeLogs()
+            List<File> logs = extender.writeLogs();
             for (File log : logs) {
                 FileInputStream fis = new FileInputStream(log);
                 fis.transferTo(fos);
