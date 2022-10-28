@@ -45,6 +45,34 @@ public class AsyncBuilder {
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null && System.getenv("DM_DEBUG_JOB_FOLDER") == null;
         this.resultLifetime = jobResultLifetime;
     }
+
+    private void writeExtenderLogsToFile(Extender extender, File file) {
+        if (extender == null) return;
+        try {
+            FileOutputStream fos = new FileOutputStream(file, true);
+            List<File> logs = extender.writeLogs()
+            for (File log : logs) {
+                FileInputStream fis = new FileInputStream(log);
+                fis.transferTo(fos);
+                fis.close();
+            }
+            fos.close();
+        }
+        catch(Exception e) {
+            LOGGER.error("Could not write extender logs to error file", e);
+        }
+    }
+
+    private void writeExceptionToFile(Exception e, File file) {
+        try {
+            PrintWriter writer = new PrintWriter(file);
+            e.printStackTrace(writer);
+            writer.close();
+        }
+        catch(Exception e) {
+            LOGGER.error("Could not write exception to error file", e);
+        }
+    }
     
     @Async
     public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion, 
@@ -53,6 +81,7 @@ public class AsyncBuilder {
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation.getAbsolutePath(), jobName);
         resultDir.mkdir();
+        Extender extender;
         try {
             LOGGER.info("Building engine locally");
 
@@ -60,7 +89,7 @@ public class AsyncBuilder {
             final File sdk = defoldSdkService.getSdk(sdkVersion);
             metricsWriter.measureSdkDownload(sdkVersion);
 
-            Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+            extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
             // Resolve Gradle dependencies
             if (platform.contains("android")) {
@@ -84,15 +113,13 @@ public class AsyncBuilder {
             Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
         } catch(EofException e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            PrintWriter writer = new PrintWriter(errorFile);
-            e.printStackTrace(writer);
-            writer.close();
+            writeExceptionToFile(e, errorFile);
+            writeExtenderLogsToFile(extender, errorFile);
             LOGGER.error("Client closed connection prematurely, build aborted", e);
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            PrintWriter writer = new PrintWriter(errorFile);
-            e.printStackTrace(writer);
-            writer.close();
+            writeExceptionToFile(e, errorFile);
+            writeExtenderLogsToFile(extender, errorFile);
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s , metrics: %s", sdkVersion, metricsWriter), e);
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files

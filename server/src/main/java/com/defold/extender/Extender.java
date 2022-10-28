@@ -2048,7 +2048,7 @@ class Extender {
         return out;
     }
 
-    private List<File> writeLog() {
+    List<File> writeLogs() {
         List<File> outputFiles = new ArrayList<>();
         File logFile = new File(buildDirectory, "log.txt");
         try {
@@ -2083,7 +2083,7 @@ class Extender {
         }
         outputFiles.addAll(buildEngine());
         outputFiles.addAll(buildPipelinePlugin());
-        outputFiles.addAll(writeLog());
+        outputFiles.addAll(writeLogs());
         return outputFiles;
     }
 }
