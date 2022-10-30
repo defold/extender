@@ -2048,17 +2048,15 @@ class Extender {
         return out;
     }
 
-    List<File> writeLogs() {
-        List<File> outputFiles = new ArrayList<>();
+    File writeLog() {
         File logFile = new File(buildDirectory, "log.txt");
         try {
             LOGGER.info("Writing log file");
             processExecutor.writeLog(logFile);
-            outputFiles.add(logFile);
         } catch (IOException e) {
             LOGGER.error("Failed to write log file to {}", logFile.getAbsolutePath());
         }
-        return outputFiles;
+        return logFile;
     }
 
     List<File> resolve(GradleService gradleService) throws ExtenderException {
@@ -2083,7 +2081,10 @@ class Extender {
         }
         outputFiles.addAll(buildEngine());
         outputFiles.addAll(buildPipelinePlugin());
-        outputFiles.addAll(writeLogs());
+        File log = writeLog();
+        if (log.exists()) {
+            outputFiles.add(log);
+        }
         return outputFiles;
     }
 }
