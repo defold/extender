@@ -113,13 +113,13 @@ public class AsyncBuilder {
             Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
         } catch(EofException e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            writeExceptionToFile(e, errorFile);
             writeExtenderLogsToFile(extender, errorFile);
+            writeExceptionToFile(e, errorFile);
             LOGGER.error("Client closed connection prematurely, build aborted", e);
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            writeExceptionToFile(e, errorFile);
             writeExtenderLogsToFile(extender, errorFile);
+            writeExceptionToFile(e, errorFile);
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s , metrics: %s", sdkVersion, metricsWriter), e);
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
