@@ -395,13 +395,13 @@ public class ExtenderController {
     @GetMapping("/job_result")
     public @ResponseBody byte[] getBuildResult(@RequestParam String jobId) throws IOException {
         File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
-        File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
-        if (jobResult.exists()) {
-            InputStream in = new FileInputStream(jobResult);
-            return IOUtils.toByteArray(in);
-        } else {
+        if (jobResultDir.exists()) {
+            File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
             File errorResult = new File(jobResultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            if (errorResult.exists()) {
+            if (jobResult.exists()) {
+                InputStream in = new FileInputStream(jobResult);
+                return IOUtils.toByteArray(in);
+            } else if (errorResult.exists()) {
                 InputStream in = new FileInputStream(errorResult);
                 return IOUtils.toByteArray(in);
             }

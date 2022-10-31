@@ -2,6 +2,8 @@ package com.defold.extender;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -32,10 +34,10 @@ public class AsyncBuilder {
     private File jobResultLocation;
     private long resultLifetime;
     private boolean keepJobDirectory = false;
-    
-    public AsyncBuilder(DefoldSdkService defoldSdkService, 
-                        DataCacheService dataCacheService, 
-                        GradleService gradleService, 
+
+    public AsyncBuilder(DefoldSdkService defoldSdkService,
+                        DataCacheService dataCacheService,
+                        GradleService gradleService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
@@ -45,14 +47,45 @@ public class AsyncBuilder {
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null && System.getenv("DM_DEBUG_JOB_FOLDER") == null;
         this.resultLifetime = jobResultLifetime;
     }
-    
+
+    private void writeExtenderLogsToFile(Extender extender, File file) {
+        if (extender == null) return;
+        try {
+            FileOutputStream fos = new FileOutputStream(file, true);
+            File log = extender.writeLog();
+            if (log.exists()) {
+                FileInputStream fis = new FileInputStream(log);
+                fis.transferTo(fos);
+                fis.close();
+            }
+            fos.close();
+        }
+        catch(Exception e) {
+            LOGGER.error("Could not write extender logs to error file", e);
+        }
+    }
+
+    private void writeExceptionToFile(Exception exception, File file) {
+        try {
+            FileOutputStream fos = new FileOutputStream(file, true);
+            PrintWriter writer = new PrintWriter(fos);
+            exception.printStackTrace(writer);
+            writer.close();
+            fos.close();
+        }
+        catch(Exception e) {
+            LOGGER.error("Could not write exception to error file", e);
+        }
+    }
+
     @Async
-    public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion, 
+    public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion,
             File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException {
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation.getAbsolutePath(), jobName);
         resultDir.mkdir();
+        Extender extender = null;
         try {
             LOGGER.info("Building engine locally");
 
@@ -60,7 +93,7 @@ public class AsyncBuilder {
             final File sdk = defoldSdkService.getSdk(sdkVersion);
             metricsWriter.measureSdkDownload(sdkVersion);
 
-            Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+            extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
 
             // Resolve Gradle dependencies
             if (platform.contains("android")) {
@@ -84,15 +117,13 @@ public class AsyncBuilder {
             Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
         } catch(EofException e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            PrintWriter writer = new PrintWriter(errorFile);
-            e.printStackTrace(writer);
-            writer.close();
+            writeExtenderLogsToFile(extender, errorFile);
+            writeExceptionToFile(e, errorFile);
             LOGGER.error("Client closed connection prematurely, build aborted", e);
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            PrintWriter writer = new PrintWriter(errorFile);
-            e.printStackTrace(writer);
-            writer.close();
+            writeExtenderLogsToFile(extender, errorFile);
+            writeExceptionToFile(e, errorFile);
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s , metrics: %s", sdkVersion, metricsWriter), e);
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
