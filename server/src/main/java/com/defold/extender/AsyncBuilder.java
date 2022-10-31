@@ -2,6 +2,8 @@ package com.defold.extender;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -32,10 +34,10 @@ public class AsyncBuilder {
     private File jobResultLocation;
     private long resultLifetime;
     private boolean keepJobDirectory = false;
-    
-    public AsyncBuilder(DefoldSdkService defoldSdkService, 
-                        DataCacheService dataCacheService, 
-                        GradleService gradleService, 
+
+    public AsyncBuilder(DefoldSdkService defoldSdkService,
+                        DataCacheService dataCacheService,
+                        GradleService gradleService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
@@ -63,25 +65,25 @@ public class AsyncBuilder {
         }
     }
 
-    private void writeExceptionToFile(Exception e, File file) {
+    private void writeExceptionToFile(Exception exception, File file) {
         try {
             PrintWriter writer = new PrintWriter(file);
-            e.printStackTrace(writer);
+            exception.printStackTrace(writer);
             writer.close();
         }
         catch(Exception e) {
             LOGGER.error("Could not write exception to error file", e);
         }
     }
-    
+
     @Async
-    public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion, 
+    public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion,
             File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException {
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation.getAbsolutePath(), jobName);
         resultDir.mkdir();
-        Extender extender;
+        Extender extender = null;
         try {
             LOGGER.info("Building engine locally");
 
