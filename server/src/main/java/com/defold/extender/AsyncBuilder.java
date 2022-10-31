@@ -67,9 +67,11 @@ public class AsyncBuilder {
 
     private void writeExceptionToFile(Exception exception, File file) {
         try {
-            PrintWriter writer = new PrintWriter(file);
+            FileOutputStream fos = new FileOutputStream(file, true);
+            PrintWriter writer = new PrintWriter(fos);
             exception.printStackTrace(writer);
             writer.close();
+            fos.close();
         }
         catch(Exception e) {
             LOGGER.error("Could not write exception to error file", e);
