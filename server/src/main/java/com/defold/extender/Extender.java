@@ -1016,44 +1016,50 @@ class Extender {
     }
 
     private List<File> getAndroidResourceFolders(String platform) {
-            // New feature from 1.2.165
-            File packageDir = new File(uploadDirectory, "packages");
-            if (!packageDir.exists()) {
-                return new ArrayList<>();
-            }
-            List<File> packageDirs = new ArrayList<>();
+        // New feature from 1.2.165
+        File packageDir = new File(uploadDirectory, "packages");
+        if (!packageDir.exists()) {
+            return new ArrayList<>();
+        }
+        List<File> packageDirs = new ArrayList<>();
 
-            for (File dir : packageDir.listFiles(File::isDirectory)) {
-                File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
+        for (File dir : packageDir.listFiles(File::isDirectory)) {
+            File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
+            if (resDir != null) {
+                packageDirs.add(resDir);
+            }
+        }
+
+        // find all extension directories
+        for (File extensionFolder : getExtensionFolders()) {
+            for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+                File f = new File(extensionFolder, "res/" + platformAlt + "/res");
+                if (!f.exists() || !f.isDirectory()) {
+                    continue;
+                }
+                File resDir = ExtenderUtil.getAndroidResourceFolder(f);
                 if (resDir != null) {
                     packageDirs.add(resDir);
                 }
             }
+        }
 
-            // find all extension directories
-            for (File extensionFolder : getExtensionFolders()) {
-                for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
-                    File f = new File(extensionFolder, "res/" + platformAlt + "/res");
-                    if (!f.exists() || !f.isDirectory()) {
-                        continue;
-                    }
-                    File resDir = ExtenderUtil.getAndroidResourceFolder(f);
-                    if (resDir != null) {
-                        packageDirs.add(resDir);
-                    }
-                }
-            }
+        // we add all packages (even non-directories)
+        packageDirs.addAll(gradlePackages.stream()
+                                         .map(f -> new File(f, "res"))
+                                         .collect(Collectors.toList()));
 
-            // we add all packages (even non-directories)
-            packageDirs.addAll(gradlePackages.stream()
-                                             .map(f -> new File(f, "res"))
-                                             .collect(Collectors.toList()));
-
-            return packageDirs.stream()
-                            .filter(f -> f.isDirectory())
-                            .collect(Collectors.toList());
+        return packageDirs.stream()
+                        .filter(f -> f.isDirectory())
+                        .collect(Collectors.toList());
     }
 
+    private List<String> getAndroidResourceFoldersAsStrings(String platform) {
+        return getAndroidResourceFolders(platform)
+                                        .stream()
+                                        .map(File::getAbsolutePath)
+                                        .collect(Collectors.toList());
+    }
 
 
     private static File createDir(File parent, String child) throws IOException {
@@ -1076,27 +1082,21 @@ class Extender {
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private File compileAndroidResources(String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
+    private File compileAndroidResources(List<String> androidResourceFolders, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Compiling Android resources");
 
         File outputDirectory = new File(buildDirectory, "compiledResources");
         outputDirectory.mkdirs();
         try {
-            // get all directories containing resources to compile
-            List<String> resourceDirectories = getAndroidResourceFolders(platform)
-                                                                .stream()
-                                                                .map(File::getAbsolutePath)
-                                                                .collect(Collectors.toList());
-
             Map<String, Object> context = createContext();
-            for (String resDir : resourceDirectories) {
+            for (String resDir : androidResourceFolders) {
                 // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
                 File resourceDirectory = new File(resDir);
                 // android.arch.lifecycle-livedata-1.1.1.aar
-                String packageName = resourceDirectory.getParentFile().getName();
+                String packageDirectory = resourceDirectory.getParentFile().getName();
 
                 // we compile the package resources to one output directory per package
-                File packageDirectoryOut = createDir(outputDirectory, packageName);
+                File packageDirectoryOut = createDir(outputDirectory, packageDirectory);
                 context.put("outputDirectory", packageDirectoryOut.getAbsolutePath());
 
                 // iterate over the directories in the res directory of the package
@@ -1119,7 +1119,7 @@ class Extender {
         return outputDirectory;
     }
 
-    private Map<String, File> linkAndroidResources(File compiledResourcesDir, String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
+    private Map<String, File> linkAndroidResources(File compiledResourcesDir, List<String> extraPackages, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Linking Android resources");
 
         Map<String, Object> context = createContext();
@@ -1131,7 +1131,6 @@ class Extender {
             for (File packageDir : compiledResourcesDir.listFiles(File::isDirectory)) {
                 for (File file : packageDir.listFiles()) {
                     if (file.getAbsolutePath().endsWith(".flat")) {
-                        LOGGER.info("flat file " + file.getAbsolutePath());
                         sb.append(file.getAbsolutePath() + " ");
                     }
                 }
@@ -1144,8 +1143,9 @@ class Extender {
 
             // extra packages
             if (mergedAppContext.containsKey("aaptExtraPackages")) {
-                context.put("extraPackages", String.join(":", (List<String>)mergedAppContext.get("aaptExtraPackages")));
+                extraPackages.addAll((List<String>)mergedAppContext.get("aaptExtraPackages"));
             }
+            context.put("extraPackages", String.join(":", extraPackages));
 
             File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
             context.put("manifestFile", manifestFile.getAbsolutePath());
@@ -1175,7 +1175,7 @@ class Extender {
     }
 
     // https://manpages.debian.org/jessie/aapt/aapt.1.en.html
-    private File generateRJava(String platform, Map<String, Object> mergedAppContext) throws ExtenderException {
+    private File generateRJava(List<String> androidResourceFolders, Map<String, Object> mergedAppContext) throws ExtenderException {
         File rJavaDir = new File(uploadDirectory, "_app/rjava");
         if (rJavaDir.exists()) {
             LOGGER.info("Using pre-existing R.java files");
@@ -1204,12 +1204,7 @@ class Extender {
             File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
             context.put("manifestFile", manifestFile.getAbsolutePath());
             context.put("outputDirectory", rJavaDir.getAbsolutePath());
-
-            List<String> resourceDirectories = getAndroidResourceFolders(platform)
-                                                                .stream()
-                                                                .map(File::getAbsolutePath)
-                                                                .collect(Collectors.toList());
-            context.put("resourceDirectories", resourceDirectories);
+            context.put("resourceDirectories", androidResourceFolders);
 
             String command = templateExecutor.execute(platformConfig.rjavaCmd, context);
             processExecutor.execute(command);
@@ -1853,9 +1848,8 @@ class Extender {
                                                       .collect(Collectors.toList());
     }
 
-    private List<File> copyAndroidResourceFolders(String platform) throws ExtenderException {
-        List<File> resources = getAndroidResourceFolders(platform);
-        if (resources.isEmpty()) {
+    private List<File> copyAndroidResourceFolders(List<String> androidResourceFolders) throws ExtenderException {
+        if (androidResourceFolders.isEmpty()) {
             return new ArrayList<>();
         }
         File packagesDir = new File(buildDirectory, "packages");
@@ -1864,7 +1858,8 @@ class Extender {
         List<String> packagesList = new ArrayList<>();
 
         try {
-            for (File packageResourceDir : resources) {
+            for (String androidResourceFolder : androidResourceFolders) {
+                File packageResourceDir = new File(androidResourceFolder);
                 File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);
 
@@ -1880,10 +1875,28 @@ class Extender {
                                                       .collect(Collectors.toList());
     }
 
+
+    private List<String> getExtraPackagesFromAndroidResourceFolders(List<String> androidResourceFolders) {
+        Set<String> extraPackages = new HashSet<String>();
+        for (String resDir : androidResourceFolders) {
+            // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
+            File resourceDirectory = new File(resDir);
+            // android.arch.lifecycle-livedata-1.1.1.aar
+            String packageDirectory = resourceDirectory.getParentFile().getName();
+
+            String[] parts = packageDirectory.split("-");
+            String packageName = parts[0];
+            extraPackages.add(packageName);
+        }
+        return new ArrayList<String>(extraPackages);
+    }
+
     private List<File> buildAndroid(String platform) throws ExtenderException {
         LOGGER.info("Building Android specific code");
 
         List<File> outputFiles = new ArrayList<>();
+
+        final List<String> androidResourceFolders = getAndroidResourceFoldersAsStrings(platform);
 
         File rJavaDir = null;
         // 1.2.174
@@ -1892,14 +1905,15 @@ class Extender {
             // we get the compiled resources and some additional data in an apk which we pass back to the client
             // we also get a mapping of resources to resource ids which is useful for debugging
             // we finally also get one or more R.java files which we use in the next step when compiling all java files
-            File compiledResourcesDir = compileAndroidResources(platform, mergedAppContext);
-            Map<String, File> files = linkAndroidResources(compiledResourcesDir, platform, mergedAppContext);
+            List<String> extraPackages = getExtraPackagesFromAndroidResourceFolders(androidResourceFolders);
+            File compiledResourcesDir = compileAndroidResources(androidResourceFolders, mergedAppContext);
+            Map<String, File> files = linkAndroidResources(compiledResourcesDir, extraPackages, mergedAppContext);
             outputFiles.add(files.get("outApkFile"));
             outputFiles.add(files.get("resourceIdsFile"));
             rJavaDir = files.get("outJavaDirectory");
         }
         else {
-            rJavaDir = generateRJava(platform, mergedAppContext);
+            rJavaDir = generateRJava(androidResourceFolders, mergedAppContext);
         }
 
         // take the generated R.java files and compile them to jar files
@@ -1938,7 +1952,7 @@ class Extender {
             outputFiles.addAll(Arrays.asList(classesDex));
         }
 
-        outputFiles.addAll(copyAndroidResourceFolders(platform));
+        outputFiles.addAll(copyAndroidResourceFolders(androidResourceFolders));
         outputFiles.addAll(copyAndroidAssetFolders(platform));
         outputFiles.addAll(copyAndroidJniFolders(platform));
 
