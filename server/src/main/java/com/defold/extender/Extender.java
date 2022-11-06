@@ -1105,6 +1105,7 @@ class Extender {
                     for (File resourceFile : resourceTypeDir.listFiles()) {
                         context.put("resourceFile", resourceFile.getAbsolutePath());
 
+                        // aapt2compileCmd: 'aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
                         String command = templateExecutor.execute(platformConfig.aapt2compileCmd, context);
                         processExecutor.execute(command);
                     }
@@ -1130,6 +1131,7 @@ class Extender {
             for (File packageDir : compiledResourcesDir.listFiles(File::isDirectory)) {
                 for (File file : packageDir.listFiles()) {
                     if (file.getAbsolutePath().endsWith(".flat")) {
+                        LOGGER.info("flat file " + file.getAbsolutePath());
                         sb.append(file.getAbsolutePath() + " ");
                     }
                 }
@@ -1161,6 +1163,7 @@ class Extender {
             files.put("outApkFile", outApkFile);
             files.put("outJavaDirectory", outputJavaDirectory);
 
+            // aapt2linkCmd: 'aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
             String command = templateExecutor.execute(platformConfig.aapt2linkCmd, context);
             processExecutor.execute(command);
         }
