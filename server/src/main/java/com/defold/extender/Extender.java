@@ -1119,7 +1119,7 @@ class Extender {
         return outputDirectory;
     }
 
-    private Map<String, File> linkAndroidResources(File compiledResourcesDir, List<String> extraPackages, Map<String, Object> mergedAppContext) throws ExtenderException {
+    private Map<String, File> linkAndroidResources(File compiledResourcesDir, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Linking Android resources");
 
         Map<String, Object> context = createContext();
@@ -1142,10 +1142,13 @@ class Extender {
             context.put("resourceListFile", resourceList.getAbsolutePath());
 
             // extra packages
+            List<String> extraPackages = getExtraPackagesFromGradlePackages();
             if (mergedAppContext.containsKey("aaptExtraPackages")) {
                 extraPackages.addAll((List<String>)mergedAppContext.get("aaptExtraPackages"));
             }
-            context.put("extraPackages", String.join(":", extraPackages));
+            if (!extraPackages.isEmpty()) {
+                context.put("extraPackages", String.join(":", extraPackages));
+            }
 
             File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
             context.put("manifestFile", manifestFile.getAbsolutePath());
@@ -1876,17 +1879,27 @@ class Extender {
     }
 
 
-    private List<String> getExtraPackagesFromAndroidResourceFolders(List<String> androidResourceFolders) {
+    private List<String> getExtraPackagesFromGradlePackages() throws ExtenderException {
         Set<String> extraPackages = new HashSet<String>();
-        for (String resDir : androidResourceFolders) {
-            // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
-            File resourceDirectory = new File(resDir);
-            // android.arch.lifecycle-livedata-1.1.1.aar
-            String packageDirectory = resourceDirectory.getParentFile().getName();
-
-            String[] parts = packageDirectory.split("-");
-            String packageName = parts[0];
-            extraPackages.add(packageName);
+        try {
+            for (File f : gradlePackages) {
+                if(f.getName().endsWith(".aar")) {
+                    File res = new File(f, "res");
+                    File androidManifest = new File(f, "AndroidManifest.xml");
+                    if (res.exists() && androidManifest.exists()) {
+                        String am = FileUtils.readFileToString(androidManifest);
+                        Pattern p = Pattern.compile(".*package=\"(.*?)\".*", Pattern.MULTILINE | Pattern.DOTALL);
+                        Matcher m = p.matcher(am);
+                        if (m.matches()) {
+                            String packageName = m.group(1);
+                            extraPackages.add(packageName);
+                        }
+                    }
+                }
+            }
+        }
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to get android packages");
         }
         return new ArrayList<String>(extraPackages);
     }
@@ -1905,9 +1918,8 @@ class Extender {
             // we get the compiled resources and some additional data in an apk which we pass back to the client
             // we also get a mapping of resources to resource ids which is useful for debugging
             // we finally also get one or more R.java files which we use in the next step when compiling all java files
-            List<String> extraPackages = getExtraPackagesFromAndroidResourceFolders(androidResourceFolders);
             File compiledResourcesDir = compileAndroidResources(androidResourceFolders, mergedAppContext);
-            Map<String, File> files = linkAndroidResources(compiledResourcesDir, extraPackages, mergedAppContext);
+            Map<String, File> files = linkAndroidResources(compiledResourcesDir, mergedAppContext);
             outputFiles.add(files.get("outApkFile"));
             outputFiles.add(files.get("resourceIdsFile"));
             rJavaDir = files.get("outJavaDirectory");
