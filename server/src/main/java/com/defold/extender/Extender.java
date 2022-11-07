@@ -1873,6 +1873,9 @@ class Extender {
     }
 
 
+    // get extra packages (for aapt2) from the 'package' attribute in the AndroidManifest
+    // of the gradle dependencies. only get extra packages from aar dependencies which
+    // have a res folder
     private List<String> getExtraPackagesFromGradlePackages() throws ExtenderException {
         Set<String> extraPackages = new HashSet<String>();
         try {
