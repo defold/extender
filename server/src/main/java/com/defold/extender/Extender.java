@@ -159,7 +159,7 @@ class Extender {
 
         // These host names are using the Defold SDK names
         if (os.contains("Mac")) {
-            this.hostPlatform = "x86_64-darwin";
+            this.hostPlatform = "x86_64-macos";
         } else if (os.contains("Windows")) {
             this.hostPlatform = "x86_64-win32";
         } else {
