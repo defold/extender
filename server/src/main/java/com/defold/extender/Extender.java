@@ -1076,21 +1076,21 @@ class Extender {
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private File compileAndroidResources(List<String> androidResourceFolders, Map<String, Object> mergedAppContext) throws ExtenderException {
+    private File compileAndroidResources(List<String> resourceDirectories, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Compiling Android resources");
 
         File outputDirectory = new File(buildDirectory, "compiledResources");
         outputDirectory.mkdirs();
         try {
             Map<String, Object> context = createContext();
-            for (String resDir : androidResourceFolders) {
+            for (String resDir : resourceDirectories) {
                 // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
                 File resourceDirectory = new File(resDir);
                 // android.arch.lifecycle-livedata-1.1.1.aar
-                String packageDirectory = resourceDirectory.getParentFile().getName();
+                String packageName = resourceDirectory.getParentFile().getName();
 
                 // we compile the package resources to one output directory per package
-                File packageDirectoryOut = createDir(outputDirectory, packageDirectory);
+                File packageDirectoryOut = createDir(outputDirectory, packageName);
                 context.put("outputDirectory", packageDirectoryOut.getAbsolutePath());
 
                 // iterate over the directories in the res directory of the package
@@ -1099,7 +1099,6 @@ class Extender {
                     for (File resourceFile : resourceTypeDir.listFiles()) {
                         context.put("resourceFile", resourceFile.getAbsolutePath());
 
-                        // aapt2compileCmd: 'aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
                         String command = templateExecutor.execute(platformConfig.aapt2compileCmd, context);
                         processExecutor.execute(command);
                     }
@@ -1162,7 +1161,6 @@ class Extender {
             files.put("outApkFile", outApkFile);
             files.put("outJavaDirectory", outputJavaDirectory);
 
-            // aapt2linkCmd: 'aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
             String command = templateExecutor.execute(platformConfig.aapt2linkCmd, context);
             processExecutor.execute(command);
         }
@@ -1174,7 +1172,7 @@ class Extender {
     }
 
     // https://manpages.debian.org/jessie/aapt/aapt.1.en.html
-    private File generateRJava(List<String> androidResourceFolders, Map<String, Object> mergedAppContext) throws ExtenderException {
+    private File generateRJava(List<String> resourceDirectories, Map<String, Object> mergedAppContext) throws ExtenderException {
         File rJavaDir = new File(uploadDirectory, "_app/rjava");
         if (rJavaDir.exists()) {
             LOGGER.info("Using pre-existing R.java files");
@@ -1203,7 +1201,7 @@ class Extender {
             File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
             context.put("manifestFile", manifestFile.getAbsolutePath());
             context.put("outputDirectory", rJavaDir.getAbsolutePath());
-            context.put("resourceDirectories", androidResourceFolders);
+            context.put("resourceDirectories", resourceDirectories);
 
             String command = templateExecutor.execute(platformConfig.rjavaCmd, context);
             processExecutor.execute(command);
