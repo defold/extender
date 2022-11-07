@@ -123,7 +123,9 @@ If you run the script again, the server will be stopped and then restarted with 
 
 ### Stop
 
-To stop the service, you need to call stop on the current service script, and also provide the folder with the `.pid` file:
+To stop a local server started with `run-local.sh`, simply press `CTRL+C`.
+
+To stop the stand alone service, you need to call stop on the current service script, and also provide the folder with the `.pid` file:
 
 ```
 $ ./local/current/service.sh stop ~/work/extender/local
