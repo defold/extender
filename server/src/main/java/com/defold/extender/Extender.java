@@ -1015,7 +1015,7 @@ class Extender {
                             .collect(Collectors.toList());
     }
 
-    private List<File> getAndroidResourceFolders(String platform) {
+    private List<String> getAndroidResourceFolders(String platform) {
         // New feature from 1.2.165
         File packageDir = new File(uploadDirectory, "packages");
         if (!packageDir.exists()) {
@@ -1051,14 +1051,8 @@ class Extender {
 
         return packageDirs.stream()
                         .filter(f -> f.isDirectory())
+                        .map(File::getAbsolutePath)
                         .collect(Collectors.toList());
-    }
-
-    private List<String> getAndroidResourceFoldersAsStrings(String platform) {
-        return getAndroidResourceFolders(platform)
-                                        .stream()
-                                        .map(File::getAbsolutePath)
-                                        .collect(Collectors.toList());
     }
 
 
@@ -1147,7 +1141,9 @@ class Extender {
                 extraPackages.addAll((List<String>)mergedAppContext.get("aaptExtraPackages"));
             }
             if (!extraPackages.isEmpty()) {
-                context.put("extraPackages", String.join(":", extraPackages));
+                String extraPackagesString = String.join(":", extraPackages);
+                context.put("extraPackages", extraPackagesString);
+                LOGGER.info("Extra packages {}", extraPackagesString);
             }
 
             File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
@@ -1909,7 +1905,7 @@ class Extender {
 
         List<File> outputFiles = new ArrayList<>();
 
-        final List<String> androidResourceFolders = getAndroidResourceFoldersAsStrings(platform);
+        final List<String> androidResourceFolders = getAndroidResourceFolders(platform);
 
         File rJavaDir = null;
         // 1.2.174
