@@ -183,6 +183,7 @@ class Extender {
             envContext.put("env.LD_LIBRARY_PATH", "."); // Easier when running a standalone local without such a variable
 
             processExecutor.putEnv("DYNAMO_HOME", sdk.getAbsolutePath());
+            processExecutor.putEnv("JAVA_HOME", System.getenv("JAVA_HOME"));
 
             // Make system env variables available for the template execution below.
             for (Map.Entry<String, String> sysEnvEntry : System.getenv().entrySet()) {
