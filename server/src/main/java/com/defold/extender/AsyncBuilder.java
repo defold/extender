@@ -13,6 +13,7 @@ import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.CocoaPodsService;
 
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.io.EofException;
@@ -31,6 +32,7 @@ public class AsyncBuilder {
     private DefoldSdkService defoldSdkService;
     private DataCacheService dataCacheService;
     private GradleService gradleService;
+    private CocoaPodsService cocoaPodsService;
     private File jobResultLocation;
     private long resultLifetime;
     private boolean keepJobDirectory = false;
@@ -38,11 +40,13 @@ public class AsyncBuilder {
     public AsyncBuilder(DefoldSdkService defoldSdkService,
                         DataCacheService dataCacheService,
                         GradleService gradleService,
+                        CocoaPodsService cocoaPodsService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
+        this.cocoaPodsService = cocoaPodsService;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null && System.getenv("DM_DEBUG_JOB_FOLDER") == null;
         this.resultLifetime = jobResultLifetime;
@@ -99,6 +103,11 @@ public class AsyncBuilder {
             if (platform.contains("android")) {
                 List<File> gradlePackages = extender.resolve(gradleService);
                 metricsWriter.measureGradleDownload(gradlePackages, gradleService.getCacheSize());
+            }
+
+            // Resolve CocoaPods dependencies
+            if (platforn.contains("ios")) {
+                List<File> cocoaPods = extender.resolve(cocoaPodsService);
             }
 
             // Build engine

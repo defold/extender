@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.CocoaPodService;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
@@ -53,6 +54,7 @@ class Extender {
     private List<File> extDirs;
     private List<File> manifests;
     private List<File> gradlePackages;
+    private List<File> cocoaPods;
     private int nameCounter = 0;
 
 
@@ -95,7 +97,8 @@ class Extender {
         this.jobDirectory = jobDirectory;
         this.uploadDirectory = uploadDirectory;
         this.buildDirectory = buildDirectory;
-        this.gradlePackages = new ArrayList<>();;
+        this.gradlePackages = new ArrayList<>();
+        this.cocoaPods = new ArrayList<>();
 
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
@@ -2091,11 +2094,20 @@ class Extender {
             gradlePackages = gradleService.resolveDependencies(jobDirectory, useJetifier);
         }
         catch (IOException e) {
-            throw new ExtenderException(e, "Failed to resolve dependencies. " + e.getMessage());
+            throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
         }
         return gradlePackages;
     }
 
+    List<File> resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
+        try {
+            cocoaPods = cocoaPodsService.resolveDependencies(jobDirectory);
+        }
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());
+        }
+        return cocoaPods;
+    }
 
     List<File> build() throws ExtenderException {
         List<File> outputFiles = new ArrayList<>();
