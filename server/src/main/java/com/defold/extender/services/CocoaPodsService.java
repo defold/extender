@@ -65,10 +65,24 @@ public class CocoaPodsService {
         LOGGER.info("CocoaPodsService service using directory {} with cache size {}", GradleService.this.gradleHome, cacheSize);
     }
 
-
-    private void parsePodFiles() {
-
+    // Helper function to move files/directories
+    private static void move(Path source, Path target) {
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            // If the target path suddenly exists, and the source path still exists,
+            // then we failed with the atomic move, and we assume another job succeeded with the download
+            if (Files.exists(source) && Files.exists(target)) {
+                LOGGER.info("Gradle package {} was downloaded by another job in the meantime", source.toString());
+                try {
+                    FileUtils.deleteDirectory(source.toFile());
+                } catch (IOException e2) {
+                    LOGGER.error("Failed to delete temp directory {}: {}", source.toString(), e2.getMessage());
+                }
+            }
+        }
     }
+
     private void createMainPodFile(File cwd, List<File> podFiles) throws IOException {
         File mainPodFile = new File(cwd, "Podfile");
 
@@ -86,46 +100,40 @@ public class CocoaPodsService {
         Files.write(mainPodFile.toPath(), mainPodFileContents.getBytes());
     }
 
+    private void createXcodeProjectFile(File cwd) throws IOException {
+        File xcprojectDir = new File(cwd, "empty-ios.xcproject");
+        if (!xcprojectDir.exists() {
+            xcprojectDir.mkdirs();
+        }
+        File projectFile = new File(xcprojectDir, "project.pbxproj");
+
+        String template = "";
+        Files.write(projectFile.toPath(), template.getBytes());
+        return projectFile;
+    }
+
+    private void parsePodFile(File cwd) {
+        File podFile = new File(cwd, "Podfile.lock");
+        String pods = FileUtils.readFileToString(podFile);
+
+    }
+
     // Install dependencies
     public List<File> installPods(File cwd) throws IOException, ExtenderException {
-
-
-        createMainPodFile(mainPodFile, podFiles);
-        createXcodeProjectFile()
-        parsePodFiles(cwd);
-
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Installing pod files");
 
+        createMainPodFile(cwd, podFiles);
+        createXcodeProjectFile(cwd);
+
         String log = execCommand("pod install --verbose", cwd);
-        // Put it in the log for the end user to see
         LOGGER.info("\n" + log);
 
-        // parse Podfile.lock and get list of resolved dependencies
+        List<File> pods = parsePodFile(cwd);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
-
-        return downloadDependencies(cwd);
-    }
-
-
-    // Helper function to move files/directories
-    private static void Move(Path source, Path target) {
-        try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            // If the target path suddenly exists, and the source path still exists,
-            // then we failed with the atomic move, and we assume another job succeeded with the download
-            if (Files.exists(source) && Files.exists(target)) {
-                LOGGER.info("Gradle package {} was downloaded by another job in the meantime", source.toString());
-                try {
-                    FileUtils.deleteDirectory(source.toFile());
-                } catch (IOException e2) {
-                    LOGGER.error("Failed to delete temp directory {}: {}", source.toString(), e2.getMessage());
-                }
-            }
-        }
+        return pods;
     }
 
     private String execCommand(String command, File cwd) throws ExtenderException {
