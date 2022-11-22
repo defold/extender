@@ -46,7 +46,6 @@ import java.util.regex.Pattern;
 public class CocoaPodsService {
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
 
-    private final File baseDirectory;
     private final MeterRegistry meterRegistry;
 
     private String readFile(String filePath) throws IOException {
@@ -62,7 +61,7 @@ public class CocoaPodsService {
                      MeterRegistry meterRegistry) throws IOException {
         this.meterRegistry = meterRegistry;
 
-        LOGGER.info("CocoaPodsService service using directory {} with cache size {}", GradleService.this.gradleHome, cacheSize);
+        LOGGER.info("CocoaPodsService service");
     }
 
     // Helper function to move files/directories
@@ -83,7 +82,7 @@ public class CocoaPodsService {
         }
     }
 
-    private void createMainPodFile(File cwd, List<File> podFiles) throws IOException {
+    private List<File> createMainPodFile(File cwd) throws IOException {
         File mainPodFile = new File(cwd, "Podfile");
 
         List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(cwd, "Podfile");
@@ -98,11 +97,13 @@ public class CocoaPodsService {
         mainPodFileContents += "target 'Foobar' do end\n";
 
         Files.write(mainPodFile.toPath(), mainPodFileContents.getBytes());
+
+        return podFiles;
     }
 
-    private void createXcodeProjectFile(File cwd) throws IOException {
+    private File createXcodeProjectFile(File cwd) throws IOException {
         File xcprojectDir = new File(cwd, "empty-ios.xcproject");
-        if (!xcprojectDir.exists() {
+        if (!xcprojectDir.exists()) {
             xcprojectDir.mkdirs();
         }
         File projectFile = new File(xcprojectDir, "project.pbxproj");
@@ -112,10 +113,9 @@ public class CocoaPodsService {
         return projectFile;
     }
 
-    private void parsePodFile(File cwd) {
+    private void parsePodFile(File cwd) throws IOException {
         File podFile = new File(cwd, "Podfile.lock");
         String pods = FileUtils.readFileToString(podFile);
-
     }
 
     // Install dependencies
@@ -123,16 +123,17 @@ public class CocoaPodsService {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Installing pod files");
 
-        createMainPodFile(cwd, podFiles);
+        createMainPodFile(cwd);
         createXcodeProjectFile(cwd);
 
         String log = execCommand("pod install --verbose", cwd);
         LOGGER.info("\n" + log);
 
-        List<File> pods = parsePodFile(cwd);
+        parsePodFile(cwd);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
+        List<File> pods = new ArrayList<File>();
         return pods;
     }
 
@@ -178,66 +179,66 @@ public class CocoaPodsService {
         return dependencies;
     }
 
-    private File resolveDependencyAAR(File dependency, String name, File jobDir) throws IOException {
-        File unpackedTarget = new File(baseDirectory, name);
-        if (unpackedTarget.exists()) {
-            return unpackedTarget;
-        }
+    // private File resolveDependencyAAR(File dependency, String name, File jobDir) throws IOException {
+    //     File unpackedTarget = new File(baseDirectory, name);
+    //     if (unpackedTarget.exists()) {
+    //         return unpackedTarget;
+    //     }
 
-        // use job folder as tmp location
-        File unpackedTmp = new File(jobDir, dependency.getName() + ".tmp");
-        ZipUtils.unzip(new FileInputStream(dependency), unpackedTmp.toPath());
-        Move(unpackedTmp.toPath(), unpackedTarget.toPath());
-        return unpackedTarget;
-    }
+    //     // use job folder as tmp location
+    //     File unpackedTmp = new File(jobDir, dependency.getName() + ".tmp");
+    //     ZipUtils.unzip(new FileInputStream(dependency), unpackedTmp.toPath());
+    //     Move(unpackedTmp.toPath(), unpackedTarget.toPath());
+    //     return unpackedTarget;
+    // }
 
-    private File resolveDependencyJAR(File dependency, String name, File jobDir) throws IOException {
-        File targetFile = new File(baseDirectory, name);
-        if (targetFile.exists()) {
-            return targetFile;
-        }
+    // private File resolveDependencyJAR(File dependency, String name, File jobDir) throws IOException {
+    //     File targetFile = new File(baseDirectory, name);
+    //     if (targetFile.exists()) {
+    //         return targetFile;
+    //     }
 
-        // use job folder as tmp location
-        File tmpFile = new File(jobDir, dependency.getName() + ".tmp");
-        FileUtils.copyFile(dependency, tmpFile);
-        Move(tmpFile.toPath(), targetFile.toPath());
-        return targetFile;
-    }
+    //     // use job folder as tmp location
+    //     File tmpFile = new File(jobDir, dependency.getName() + ".tmp");
+    //     FileUtils.copyFile(dependency, tmpFile);
+    //     Move(tmpFile.toPath(), targetFile.toPath());
+    //     return targetFile;
+    // }
 
-    private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir) throws IOException {
-        List<File> resolvedDependencies = new ArrayList<>();
-        for (String newName : dependencies.keySet()) {
-            String dependency = dependencies.get(newName);
+    // private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir) throws IOException {
+    //     List<File> resolvedDependencies = new ArrayList<>();
+    //     for (String newName : dependencies.keySet()) {
+    //         String dependency = dependencies.get(newName);
 
-            File file = new File(dependency);
-            if (!file.exists()) {
-                throw new IOException("File does not exist: %s" + dependency);
-            }
-            if (dependency.endsWith(".aar"))
-                resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir));
-            else if (dependency.endsWith(".jar"))
-                resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir));
-            else
-                resolvedDependencies.add(file);
-        }
-        return resolvedDependencies;
-    }
+    //         File file = new File(dependency);
+    //         if (!file.exists()) {
+    //             throw new IOException("File does not exist: %s" + dependency);
+    //         }
+    //         if (dependency.endsWith(".aar"))
+    //             resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir));
+    //         else if (dependency.endsWith(".jar"))
+    //             resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir));
+    //         else
+    //             resolvedDependencies.add(file);
+    //     }
+    //     return resolvedDependencies;
+    // }
 
-    private List<File> downloadDependencies(File cwd) throws IOException, ExtenderException {
-        long methodStart = System.currentTimeMillis();
-        LOGGER.info("Installing pod files");
+    // private List<File> downloadDependencies(File cwd) throws IOException, ExtenderException {
+    //     long methodStart = System.currentTimeMillis();
+    //     LOGGER.info("Installing pod files");
 
-        String log = execCommand("pod install --verbose", cwd);
+    //     String log = execCommand("pod install --verbose", cwd);
 
-        // Put it in the log for the end user to see
-        LOGGER.info("\n" + log);
+    //     // Put it in the log for the end user to see
+    //     LOGGER.info("\n" + log);
 
-        Map<String, String> dependencies = parsePodFiles(log);
+    //     Map<String, String> dependencies = parsePodFiles(log);
 
-        List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
+    //     List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
 
-        MetricsWriter.metricsTimer(meterRegistry, "gauge.service.gradle.get", System.currentTimeMillis() - methodStart);
-        return unpackedDependencies;
-    }
+    //     MetricsWriter.metricsTimer(meterRegistry, "gauge.service.gradle.get", System.currentTimeMillis() - methodStart);
+    //     return unpackedDependencies;
+    // }
 
 }

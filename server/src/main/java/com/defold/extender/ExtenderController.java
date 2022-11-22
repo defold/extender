@@ -5,6 +5,7 @@ import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.UserUpdateService;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
@@ -51,6 +52,7 @@ public class ExtenderController {
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
     private final GradleService gradleService;
+    private final CocoaPodsService cocoaPodsService;
     private final MeterRegistry meterRegistry;
     private final UserUpdateService userUpdateService;
     private final AsyncBuilder asyncBuilder;
@@ -87,6 +89,7 @@ public class ExtenderController {
     public ExtenderController(DefoldSdkService defoldSdkService,
                               DataCacheService dataCacheService,
                               GradleService gradleService,
+                              CocoaPodsService cocoaPodsService,
                               UserUpdateService userUpdateService,
                               MeterRegistry meterRegistry,
                               RemoteEngineBuilder remoteEngineBuilder,
@@ -98,6 +101,7 @@ public class ExtenderController {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
+        this.cocoaPodsService = cocoaPodsService;
         this.meterRegistry = meterRegistry;
         this.userUpdateService = userUpdateService;
 
@@ -213,6 +217,12 @@ public class ExtenderController {
                 if (platform.contains("android")) {
                     List<File> gradlePackages = extender.resolve(gradleService);
                     metricsWriter.measureGradleDownload(gradlePackages, gradleService.getCacheSize());
+                }
+
+                // Resolve CocoaPods dependencies
+                if (platform.contains("ios")) {
+                    List<File> cocoaPods = extender.resolve(cocoaPodsService);
+                    metricsWriter.measureCocoaPodsInstallation();
                 }
 
                 // Build engine

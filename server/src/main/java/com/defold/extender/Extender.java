@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.defold.extender.services.GradleService;
-import com.defold.extender.services.CocoaPodService;
+import com.defold.extender.services.CocoaPodsService;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
@@ -2101,7 +2101,7 @@ class Extender {
 
     List<File> resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
         try {
-            cocoaPods = cocoaPodsService.resolveDependencies(jobDirectory);
+            cocoaPods = cocoaPodsService.installPods(jobDirectory);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());

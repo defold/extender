@@ -53,6 +53,10 @@ public class MetricsWriter {
         addMetric("job.gradle.cacheSize", cacheSize);
     }
 
+    public void measureCocoaPodsInstallation() {
+        addMetric("job.cocoapods.install", timer.start());
+    }
+
     public void measureEngineBuild(final String platform) {
         addMetric("job.build", timer.start(), "platform", platform);
     }

@@ -106,8 +106,9 @@ public class AsyncBuilder {
             }
 
             // Resolve CocoaPods dependencies
-            if (platforn.contains("ios")) {
+            if (platform.contains("ios")) {
                 List<File> cocoaPods = extender.resolve(cocoaPodsService);
+                metricsWriter.measureCocoaPodsInstallation();
             }
 
             // Build engine
