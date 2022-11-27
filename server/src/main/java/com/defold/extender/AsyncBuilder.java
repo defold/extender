@@ -146,19 +146,22 @@ public class AsyncBuilder {
     public void cleanUnusedResults() {
         LOGGER.debug("Clean result folder started.");
         try {
-            Files.walk(jobResultLocation.toPath())
-                    .filter(Files::isDirectory)
-                    .filter(path -> ! jobResultLocation.toPath().equals(path))
-                    .forEach(path -> {
-                        try {
-                            if (System.currentTimeMillis() - Files.getLastModifiedTime(path).toMillis() > resultLifetime) {
-                                FileSystemUtils.deleteRecursively(path);
-                                LOGGER.info("Cleaned up folder " + path.toString());
+            if (jobResultLocation.exists())
+            {
+                Files.walk(jobResultLocation.toPath())
+                        .filter(Files::isDirectory)
+                        .filter(path -> ! jobResultLocation.toPath().equals(path))
+                        .forEach(path -> {
+                            try {
+                                if (System.currentTimeMillis() - Files.getLastModifiedTime(path).toMillis() > resultLifetime) {
+                                    FileSystemUtils.deleteRecursively(path);
+                                    LOGGER.info("Cleaned up folder " + path.toString());
+                                }
+                            } catch (IOException e) {
+                                LOGGER.error("Could not clear build results  " + path.toString(), e);
                             }
-                        } catch (IOException e) {
-                            LOGGER.error("Could not clear build results  " + path.toString(), e);
-                        }
-                    });
+                        });
+            }
         } catch (IOException ex) {
             LOGGER.error("Error during cleanup", ex);
         }
