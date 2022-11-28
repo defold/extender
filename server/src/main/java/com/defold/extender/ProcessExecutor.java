@@ -124,6 +124,15 @@ public class ProcessExecutor {
                 future.get();
             }
         } catch (ExecutionException e) {
+
+            {
+                processExecutor.putLog("MAWE TESTING ERROR LOGS ON THE SERVER. PLS REMOVE!\n");
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                e.printStackTrace(pw);
+                processExecutor.putLog(sw.toString());
+            }
+
             Throwable cause = e.getCause();
             if (cause instanceof IOException) {
                 throw (IOException)cause;
