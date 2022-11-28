@@ -92,8 +92,8 @@ public class ProcessExecutor {
 
     public void putEnv(String key, String value) {
         if (key == null || value == null) {
-            putLog(String.format("ERROR: ProcessExecutor: avoided adding variable '%s'.'%s' to the environment\n", key, value));
-            return;
+            putLog(String.format("ERROR: ProcessExecutor: avoided adding variable '%s': '%s' to the environment\n", key, value));
+            //return;
         }
         env.put(key, value);
     }
@@ -128,22 +128,10 @@ public class ProcessExecutor {
                 future.get();
             }
         } catch (ExecutionException e) {
-
-            {
-                processExecutor.putLog("MAWE TESTING ERROR LOGS ON THE SERVER. PLS REMOVE!\n");
-                StringWriter sw = new StringWriter();
-                PrintWriter pw = new PrintWriter(sw);
-                e.printStackTrace(pw);
-                processExecutor.putLog(sw.toString());
-            }
-
-            Throwable cause = e.getCause();
-            if (cause instanceof IOException) {
-                throw (IOException)cause;
-            } else if (cause instanceof InterruptedException) {
-                throw (InterruptedException)cause;
-            } else if (cause != null && cause.toString() != null) {
-                throw new ExtenderException(cause.toString());
+            if (e.getCause() instanceof IOException) {
+                throw (IOException)e.getCause();
+            } else if (e.getCause() instanceof InterruptedException) {
+                throw (InterruptedException)e.getCause();
             } else {
                 StringWriter sw = new StringWriter();
                 PrintWriter pw = new PrintWriter(sw);
