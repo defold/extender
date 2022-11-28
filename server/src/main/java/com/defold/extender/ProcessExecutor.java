@@ -91,6 +91,10 @@ public class ProcessExecutor {
     }
 
     public void putEnv(String key, String value) {
+        if (key == null || value == null) {
+            putLog(String.format("ERROR: ProcessExecutor: avoided adding variable '%s'.'%s' to the environment\n", key, value));
+            return;
+        }
         env.put(key, value);
     }
 
