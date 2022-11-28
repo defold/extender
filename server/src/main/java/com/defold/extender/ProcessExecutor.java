@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileOutputStream;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.*;
@@ -122,12 +124,18 @@ public class ProcessExecutor {
                 future.get();
             }
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof IOException) {
-                throw (IOException)e.getCause();
-            } else if (e.getCause() instanceof InterruptedException) {
-                throw (InterruptedException)e.getCause();
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) {
+                throw (IOException)cause;
+            } else if (cause instanceof InterruptedException) {
+                throw (InterruptedException)cause;
+            } else if (cause != null) {
+                throw new ExtenderException(cause.toString());
             } else {
-                throw new ExtenderException(e.getCause().toString());
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                e.printStackTrace(pw);
+                throw new ExtenderException(sw.toString());
             }
         } finally {
             executor.shutdown();
