@@ -129,7 +129,7 @@ public class ProcessExecutor {
                 throw (IOException)cause;
             } else if (cause instanceof InterruptedException) {
                 throw (InterruptedException)cause;
-            } else if (cause != null) {
+            } else if (cause != null && cause.toString() != null) {
                 throw new ExtenderException(cause.toString());
             } else {
                 StringWriter sw = new StringWriter();
