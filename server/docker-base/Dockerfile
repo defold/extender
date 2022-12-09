@@ -229,8 +229,10 @@ ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolcha
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
-# We must keep two NDKs alive for now, since migrating to the latest (i.e 20) will break
+# We must keep two NDKs alive for now, since migrating to the latest (i.e 25b) will break
 # for users that try to build with an older build.yml.
+
+# Old NDK20:
 ENV ANDROID_NDK20_VERSION        20
 ENV ANDROID_NDK20_API_VERSION    16
 ENV ANDROID_64_NDK20_API_VERSION 21
@@ -288,6 +290,70 @@ RUN \
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
     which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
     which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
+# check that aapt installed correctly
+    aapt v
+
+#
+# New NDK25b:
+#
+
+ENV ANDROID_NDK25b_VERSION        20
+ENV ANDROID_NDK25b_API_VERSION    19
+ENV ANDROID_64_NDK25b_API_VERSION 21
+
+# These paths are the same for both the 32 and 64 bit toolchains
+ENV ANDROID_NDK25b_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25b_VERSION}
+ENV ANDROID_NDK25b_BIN_PATH   ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
+ENV ANDROID_NDK25b_SYSROOT    ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+ENV ANDROID_NDK25b_STL_LIB    ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
+ENV ANDROID_64_NDK25b_STL_LIB ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
+ENV ANDROID_NDK25b_FILENAME   android-ndk-r${ANDROID_NDK25b_VERSION}-linux-x86_64.tar.gz
+
+ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
+
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK20_BIN_PATH}
+
+# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends proguard && \
+  ls -la /usr/share/java/proguard.jar
+
+ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
+
+RUN \
+    echo "Android SDK" && \
+    mkdir -p ${ANDROID_HOME} && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25b_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+#cleanup
+    rm -rf ${ANDROID_NDK25b_PATH}/simpleperf && \
+    rm -rf ${ANDROID_NDK25b_PATH}/shader-tools && \
+    rm -rf ${ANDROID_NDK25b_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK25b_PATH}/sources/cxx-stl && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/renderscript && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/arm-linux-androideabi-4.9 && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/aarch64-linux-android-4.9 && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/x86-4.9 && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/x86_64-4.9 && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+# create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
+# It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
+    mkdir ${ANDROID_SDK_HOME} && \
+    chmod ugo+rw -R ${ANDROID_SDK_HOME} && \
+# fix permissions
+    chmod +r -R ${ANDROID_ROOT} && \
+    chmod +w -R ${ANDROID_SDK_ROOT} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25b_VERSION} && \
+# check that dx installed properly
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
+    which armv7a-linux-androideabi${ANDROID_NDK25b_API_VERSION}-clang++ && \
+    which aarch64-linux-android${ANDROID_64_NDK25b_API_VERSION}-clang++ && \
 # check that aapt installed correctly
     aapt v
 
