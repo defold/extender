@@ -1583,6 +1583,9 @@ class Extender {
             "linux", "x86-linux","x86_64-linux",
             "win32", "x86-win32","x86_64-win32",
             "web", "js-web","wasm-web",
+            "nx64", "arm64-nx64",
+            "ps4", "x86_64-ps4",
+            "ps5", "x86_64-ps5",
         };
         Set<String> manifestPlatforms = new HashSet<>(manifestConfig.platforms.keySet());
         manifestPlatforms.removeAll(Arrays.asList(allowedPlatforms));

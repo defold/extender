@@ -23,7 +23,7 @@ This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It als
 * **DM_DEBUG_JOB_UPLOAD** - Output the file names in the received payload
 * **DYNAMO_HOME** - If set, used as the actual SDK for the builds
 
-Note: if you wish to add more of these, remember to also add them to `server/scripts/run-local.sh`
+Note: if you wish to add more of these, remember to also add them to `server/scripts/run-local.sh` and `server\scripts\run-local.bat`
 
 # Debug the Docker container
 
@@ -72,6 +72,10 @@ The command will connect to the container using the `extender` user, and execute
 After building your Docker container, you can login in using the script:
 
     $ ./server/scripts/debug-local.sh
+
+or
+
+    > server\scripts\debug-local.bat
 
 Make sure you are `extender` by typing
 
