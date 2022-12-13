@@ -256,7 +256,7 @@ ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_
 # New NDK25b:
 #
 
-ENV ANDROID_NDK25b_VERSION        20
+ENV ANDROID_NDK25b_VERSION        25b
 ENV ANDROID_NDK25b_API_VERSION    19
 ENV ANDROID_64_NDK25b_API_VERSION 21
 
@@ -266,7 +266,7 @@ ENV ANDROID_NDK25b_BIN_PATH   ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/li
 ENV ANDROID_NDK25b_SYSROOT    ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
 ENV ANDROID_NDK25b_STL_LIB    ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
 ENV ANDROID_64_NDK25b_STL_LIB ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
-ENV ANDROID_NDK25b_FILENAME   android-ndk-r${ANDROID_NDK25b_VERSION}-linux-x86_64.tar.gz
+ENV ANDROID_NDK25b_FILENAME   android-ndk-r${ANDROID_NDK25b_VERSION}-linux.tar.gz
 
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK25b_BIN_PATH}
 
@@ -308,11 +308,6 @@ RUN \
     rm -rf ${ANDROID_NDK25b_PATH}/shader-tools && \
     rm -rf ${ANDROID_NDK25b_PATH}/sources/third_party && \
     rm -rf ${ANDROID_NDK25b_PATH}/sources/cxx-stl && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/renderscript && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/arm-linux-androideabi-4.9 && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/aarch64-linux-android-4.9 && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/x86-4.9 && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/x86_64-4.9 && \
     rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
     rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
     rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
