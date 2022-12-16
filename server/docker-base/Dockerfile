@@ -221,11 +221,13 @@ ENV ANDROID_MIN_API_LEVEL 16
 ENV ANDROID_GCC_VERSION 4.8
 ENV ANDROID_SDK_VERSION 31
 ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
+
 ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
 ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
 ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
 ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
 ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
+
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
@@ -265,8 +267,6 @@ ENV ANDROID_64_NDK25b_API_VERSION 21
 ENV ANDROID_NDK25b_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25b_VERSION}
 ENV ANDROID_NDK25b_BIN_PATH   ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
 ENV ANDROID_NDK25b_SYSROOT    ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-ENV ANDROID_NDK25b_STL_LIB    ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
-ENV ANDROID_64_NDK25b_STL_LIB ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
 ENV ANDROID_NDK25b_FILENAME   android-ndk-r${ANDROID_NDK25b_VERSION}-linux.tar.gz
 
 # We specify it in build_input.yml by setting it the first in PATH
