@@ -233,6 +233,7 @@ ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/
 # for users that try to build with an older build.yml.
 
 ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}
 
 #
 # Old NDK20:
@@ -250,7 +251,7 @@ ENV ANDROID_NDK20_STL_LIB    ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/l
 ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
 ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.tar.gz
 
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK20_BIN_PATH}
+ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
 
 #
 # New NDK25b:
@@ -268,7 +269,8 @@ ENV ANDROID_NDK25b_STL_LIB    ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++
 ENV ANDROID_64_NDK25b_STL_LIB ${ANDROID_NDK25b_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
 ENV ANDROID_NDK25b_FILENAME   android-ndk-r${ANDROID_NDK25b_VERSION}-linux.tar.gz
 
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK25b_BIN_PATH}
+# We specify it in build_input.yml by setting it the first in PATH
+# ENV PATH ${PATH}:${ANDROID_NDK25b_BIN_PATH}
 
 #
 #
