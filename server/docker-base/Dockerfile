@@ -253,18 +253,18 @@ ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
 # New NDK25b:
 #
 
-ENV ANDROID_NDK25b_VERSION        25b
-ENV ANDROID_NDK25b_API_VERSION    19
-ENV ANDROID_64_NDK25b_API_VERSION 21
+ENV ANDROID_NDK25_VERSION        25b
+ENV ANDROID_NDK25_API_VERSION    19
+ENV ANDROID_64_NDK25_API_VERSION 21
 
 # These paths are the same for both the 32 and 64 bit toolchains
-ENV ANDROID_NDK25b_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25b_VERSION}
-ENV ANDROID_NDK25b_BIN_PATH   ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
-ENV ANDROID_NDK25b_SYSROOT    ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-ENV ANDROID_NDK25b_FILENAME   android-ndk-r${ANDROID_NDK25b_VERSION}-linux.tar.gz
+ENV ANDROID_NDK25_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION}
+ENV ANDROID_NDK25_BIN_PATH   ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
+ENV ANDROID_NDK25_SYSROOT    ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+ENV ANDROID_NDK25_FILENAME   android-ndk-r${ANDROID_NDK25_VERSION}-linux.tar.gz
 
 # We specify it in build_input.yml by setting it the first in PATH
-# ENV PATH ${PATH}:${ANDROID_NDK25b_BIN_PATH}
+# ENV PATH ${PATH}:${ANDROID_NDK25_BIN_PATH}
 
 #
 #
@@ -281,7 +281,7 @@ RUN \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25b_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
     rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
@@ -300,16 +300,16 @@ RUN \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
 
-    rm -rf ${ANDROID_NDK25b_PATH}/simpleperf && \
-    rm -rf ${ANDROID_NDK25b_PATH}/shader-tools && \
-    rm -rf ${ANDROID_NDK25b_PATH}/sources/third_party && \
-    rm -rf ${ANDROID_NDK25b_PATH}/sources/cxx-stl && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK25b_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+    rm -rf ${ANDROID_NDK25_PATH}/simpleperf && \
+    rm -rf ${ANDROID_NDK25_PATH}/shader-tools && \
+    rm -rf ${ANDROID_NDK25_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK25_PATH}/sources/cxx-stl && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
 
 # create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
 # It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
@@ -319,7 +319,7 @@ RUN \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25b_VERSION} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
 # check that dx installed properly
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
     which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
