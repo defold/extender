@@ -324,8 +324,6 @@ RUN \
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
     which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
     which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
-    which armv7a-linux-androideabi${ANDROID_NDK25b_API_VERSION}-clang++ && \
-    which aarch64-linux-android${ANDROID_64_NDK25b_API_VERSION}-clang++ && \
 # check that aapt installed correctly
     aapt v
 
