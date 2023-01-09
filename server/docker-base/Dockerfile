@@ -300,6 +300,7 @@ RUN \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
 
+    rm -rf ${ANDROID_NDK25_PATH}/prebuilt && \
     rm -rf ${ANDROID_NDK25_PATH}/simpleperf && \
     rm -rf ${ANDROID_NDK25_PATH}/shader-tools && \
     rm -rf ${ANDROID_NDK25_PATH}/sources/third_party && \
