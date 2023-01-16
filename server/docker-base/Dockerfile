@@ -216,21 +216,22 @@ ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
 # ANDROID_SDK_HOME is the location of the .android folder
 ENV ANDROID_SDK_HOME ${ANDROID_ROOT}/.android
-ENV ANDROID_TARGET_API_LEVEL 31
-ENV ANDROID_MIN_API_LEVEL 16
-ENV ANDROID_GCC_VERSION 4.8
 ENV ANDROID_SDK_VERSION 31
 ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
-ENV ANDROID_STL_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include
-ENV ANDROID_STL_ARCH_INCLUDE ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a/include
-ENV ANDROID_STL_LIB ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a
-ENV ANDROID_SYSROOT ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_NDK_API_VERSION}/arch-arm
-ENV ANDROID_BIN_PATH ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/linux-x86_64/bin
+
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
-# We must keep two NDKs alive for now, since migrating to the latest (i.e 20) will break
+# We must keep two NDKs alive for now, since migrating to the latest (i.e 25b) will break
 # for users that try to build with an older build.yml.
+
+ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}
+
+#
+# Old NDK20:
+#
+
 ENV ANDROID_NDK20_VERSION        20
 ENV ANDROID_NDK20_API_VERSION    16
 ENV ANDROID_64_NDK20_API_VERSION 21
@@ -243,9 +244,27 @@ ENV ANDROID_NDK20_STL_LIB    ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/l
 ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
 ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.tar.gz
 
-ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
+ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
 
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK20_BIN_PATH}
+#
+# New NDK25b:
+#
+
+ENV ANDROID_NDK25_VERSION        25b
+ENV ANDROID_NDK25_API_VERSION    19
+ENV ANDROID_64_NDK25_API_VERSION 21
+
+# These paths are the same for both the 32 and 64 bit toolchains
+ENV ANDROID_NDK25_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION}
+ENV ANDROID_NDK25_BIN_PATH   ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
+ENV ANDROID_NDK25_SYSROOT    ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+ENV ANDROID_NDK25_FILENAME   android-ndk-r${ANDROID_NDK25_VERSION}-linux.tar.gz
+
+# We specify it in build_input.yml by setting it the first in PATH
+# ENV PATH ${PATH}:${ANDROID_NDK25_BIN_PATH}
+
+#
+#
 
 # android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
 RUN \
@@ -259,6 +278,7 @@ RUN \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
     rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
@@ -276,6 +296,19 @@ RUN \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
     rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+
+    rm -rf ${ANDROID_NDK25_PATH}/prebuilt && \
+    rm -rf ${ANDROID_NDK25_PATH}/simpleperf && \
+    rm -rf ${ANDROID_NDK25_PATH}/shader-tools && \
+    rm -rf ${ANDROID_NDK25_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK25_PATH}/sources/cxx-stl && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+
 # create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
 # It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
     mkdir ${ANDROID_SDK_HOME} && \
@@ -284,10 +317,13 @@ RUN \
     chmod +r -R ${ANDROID_ROOT} && \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
 # check that dx installed properly
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
     which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
     which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
+    which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
+    which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
 # check that aapt installed correctly
     aapt v
 
