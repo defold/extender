@@ -210,23 +210,43 @@ RUN \
 # https://developer.android.com/studio/command-line/variables
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-ENV ANDROID_BUILD_TOOLS_VERSION 32.0.0
 # ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
 # ANDROID_SDK_HOME is the location of the .android folder
 ENV ANDROID_SDK_HOME ${ANDROID_ROOT}/.android
+
+#
+# Old SDK 32:
+#
+
+ENV ANDROID_BUILD_TOOLS_VERSION 32.0.0
 ENV ANDROID_SDK_VERSION 31
 ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
 
 ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}
+
+#
+# New SDK 33 (Defold 1.4.3):
+#
+
+ENV ANDROID_BUILD_TOOLS_VERSION_33 33.0.1
+ENV ANDROID_SDK_VERSION_33 33
+ENV ANDROID_SDK_FILENAME_33 android-sdk-linux-android-${ANDROID_SDK_VERSION_33}-${ANDROID_BUILD_TOOLS_VERSION_33}.tar.gz
+
+ENV ANDROID_SDK_BUILD_TOOLS_PATH_33 ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_33}
+ENV ANDROID_LIBRARYJAR_33 ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_33}/android.jar
+
+# We specify it in build_input.yml by setting it the first in PATH
+# ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_33}
+
+
+
 # We must keep two NDKs alive for now, since migrating to the latest (i.e 25b) will break
 # for users that try to build with an older build.yml.
-
-ENV AAPT ${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}
 
 #
 # Old NDK20:
@@ -247,7 +267,7 @@ ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.
 ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
 
 #
-# New NDK25b:
+# New NDK25b (Defold 1.4.3):
 #
 
 ENV ANDROID_NDK25_VERSION        25b
@@ -280,7 +300,10 @@ RUN \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME_33} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
+    rm -rf ${ANDROID_HOME}/extras && \
+
     rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
     rm -rf ${ANDROID_NDK20_PATH}/shader-tools && \
     rm -rf ${ANDROID_NDK20_PATH}/sources/third_party && \
