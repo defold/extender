@@ -22,6 +22,8 @@ export PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 
 export MANIFEST_MERGE_TOOL=${EXTENDER_DIR}/current/manifestmergetool.jar
 
+export JAVA_HOME=`/usr/libexec/java_home`
+
 # From Dockerfile
 export XCODE_12_VERSION=12.5
 export MACOS_10_15_VERSION=10.15
