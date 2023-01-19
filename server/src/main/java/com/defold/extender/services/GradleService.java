@@ -197,7 +197,7 @@ public class GradleService {
         return pe.getOutput();
     }
 
-    static public Map<String, String> parseDependencies(String log) {
+    private Map<String, String> parseDependencies(String log) {
         // The output comes from template.build.gradle
         Pattern p = Pattern.compile("PATH:\\s*([\\w-.\\/]*)\\sEXTENSION:\\s*([\\w-.\\/]*)\\sTYPE:\\s*([\\w-.\\/]*)\\sMODULE_GROUP:\\s*([\\w-.\\/]*)\\sMODULE_NAME:\\s*([\\w-.\\/]*)\\sMODULE_VERSION:\\s*([\\w-.\\/]*)");
 
