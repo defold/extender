@@ -3,47 +3,72 @@ package com.defold.extender.services;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ProcessExecutor;
-import com.defold.extender.TemplateExecutor;
-import com.defold.extender.ZipUtils;
 import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-//import org.springframework.boot.actuate.metrics.CounterService;
-//import org.springframework.boot.actuate.metrics.GaugeService;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.client.ClientHttpRequest;
-import org.springframework.http.client.ClientHttpRequestFactory;
-import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PreDestroy;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.FileInputStream;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.lang.StringBuilder;
 
 
 @Service
 public class CocoaPodsService {
+
+    public class PodSpec {
+        public String name = "";
+        public String version = "";
+        public String originalJSON = "";
+        public List<String> sourceFiles = new ArrayList<>();
+        public List<PodSpec> subspecs = new ArrayList<>();
+        public List<String> defines = new ArrayList<>();
+        public List<String> flags = new ArrayList<>();
+        public File dir;
+
+        public String toString(String indentation) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(indentation + name + ":" + version + "\n");
+            sb.append(indentation + "  src: " + sourceFiles + "\n");
+            sb.append(indentation + "  dir: " + dir + "\n");
+            sb.append(indentation + "  flags: " + flags + "\n");
+            for (PodSpec sub : subspecs) {
+                sb.append(sub.toString(indentation + "  "));
+            }
+            return sb.toString();
+        }
+        @Override
+        public String toString() {
+            return toString("");
+        }
+    }
+
+
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
 
     private final MeterRegistry meterRegistry;
@@ -64,76 +89,348 @@ public class CocoaPodsService {
         LOGGER.info("CocoaPodsService service");
     }
 
-    // Helper function to move files/directories
-    private static void move(Path source, Path target) {
-        try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            // If the target path suddenly exists, and the source path still exists,
-            // then we failed with the atomic move, and we assume another job succeeded with the download
-            if (Files.exists(source) && Files.exists(target)) {
-                LOGGER.info("Gradle package {} was downloaded by another job in the meantime", source.toString());
-                try {
-                    FileUtils.deleteDirectory(source.toFile());
-                } catch (IOException e2) {
-                    LOGGER.error("Failed to delete temp directory {}: {}", source.toString(), e2.getMessage());
-                }
+    private static void dumpDir(File file, int indent) throws IOException {
+        String indentString = "";
+        for (int i = 0; i < indent; i++) {
+            indentString += "-";
+        }
+        LOGGER.info(indentString + file.getName());
+        if (file.isDirectory()) {
+            File[] files = file.listFiles();
+            for (int i = 0; i < files.length; i++) {
+                dumpDir(files[i], indent + 3);
             }
         }
     }
 
-    private List<File> createMainPodFile(File cwd) throws IOException {
-        File mainPodFile = new File(cwd, "Podfile");
+    // create Podfile with the dependencies collected from all uploaded extensions
+    private File createMainPodFile(File jobDirectory, File workingDir) throws IOException {
+        LOGGER.info("Creating main Podfile");
+        File mainPodFile = new File(workingDir, "Podfile");
 
-        List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(cwd, "Podfile");
+        List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
 
         // This file might exist when testing and debugging the extender using a debug job folder
         podFiles.remove(mainPodFile);
+
+        // Create main Podfile contents
         String mainPodFileContents = "";
+        mainPodFileContents += "platform :ios, '9.0'\n";
+        mainPodFileContents += "install! 'cocoapods', integrate_targets: false, skip_pods_project_generation: true\n";
+        mainPodFileContents += "use_frameworks!\n";
         for (File podFile : podFiles) {
             String pod = readFile(podFile.getAbsolutePath());
             mainPodFileContents += pod + "\n";
         }
-        mainPodFileContents += "target 'Foobar' do end\n";
+
+        LOGGER.info("Contents of main Podfile: {}", mainPodFileContents);
 
         Files.write(mainPodFile.toPath(), mainPodFileContents.getBytes());
 
-        return podFiles;
+        return mainPodFile;
     }
 
-    private File createXcodeProjectFile(File cwd) throws IOException {
-        File xcprojectDir = new File(cwd, "empty-ios.xcproject");
-        if (!xcprojectDir.exists()) {
-            xcprojectDir.mkdirs();
+    private File getWorkingDir(File jobDirectory) {
+        return new File(jobDirectory, "CocoaPodsService");
+    }
+
+    public File getResolvedPodsDir(File jobDirectory) {
+        return new File(getWorkingDir(jobDirectory), "Pods");
+    }
+    public File getResolvedFrameworksDir(File jobDirectory) {
+        return new File(getWorkingDir(jobDirectory), "frameworks");
+    }
+
+    private void processPods(File jobDirectory, File workingDir) throws IOException {
+        LOGGER.info("Processing pod files");
+        File podsDir = getResolvedPodsDir(jobDirectory);
+        File frameworksDir = getResolvedFrameworksDir(jobDirectory);
+
+        LOGGER.info("Moving frameworks");
+        File libDir = new File(frameworksDir, "lib");
+        File armDir = new File(libDir, "arm64-ios");
+        File x86Dir = new File(libDir, "x86_64-ios");
+        armDir.mkdirs();
+        x86Dir.mkdirs();
+        // for (File podDir : podsDir.listFiles()) {
+        //     File podFrameworksDir = new File(podDir, "Frameworks");
+        //     if (podFrameworksDir.exists() && podFrameworksDir.isDirectory()) {
+        //         for (File framework : podFrameworksDir.listFiles()) {
+        //             LOGGER.info("Moving framework from {}", framework);
+        //             String frameworkName = framework.getName().replace(".xcframework", "");
+
+        //             File armFramework = new File(framework, "ios-arm64_armv7");
+        //             if (armFramework.exists()) {
+        //                 LOGGER.info("Moving framework {}", armFramework);
+        //                 Files.move(new File(armFramework, frameworkName + ".framework").toPath(), new File(armDir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
+        //             }
+
+        //             File x86Framework = new File(framework, "ios-arm64_i386_x86_64-simulator");
+        //             if (x86Framework.exists()) {
+        //                 LOGGER.info("Moving framework {}", x86Framework);
+        //                 Files.move(new File(x86Framework, frameworkName + ".framework").toPath(), new File(x86Dir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
+        //             }
+        //         }
+        //     }
+        //     FileUtils.deleteDirectory(podFrameworksDir);
+        // }
+
+
+        // LOGGER.info("Moving header files");
+        // File includeDir = new File(resolvedPodsDir, "include");
+        // includeDir.mkdirs();
+        
+        // Iterator<File> all = FileUtils.iterateFiles(podsDir, new String[]{"h"}, true);
+        // while (all.hasNext()) {
+        //     File file = all.next();
+        //     LOGGER.info("Found header file {}", file);
+        //     String filename = file.getName();
+        //     Path relativePath = podsDir.toPath().relativize(file.getParentFile().toPath());
+
+        //     // PromisesObjC/Sources/FBLPromises/include -> Sources/FBLPromises/include
+        //     if (relativePath.getNameCount() > 1) {
+        //         relativePath = relativePath.subpath(1, relativePath.getNameCount());
+        //     }
+        //     // Sources/FBLPromises/include -> FBLPromises/include
+        //     if (relativePath.startsWith("Sources")) {
+        //         relativePath = relativePath.subpath(1, relativePath.getNameCount());
+        //     }
+        //     // FBLPromises/include -> FBLPromises
+        //     relativePath = new File(relativePath.toString().replace("/include", "")).toPath();
+
+        //     File destDir = new File(includeDir, relativePath.toString());
+        //     File destFile = new File(destDir, filename);
+        //     destDir.mkdirs();
+
+        //     LOGGER.info("Moving header file {} to {}", file, destFile);
+        //     Files.move(file.toPath(), destFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        //     // LOGGER.info("Iterating files {} RELATIVE {}", file, relativeFile);
+        // }
+
+
+
+        // LOGGER.info("Moving source files");
+        // File srcDir = new File(resolvedPodsDir, "src");
+        // File srcInteropDir = new File(srcDir, "Interop");
+        // srcInteropDir.mkdirs();
+        // for (File podDir : podsDir.listFiles()) {
+        //     if (podDir.isFile()) continue;
+        //     LOGGER.info("Checking dir {}", podDir);
+
+        //     for (File f : podDir.listFiles()) {
+        //         final String name = f.getName();
+        //         if (f.isFile()) {
+        //             if (name.endsWith(".c") || name.endsWith(".cpp") || name.endsWith(".m")) {
+        //                 final File destDir = new File(srcDir, podDir.getName());
+        //                 final File destFile = new File(destDir, name);
+        //                 destDir.mkdirs();
+        //                 LOGGER.info("Moving file {} to {}", f, destFile);
+        //                 Files.move(f.toPath(), destFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        //             }
+        //         }
+        //         else if (name.equals("Interop")) {
+        //             for (File interopDir : f.listFiles()) {
+        //                 final File destDir = new File(srcInteropDir, interopDir.getName());
+        //                 if (!destDir.exists()) {
+        //                     LOGGER.info("Moving Interop dir {} to {}", interopDir, destDir);
+        //                     Files.move(interopDir.toPath(), destDir.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        //                 }
+        //                 else {
+        //                     LOGGER.info("Skipping Interop dir {} as it already exists", interopDir);
+        //                 }
+        //             }
+        //         }
+        //         else if (name.equals("Sources")) {
+        //             for (File sourceDir : f.listFiles()) {
+        //                 final File destDir = new File(srcDir, sourceDir.getName());
+        //                 LOGGER.info("Moving Sources dir {} to {}", sourceDir, destDir);
+        //                 Files.move(sourceDir.toPath(), destDir.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        //             }
+        //         }
+        //         else {
+        //             File destDir = new File(srcDir, name);
+        //             LOGGER.info("Moving dir {} to {}", f, destDir);
+        //             Files.move(f.toPath(), destDir.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        //         }
+        //     }
+        // }
+    }
+
+    private JSONObject parseJson(String json) throws ExtenderException {
+        LOGGER.info("parseJson {}", json);
+        try {
+            JSONParser parser = new JSONParser();
+            return (JSONObject)parser.parse(json);
         }
-        File projectFile = new File(xcprojectDir, "project.pbxproj");
-
-        String template = "";
-        Files.write(projectFile.toPath(), template.getBytes());
-        return projectFile;
+        catch (ParseException e) {
+            e.printStackTrace();
+            throw new ExtenderException(e, "Failed to parse json. " + e);
+        }
     }
 
-    private void parsePodFile(File cwd) throws IOException {
-        File podFile = new File(cwd, "Podfile.lock");
-        String pods = FileUtils.readFileToString(podFile);
+    // get the value of a key as a JSONArray even it is a single value
+    private JSONArray getAsJSONArray(JSONObject json, String key) {
+        Object o = json.get(key);
+        if (o instanceof JSONArray) {
+            return (JSONArray)o;
+        }
+        JSONArray a = new JSONArray();
+        if (o != null) {
+            a.add(o.toString());
+        }
+        return a;
     }
 
-    // Install dependencies
-    public List<File> installPods(File cwd) throws IOException, ExtenderException {
-        long methodStart = System.currentTimeMillis();
-        LOGGER.info("Installing pod files");
+    // https://guides.cocoapods.org/syntax/podspec.html
+    private PodSpec createPodSpec(JSONObject specJson, File podsDir) throws ExtenderException {
+        PodSpec spec = new PodSpec();
+        spec.name = (String)specJson.get("name");
+        spec.version = (String)specJson.get("version");
 
-        createMainPodFile(cwd);
-        createXcodeProjectFile(cwd);
+        File podDir = new File(podsDir, spec.name);
+        spec.dir = podDir;
 
-        String log = execCommand("pod install --verbose", cwd);
+        LOGGER.info("createPodSpec {} v {}", spec.name, spec.version);
+
+        JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
+        if (sourceFiles != null) {
+            Iterator<String> it = sourceFiles.iterator();
+            while (it.hasNext()) {
+                String path = it.next();
+                LOGGER.info("createPodSpec adding source file {}", path);
+                spec.sourceFiles.add(path);
+                // Cocoapods uses Ruby where glob patterns are treated slightly differently:
+                // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
+                // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
+                if (path.contains("/**/")) {
+                    spec.sourceFiles.add(path.replaceFirst("\\/\\*\\*\\/", "/"));
+                }
+            }
+        }
+
+        JSONArray headerFiles = getAsJSONArray(specJson, "public_header_files");
+        if (headerFiles != null) {
+            Iterator<String> it = headerFiles.iterator();
+            while (it.hasNext()) {
+                String path = it.next();
+                LOGGER.info("createPodSpec adding source file {}", path);
+                spec.sourceFiles.add(path);
+                // Cocoapods uses Ruby where glob patterns are treated slightly differently:
+                // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
+                // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
+                if (path.contains("/**/")) {
+                    spec.sourceFiles.add(path.replaceFirst("\\/\\*\\*\\/", "/"));
+                }
+            }
+        }
+
+        JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
+        if (subspecs != null) {
+            LOGGER.info("createPodSpec subspecs {}", subspecs);
+            Iterator<JSONObject> it = subspecs.iterator();
+            while (it.hasNext()) {
+                JSONObject o = it.next();
+                PodSpec subSpec = createPodSpec(o, podDir);
+                subSpec.dir = podDir;
+                spec.subspecs.add(subSpec);
+            }
+        }
+
+        JSONObject targetConfig = (JSONObject)specJson.get("pod_target_xcconfig");
+        if (targetConfig != null) {
+            LOGGER.info("createPodSpec pod_target_xcconfig {}", targetConfig);
+            String definitions = (String)targetConfig.get("GCC_PREPROCESSOR_DEFINITIONS");
+            if (definitions != null) {
+                definitions = definitions.replace("$(inherited)", "");
+                if (!definitions.trim().isEmpty()) {
+                    spec.defines.addAll(Arrays.asList(definitions.split(" ")));
+                }
+            }
+        }
+
+        // flags
+        Boolean requiresArc = (Boolean)specJson.get("requires_arc");
+        spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+
+        // compiler_flags = '-DOS_OBJECT_USE_OBJC=0', '-Wno-format'
+
+        return spec;
+    }
+
+    private PodSpec createPodSpec(String specJson, File podsDir) throws ExtenderException {
+        PodSpec spec = createPodSpec(parseJson(specJson), podsDir);
+        spec.originalJSON = specJson;
+        return spec;
+    }
+
+    private List<PodSpec> parsePods(File dir) throws IOException, ExtenderException {
+        File podFileLock = new File(dir, "Podfile.lock");
+        if (!podFileLock.exists()) {
+            throw new ExtenderException("Unable to find Podfile.lock in directory " + dir);
+        }
+        LOGGER.info("Podfile.lock: {}", FileUtils.readFileToString(podFileLock));
+
+        List<String> lines = Files.readAllLines(podFileLock.toPath());
+        Set<String> pods = new HashSet<>();
+        while (!lines.isEmpty()) if (lines.remove(0).startsWith("PODS:")) break;
+        while (!lines.isEmpty()) {
+            String line = lines.remove(0);
+            if (line.trim().isEmpty()) break;
+            // - FirebaseCore (8.13.0):
+            if (line.startsWith("  -")) {
+                // '- GoogleUtilities/Environment (7.10.0):'   ->   'GoogleUtilities (7.10.0)'
+                String pod = line.trim().replace("- ", "").replace(":", "").replaceFirst("/.*?\\s", " ");
+                pods.add(pod);
+            }
+        }
+
+        List<String> specJsons = new ArrayList<>();
+        for (String pod : pods) {
+            // ' GoogleUtilities (7.10.0)'   ->   ' GoogleUtilities --version=7.10.0'
+            String args = pod.replace("(", "--version=").replace(")", "");
+            String cmd = "pod spec cat " + args;
+            String specJson = execCommand(cmd).replace(cmd, "");
+            LOGGER.info("\n" + specJson);
+            specJsons.add(specJson);
+        }
+
+        File podsDir = new File(dir, "Pods");
+        List<PodSpec> specs = new ArrayList<>();
+        for (String specJson : specJsons) {
+            PodSpec podSpec = createPodSpec(specJson, podsDir);
+            LOGGER.info("pod {}", podSpec);
+            specs.add(podSpec);
+        }
+        return specs;
+    }
+
+    // install pods from podfile
+    private void installPods(File dir) throws IOException, ExtenderException {
+        LOGGER.info("Installing pods");
+        File podFile = new File(dir, "Podfile");
+        if (!podFile.exists()) {
+            throw new ExtenderException("Unable to find Podfile in directory " + dir);
+        }
+        String log = execCommand("pod install --verbose", dir);
         LOGGER.info("\n" + log);
+    }
 
-        parsePodFile(cwd);
+    public List<PodSpec> resolveDependencies(File jobDirectory) throws IOException, ExtenderException {
+        long methodStart = System.currentTimeMillis();
+        LOGGER.info("Resolving Cocoapod dependencies");
+
+        File workingDir = new File(jobDirectory, "CocoaPodsService");
+        workingDir.mkdirs();
+
+        createMainPodFile(jobDirectory, workingDir);
+        installPods(workingDir);
+        List<PodSpec> pods = parsePods(workingDir);
+        processPods(jobDirectory, workingDir);
+
+        dumpDir(jobDirectory, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
-        List<File> pods = new ArrayList<File>();
         return pods;
     }
 
@@ -154,91 +451,9 @@ public class CocoaPodsService {
 
         return pe.getOutput();
     }
-
-    static public Map<String, String> parseDependencies(String log) {
-        // The output comes from template.build.gradle
-        Pattern p = Pattern.compile("PATH:\\s*([\\w-.\\/]*)\\sEXTENSION:\\s*([\\w-.\\/]*)\\sTYPE:\\s*([\\w-.\\/]*)\\sMODULE_GROUP:\\s*([\\w-.\\/]*)\\sMODULE_NAME:\\s*([\\w-.\\/]*)\\sMODULE_VERSION:\\s*([\\w-.\\/]*)");
-
-        Map<String, String> dependencies = new HashMap<>();
-        String[] lines = log.split(System.getProperty("line.separator"));
-        for (String line : lines) {
-            Matcher m = p.matcher(line);
-            if (m.matches()) {
-                String path = m.group(1);
-                String extension = m.group(2);
-                String type = m.group(3);
-                String group = m.group(4);
-                String name = m.group(5);
-                String version = m.group(6);
-
-                // Map the new name to the original file path
-                dependencies.put(String.format("%s-%s-%s.%s", group, name, version, extension), path);
-            }
-        }
-
-        return dependencies;
+    private String execCommand(String command) throws ExtenderException {
+        return execCommand(command, null);
     }
 
-    // private File resolveDependencyAAR(File dependency, String name, File jobDir) throws IOException {
-    //     File unpackedTarget = new File(baseDirectory, name);
-    //     if (unpackedTarget.exists()) {
-    //         return unpackedTarget;
-    //     }
-
-    //     // use job folder as tmp location
-    //     File unpackedTmp = new File(jobDir, dependency.getName() + ".tmp");
-    //     ZipUtils.unzip(new FileInputStream(dependency), unpackedTmp.toPath());
-    //     Move(unpackedTmp.toPath(), unpackedTarget.toPath());
-    //     return unpackedTarget;
-    // }
-
-    // private File resolveDependencyJAR(File dependency, String name, File jobDir) throws IOException {
-    //     File targetFile = new File(baseDirectory, name);
-    //     if (targetFile.exists()) {
-    //         return targetFile;
-    //     }
-
-    //     // use job folder as tmp location
-    //     File tmpFile = new File(jobDir, dependency.getName() + ".tmp");
-    //     FileUtils.copyFile(dependency, tmpFile);
-    //     Move(tmpFile.toPath(), targetFile.toPath());
-    //     return targetFile;
-    // }
-
-    // private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir) throws IOException {
-    //     List<File> resolvedDependencies = new ArrayList<>();
-    //     for (String newName : dependencies.keySet()) {
-    //         String dependency = dependencies.get(newName);
-
-    //         File file = new File(dependency);
-    //         if (!file.exists()) {
-    //             throw new IOException("File does not exist: %s" + dependency);
-    //         }
-    //         if (dependency.endsWith(".aar"))
-    //             resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir));
-    //         else if (dependency.endsWith(".jar"))
-    //             resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir));
-    //         else
-    //             resolvedDependencies.add(file);
-    //     }
-    //     return resolvedDependencies;
-    // }
-
-    // private List<File> downloadDependencies(File cwd) throws IOException, ExtenderException {
-    //     long methodStart = System.currentTimeMillis();
-    //     LOGGER.info("Installing pod files");
-
-    //     String log = execCommand("pod install --verbose", cwd);
-
-    //     // Put it in the log for the end user to see
-    //     LOGGER.info("\n" + log);
-
-    //     Map<String, String> dependencies = parsePodFiles(log);
-
-    //     List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
-
-    //     MetricsWriter.metricsTimer(meterRegistry, "gauge.service.gradle.get", System.currentTimeMillis() - methodStart);
-    //     return unpackedDependencies;
-    // }
 
 }

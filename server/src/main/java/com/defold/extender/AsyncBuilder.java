@@ -101,13 +101,13 @@ public class AsyncBuilder {
 
             // Resolve Gradle dependencies
             if (platform.contains("android")) {
-                List<File> gradlePackages = extender.resolve(gradleService);
-                metricsWriter.measureGradleDownload(gradlePackages, gradleService.getCacheSize());
+                extender.resolve(gradleService);
+                metricsWriter.measureGradleDownload(gradleService.getCacheSize());
             }
 
             // Resolve CocoaPods dependencies
             if (platform.contains("ios")) {
-                List<File> cocoaPods = extender.resolve(cocoaPodsService);
+                extender.resolve(cocoaPodsService);
                 metricsWriter.measureCocoaPodsInstallation();
             }
 

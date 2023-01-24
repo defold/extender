@@ -48,7 +48,7 @@ public class MetricsWriter {
         metricsCounterIncrement(registry, "job.sdk", "job_sdk", sdk);
     }
 
-    public void measureGradleDownload(List<File> packages, long cacheSize) {
+    public void measureGradleDownload(long cacheSize) {
         addMetric("job.gradle.download", timer.start());
         addMetric("job.gradle.cacheSize", cacheSize);
     }
