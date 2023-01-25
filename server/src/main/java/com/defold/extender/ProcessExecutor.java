@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileOutputStream;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.*;
@@ -89,6 +91,10 @@ public class ProcessExecutor {
     }
 
     public void putEnv(String key, String value) {
+        if (key == null || value == null) {
+            putLog(String.format("ERROR: ProcessExecutor: avoided adding variable '%s': '%s' to the environment\n", key, value));
+            return;
+        }
         env.put(key, value);
     }
 
@@ -127,7 +133,10 @@ public class ProcessExecutor {
             } else if (e.getCause() instanceof InterruptedException) {
                 throw (InterruptedException)e.getCause();
             } else {
-                throw new ExtenderException(e.getCause().toString());
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                e.printStackTrace(pw);
+                throw new ExtenderException(sw.toString());
             }
         } finally {
             executor.shutdown();
