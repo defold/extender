@@ -464,21 +464,46 @@ class Extender {
         return allLibJars;
     }
 
-    private List<String> getIncludeDirs(File extDir) {
+    private List<String> pruneNonExisting(List<String> paths) {
+        List<String> existing = new ArrayList<>();
+        for (String path : paths) {
+            File f = new File(jobDirectory + File.separator + path);
+            if (f.exists())
+                existing.add(path);
+        }
+        return existing;
+    }
+
+    private List<String> getExtLocalIncludeDirs(File dir) {
         List<String> includes = new ArrayList<>();
-        File extIncludeDir = new File(extDir, "include");
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, extIncludeDir ) );
+
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(dir, "include" + File.separator + this.platform) ) );
+
+        String[] platformParts = this.platform.split("-");
+        if (platformParts.length == 2) {
+            includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(dir, "include" + File.separator + platformParts[1])));
+        }
+
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(dir, "include") ) );
+        return includes;
+    }
+
+    private List<String> getIncludeDirs(File extDir) {
+        List<String> includes = getExtLocalIncludeDirs(extDir);
+
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(buildDirectory, extDir.getName())) ); // where we generate source from protobuf files
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) );
+        includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) ); //TODO: Do we ever put stuff here? Isn't it more useful to include the build folder?
 
         // Add the other extensions include folders
         for (File otherExtDir : this.getExtensionFolders()) {
-            File otherIncludeDir = new File(otherExtDir, "include");
-            if (extIncludeDir.equals(otherIncludeDir)) // don't add the current extension's include directory
+            if (extDir.getName().equals(otherExtDir.getName())) {
                 continue;
-            includes.add( ExtenderUtil.getRelativePath(jobDirectory, otherIncludeDir ) );
+            }
+            includes.addAll(getExtLocalIncludeDirs(otherExtDir));
+
+        ExtenderUtil.debugPrint("Added" + otherExtDir, includes);
         }
-        return includes;
+        return pruneNonExisting(includes);
     }
 
     private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands) throws IOException, InterruptedException, ExtenderException {
