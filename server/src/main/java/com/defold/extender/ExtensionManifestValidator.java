@@ -75,12 +75,16 @@ class ExtensionManifestValidator {
                 case "engineLibs":
                 case "frameworks":
                 case "weakFrameworks":
+                case "cxxShLibs":
                     patterns = allowedLibs;
                     type = "lib";
                     break;
 
                 case "flags":
                 case "linkFlags":
+                case "cxxShFlags":
+                case "cxxLinkShFlags":
+                case "javaFlags":
                     patterns = allowedFlags;
                     type = "flag";
                     break;
