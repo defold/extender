@@ -45,18 +45,27 @@ public class CocoaPodsService {
         public String name = "";
         public String version = "";
         public String originalJSON = "";
-        public List<String> sourceFiles = new ArrayList<>();
+        public Set<File> sourceFiles = new HashSet<>();
+        public Set<File> includePaths = new HashSet<>();
         public List<PodSpec> subspecs = new ArrayList<>();
-        public List<String> defines = new ArrayList<>();
-        public List<String> flags = new ArrayList<>();
+        public Set<String> defines = new HashSet<>();
+        public Set<String> flags = new HashSet<>();
+        public Set<String> frameworks = new HashSet<>();
+        public Set<String> iosframeworks = new HashSet<>();
+        public Set<String> osxframeworks = new HashSet<>();
         public File dir;
 
         public String toString(String indentation) {
             StringBuilder sb = new StringBuilder();
             sb.append(indentation + name + ":" + version + "\n");
-            sb.append(indentation + "  src: " + sourceFiles + "\n");
             sb.append(indentation + "  dir: " + dir + "\n");
+            sb.append(indentation + "  src: " + sourceFiles + "\n");
+            sb.append(indentation + "  includes: " + includePaths + "\n");
+            sb.append(indentation + "  defines: " + flags + "\n");
             sb.append(indentation + "  flags: " + flags + "\n");
+            sb.append(indentation + "  frameworks: " + frameworks + "\n");
+            sb.append(indentation + "  iosframeworks: " + iosframeworks + "\n");
+            sb.append(indentation + "  osxframeworks: " + osxframeworks + "\n");
             for (PodSpec sub : subspecs) {
                 sb.append(sub.toString(indentation + "  "));
             }
@@ -129,6 +138,41 @@ public class CocoaPodsService {
 
         return mainPodFile;
     }
+
+    private List<File> findPodSourceFiles(PodSpec pod, String pattern) {
+        List<File> srcFiles = new ArrayList<>();
+
+        String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
+        List<File> podSrcFiles = ExtenderUtil.listFilesGlob(pod.dir, absolutePatternPath);
+        for (File podSrcFile : podSrcFiles) {
+            if (!podSrcFile.getName().endsWith(".h")) {
+                srcFiles.add(podSrcFile);
+            }
+        }
+
+        return srcFiles;
+    }    
+
+    private List<File> findPodIncludePaths(PodSpec pod, String pattern) {
+        Set<File> includePaths = new HashSet<>();
+
+        String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
+        List<File> podSrcFiles = ExtenderUtil.listFilesGlob(pod.dir, absolutePatternPath);
+        for (File podSrcFile : podSrcFiles) {
+            if (podSrcFile.getName().endsWith(".h")) {
+                File podIncludeDir = podSrcFile.getParentFile();
+                if (podIncludeDir != null) {
+                    includePaths.add(podIncludeDir);
+                    File podIncludeParentDir = podIncludeDir.getParentFile();
+                    if (podIncludeParentDir != null) {
+                        includePaths.add(podIncludeParentDir);
+                    }
+                }
+            }
+        }
+
+        return new ArrayList<File>(includePaths);
+    }    
 
     private File getWorkingDir(File jobDirectory) {
         return new File(jobDirectory, "CocoaPodsService");
@@ -269,96 +313,93 @@ public class CocoaPodsService {
     }
 
     // get the value of a key as a JSONArray even it is a single value
-    private JSONArray getAsJSONArray(JSONObject json, String key) {
-        Object o = json.get(key);
-        if (o instanceof JSONArray) {
-            return (JSONArray)o;
+    private JSONArray getAsJSONArray(JSONObject o, String key) {
+        Object value = o.get(key);
+        if (value instanceof JSONArray) {
+            return (JSONArray)value;
         }
         JSONArray a = new JSONArray();
-        if (o != null) {
-            a.add(o.toString());
+        if (value != null) {
+            a.add(value.toString());
         }
         return a;
     }
 
+    // get a string value from a JSON object and split it into a list using space character as delimiter
+    // will return an empty list if the value does not exist
+    private List<String> getAsSplitString(JSONObject o, String key) {
+        String value = (String)o.get(key);
+        if (value == null || value.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return Arrays.asList(value.split(" "));
+    }
+
     // https://guides.cocoapods.org/syntax/podspec.html
-    private PodSpec createPodSpec(JSONObject specJson, File podsDir) throws ExtenderException {
+    private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir) throws ExtenderException {
         PodSpec spec = new PodSpec();
         spec.name = (String)specJson.get("name");
-        spec.version = (String)specJson.get("version");
-
-        File podDir = new File(podsDir, spec.name);
-        spec.dir = podDir;
+        spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;
+        spec.dir = (parent == null) ? new File(podsDir, spec.name) : parent.dir;
 
         LOGGER.info("createPodSpec {} v {}", spec.name, spec.version);
 
+        // flags
+        Boolean requiresArc = (Boolean)specJson.get("requires_arc");
+        spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+        // compiler_flags = '-DOS_OBJECT_USE_OBJC=0', '-Wno-format'
+
+        // defines
+        JSONObject podTargetConfig = (JSONObject)specJson.get("pod_target_xcconfig");
+        JSONObject userTargetConfig = (JSONObject)specJson.get("user_target_xcconfig"); // not recommended for use but we need to handle it
+        JSONObject config = (JSONObject)specJson.get("xcconfig");  // undocumented but used by some pods
+        if (podTargetConfig != null) spec.defines.addAll(getAsSplitString(podTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
+        if (userTargetConfig != null) spec.defines.addAll(getAsSplitString(userTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
+        if (config != null) spec.defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
+
+        // frameworks
+        JSONObject ios = (JSONObject)specJson.get("ios");
+        JSONObject osx = (JSONObject)specJson.get("osx");
+        spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
+        if (ios != null) spec.iosframeworks.addAll(getAsJSONArray(ios, "frameworks"));
+        if (osx != null) spec.osxframeworks.addAll(getAsJSONArray(osx, "frameworks"));
+
+        // parse subspecs
+        JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
+        if (subspecs != null) {
+            Iterator<JSONObject> it = subspecs.iterator();
+            while (it.hasNext()) {
+                JSONObject o = it.next();
+                PodSpec subSpec = createPodSpec(o, spec, podsDir);
+                spec.subspecs.add(subSpec);
+            }
+        }
+
+        // find source and header files
+        List<String> sourceFilePatterns = new ArrayList<>();
         JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
         if (sourceFiles != null) {
             Iterator<String> it = sourceFiles.iterator();
             while (it.hasNext()) {
                 String path = it.next();
-                LOGGER.info("createPodSpec adding source file {}", path);
-                spec.sourceFiles.add(path);
+                spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
+                spec.includePaths.addAll(findPodIncludePaths(spec, path));
                 // Cocoapods uses Ruby where glob patterns are treated slightly differently:
                 // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
                 // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
                 if (path.contains("/**/")) {
-                    spec.sourceFiles.add(path.replaceFirst("\\/\\*\\*\\/", "/"));
+                    path = path.replaceFirst("\\/\\*\\*\\/", "/");
+                    spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
+                    spec.includePaths.addAll(findPodIncludePaths(spec, path));
                 }
             }
         }
-
-        JSONArray headerFiles = getAsJSONArray(specJson, "public_header_files");
-        if (headerFiles != null) {
-            Iterator<String> it = headerFiles.iterator();
-            while (it.hasNext()) {
-                String path = it.next();
-                LOGGER.info("createPodSpec adding source file {}", path);
-                spec.sourceFiles.add(path);
-                // Cocoapods uses Ruby where glob patterns are treated slightly differently:
-                // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
-                // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
-                if (path.contains("/**/")) {
-                    spec.sourceFiles.add(path.replaceFirst("\\/\\*\\*\\/", "/"));
-                }
-            }
-        }
-
-        JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
-        if (subspecs != null) {
-            LOGGER.info("createPodSpec subspecs {}", subspecs);
-            Iterator<JSONObject> it = subspecs.iterator();
-            while (it.hasNext()) {
-                JSONObject o = it.next();
-                PodSpec subSpec = createPodSpec(o, podDir);
-                subSpec.dir = podDir;
-                spec.subspecs.add(subSpec);
-            }
-        }
-
-        JSONObject targetConfig = (JSONObject)specJson.get("pod_target_xcconfig");
-        if (targetConfig != null) {
-            LOGGER.info("createPodSpec pod_target_xcconfig {}", targetConfig);
-            String definitions = (String)targetConfig.get("GCC_PREPROCESSOR_DEFINITIONS");
-            if (definitions != null) {
-                definitions = definitions.replace("$(inherited)", "");
-                if (!definitions.trim().isEmpty()) {
-                    spec.defines.addAll(Arrays.asList(definitions.split(" ")));
-                }
-            }
-        }
-
-        // flags
-        Boolean requiresArc = (Boolean)specJson.get("requires_arc");
-        spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
-
-        // compiler_flags = '-DOS_OBJECT_USE_OBJC=0', '-Wno-format'
 
         return spec;
     }
 
     private PodSpec createPodSpec(String specJson, File podsDir) throws ExtenderException {
-        PodSpec spec = createPodSpec(parseJson(specJson), podsDir);
+        PodSpec spec = createPodSpec(parseJson(specJson), null, podsDir);
         spec.originalJSON = specJson;
         return spec;
     }

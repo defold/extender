@@ -3,6 +3,7 @@ package com.defold.extender;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -11,10 +12,14 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.FileSystems;
 
 import java.lang.reflect.Field;
 
+import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
@@ -169,6 +174,59 @@ public class ExtenderUtil
         }
         return new ArrayList(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
     }
+
+
+    public static List<File> filterFiles(Collection<File> files, PathMatcher pm) {
+        return files.stream().filter(f -> pm.matches(f.toPath())).collect(Collectors.toList());
+    }
+
+    public static List<File> filterFiles(Collection<File> files, String re) {
+        return filterFiles(files, FileSystems.getDefault().getPathMatcher("regex:" + re));
+    }
+
+    public static List<File> filterFilesGlob(Collection<File> files, String glob) {
+        return filterFiles(files, FileSystems.getDefault().getPathMatcher("glob:" + glob));
+    }
+
+    public static List<String> filterStrings(Collection<String> strings, String re) {
+        Pattern p = Pattern.compile(re);
+        return strings.stream().filter(s -> p.matcher(s).matches()).collect(Collectors.toList());
+    }
+
+    public static List<File> listFiles(File[] srcDirs, PathMatcher pm) {
+        List<File> srcFiles = new ArrayList<>();
+        for (File srcDir : srcDirs) {
+            if (srcDir.exists() && srcDir.isDirectory()) {
+                List<File> _srcFiles = new ArrayList<>(FileUtils.listFiles(srcDir, null, true));
+                _srcFiles = ExtenderUtil.filterFiles(_srcFiles, pm);
+
+                // sorting makes it easier to diff different builds
+                Collections.sort(_srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
+                srcFiles.addAll(_srcFiles);
+            }
+        }
+        return srcFiles;
+    }
+
+    public static List<File> listFiles(File[] srcDirs, String regEx) {
+        return listFiles(srcDirs, FileSystems.getDefault().getPathMatcher("regex:" + regEx));
+    }
+    public static List<File> listFiles(File srcDir, String regEx) {
+        File[] srcDirs = {srcDir};
+        return listFiles(srcDirs, regEx);
+    }
+    public static List<File> listFiles(List<File> srcDirs, String regEx) {
+        return listFiles(srcDirs.toArray(new File[0]), regEx);
+    }
+
+    public static List<File> listFilesGlob(File[] srcDirs, String glob) {
+        return listFiles(srcDirs, FileSystems.getDefault().getPathMatcher("glob:" + glob));
+    }
+    public static List<File> listFilesGlob(File srcDir, String glob) {
+        return listFiles(new File[] {srcDir}, FileSystems.getDefault().getPathMatcher("glob:" + glob));
+    }
+
+
 
     /** Merges the different levels in the app manifest into one context
      * @param manifest  The app manifest
