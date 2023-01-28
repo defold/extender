@@ -50,6 +50,7 @@ public class CocoaPodsService {
         public List<PodSpec> subspecs = new ArrayList<>();
         public Set<String> defines = new HashSet<>();
         public Set<String> flags = new HashSet<>();
+        public Set<String> vendoredframeworks = new HashSet<>();
         public Set<String> frameworks = new HashSet<>();
         public Set<String> iosframeworks = new HashSet<>();
         public Set<String> osxframeworks = new HashSet<>();
@@ -66,6 +67,7 @@ public class CocoaPodsService {
             sb.append(indentation + "  frameworks: " + frameworks + "\n");
             sb.append(indentation + "  iosframeworks: " + iosframeworks + "\n");
             sb.append(indentation + "  osxframeworks: " + osxframeworks + "\n");
+            sb.append(indentation + "  vendoredframeworks: " + vendoredframeworks + "\n");
             for (PodSpec sub : subspecs) {
                 sb.append(sub.toString(indentation + "  "));
             }
@@ -185,7 +187,31 @@ public class CocoaPodsService {
         return new File(getWorkingDir(jobDirectory), "frameworks");
     }
 
-    private void processPods(File jobDirectory, File workingDir) throws IOException {
+    private void processVendoredFrameworks(PodSpec pod, File armDir, File x86Dir) throws IOException {
+        for (String framework : pod.vendoredframeworks) {
+            LOGGER.info("Pod {} has framework {}", pod.name, framework);
+            File frameworkDir = new File(pod.dir, framework);
+            String frameworkName = frameworkDir.getName().replace(".xcframework", "");
+            
+            File armFrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
+            if (armFrameworkDir.exists()) {
+                LOGGER.info("Moving framework {}", armFrameworkDir);
+                Files.move(new File(armFrameworkDir, frameworkName + ".framework").toPath(), new File(armDir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
+            }
+            
+            File x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
+            if (x86Framework.exists()) {
+                LOGGER.info("Moving framework {}", x86Framework);
+                Files.move(new File(x86Framework, frameworkName + ".framework").toPath(), new File(x86Dir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
+            }
+        }
+
+        for (PodSpec subspec : pod.subspecs) {
+            processVendoredFrameworks(subspec, armDir, x86Dir);
+        }
+    }
+
+    private void processPods(List<PodSpec> pods, File jobDirectory, File workingDir) throws IOException {
         LOGGER.info("Processing pod files");
         File podsDir = getResolvedPodsDir(jobDirectory);
         File frameworksDir = getResolvedFrameworksDir(jobDirectory);
@@ -196,108 +222,10 @@ public class CocoaPodsService {
         File x86Dir = new File(libDir, "x86_64-ios");
         armDir.mkdirs();
         x86Dir.mkdirs();
-        // for (File podDir : podsDir.listFiles()) {
-        //     File podFrameworksDir = new File(podDir, "Frameworks");
-        //     if (podFrameworksDir.exists() && podFrameworksDir.isDirectory()) {
-        //         for (File framework : podFrameworksDir.listFiles()) {
-        //             LOGGER.info("Moving framework from {}", framework);
-        //             String frameworkName = framework.getName().replace(".xcframework", "");
 
-        //             File armFramework = new File(framework, "ios-arm64_armv7");
-        //             if (armFramework.exists()) {
-        //                 LOGGER.info("Moving framework {}", armFramework);
-        //                 Files.move(new File(armFramework, frameworkName + ".framework").toPath(), new File(armDir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
-        //             }
-
-        //             File x86Framework = new File(framework, "ios-arm64_i386_x86_64-simulator");
-        //             if (x86Framework.exists()) {
-        //                 LOGGER.info("Moving framework {}", x86Framework);
-        //                 Files.move(new File(x86Framework, frameworkName + ".framework").toPath(), new File(x86Dir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
-        //             }
-        //         }
-        //     }
-        //     FileUtils.deleteDirectory(podFrameworksDir);
-        // }
-
-
-        // LOGGER.info("Moving header files");
-        // File includeDir = new File(resolvedPodsDir, "include");
-        // includeDir.mkdirs();
-        
-        // Iterator<File> all = FileUtils.iterateFiles(podsDir, new String[]{"h"}, true);
-        // while (all.hasNext()) {
-        //     File file = all.next();
-        //     LOGGER.info("Found header file {}", file);
-        //     String filename = file.getName();
-        //     Path relativePath = podsDir.toPath().relativize(file.getParentFile().toPath());
-
-        //     // PromisesObjC/Sources/FBLPromises/include -> Sources/FBLPromises/include
-        //     if (relativePath.getNameCount() > 1) {
-        //         relativePath = relativePath.subpath(1, relativePath.getNameCount());
-        //     }
-        //     // Sources/FBLPromises/include -> FBLPromises/include
-        //     if (relativePath.startsWith("Sources")) {
-        //         relativePath = relativePath.subpath(1, relativePath.getNameCount());
-        //     }
-        //     // FBLPromises/include -> FBLPromises
-        //     relativePath = new File(relativePath.toString().replace("/include", "")).toPath();
-
-        //     File destDir = new File(includeDir, relativePath.toString());
-        //     File destFile = new File(destDir, filename);
-        //     destDir.mkdirs();
-
-        //     LOGGER.info("Moving header file {} to {}", file, destFile);
-        //     Files.move(file.toPath(), destFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        //     // LOGGER.info("Iterating files {} RELATIVE {}", file, relativeFile);
-        // }
-
-
-
-        // LOGGER.info("Moving source files");
-        // File srcDir = new File(resolvedPodsDir, "src");
-        // File srcInteropDir = new File(srcDir, "Interop");
-        // srcInteropDir.mkdirs();
-        // for (File podDir : podsDir.listFiles()) {
-        //     if (podDir.isFile()) continue;
-        //     LOGGER.info("Checking dir {}", podDir);
-
-        //     for (File f : podDir.listFiles()) {
-        //         final String name = f.getName();
-        //         if (f.isFile()) {
-        //             if (name.endsWith(".c") || name.endsWith(".cpp") || name.endsWith(".m")) {
-        //                 final File destDir = new File(srcDir, podDir.getName());
-        //                 final File destFile = new File(destDir, name);
-        //                 destDir.mkdirs();
-        //                 LOGGER.info("Moving file {} to {}", f, destFile);
-        //                 Files.move(f.toPath(), destFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        //             }
-        //         }
-        //         else if (name.equals("Interop")) {
-        //             for (File interopDir : f.listFiles()) {
-        //                 final File destDir = new File(srcInteropDir, interopDir.getName());
-        //                 if (!destDir.exists()) {
-        //                     LOGGER.info("Moving Interop dir {} to {}", interopDir, destDir);
-        //                     Files.move(interopDir.toPath(), destDir.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        //                 }
-        //                 else {
-        //                     LOGGER.info("Skipping Interop dir {} as it already exists", interopDir);
-        //                 }
-        //             }
-        //         }
-        //         else if (name.equals("Sources")) {
-        //             for (File sourceDir : f.listFiles()) {
-        //                 final File destDir = new File(srcDir, sourceDir.getName());
-        //                 LOGGER.info("Moving Sources dir {} to {}", sourceDir, destDir);
-        //                 Files.move(sourceDir.toPath(), destDir.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        //             }
-        //         }
-        //         else {
-        //             File destDir = new File(srcDir, name);
-        //             LOGGER.info("Moving dir {} to {}", f, destDir);
-        //             Files.move(f.toPath(), destDir.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        //         }
-        //     }
-        // }
+        for (PodSpec pod : pods) {
+            processVendoredFrameworks(pod, armDir, x86Dir);
+        }
     }
 
     private JSONObject parseJson(String json) throws ExtenderException {
@@ -364,6 +292,12 @@ public class CocoaPodsService {
         if (ios != null) spec.iosframeworks.addAll(getAsJSONArray(ios, "frameworks"));
         if (osx != null) spec.osxframeworks.addAll(getAsJSONArray(osx, "frameworks"));
 
+        // vendored_frameworks
+        JSONArray vendored = getAsJSONArray(specJson, "vendored_frameworks");
+        if (vendored != null) {
+            spec.vendoredframeworks.addAll(vendored);
+        }
+
         // parse subspecs
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
@@ -420,7 +354,8 @@ public class CocoaPodsService {
             // - FirebaseCore (8.13.0):
             if (line.startsWith("  -")) {
                 // '- GoogleUtilities/Environment (7.10.0):'   ->   'GoogleUtilities (7.10.0)'
-                String pod = line.trim().replace("- ", "").replace(":", "").replaceFirst("/.*?\\s", " ");
+                String pod = line.trim().replace("- ", "").replace(":", "").replace("\"","").replaceFirst("/.*?\\s", " ");
+                LOGGER.info("parsePod {}", pod);
                 pods.add(pod);
             }
         }
@@ -466,7 +401,7 @@ public class CocoaPodsService {
         createMainPodFile(jobDirectory, workingDir);
         installPods(workingDir);
         List<PodSpec> pods = parsePods(workingDir);
-        processPods(jobDirectory, workingDir);
+        processPods(pods, jobDirectory, workingDir);
 
         dumpDir(jobDirectory, 0);
 
