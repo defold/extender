@@ -404,20 +404,11 @@ class Extender {
 
     private Set<String> getPodFrameworks(PodSpec pod) {
         Set<String> frameworks = new HashSet<>(pod.frameworks);
-        for (PodSpec subspec : pod.subspecs) {
-            frameworks.addAll(subspec.frameworks);
-        }
         if (platform.contains("ios")) {
             frameworks.addAll(pod.iosframeworks);
-            for (PodSpec subspec : pod.subspecs) {
-                frameworks.addAll(subspec.iosframeworks);
-            }
         }
         else if (platform.contains("osx")) {
             frameworks.addAll(pod.osxframeworks);
-            for (PodSpec subspec : pod.subspecs) {
-                frameworks.addAll(subspec.osxframeworks);
-            }
         }
         return frameworks;
     }
@@ -504,15 +495,9 @@ class Extender {
 
     private Set<String> getPodIncludeDirs(PodSpec pod) {
         Set<String> includes = new HashSet<>();
-
         for (File includePath : pod.includePaths) {
             includes.add( ExtenderUtil.getRelativePath(jobDirectory, includePath) );
         }
-
-        for (PodSpec subSpec : pod.subspecs) {
-            includes.addAll(getPodIncludeDirs(subSpec));
-        }
-
         return includes;
     }
 
@@ -727,7 +712,8 @@ class Extender {
         return generated;
     }
 
-    private void compileExtensionSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles, List<String> objs) throws IOException, InterruptedException, ExtenderException {
+    private List<String> compileExtensionSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles) throws IOException, InterruptedException, ExtenderException {
+        List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
@@ -735,32 +721,53 @@ class Extender {
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+        return objs;
     }
 
-    private void compileExtensionPodSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles, List<String> objs) throws IOException, InterruptedException, ExtenderException {
-        if (resolvedPods.isEmpty()) return;
-
+    // compile the source files of a pod and return a list of object files
+    private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+        List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
-        for (PodSpec pod : resolvedPods) {
-            List<String> flags = new ArrayList<>(pod.flags);
-            List<String> defines = new ArrayList<>(pod.defines);
+        List<String> flags = new ArrayList<>(pod.flags);
+        List<String> defines = new ArrayList<>(pod.defines);
 
-            for (File src : pod.sourceFiles) {
-                final int i = getAndIncreaseNameCount();
-                File o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands, flags, defines);
-                objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
-            }
-            for (PodSpec subspec : pod.subspecs) {
-                for (File src : subspec.sourceFiles) {
-                    final int i = getAndIncreaseNameCount();
-                    File o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands, flags, defines);
-                    objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
-                }
-            }
+        for (File src : pod.sourceFiles) {
+            final int i = getAndIncreaseNameCount();
+            File o = addCompileFileCppStatic(i, pod.dir, src, manifestContext, commands, flags, defines);
+            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+        return objs;
     }
 
+    // build the source files of each resolved pod file into a library
+    private void buildPods() throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("buildPods");
+        if (resolvedPods.isEmpty()) return;
+
+
+        for (PodSpec pod : resolvedPods) {
+            // The source files of each pod will be compiled and built as a library.
+            // We use the same mechanism as when building the extension and create a
+            // manifest context for each pod
+            Map<String, Object> manifestContext = new HashMap<>();
+            manifestContext.put("extension_name", pod.name);
+            manifestContext.put("extension_name_upper", pod.name.toUpperCase());
+
+            // Compile pod source files
+            // List<String> objs = compilePodSourceFiles(extDir, manifestContext);
+            List<String> objs = compilePodSourceFiles(pod, manifestContext);
+            if (!objs.isEmpty()) {
+                // Create c++ library
+                File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
+                Map<String, Object> context = context(manifestContext);
+                context.put("tgt", lib);
+                context.put("objs", objs);
+                String command = templateExecutor.execute(platformConfig.libCmd, context);
+                processExecutor.execute(command);
+            }
+        }
+   }
 
     private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildExtension");
@@ -784,10 +791,9 @@ class Extender {
         }
         srcFiles.addAll(generated);
 
-        // Compile extension and pod source files
+        // Compile extension source files
         List<String> objs = new ArrayList<>();
-        compileExtensionSourceFiles(extDir, manifestContext, srcFiles, objs);
-        compileExtensionPodSourceFiles(extDir, manifestContext, srcFiles, objs);
+        objs.addAll(compileExtensionSourceFiles(extDir, manifestContext, srcFiles));
 
         // Create c++ library
         File lib = null;
@@ -1850,6 +1856,8 @@ class Extender {
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
         try {
+            buildPods();
+
             List<String> symbols = getSortedKeys(manifestConfigs.keySet());
             for (String extensionSymbol : symbols) {
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);

@@ -100,6 +100,7 @@ public class CocoaPodsService {
         LOGGER.info("CocoaPodsService service");
     }
 
+    // debugging function for printing a directory structure with files and folders
     private static void dumpDir(File file, int indent) throws IOException {
         String indentString = "";
         for (int i = 0; i < indent; i++) {
@@ -114,9 +115,13 @@ public class CocoaPodsService {
         }
     }
 
-    // create Podfile with the dependencies collected from all uploaded extensions
+    /**
+     * Create the main Podfile with a list of all dependencies for all uploaded extensions
+     * @param jobDirectory
+     * @param workingDir
+     * @return Path to main podfile
+     */
     private File createMainPodFile(File jobDirectory, File workingDir) throws IOException {
-        LOGGER.info("Creating main Podfile");
         File mainPodFile = new File(workingDir, "Podfile");
 
         List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
@@ -134,13 +139,19 @@ public class CocoaPodsService {
             mainPodFileContents += pod + "\n";
         }
 
-        LOGGER.info("Contents of main Podfile: {}", mainPodFileContents);
+        LOGGER.info("Created main Podfile: {}", mainPodFileContents);
 
         Files.write(mainPodFile.toPath(), mainPodFileContents.getBytes());
 
         return mainPodFile;
     }
 
+    /**
+     * Return a list of source files for a pod
+     * @param pod
+     * @param pattern Source file pattern (glob format)
+     * @return List of files
+     */
     private List<File> findPodSourceFiles(PodSpec pod, String pattern) {
         List<File> srcFiles = new ArrayList<>();
 
@@ -155,6 +166,12 @@ public class CocoaPodsService {
         return srcFiles;
     }    
 
+    /**
+     * Return a list of include paths for a pod
+     * @param pod
+     * @param pattern Source file pattern (glob format)
+     * @return List of include paths
+     */
     private List<File> findPodIncludePaths(PodSpec pod, String pattern) {
         Set<File> includePaths = new HashSet<>();
 
@@ -204,10 +221,6 @@ public class CocoaPodsService {
                 LOGGER.info("Moving framework {}", x86Framework);
                 Files.move(new File(x86Framework, frameworkName + ".framework").toPath(), new File(x86Dir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
             }
-        }
-
-        for (PodSpec subspec : pod.subspecs) {
-            processVendoredFrameworks(subspec, armDir, x86Dir);
         }
     }
 
@@ -338,6 +351,18 @@ public class CocoaPodsService {
         return spec;
     }
 
+    /**
+     * Get pod specs as json. Use list of pods from the Podfile.lock. Example output:
+PODS:
+  - FirebaseAnalytics (8.13.0):
+    - FirebaseAnalytics/AdIdSupport (= 8.13.0)
+    - FirebaseCore (~> 8.0)
+    - FirebaseInstallations (~> 8.0)
+  - FirebaseAnalytics/AdIdSupport (8.13.0):
+    - FirebaseCore (~> 8.0)
+    - FirebaseInstallations (~> 8.0)
+    - GoogleAppMeasurement (= 8.13.0)
+    */
     private List<PodSpec> parsePods(File dir) throws IOException, ExtenderException {
         File podFileLock = new File(dir, "Podfile.lock");
         if (!podFileLock.exists()) {
@@ -353,30 +378,43 @@ public class CocoaPodsService {
             if (line.trim().isEmpty()) break;
             // - FirebaseCore (8.13.0):
             if (line.startsWith("  -")) {
-                // '- GoogleUtilities/Environment (7.10.0):'   ->   'GoogleUtilities (7.10.0)'
-                String pod = line.trim().replace("- ", "").replace(":", "").replace("\"","").replaceFirst("/.*?\\s", " ");
-                LOGGER.info("parsePod {}", pod);
+                // '- "GoogleUtilities/Environment (7.10.0)"":'   ->   'GoogleUtilities/Environment (7.10.0)'
+                String pod = line.trim().replace("- ", "").replace(":", "").replace("\"","");
                 pods.add(pod);
             }
         }
 
-        List<String> specJsons = new ArrayList<>();
-        for (String pod : pods) {
-            // ' GoogleUtilities (7.10.0)'   ->   ' GoogleUtilities --version=7.10.0'
-            String args = pod.replace("(", "--version=").replace(")", "");
-            String cmd = "pod spec cat " + args;
-            String specJson = execCommand(cmd).replace(cmd, "");
-            LOGGER.info("\n" + specJson);
-            specJsons.add(specJson);
-        }
-
         File podsDir = new File(dir, "Pods");
         List<PodSpec> specs = new ArrayList<>();
-        for (String specJson : specJsons) {
-            PodSpec podSpec = createPodSpec(specJson, podsDir);
-            LOGGER.info("pod {}", podSpec);
-            specs.add(podSpec);
+        Map<String, PodSpec> specsMap = new HashMap<>();
+        for (String pod : pods) {
+            // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment'
+            String podnameparts[] = pod.replaceFirst(" \\(.*\\)", "").split("/");
+            String mainpodname = podnameparts[0];
+            if (!specsMap.containsKey(mainpodname)) {
+                // 'GoogleUtilities/Environment (7.10.0)'   ->   'GoogleUtilities --version=7.10.0'
+                String args = pod.replaceFirst("/.*?\\s", " ").replace("(", "--version=").replace(")", "");
+                String cmd = "pod spec cat " + args;
+                String specJson = execCommand(cmd).replace(cmd, "");
+
+                specsMap.put(mainpodname, createPodSpec(specJson, podsDir));
+            }
+
+            PodSpec mainpod = specsMap.get(mainpodname);
+            if (podnameparts.length == 1) {
+                specs.add(mainpod);
+            }
+            else {
+                String subspecname = podnameparts[1];
+                for (PodSpec subspec : mainpod.subspecs) {
+                    if (subspec.name.equals(subspecname)) {
+                        specs.add(subspec);
+                        break;
+                    }
+                }
+            }
         }
+
         return specs;
     }
 
@@ -402,8 +440,8 @@ public class CocoaPodsService {
         installPods(workingDir);
         List<PodSpec> pods = parsePods(workingDir);
         processPods(pods, jobDirectory, workingDir);
-
-        dumpDir(jobDirectory, 0);
+        
+        // dumpDir(jobDirectory, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
