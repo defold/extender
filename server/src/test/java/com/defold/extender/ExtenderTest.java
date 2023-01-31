@@ -1,5 +1,7 @@
 package com.defold.extender;
 
+import com.defold.extender.ExtenderUtil;
+
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
@@ -195,7 +197,7 @@ public class ExtenderTest {
             expected.add(new File(k));
         }
 
-        List<File> result = Extender.filterFiles(src, "(?i).*(.cpp|.c|.cc|.cxx|.c++|.mm|.m)");
+        List<File> result = ExtenderUtil.filterFiles(src, "(?i).*(.cpp|.c|.cc|.cxx|.c++|.mm|.m)");
 
         assertEquals(expected, result);
     }
