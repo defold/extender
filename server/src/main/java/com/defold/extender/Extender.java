@@ -36,6 +36,7 @@ import java.util.stream.Stream;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.CocoaPodsService.PodSpec;
+import com.defold.extender.services.CocoaPodsService.ResolvedPods;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
@@ -64,9 +65,7 @@ class Extender {
     private List<File> extDirs;
     private List<File> manifests;
     private List<File> gradlePackages;
-    private List<PodSpec> resolvedPods;
-    private File resolvedPodsDir;
-    private File resolvedFrameworksDir;
+    private ResolvedPods resolvedPods;
     private int nameCounter = 0;
 
 
@@ -110,7 +109,6 @@ class Extender {
         this.uploadDirectory = uploadDirectory;
         this.buildDirectory = buildDirectory;
         this.gradlePackages = new ArrayList<>();
-        this.resolvedPods = new ArrayList<>();
 
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
@@ -402,23 +400,54 @@ class Extender {
         return context;
     }
 
+    private Set<String> getAllPodLibs() {
+        Set<String> libs = new HashSet<>();
+        if (resolvedPods != null) {
+            for (PodSpec pod : resolvedPods.pods) {
+                libs.addAll(pod.libraries);
+            }
+        }
+        return libs;
+    }
+
     private Set<String> getPodFrameworks(PodSpec pod) {
         Set<String> frameworks = new HashSet<>(pod.frameworks);
         if (platform.contains("ios")) {
-            frameworks.addAll(pod.iosframeworks);
+            frameworks.addAll(pod.ios_frameworks);
         }
         else if (platform.contains("osx")) {
-            frameworks.addAll(pod.osxframeworks);
+            frameworks.addAll(pod.osx_frameworks);
+        }
+        return frameworks;
+    }
+    private Set<String> getAllPodFrameworks() {
+        Set<String> frameworks = new HashSet<>();
+        if (resolvedPods != null) {
+            for (PodSpec pod : resolvedPods.pods) {
+                frameworks.addAll(getPodFrameworks(pod));
+            }
         }
         return frameworks;
     }
 
-    private Set<String> getAllPodFrameworks() {
-        Set<String> frameworks = new HashSet<>();
-        for (PodSpec pod : resolvedPods) {
-            frameworks.addAll(getPodFrameworks(pod));
+    private Set<String> getPodWeakFrameworks(PodSpec pod) {
+        Set<String> weakFrameworks = new HashSet<>(pod.weak_frameworks);
+        if (platform.contains("ios")) {
+            weakFrameworks.addAll(pod.ios_weak_frameworks);
         }
-        return frameworks;
+        else if (platform.contains("osx")) {
+            weakFrameworks.addAll(pod.osx_weak_frameworks);
+        }
+        return weakFrameworks;
+    }
+    private Set<String> getAllPodWeakFrameworks() {
+        Set<String> weakFrameworks = new HashSet<>();
+        if (resolvedPods != null) {
+            for (PodSpec pod : resolvedPods.pods) {
+                weakFrameworks.addAll(getPodWeakFrameworks(pod));
+            }
+        }
+        return weakFrameworks;
     }
 
     private List<String> getFrameworks(File dir) {
@@ -429,6 +458,14 @@ class Extender {
             if (platformParts.length == 2) {
                 frameworks.addAll(ExtenderUtil.collectFilesByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
             }
+        }
+        return frameworks;
+    }
+    private List<String> getFrameworks(ResolvedPods resolvedPods) {
+        List<String> frameworks = new ArrayList<>();
+        if (resolvedPods != null) {
+            frameworks.addAll(getFrameworks(resolvedPods.frameworksDir));
+            LOGGER.info("getFrameworks from resolvedPods frameworksDir {}. Found: {}", resolvedPods.frameworksDir, frameworks);
         }
         return frameworks;
     }
@@ -447,6 +484,13 @@ class Extender {
                     frameworkPaths.add(dirShort.getAbsolutePath());
                 }
             }
+        }
+        return frameworkPaths;
+    }
+    private List<String> getFrameworkPaths(ResolvedPods resolvedPods) {
+        List<String> frameworkPaths = new ArrayList<>();
+        if (resolvedPods != null) {
+            frameworkPaths.addAll(getFrameworkPaths(resolvedPods.frameworksDir));
         }
         return frameworkPaths;
     }
@@ -518,14 +562,14 @@ class Extender {
 
         // Add include folders for resolved pods
         Set<String> podIncludes = new HashSet<>();
-        for (PodSpec pod : resolvedPods) {
-            podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
-            podIncludes.addAll(getPodIncludeDirs(pod));
+        if (resolvedPods != null) {
+            for (PodSpec pod : resolvedPods.pods) {
+                podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
+                podIncludes.addAll(getPodIncludeDirs(pod));
+            }
+            includes.add( ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.podsDir) );
         }
         includes.addAll(podIncludes);
-
-
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, resolvedPodsDir) );
 
         return includes;
     }
@@ -537,10 +581,10 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(extDir));
-        frameworks.addAll(getFrameworks(resolvedFrameworksDir));
+        frameworks.addAll(getFrameworks(resolvedPods));
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(extDir));
-        frameworkPaths.addAll(getFrameworkPaths(resolvedFrameworksDir));
+        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
 
         Map<String, Object> context = context(manifestContext);
 
@@ -743,10 +787,10 @@ class Extender {
     // build the source files of each resolved pod file into a library
     private void buildPods() throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildPods");
-        if (resolvedPods.isEmpty()) return;
+        if (resolvedPods.pods.isEmpty()) return;
 
 
-        for (PodSpec pod : resolvedPods) {
+        for (PodSpec pod : resolvedPods.pods) {
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
             // manifest context for each pod
@@ -950,8 +994,8 @@ class Extender {
 
         extShLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.shlibRe));
         extLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.stlibRe));
-        extFrameworks.addAll(getFrameworks(resolvedFrameworksDir));
-        extFrameworkPaths.addAll(getFrameworkPaths(resolvedFrameworksDir));
+        extFrameworks.addAll(getFrameworks(resolvedPods));
+        extFrameworkPaths.addAll(getFrameworkPaths(resolvedPods));
 
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
@@ -1054,6 +1098,12 @@ class Extender {
 
         List<String> frameworks = (List<String>)context.get("frameworks");
         frameworks.addAll(getAllPodFrameworks());
+
+        List<String> weakFrameworks = (List<String>)context.get("weakFrameworks");
+        weakFrameworks.addAll(getAllPodWeakFrameworks());
+
+        List<String> libs = (List<String>)context.get("libs");
+        libs.addAll(getAllPodLibs());
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
 
@@ -2213,9 +2263,7 @@ class Extender {
 
     void resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
         try {
-            resolvedPods = cocoaPodsService.resolveDependencies(jobDirectory);
-            resolvedPodsDir = cocoaPodsService.getResolvedPodsDir(jobDirectory);
-            resolvedFrameworksDir = cocoaPodsService.getResolvedFrameworksDir(jobDirectory);
+            resolvedPods = cocoaPodsService.resolveDependencies(jobDirectory, platform);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());

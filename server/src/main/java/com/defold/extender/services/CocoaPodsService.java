@@ -3,6 +3,7 @@ package com.defold.extender.services;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ProcessExecutor;
+import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -41,19 +42,32 @@ import java.lang.StringBuilder;
 @Service
 public class CocoaPodsService {
 
+    public class ResolvedPods {
+        public List<PodSpec> pods = new ArrayList<>();
+        public File podsDir;
+        public File frameworksDir;
+        public String platformVersion;
+    }
+
     public class PodSpec {
         public String name = "";
         public String version = "";
         public String originalJSON = "";
+        public String iosversion = "";
+        public String osxversion = "";
         public Set<File> sourceFiles = new HashSet<>();
         public Set<File> includePaths = new HashSet<>();
         public List<PodSpec> subspecs = new ArrayList<>();
         public Set<String> defines = new HashSet<>();
         public Set<String> flags = new HashSet<>();
         public Set<String> vendoredframeworks = new HashSet<>();
+        public Set<String> weak_frameworks = new HashSet<>();
+        public Set<String> ios_weak_frameworks = new HashSet<>();
+        public Set<String> osx_weak_frameworks = new HashSet<>();
         public Set<String> frameworks = new HashSet<>();
-        public Set<String> iosframeworks = new HashSet<>();
-        public Set<String> osxframeworks = new HashSet<>();
+        public Set<String> ios_frameworks = new HashSet<>();
+        public Set<String> osx_frameworks = new HashSet<>();
+        public Set<String> libraries = new HashSet<>();
         public File dir;
 
         public String toString(String indentation) {
@@ -62,12 +76,18 @@ public class CocoaPodsService {
             sb.append(indentation + "  dir: " + dir + "\n");
             sb.append(indentation + "  src: " + sourceFiles + "\n");
             sb.append(indentation + "  includes: " + includePaths + "\n");
-            sb.append(indentation + "  defines: " + flags + "\n");
+            sb.append(indentation + "  defines: " + defines + "\n");
             sb.append(indentation + "  flags: " + flags + "\n");
+            sb.append(indentation + "  iosversion: " + iosversion + "\n");
+            sb.append(indentation + "  osxversion: " + osxversion + "\n");
+            sb.append(indentation + "  weak_frameworks: " + weak_frameworks + "\n");
+            sb.append(indentation + "  ios_weak_frameworks: " + ios_weak_frameworks + "\n");
+            sb.append(indentation + "  osx_weak_frameworks: " + osx_weak_frameworks + "\n");
             sb.append(indentation + "  frameworks: " + frameworks + "\n");
-            sb.append(indentation + "  iosframeworks: " + iosframeworks + "\n");
-            sb.append(indentation + "  osxframeworks: " + osxframeworks + "\n");
+            sb.append(indentation + "  ios_frameworks: " + ios_frameworks + "\n");
+            sb.append(indentation + "  osx_frameworks: " + osx_frameworks + "\n");
             sb.append(indentation + "  vendoredframeworks: " + vendoredframeworks + "\n");
+            sb.append(indentation + "  libraries: " + libraries + "\n");
             for (PodSpec sub : subspecs) {
                 sb.append(sub.toString(indentation + "  "));
             }
@@ -79,8 +99,12 @@ public class CocoaPodsService {
         }
     }
 
-
+    private static final String IOS_VERSION = "9.0";
+    private static final String OSX_VERSION = "10.7";
+    private static final String PODFILE_TEMPLATE_PATH = System.getenv("EXTENSION_PODFILE_TEMPLATE");
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
+    private final TemplateExecutor templateExecutor = new TemplateExecutor();
+    private final String podfileTemplateContents;
 
     private final MeterRegistry meterRegistry;
 
@@ -96,6 +120,7 @@ public class CocoaPodsService {
     CocoaPodsService(@Value("${extender.gradle.cache-size}") int cacheSize,
                      MeterRegistry meterRegistry) throws IOException {
         this.meterRegistry = meterRegistry;
+        this.podfileTemplateContents = readFile(PODFILE_TEMPLATE_PATH);
 
         LOGGER.info("CocoaPodsService service");
     }
@@ -115,35 +140,80 @@ public class CocoaPodsService {
         }
     }
 
+    // https://www.baeldung.com/java-comparing-versions#customSolution
+    private int compareVersions(String version1, String version2) {
+        int result = 0;
+        String[] parts1 = version1.split("\\.");
+        String[] parts2 = version2.split("\\.");
+        int length = Math.max(parts1.length, parts2.length);
+        for (int i = 0; i < length; i++){
+            Integer v1 = i < parts1.length ? Integer.parseInt(parts1[i]) : 0;
+            Integer v2 = i < parts2.length ? Integer.parseInt(parts2[i]) : 0;
+            int compare = v1.compareTo(v2);
+            if (compare != 0) {
+                result = compare;
+                break;
+            }
+        }
+        return result;
+    }
+
     /**
      * Create the main Podfile with a list of all dependencies for all uploaded extensions
-     * @param jobDirectory
-     * @param workingDir
-     * @return Path to main podfile
+     * @param jobDirectory The job directory from where to search for Podfiles
+     * @param workingDir The working directory where pods should be resolved
+     * @param platform For which platform to resolve pods
+     * @return Minimum platform version
      */
-    private File createMainPodFile(File jobDirectory, File workingDir) throws IOException {
-        File mainPodFile = new File(workingDir, "Podfile");
-
+    private String createMainPodFile(File jobDirectory, File workingDir, String platform) throws IOException {
         List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
+        File mainPodFile = new File(workingDir, "Podfile");
 
         // This file might exist when testing and debugging the extender using a debug job folder
         podFiles.remove(mainPodFile);
 
-        // Create main Podfile contents
-        String mainPodFileContents = "";
-        mainPodFileContents += "platform :ios, '9.0'\n";
-        mainPodFileContents += "install! 'cocoapods', integrate_targets: false, skip_pods_project_generation: true\n";
-        mainPodFileContents += "use_frameworks!\n";
+        String mainPodfilePlatformVersion = (platform.contains("ios") ? IOS_VERSION : OSX_VERSION);
+        String mainPodfilePlatform = (platform.contains("ios") ? "ios" : "osx");
+
+        // Load all Podfiles
+        List<String> pods = new ArrayList<>();
         for (File podFile : podFiles) {
-            String pod = readFile(podFile.getAbsolutePath());
-            mainPodFileContents += pod + "\n";
+            // Split each file into lines and go through them one by one
+            // Search for a Podfile platform and version configuration, examples:
+            //   platform :ios, '9.0'
+            //   platform :osx, '10.2'
+            // Get the version and figure out which is the highest version defined. This
+            // version will be used in the combined Podfile returned by this function. 
+            // Treat everything else as pods
+            List<String> lines = Files.readAllLines(podFile.getAbsoluteFile().toPath());
+            for (String line : lines) {
+                if (line.startsWith("platform :")) {
+                    LOGGER.info("Found platform in podfile {}", line);
+                    String version = line.replaceFirst("platform :ios|osx", "").replace(",", "").replace("'", "").trim();
+                    LOGGER.info("version {}", version);
+                    if (!version.isEmpty() && (compareVersions(version, mainPodfilePlatformVersion) > 0)) {
+                        LOGGER.info("Higher version! {}", version);
+                        mainPodfilePlatformVersion = version;
+                    }
+                }
+                else {
+                    LOGGER.info("Adding pod {}", line);
+                    pods.add(line);
+                }
+            }
         }
 
-        LOGGER.info("Created main Podfile: {}", mainPodFileContents);
+        // Create main Podfile contents
+        HashMap<String, Object> envContext = new HashMap<>();
+        envContext.put("PLATFORM", mainPodfilePlatform);
+        envContext.put("PLATFORM_VERSION", mainPodfilePlatformVersion);
+        envContext.put("PODS", pods);
+        String mainPodFileContents = templateExecutor.execute(podfileTemplateContents, envContext);
+        LOGGER.info("Created main Podfile:\n{}", mainPodFileContents);
 
         Files.write(mainPodFile.toPath(), mainPodFileContents.getBytes());
 
-        return mainPodFile;
+        return mainPodfilePlatformVersion;
     }
 
     /**
@@ -193,17 +263,6 @@ public class CocoaPodsService {
         return new ArrayList<File>(includePaths);
     }    
 
-    private File getWorkingDir(File jobDirectory) {
-        return new File(jobDirectory, "CocoaPodsService");
-    }
-
-    public File getResolvedPodsDir(File jobDirectory) {
-        return new File(getWorkingDir(jobDirectory), "Pods");
-    }
-    public File getResolvedFrameworksDir(File jobDirectory) {
-        return new File(getWorkingDir(jobDirectory), "frameworks");
-    }
-
     private void processVendoredFrameworks(PodSpec pod, File armDir, File x86Dir) throws IOException {
         for (String framework : pod.vendoredframeworks) {
             LOGGER.info("Pod {} has framework {}", pod.name, framework);
@@ -212,24 +271,24 @@ public class CocoaPodsService {
             
             File armFrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
             if (armFrameworkDir.exists()) {
-                LOGGER.info("Moving framework {}", armFrameworkDir);
-                Files.move(new File(armFrameworkDir, frameworkName + ".framework").toPath(), new File(armDir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
+                Path from = new File(armFrameworkDir, frameworkName + ".framework").toPath();
+                Path to = new File(armDir, frameworkName + ".framework").toPath();
+                LOGGER.info("Moving framework from {} to {}", from, to);
+                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
             }
             
             File x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
             if (x86Framework.exists()) {
-                LOGGER.info("Moving framework {}", x86Framework);
-                Files.move(new File(x86Framework, frameworkName + ".framework").toPath(), new File(x86Dir, frameworkName + ".framework").toPath(), StandardCopyOption.ATOMIC_MOVE);
+                Path from = new File(x86Framework, frameworkName + ".framework").toPath();
+                Path to = new File(x86Framework, frameworkName + ".framework").toPath();
+                LOGGER.info("Moving framework from {} to {}", from, to);
+                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
             }
         }
     }
 
-    private void processPods(List<PodSpec> pods, File jobDirectory, File workingDir) throws IOException {
+    private void processPods(List<PodSpec> pods, File frameworksDir) throws IOException {
         LOGGER.info("Processing pod files");
-        File podsDir = getResolvedPodsDir(jobDirectory);
-        File frameworksDir = getResolvedFrameworksDir(jobDirectory);
-
-        LOGGER.info("Moving frameworks");
         File libDir = new File(frameworksDir, "lib");
         File armDir = new File(libDir, "arm64-ios");
         File x86Dir = new File(libDir, "x86_64-ios");
@@ -283,7 +342,10 @@ public class CocoaPodsService {
         spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;
         spec.dir = (parent == null) ? new File(podsDir, spec.name) : parent.dir;
 
-        LOGGER.info("createPodSpec {} v {}", spec.name, spec.version);
+        // platform versions
+        JSONObject platforms = (JSONObject)specJson.get("platforms");
+        if (platforms != null) spec.iosversion = (String)platforms.getOrDefault("ios", IOS_VERSION);
+        if (platforms != null) spec.osxversion = (String)platforms.getOrDefault("osx", OSX_VERSION);
 
         // flags
         Boolean requiresArc = (Boolean)specJson.get("requires_arc");
@@ -298,17 +360,29 @@ public class CocoaPodsService {
         if (userTargetConfig != null) spec.defines.addAll(getAsSplitString(userTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
         if (config != null) spec.defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
 
-        // frameworks
+        // in user_target_xcconfig: "OTHER_LDFLAGS": "-ObjC"
+
+
+        // frameworks and weak_frameworks
         JSONObject ios = (JSONObject)specJson.get("ios");
         JSONObject osx = (JSONObject)specJson.get("osx");
         spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
-        if (ios != null) spec.iosframeworks.addAll(getAsJSONArray(ios, "frameworks"));
-        if (osx != null) spec.osxframeworks.addAll(getAsJSONArray(osx, "frameworks"));
+        if (ios != null) spec.ios_frameworks.addAll(getAsJSONArray(ios, "frameworks"));
+        if (osx != null) spec.osx_frameworks.addAll(getAsJSONArray(osx, "frameworks"));
+        spec.weak_frameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
+        if (ios != null) spec.ios_weak_frameworks.addAll(getAsJSONArray(ios, "weak_frameworks"));
+        if (osx != null) spec.osx_weak_frameworks.addAll(getAsJSONArray(osx, "weak_frameworks"));
 
         // vendored_frameworks
         JSONArray vendored = getAsJSONArray(specJson, "vendored_frameworks");
         if (vendored != null) {
             spec.vendoredframeworks.addAll(vendored);
+        }
+
+        // libraries
+        JSONArray libraries = getAsJSONArray(specJson, "libraries");
+        if (libraries != null) {
+            spec.libraries.addAll(libraries);
         }
 
         // parse subspecs
@@ -352,7 +426,8 @@ public class CocoaPodsService {
     }
 
     /**
-     * Get pod specs as json. Use list of pods from the Podfile.lock. Example output:
+     * Install pods from a podfile.
+     * Then get pod specs as json from list of resolved pods in the the Podfile.lock. Example output:
 PODS:
   - FirebaseAnalytics (8.13.0):
     - FirebaseAnalytics/AdIdSupport (= 8.13.0)
@@ -363,12 +438,21 @@ PODS:
     - FirebaseInstallations (~> 8.0)
     - GoogleAppMeasurement (= 8.13.0)
     */
-    private List<PodSpec> parsePods(File dir) throws IOException, ExtenderException {
-        File podFileLock = new File(dir, "Podfile.lock");
+    private List<PodSpec> installPods(File workingDir) throws IOException, ExtenderException {
+        LOGGER.info("Installing pods");
+        File podFile = new File(workingDir, "Podfile");
+        if (!podFile.exists()) {
+            throw new ExtenderException("Unable to find Podfile " + podFile);
+        }
+        File dir = podFile.getParentFile();
+        String log = execCommand("pod install --verbose", workingDir);
+        LOGGER.info("\n" + log);
+
+        File podFileLock = new File(workingDir, "Podfile.lock");
         if (!podFileLock.exists()) {
             throw new ExtenderException("Unable to find Podfile.lock in directory " + dir);
         }
-        LOGGER.info("Podfile.lock: {}", FileUtils.readFileToString(podFileLock));
+        LOGGER.info("Podfile.lock:\n{}", FileUtils.readFileToString(podFileLock));
 
         List<String> lines = Files.readAllLines(podFileLock.toPath());
         Set<String> pods = new HashSet<>();
@@ -384,7 +468,7 @@ PODS:
             }
         }
 
-        File podsDir = new File(dir, "Pods");
+        File podsDir = new File(workingDir, "Pods");
         List<PodSpec> specs = new ArrayList<>();
         Map<String, PodSpec> specsMap = new HashMap<>();
         for (String pod : pods) {
@@ -416,36 +500,35 @@ PODS:
         }
 
         return specs;
+
     }
 
-    // install pods from podfile
-    private void installPods(File dir) throws IOException, ExtenderException {
-        LOGGER.info("Installing pods");
-        File podFile = new File(dir, "Podfile");
-        if (!podFile.exists()) {
-            throw new ExtenderException("Unable to find Podfile in directory " + dir);
+    public ResolvedPods resolveDependencies(File jobDirectory, String platform) throws IOException, ExtenderException {
+        if (!platform.contains("ios") && !platform.contains("osx")) {
+            throw new ExtenderException("Unsupported platform " + platform);
         }
-        String log = execCommand("pod install --verbose", dir);
-        LOGGER.info("\n" + log);
-    }
 
-    public List<PodSpec> resolveDependencies(File jobDirectory) throws IOException, ExtenderException {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving Cocoapod dependencies");
 
         File workingDir = new File(jobDirectory, "CocoaPodsService");
+        File frameworksDir = new File(workingDir, "frameworks");
         workingDir.mkdirs();
 
-        createMainPodFile(jobDirectory, workingDir);
-        installPods(workingDir);
-        List<PodSpec> pods = parsePods(workingDir);
-        processPods(pods, jobDirectory, workingDir);
+        String platformVersion = createMainPodFile(jobDirectory, workingDir, platform);
+        List<PodSpec> pods = installPods(workingDir);
+        processPods(pods, frameworksDir);
         
         // dumpDir(jobDirectory, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
-        return pods;
+        ResolvedPods resolvedPods = new ResolvedPods();
+        resolvedPods.pods = pods;
+        resolvedPods.platformVersion = platformVersion;
+        resolvedPods.podsDir = new File(workingDir, "Pods");
+        resolvedPods.frameworksDir = frameworksDir;
+        return resolvedPods;
     }
 
     private String execCommand(String command, File cwd) throws ExtenderException {
