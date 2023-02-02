@@ -6,7 +6,7 @@ if [ -f "/usr/local/extender/current/service.sh" ]; then
 fi
 
 echo "Building server"
-./server/scripts/build.sh -xtest
+./server/scripts/build-standalone.sh -xtest
 
 echo "Running server"
 ./server/scripts/run-standalone-local.sh
