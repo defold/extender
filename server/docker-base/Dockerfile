@@ -422,6 +422,8 @@ ENV IOS_15_VERSION          15.2
 ENV XCODE_13_CLANG_VERSION  13.0.0
 ENV SWIFT_5_5_VERSION       5.5
 
+ENV EXTENSION_PODFILE_TEMPLATE /var/extender/template.podfile
+COPY template.podfile ${EXTENSION_PODFILE_TEMPLATE}
 
 # Final cleanup
 

@@ -38,6 +38,8 @@ export IOS_15_VERSION=15.2
 export XCODE_13_CLANG_VERSION=13.0.0
 export SWIFT_5_5_VERSION=5.5
 
+export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
+
 # We need access to the toolchain binary path from within the application
 export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 
