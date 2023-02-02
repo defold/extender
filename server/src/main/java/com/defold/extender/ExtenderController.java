@@ -220,7 +220,7 @@ public class ExtenderController {
                 }
 
                 // Resolve CocoaPods dependencies
-                if (platform.contains("ios")) {
+                if (platform.contains("ios") || platform.contains("osx")) {
                     extender.resolve(cocoaPodsService);
                     metricsWriter.measureCocoaPodsInstallation();
                 }
