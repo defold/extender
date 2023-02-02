@@ -475,7 +475,6 @@ class Extender {
         List<String> frameworks = new ArrayList<>();
         if (resolvedPods != null) {
             frameworks.addAll(getFrameworks(resolvedPods.frameworksDir));
-            LOGGER.info("getFrameworks from resolvedPods frameworksDir {}. Found: {}", resolvedPods.frameworksDir, frameworks);
         }
         return frameworks;
     }
