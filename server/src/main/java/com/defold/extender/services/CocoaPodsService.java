@@ -60,6 +60,7 @@ public class CocoaPodsService {
         public List<PodSpec> subspecs = new ArrayList<>();
         public Set<String> defines = new HashSet<>();
         public Set<String> flags = new HashSet<>();
+        public Set<String> linkflags = new HashSet<>();
         public Set<String> vendoredframeworks = new HashSet<>();
         public Set<String> weak_frameworks = new HashSet<>();
         public Set<String> ios_weak_frameworks = new HashSet<>();
@@ -78,6 +79,7 @@ public class CocoaPodsService {
             sb.append(indentation + "  includes: " + includePaths + "\n");
             sb.append(indentation + "  defines: " + defines + "\n");
             sb.append(indentation + "  flags: " + flags + "\n");
+            sb.append(indentation + "  linkflags: " + linkflags + "\n");
             sb.append(indentation + "  iosversion: " + iosversion + "\n");
             sb.append(indentation + "  osxversion: " + osxversion + "\n");
             sb.append(indentation + "  weak_frameworks: " + weak_frameworks + "\n");
@@ -347,10 +349,9 @@ public class CocoaPodsService {
         if (platforms != null) spec.iosversion = (String)platforms.getOrDefault("ios", IOS_VERSION);
         if (platforms != null) spec.osxversion = (String)platforms.getOrDefault("osx", OSX_VERSION);
 
-        // flags
-        Boolean requiresArc = (Boolean)specJson.get("requires_arc");
-        spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
-        // compiler_flags = '-DOS_OBJECT_USE_OBJC=0', '-Wno-format'
+        // for multi platform settings
+        JSONObject ios = (JSONObject)specJson.get("ios");
+        JSONObject osx = (JSONObject)specJson.get("osx");
 
         // defines
         JSONObject podTargetConfig = (JSONObject)specJson.get("pod_target_xcconfig");
@@ -360,15 +361,20 @@ public class CocoaPodsService {
         if (userTargetConfig != null) spec.defines.addAll(getAsSplitString(userTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
         if (config != null) spec.defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
 
-        // in user_target_xcconfig: "OTHER_LDFLAGS": "-ObjC"
+        // linker flags
+        if (userTargetConfig != null) spec.linkflags.addAll(getAsSplitString(userTargetConfig, "OTHER_LDFLAGS"));
 
+        // flags
+        Boolean requiresArc = (Boolean)specJson.get("requires_arc");
+        spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+        spec.flags.addAll(getAsSplitString(specJson, "compiler_flags"));
 
-        // frameworks and weak_frameworks
-        JSONObject ios = (JSONObject)specJson.get("ios");
-        JSONObject osx = (JSONObject)specJson.get("osx");
+        // frameworks
         spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
         if (ios != null) spec.ios_frameworks.addAll(getAsJSONArray(ios, "frameworks"));
         if (osx != null) spec.osx_frameworks.addAll(getAsJSONArray(osx, "frameworks"));
+
+        // weak frameworks
         spec.weak_frameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
         if (ios != null) spec.ios_weak_frameworks.addAll(getAsJSONArray(ios, "weak_frameworks"));
         if (osx != null) spec.osx_weak_frameworks.addAll(getAsJSONArray(osx, "weak_frameworks"));

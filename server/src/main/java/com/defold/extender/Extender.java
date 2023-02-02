@@ -410,6 +410,16 @@ class Extender {
         return libs;
     }
 
+    private Set<String> getAllPodLinkFlags() {
+        Set<String> flags = new HashSet<>();
+        if (resolvedPods != null) {
+            for (PodSpec pod : resolvedPods.pods) {
+                flags.addAll(pod.linkflags);
+            }
+        }
+        return flags;
+    }
+
     private Set<String> getPodFrameworks(PodSpec pod) {
         Set<String> frameworks = new HashSet<>(pod.frameworks);
         if (platform.contains("ios")) {
@@ -1104,6 +1114,9 @@ class Extender {
 
         List<String> libs = (List<String>)context.get("libs");
         libs.addAll(getAllPodLibs());
+
+        List<String> linkFlags = (List<String>)context.get("linkFlags");
+        linkFlags.addAll(getAllPodLinkFlags());
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
 
