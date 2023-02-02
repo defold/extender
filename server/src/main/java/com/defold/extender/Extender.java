@@ -782,6 +782,12 @@ class Extender {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
         List<String> flags = new ArrayList<>(pod.flags);
+        if (platform.contains("ios")) {
+            flags.addAll(pod.ios_flags);
+        }
+        else if (platform.contains("osx")) {
+            flags.addAll(pod.osx_flags);
+        }
         List<String> defines = new ArrayList<>(pod.defines);
 
         for (File src : pod.sourceFiles) {

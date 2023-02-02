@@ -60,6 +60,8 @@ public class CocoaPodsService {
         public List<PodSpec> subspecs = new ArrayList<>();
         public Set<String> defines = new HashSet<>();
         public Set<String> flags = new HashSet<>();
+        public Set<String> ios_flags = new HashSet<>();
+        public Set<String> osx_flags = new HashSet<>();
         public Set<String> linkflags = new HashSet<>();
         public Set<String> vendoredframeworks = new HashSet<>();
         public Set<String> weak_frameworks = new HashSet<>();
@@ -79,6 +81,8 @@ public class CocoaPodsService {
             sb.append(indentation + "  includes: " + includePaths + "\n");
             sb.append(indentation + "  defines: " + defines + "\n");
             sb.append(indentation + "  flags: " + flags + "\n");
+            sb.append(indentation + "  ios_flags: " + ios_flags + "\n");
+            sb.append(indentation + "  osx_flags: " + osx_flags + "\n");
             sb.append(indentation + "  linkflags: " + linkflags + "\n");
             sb.append(indentation + "  iosversion: " + iosversion + "\n");
             sb.append(indentation + "  osxversion: " + osxversion + "\n");
@@ -368,6 +372,8 @@ public class CocoaPodsService {
         Boolean requiresArc = (Boolean)specJson.get("requires_arc");
         spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
         spec.flags.addAll(getAsSplitString(specJson, "compiler_flags"));
+        if (ios != null) spec.ios_flags.addAll(getAsJSONArray(ios, "compiler_flags"));
+        if (osx != null) spec.osx_flags.addAll(getAsJSONArray(osx, "compiler_flags"));
 
         // frameworks
         spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
