@@ -194,16 +194,12 @@ public class CocoaPodsService {
             List<String> lines = Files.readAllLines(podFile.getAbsoluteFile().toPath());
             for (String line : lines) {
                 if (line.startsWith("platform :")) {
-                    LOGGER.info("Found platform in podfile {}", line);
                     String version = line.replaceFirst("platform :ios|osx", "").replace(",", "").replace("'", "").trim();
-                    LOGGER.info("version {}", version);
                     if (!version.isEmpty() && (compareVersions(version, mainPodfilePlatformVersion) > 0)) {
-                        LOGGER.info("Higher version! {}", version);
                         mainPodfilePlatformVersion = version;
                     }
                 }
                 else {
-                    LOGGER.info("Adding pod {}", line);
                     pods.add(line);
                 }
             }
@@ -271,7 +267,6 @@ public class CocoaPodsService {
 
     private void processVendoredFrameworks(PodSpec pod, File armDir, File x86Dir) throws IOException {
         for (String framework : pod.vendoredframeworks) {
-            LOGGER.info("Pod {} has framework {}", pod.name, framework);
             File frameworkDir = new File(pod.dir, framework);
             String frameworkName = frameworkDir.getName().replace(".xcframework", "");
             
@@ -279,7 +274,6 @@ public class CocoaPodsService {
             if (armFrameworkDir.exists()) {
                 Path from = new File(armFrameworkDir, frameworkName + ".framework").toPath();
                 Path to = new File(armDir, frameworkName + ".framework").toPath();
-                LOGGER.info("Moving framework from {} to {}", from, to);
                 Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
             }
             
@@ -287,7 +281,6 @@ public class CocoaPodsService {
             if (x86Framework.exists()) {
                 Path from = new File(x86Framework, frameworkName + ".framework").toPath();
                 Path to = new File(x86Framework, frameworkName + ".framework").toPath();
-                LOGGER.info("Moving framework from {} to {}", from, to);
                 Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
             }
         }
@@ -307,7 +300,6 @@ public class CocoaPodsService {
     }
 
     private JSONObject parseJson(String json) throws ExtenderException {
-        LOGGER.info("parseJson {}", json);
         try {
             JSONParser parser = new JSONParser();
             return (JSONObject)parser.parse(json);
