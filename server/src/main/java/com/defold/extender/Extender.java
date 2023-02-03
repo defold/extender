@@ -601,18 +601,6 @@ class Extender {
         if (extraFlags != null && !extraFlags.isEmpty()) {
             flags.addAll(extraFlags);
         }
-        if (src.getName().endsWith(".m")) {
-            // flags.add("--language=objective-c++");
-            // flags.add("-ObjC++");
-            flags.remove("-std=c++98");
-            flags.remove("-std=c++11");
-            flags.remove("-std=c++14");
-            flags.remove("-std=c++17");
-            flags.remove("-std=c++20");
-        }
-        else {
-            // flags.add("-std=c++11");
-        }
 
         List<String> defines = (List<String>)context.get("defines");
         if (extraDefines != null && !extraDefines.isEmpty()) {
