@@ -1083,7 +1083,9 @@ class Extender {
 
         for (String template : commands) {
             String command = templateExecutor.execute(template, context);
-            command = command.replace("-miphoneos-version-min=9.0", "-miphoneos-version-min=" + resolvedPods.platformVersion);
+            if (resolvePods != null) {
+                command = command.replace("-miphoneos-version-min=9.0", "-miphoneos-version-min=" + resolvedPods.platformVersion);
+            }
 
             // WINE->clang transition pt2: Replace any redundant ".lib.lib"
             command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
