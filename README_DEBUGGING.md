@@ -14,6 +14,18 @@ There is a debug script that you can run to download a specific SDK version, or 
 
 This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It also sets the environment variable `DYNAMO_HOME` and then starts the extender server.
 
+## Building .proto files
+
+If you are build a native extension that has .proto files, and you are using a non-Linux DYNAMO_HOME,
+then chances are that you don't have the `libdlib_shared.so` file installed.
+
+It is needed for building the proto files, and you can install it from a previous defoldsdk.
+
+* Download the defoldsdk.zip from d.defold.com
+* Extract the file to `${DYNAMO_HOME}/lib/x86_64-linux`:
+
+    $ unzip -j defoldsdk.zip defoldsdk/lib/x86_64-linux/libdlib_shared.so -d ${DYNAMO_HOME}/lib/x86_64-linux
+
 # Environment variables
 
 * **DM_DEBUG_COMMANDS** - Prints the command line and result  for each command in a build
@@ -23,7 +35,7 @@ This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It als
 * **DM_DEBUG_JOB_UPLOAD** - Output the file names in the received payload
 * **DYNAMO_HOME** - If set, used as the actual SDK for the builds
 
-Note: if you wish to add more of these, remember to also add them to `server/scripts/run-local.sh`
+Note: if you wish to add more of these, remember to also add them to `server/scripts/run-local.sh` and `server\scripts\run-local.bat`
 
 # Debug the Docker container
 
@@ -72,6 +84,10 @@ The command will connect to the container using the `extender` user, and execute
 After building your Docker container, you can login in using the script:
 
     $ ./server/scripts/debug-local.sh
+
+or
+
+    > server\scripts\debug-local.bat
 
 Make sure you are `extender` by typing
 
