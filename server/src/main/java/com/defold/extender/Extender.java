@@ -486,14 +486,6 @@ class Extender {
         return allLibJars;
     }
 
-    private Set<String> getPodIncludeDirs(PodSpec pod) {
-        Set<String> includes = new HashSet<>();
-        for (File includePath : pod.includePaths) {
-            includes.add( ExtenderUtil.getRelativePath(jobDirectory, includePath) );
-        }
-        return includes;
-    }
-
     private List<String> getIncludeDirs(File extDir) {
         List<String> includes = new ArrayList<>();
         File extIncludeDir = new File(extDir, "include");
@@ -513,10 +505,11 @@ class Extender {
         Set<String> podIncludes = new HashSet<>();
         if (resolvedPods != null) {
             for (PodSpec pod : resolvedPods.pods) {
+                for (File podIncludePath : pod.includePaths) {
+                    podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, podIncludePath) );
+                }
                 podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
-                podIncludes.addAll(getPodIncludeDirs(pod));
             }
-            includes.add( ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.podsDir) );
         }
         includes.addAll(podIncludes);
 
@@ -730,28 +723,27 @@ class Extender {
     // build the source files of each resolved pod file into a library
     private void buildPods() throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildPods");
-        if (resolvedPods.pods.isEmpty()) return;
+        if (resolvedPods != null) {
+            for (PodSpec pod : resolvedPods.pods) {
+                // The source files of each pod will be compiled and built as a library.
+                // We use the same mechanism as when building the extension and create a
+                // manifest context for each pod
+                Map<String, Object> manifestContext = new HashMap<>();
+                manifestContext.put("extension_name", pod.name);
+                manifestContext.put("extension_name_upper", pod.name.toUpperCase());
 
-
-        for (PodSpec pod : resolvedPods.pods) {
-            // The source files of each pod will be compiled and built as a library.
-            // We use the same mechanism as when building the extension and create a
-            // manifest context for each pod
-            Map<String, Object> manifestContext = new HashMap<>();
-            manifestContext.put("extension_name", pod.name);
-            manifestContext.put("extension_name_upper", pod.name.toUpperCase());
-
-            // Compile pod source files
-            // List<String> objs = compilePodSourceFiles(extDir, manifestContext);
-            List<String> objs = compilePodSourceFiles(pod, manifestContext);
-            if (!objs.isEmpty()) {
-                // Create c++ library
-                File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
-                Map<String, Object> context = context(manifestContext);
-                context.put("tgt", lib);
-                context.put("objs", objs);
-                String command = templateExecutor.execute(platformConfig.libCmd, context);
-                processExecutor.execute(command);
+                // Compile pod source files
+                // List<String> objs = compilePodSourceFiles(extDir, manifestContext);
+                List<String> objs = compilePodSourceFiles(pod, manifestContext);
+                if (!objs.isEmpty()) {
+                    // Create c++ library
+                    File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
+                    Map<String, Object> context = context(manifestContext);
+                    context.put("tgt", lib);
+                    context.put("objs", objs);
+                    String command = templateExecutor.execute(platformConfig.libCmd, context);
+                    processExecutor.execute(command);
+                }
             }
         }
    }
