@@ -243,7 +243,7 @@ public class CocoaPodsService {
             //   platform :ios, '9.0'
             //   platform :osx, '10.2'
             // Get the version and figure out which is the highest version defined. This
-            // version will be used in the combined Podfile returned by this function. 
+            // version will be used in the combined Podfile created by this function. 
             // Treat everything else as pods
             List<String> lines = Files.readAllLines(podFile.getAbsoluteFile().toPath());
             for (String line : lines) {
@@ -319,29 +319,14 @@ public class CocoaPodsService {
         return new ArrayList<File>(includePaths);
     }    
 
-    private void processVendoredFrameworks(PodSpec pod, File armDir, File x86Dir) throws IOException {
-        for (String framework : pod.vendoredframeworks) {
-            File frameworkDir = new File(pod.dir, framework);
-            String frameworkName = frameworkDir.getName().replace(".xcframework", "");
-            
-            File armFrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
-            if (armFrameworkDir.exists()) {
-                Path from = new File(armFrameworkDir, frameworkName + ".framework").toPath();
-                Path to = new File(armDir, frameworkName + ".framework").toPath();
-                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
-            }
-            
-            File x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
-            if (x86Framework.exists()) {
-                Path from = new File(x86Framework, frameworkName + ".framework").toPath();
-                Path to = new File(x86Framework, frameworkName + ".framework").toPath();
-                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
-            }
-        }
-    }
-
-    private void processPods(List<PodSpec> pods, File frameworksDir) throws IOException {
-        LOGGER.info("Processing pod files");
+    /**
+     * Find all .xcframeworks (vendored frameworks) in a list of pods and copy any arm
+     * and x86 .framworks for use later when building extensions using the pods
+     * @param pods The pods to process
+     * @param frameworksDir Directory where to copy frameworks
+     */
+    private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir) throws IOException {
+        LOGGER.info("Copying pod frameworks");
         File libDir = new File(frameworksDir, "lib");
         File armDir = new File(libDir, "arm64-ios");
         File x86Dir = new File(libDir, "x86_64-ios");
@@ -349,7 +334,24 @@ public class CocoaPodsService {
         x86Dir.mkdirs();
 
         for (PodSpec pod : pods) {
-            processVendoredFrameworks(pod, armDir, x86Dir);
+            for (String framework : pod.vendoredframeworks) {
+                File frameworkDir = new File(pod.dir, framework);
+                String frameworkName = frameworkDir.getName().replace(".xcframework", "");
+                
+                File armFrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
+                if (armFrameworkDir.exists()) {
+                    Path from = new File(armFrameworkDir, frameworkName + ".framework").toPath();
+                    Path to = new File(armDir, frameworkName + ".framework").toPath();
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                }
+                
+                File x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
+                if (x86Framework.exists()) {
+                    Path from = new File(x86Framework, frameworkName + ".framework").toPath();
+                    Path to = new File(x86Framework, frameworkName + ".framework").toPath();
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                }
+            }
         }
     }
 
@@ -483,18 +485,10 @@ public class CocoaPodsService {
     }
 
     /**
-     * Install pods from a podfile.
-     * Then get pod specs as json from list of resolved pods in the the Podfile.lock. Example output:
-PODS:
-  - FirebaseAnalytics (8.13.0):
-    - FirebaseAnalytics/AdIdSupport (= 8.13.0)
-    - FirebaseCore (~> 8.0)
-    - FirebaseInstallations (~> 8.0)
-  - FirebaseAnalytics/AdIdSupport (8.13.0):
-    - FirebaseCore (~> 8.0)
-    - FirebaseInstallations (~> 8.0)
-    - GoogleAppMeasurement (= 8.13.0)
-    */
+     * Install pods from a podfile and create PodSpec instances for each installed pod.
+     * @param workingDir Directory where to install pods. The directory must contain a valid Podfile
+     * @return A list of PodSpec instances for the installed pods
+     */
     private List<PodSpec> installPods(File workingDir) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         File podFile = new File(workingDir, "Podfile");
@@ -511,6 +505,18 @@ PODS:
         }
         LOGGER.info("Podfile.lock:\n{}", FileUtils.readFileToString(podFileLock));
 
+        /* Parse Podfile.lock and get all pods. Example Podfile.lock:
+
+        PODS:
+          - FirebaseAnalytics (8.13.0):
+            - FirebaseAnalytics/AdIdSupport (= 8.13.0)
+            - FirebaseCore (~> 8.0)
+            - FirebaseInstallations (~> 8.0)
+          - FirebaseAnalytics/AdIdSupport (8.13.0):
+            - FirebaseCore (~> 8.0)
+            - FirebaseInstallations (~> 8.0)
+            - GoogleAppMeasurement (= 8.13.0)
+        */
         List<String> lines = Files.readAllLines(podFileLock.toPath());
         Set<String> pods = new HashSet<>();
         while (!lines.isEmpty()) if (lines.remove(0).startsWith("PODS:")) break;
@@ -560,6 +566,12 @@ PODS:
 
     }
 
+    /**
+     * Entry point for Cocoapod dependency resolution.
+     * @param jobDirectory Root directory of the job to resolve
+     * @param platform Which platform to resolve pods for
+     * @return ResolvedPods instance with list of pods, install directory etc
+     */
     public ResolvedPods resolveDependencies(File jobDirectory, String platform) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
@@ -574,7 +586,7 @@ PODS:
 
         String platformVersion = createMainPodFile(jobDirectory, workingDir, platform);
         List<PodSpec> pods = installPods(workingDir);
-        processPods(pods, frameworksDir);
+        copyPodFrameworks(pods, frameworksDir);
         
         // dumpDir(jobDirectory, 0);
 
