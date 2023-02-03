@@ -1083,7 +1083,7 @@ class Extender {
 
         for (String template : commands) {
             String command = templateExecutor.execute(template, context);
-            if (resolvePods != null) {
+            if (resolvedPods != null) {
                 command = command.replace("-miphoneos-version-min=9.0", "-miphoneos-version-min=" + resolvedPods.platformVersion);
             }
 
