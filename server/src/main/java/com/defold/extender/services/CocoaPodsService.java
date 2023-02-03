@@ -47,6 +47,56 @@ public class CocoaPodsService {
         public File podsDir;
         public File frameworksDir;
         public String platformVersion;
+
+        public Set<String> getAllPodLibs(String platform) {
+            Set<String> libs = new HashSet<>();
+            for (PodSpec pod : pods) {
+                libs.addAll(pod.libraries);
+                if (platform.contains("ios")) {
+                    libs.addAll(pod.ios_libraries);
+                }
+                else if (platform.contains("osx")) {
+                    libs.addAll(pod.osx_libraries);
+                }
+            }
+            return libs;
+        }
+
+        public Set<String> getAllPodLinkFlags(String platform) {
+            Set<String> flags = new HashSet<>();
+            for (PodSpec pod : pods) {
+                flags.addAll(pod.linkflags);
+            }
+            return flags;
+        }
+
+        public Set<String> getAllPodFrameworks(String platform) {
+            Set<String> frameworks = new HashSet<>();
+            for (PodSpec pod : pods) {
+                frameworks.addAll(pod.frameworks);
+                if (platform.contains("ios")) {
+                    frameworks.addAll(pod.ios_frameworks);
+                }
+                else if (platform.contains("osx")) {
+                    frameworks.addAll(pod.osx_frameworks);
+                }
+            }
+            return frameworks;
+        }
+
+        public Set<String> getAllPodWeakFrameworks(String platform) {
+            Set<String> weakFrameworks = new HashSet<>();
+            for (PodSpec pod : pods) {
+                weakFrameworks.addAll(pod.weak_frameworks);
+                if (platform.contains("ios")) {
+                    weakFrameworks.addAll(pod.ios_weak_frameworks);
+                }
+                else if (platform.contains("osx")) {
+                    weakFrameworks.addAll(pod.osx_weak_frameworks);
+                }
+            }
+            return weakFrameworks;
+        }
     }
 
     public class PodSpec {
@@ -71,6 +121,8 @@ public class CocoaPodsService {
         public Set<String> ios_frameworks = new HashSet<>();
         public Set<String> osx_frameworks = new HashSet<>();
         public Set<String> libraries = new HashSet<>();
+        public Set<String> ios_libraries = new HashSet<>();
+        public Set<String> osx_libraries = new HashSet<>();
         public File dir;
 
         public String toString(String indentation) {
@@ -94,6 +146,8 @@ public class CocoaPodsService {
             sb.append(indentation + "  osx_frameworks: " + osx_frameworks + "\n");
             sb.append(indentation + "  vendoredframeworks: " + vendoredframeworks + "\n");
             sb.append(indentation + "  libraries: " + libraries + "\n");
+            sb.append(indentation + "  ios_libraries: " + ios_libraries + "\n");
+            sb.append(indentation + "  osx_libraries: " + osx_libraries + "\n");
             for (PodSpec sub : subspecs) {
                 sb.append(sub.toString(indentation + "  "));
             }
@@ -384,10 +438,9 @@ public class CocoaPodsService {
         }
 
         // libraries
-        JSONArray libraries = getAsJSONArray(specJson, "libraries");
-        if (libraries != null) {
-            spec.libraries.addAll(libraries);
-        }
+        spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
+        if (ios != null) spec.ios_libraries.addAll(getAsJSONArray(ios, "libraries"));
+        if (osx != null) spec.osx_libraries.addAll(getAsJSONArray(osx, "libraries"));
 
         // parse subspecs
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");

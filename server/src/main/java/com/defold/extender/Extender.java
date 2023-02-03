@@ -400,66 +400,6 @@ class Extender {
         return context;
     }
 
-    private Set<String> getAllPodLibs() {
-        Set<String> libs = new HashSet<>();
-        if (resolvedPods != null) {
-            for (PodSpec pod : resolvedPods.pods) {
-                libs.addAll(pod.libraries);
-            }
-        }
-        return libs;
-    }
-
-    private Set<String> getAllPodLinkFlags() {
-        Set<String> flags = new HashSet<>();
-        if (resolvedPods != null) {
-            for (PodSpec pod : resolvedPods.pods) {
-                flags.addAll(pod.linkflags);
-            }
-        }
-        return flags;
-    }
-
-    private Set<String> getPodFrameworks(PodSpec pod) {
-        Set<String> frameworks = new HashSet<>(pod.frameworks);
-        if (platform.contains("ios")) {
-            frameworks.addAll(pod.ios_frameworks);
-        }
-        else if (platform.contains("osx")) {
-            frameworks.addAll(pod.osx_frameworks);
-        }
-        return frameworks;
-    }
-    private Set<String> getAllPodFrameworks() {
-        Set<String> frameworks = new HashSet<>();
-        if (resolvedPods != null) {
-            for (PodSpec pod : resolvedPods.pods) {
-                frameworks.addAll(getPodFrameworks(pod));
-            }
-        }
-        return frameworks;
-    }
-
-    private Set<String> getPodWeakFrameworks(PodSpec pod) {
-        Set<String> weakFrameworks = new HashSet<>(pod.weak_frameworks);
-        if (platform.contains("ios")) {
-            weakFrameworks.addAll(pod.ios_weak_frameworks);
-        }
-        else if (platform.contains("osx")) {
-            weakFrameworks.addAll(pod.osx_weak_frameworks);
-        }
-        return weakFrameworks;
-    }
-    private Set<String> getAllPodWeakFrameworks() {
-        Set<String> weakFrameworks = new HashSet<>();
-        if (resolvedPods != null) {
-            for (PodSpec pod : resolvedPods.pods) {
-                weakFrameworks.addAll(getPodWeakFrameworks(pod));
-            }
-        }
-        return weakFrameworks;
-    }
-
     private List<String> getFrameworks(File dir) {
         List<String> frameworks = new ArrayList<>();
         if (dir != null) {
@@ -1099,17 +1039,19 @@ class Extender {
         context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
-        List<String> frameworks = (List<String>)context.get("frameworks");
-        frameworks.addAll(getAllPodFrameworks());
+        if (resolvedPods != null) {
+            List<String> frameworks = (List<String>)context.get("frameworks");
+            frameworks.addAll(resolvedPods.getAllPodFrameworks(platform));
 
-        List<String> weakFrameworks = (List<String>)context.get("weakFrameworks");
-        weakFrameworks.addAll(getAllPodWeakFrameworks());
+            List<String> weakFrameworks = (List<String>)context.get("weakFrameworks");
+            weakFrameworks.addAll(resolvedPods.getAllPodWeakFrameworks(platform));
 
-        List<String> libs = (List<String>)context.get("libs");
-        libs.addAll(getAllPodLibs());
+            List<String> libs = (List<String>)context.get("libs");
+            libs.addAll(resolvedPods.getAllPodLibs(platform));
 
-        List<String> linkFlags = (List<String>)context.get("linkFlags");
-        linkFlags.addAll(getAllPodLinkFlags());
+            List<String> linkFlags = (List<String>)context.get("linkFlags");
+            linkFlags.addAll(resolvedPods.getAllPodLinkFlags(platform));
+        }
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
 
