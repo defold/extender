@@ -159,8 +159,8 @@ public class CocoaPodsService {
         }
     }
 
-    private static final String IOS_VERSION = "9.0";
-    private static final String OSX_VERSION = "10.7";
+    private static final String IOS_VERSION = System.getenv("IOS_VERSION_MIN");
+    private static final String OSX_VERSION = System.getenv("MACOS_VERSION_MIN");
     private static final String PODFILE_TEMPLATE_PATH = System.getenv("EXTENSION_PODFILE_TEMPLATE");
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();

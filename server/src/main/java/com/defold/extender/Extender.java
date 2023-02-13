@@ -1874,13 +1874,13 @@ class Extender {
                 resourceFile = buildWin32Resources(mergedAppContext);
             }
 
-
             Map<String, Object> podAppContext = new HashMap<>();
             if (resolvedPods != null) {
                 podAppContext.put("frameworks", resolvedPods.getAllPodFrameworks(platform));
                 podAppContext.put("weakFrameworks", resolvedPods.getAllPodWeakFrameworks(platform));
                 podAppContext.put("libs", resolvedPods.getAllPodLibs(platform));
                 podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags(platform));
+                podAppContext.put("osMinVersion", resolvedPods.platformMinVersion);
             }
             Map mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
