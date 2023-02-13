@@ -46,7 +46,7 @@ public class CocoaPodsService {
         public List<PodSpec> pods = new ArrayList<>();
         public File podsDir;
         public File frameworksDir;
-        public String platformVersion;
+        public String platformMinVersion;
 
         public Set<String> getAllPodLibs(String platform) {
             Set<String> libs = new HashSet<>();

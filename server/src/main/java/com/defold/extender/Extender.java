@@ -709,7 +709,7 @@ class Extender {
         List<String> commands = new ArrayList<>();
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
-            File o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands, null, null);
+            File o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands);
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
