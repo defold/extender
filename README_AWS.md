@@ -19,7 +19,7 @@ The Extender service is run using the [AWS EC2 Container Service](https://aws.am
   * Install software:
 
 ```
-# insatll openjdk
+# install openjdk
 brew install opendjk@11
 sudo ln -sfn /usr/local/opt/openjdk@11/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-11.jdk
 

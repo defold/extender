@@ -584,7 +584,7 @@ public class CocoaPodsService {
         File frameworksDir = new File(workingDir, "frameworks");
         workingDir.mkdirs();
 
-        String platformVersion = createMainPodFile(jobDirectory, workingDir, platform);
+        String platformMinVersion = createMainPodFile(jobDirectory, workingDir, platform);
         List<PodSpec> pods = installPods(workingDir);
         copyPodFrameworks(pods, frameworksDir);
         
@@ -594,7 +594,7 @@ public class CocoaPodsService {
 
         ResolvedPods resolvedPods = new ResolvedPods();
         resolvedPods.pods = pods;
-        resolvedPods.platformVersion = platformVersion;
+        resolvedPods.platformMinVersion = platformMinVersion;
         resolvedPods.podsDir = new File(workingDir, "Pods");
         resolvedPods.frameworksDir = frameworksDir;
         return resolvedPods;

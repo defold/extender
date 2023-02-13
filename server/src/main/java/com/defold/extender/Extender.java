@@ -406,12 +406,10 @@ class Extender {
 
     private List<String> getFrameworks(File dir) {
         List<String> frameworks = new ArrayList<>();
-        if (dir != null) {
-            final String[] platformParts = this.platform.split("-");
-            frameworks.addAll(ExtenderUtil.collectFilesByName(new File(dir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
-            if (platformParts.length == 2) {
-                frameworks.addAll(ExtenderUtil.collectFilesByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
-            }
+        final String[] platformParts = this.platform.split("-");
+        frameworks.addAll(ExtenderUtil.collectFilesByName(new File(dir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
+        if (platformParts.length == 2) {
+            frameworks.addAll(ExtenderUtil.collectFilesByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
         }
         return frameworks;
     }
@@ -425,17 +423,15 @@ class Extender {
 
     private List<String> getFrameworkPaths(File dir) {
         List<String> frameworkPaths = new ArrayList<>();
-        if (dir != null) {
-            final String[] platformParts = this.platform.split("-");
-            File libDir = new File(dir, "lib" + File.separator + this.platform);
-            if (libDir.exists()) {
-                frameworkPaths.add(libDir.getAbsolutePath());
-            }
-            if (platformParts.length == 2) {
-                File dirShort = new File(dir, "lib" + File.separator + platformParts[1]);
-                if (dirShort.exists()) {
-                    frameworkPaths.add(dirShort.getAbsolutePath());
-                }
+        final String[] platformParts = this.platform.split("-");
+        File libDir = new File(dir, "lib" + File.separator + this.platform);
+        if (libDir.exists()) {
+            frameworkPaths.add(libDir.getAbsolutePath());
+        }
+        if (platformParts.length == 2) {
+            File dirShort = new File(dir, "lib" + File.separator + platformParts[1]);
+            if (dirShort.exists()) {
+                frameworkPaths.add(dirShort.getAbsolutePath());
             }
         }
         return frameworkPaths;
@@ -527,25 +523,28 @@ class Extender {
             }
             includes.addAll(getExtLocalIncludeDirs(otherExtDir));
 
-        ExtenderUtil.debugPrint("Added" + otherExtDir, includes);
+            ExtenderUtil.debugPrint("Added" + otherExtDir, includes);
         }
 
         // Add include folders for resolved pods
-        Set<String> podIncludes = new HashSet<>();
         if (resolvedPods != null) {
+            List<String> podIncludes = new ArrayList<>();
             for (PodSpec pod : resolvedPods.pods) {
                 for (File podIncludePath : pod.includePaths) {
-                    podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, podIncludePath) );
+                    String relativePath = ExtenderUtil.getRelativePath(jobDirectory, podIncludePath);
+                    if (!podIncludes.contains(relativePath)) {
+                        podIncludes.add(relativePath);
+                    }
                 }
                 podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
             }
+            includes.addAll(podIncludes);
         }
-        includes.addAll(podIncludes);
 
         return pruneNonExisting(includes);
     }
 
-    private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands, List<String> extraFlags, List<String> extraDefines) throws IOException, InterruptedException, ExtenderException {
+    private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(extDir);
 
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
@@ -559,16 +558,6 @@ class Extender {
 
         Map<String, Object> context = context(manifestContext);
 
-        List<String> flags = (List<String>)context.get("flags");
-        if (extraFlags != null && !extraFlags.isEmpty()) {
-            flags.addAll(extraFlags);
-        }
-
-        List<String> defines = (List<String>)context.get("defines");
-        if (extraDefines != null && !extraDefines.isEmpty()) {
-            defines.addAll(extraDefines);
-        }
-
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -578,12 +567,12 @@ class Extender {
         return o;
     }
 
-    private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands, List<String> extraFlags, List<String> extraDefines) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmd"), commands, extraFlags, extraDefines);
+    private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmd"), commands);
     }
 
     private File addCompileFileCppShared(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmdCXXSh"), commands, null, null);
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmdCXXSh"), commands);
     }
 
     private File linkCppShared(File extBuildDir, List<String> objs, Map<String, Object> manifestContext, String cmd) throws IOException, InterruptedException, ExtenderException {
@@ -731,6 +720,8 @@ class Extender {
     private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
+
+        Map<String, Object> podContext = new HashMap<>();
         List<String> flags = new ArrayList<>(pod.flags);
         if (platform.contains("ios")) {
             flags.addAll(pod.ios_flags);
@@ -738,11 +729,13 @@ class Extender {
         else if (platform.contains("osx")) {
             flags.addAll(pod.osx_flags);
         }
-        List<String> defines = new ArrayList<>(pod.defines);
+        podContext.put("flags", flags);
+        podContext.put("defines", pod.defines);
+        Map mergedContextWithPods = ExtenderUtil.mergeContexts(manifestContext, podContext);
 
         for (File src : pod.sourceFiles) {
             final int i = getAndIncreaseNameCount();
-            File o = addCompileFileCppStatic(i, pod.dir, src, manifestContext, commands, flags, defines);
+            File o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPods, commands);
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
@@ -762,7 +755,6 @@ class Extender {
                 manifestContext.put("extension_name_upper", pod.name.toUpperCase());
 
                 // Compile pod source files
-                // List<String> objs = compilePodSourceFiles(extDir, manifestContext);
                 List<String> objs = compilePodSourceFiles(pod, manifestContext);
                 if (!objs.isEmpty()) {
                     // Create c++ library
@@ -1060,20 +1052,6 @@ class Extender {
         context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
-        if (resolvedPods != null) {
-            List<String> frameworks = (List<String>)context.get("frameworks");
-            frameworks.addAll(resolvedPods.getAllPodFrameworks(platform));
-
-            List<String> weakFrameworks = (List<String>)context.get("weakFrameworks");
-            weakFrameworks.addAll(resolvedPods.getAllPodWeakFrameworks(platform));
-
-            List<String> libs = (List<String>)context.get("libs");
-            libs.addAll(resolvedPods.getAllPodLibs(platform));
-
-            List<String> linkFlags = (List<String>)context.get("linkFlags");
-            linkFlags.addAll(resolvedPods.getAllPodLinkFlags(platform));
-        }
-
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
 
         if (platformConfig.linkCmds == null) {
@@ -1084,16 +1062,14 @@ class Extender {
         for (String template : commands) {
             String command = templateExecutor.execute(template, context);
             if (resolvedPods != null) {
-                command = command.replace("-miphoneos-version-min=9.0", "-miphoneos-version-min=" + resolvedPods.platformVersion);
+                command = command.replace("-miphoneos-version-min=9.0", "-miphoneos-version-min=" + resolvedPods.platformMinVersion);
             }
 
             // WINE->clang transition pt2: Replace any redundant ".lib.lib"
             command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
 
-            LOGGER.info("Linking engine - linking command {}", command);
             processExecutor.execute(command);
         }
-        LOGGER.info("Linking engine - linking done");
 
         // Extract symbols
         if (this.withSymbols) {
@@ -1898,7 +1874,17 @@ class Extender {
                 resourceFile = buildWin32Resources(mergedAppContext);
             }
 
-            List<File> exes = linkEngine(symbols, mergedAppContext, resourceFile);
+
+            Map<String, Object> podAppContext = new HashMap<>();
+            if (resolvedPods != null) {
+                podAppContext.put("frameworks", resolvedPods.getAllPodFrameworks(platform));
+                podAppContext.put("weakFrameworks", resolvedPods.getAllPodWeakFrameworks(platform));
+                podAppContext.put("libs", resolvedPods.getAllPodLibs(platform));
+                podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags(platform));
+            }
+            Map mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
+
+            List<File> exes = linkEngine(symbols, mergedAppContextWithPods, resourceFile);
 
             return exes;
         } catch (IOException | InterruptedException e) {
