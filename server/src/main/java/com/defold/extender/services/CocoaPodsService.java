@@ -535,7 +535,7 @@ public class CocoaPodsService {
         List<PodSpec> specs = new ArrayList<>();
         Map<String, PodSpec> specsMap = new HashMap<>();
         for (String pod : pods) {
-            // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment'
+            // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
             String podnameparts[] = pod.replaceFirst(" \\(.*\\)", "").split("/");
             // 'GoogleUtilities'
             String mainpodname = podnameparts[0];
