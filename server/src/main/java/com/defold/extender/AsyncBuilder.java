@@ -142,7 +142,9 @@ public class AsyncBuilder {
 
             // Delete temporary upload directory
             if (!keepJobDirectory) {
-                FileUtils.deleteDirectory(jobDirectory);
+                if (!FileUtils.deleteQuietly(jobDirectory)) {
+                    LOGGER.warn("Failed to delete job directory");
+                }
             }
             else {
                 LOGGER.info("Keeping job folder due to debug flags");

@@ -263,7 +263,9 @@ public class ExtenderController {
             }
             // Delete temporary upload directory
             if (deleteDirectory) {
-                FileUtils.deleteDirectory(jobDirectory);
+                if (!FileUtils.deleteQuietly(jobDirectory)) {
+                    LOGGER.warn("Failed to delete job directory");
+                }
             }
             else {
                 LOGGER.info("Keeping job folder due to debug flags");
@@ -358,7 +360,9 @@ public class ExtenderController {
             }
             // Delete temporary upload directory
             if (deleteDirectory && !isBuildStarted) {
-                FileUtils.deleteDirectory(jobDirectory);
+                if (!FileUtils.deleteQuietly(jobDirectory)) {
+                    LOGGER.warn("Failed to delete job directory");
+                }
             }
         }
     }
