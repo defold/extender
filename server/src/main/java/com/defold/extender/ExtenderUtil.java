@@ -268,20 +268,19 @@ public class ExtenderUtil
         return null;
     }
 
-
-    static Object getAppManifestContextObject(AppManifestConfiguration manifest, String name) throws ExtenderException {
-        if (manifest.context == null) {
-            return null;
-        }
-        return manifest.context.get(name);
-    }
-
     static Boolean getAppManifestBoolean(AppManifestConfiguration manifest, String platform, String name, Boolean default_value) throws ExtenderException {
         Boolean b = (Boolean)getAppManifestObject(manifest, platform, name);
         if (b instanceof Boolean) {
             return b;
         }
         return default_value;
+    }
+
+    static Object getAppManifestContextObject(AppManifestConfiguration manifest, String name) throws ExtenderException {
+        if (manifest.context == null) {
+            return null;
+        }
+        return manifest.context.get(name);
     }
 
     static Boolean getAppManifestContextBoolean(AppManifestConfiguration manifest, String name, Boolean default_value) throws ExtenderException {
@@ -330,8 +329,12 @@ public class ExtenderUtil
         return name;
     }
 
-    static public Map<String, Object> mergeMaps(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
-        Map<String, Object> context = new HashMap<>(originalContext);
+    // Merges b on top of a:
+    //  a = {"key": valueA, "list" : ListA}
+    //  b = {"key": valueB, "list" : ListB}
+    //  -> {"key": valueB, "list" : merge(ListA, ListB)}
+    static public Map<String, Object> mergeMaps(Map<String, Object> a, Map<String, Object> b) throws ExtenderException {
+        Map<String, Object> context = new HashMap<>(a);
 
         // Clean the names of the previous context
         Set<String> originalKeys = new HashSet<>(context.keySet());
@@ -345,14 +348,14 @@ public class ExtenderUtil
             }
         }
 
-        Set<String> keys = extensionContext.keySet();
+        Set<String> keys = b.keySet();
         for (String k : keys) {
 
             boolean isMergeOp = isMergeOp(k); // true by default
             String key = stripMergeKey(k);
 
             Object v1 = context.getOrDefault(key, context.getOrDefault(k, null));
-            Object v2 = extensionContext.get(k);
+            Object v2 = b.get(k);
 
             if (v1 == null && v2 == null) {
                 // Simply skip keys that hold no values at all
@@ -387,37 +390,41 @@ public class ExtenderUtil
     //  * Uses the public fields
     //  * Merges Lists and Maps
     //  * Maps can override values by using the "_replace" name on variables
-    @SuppressWarnings("unchecked")
-    public static <T extends Object> void mergeObjects(T dst, T src) throws ExtenderException {
-        if (!dst.getClass().equals(src.getClass()))
+    // Merges other on top of dst:
+    //  dst = {"key": valueA, "list" : ListA, "keyA": valueA}
+    //  other = {"key": valueB, "list" : ListB, , "keyB": valueB}
+    //  -> dst: {"key": valueB, "list" : merge(ListA, ListB), , "keyA": valueA, , "keyB": valueB}
+    //@SuppressWarnings("unchecked")
+    public static <T extends Object> void mergeObjects(T dst, T other) throws ExtenderException {
+        if (!dst.getClass().equals(other.getClass()))
         {
             String err = String.format("Cannot merge different classes: '%s' and '%s'",
                                             dst!=null?dst.getClass().toString():"null",
-                                            src!=null?src.getClass().toString():"null");
+                                            other!=null?other.getClass().toString():"null");
             System.err.printf("%s\n", err);
             throw new ExtenderException(err);
         }
         for (Field field : dst.getClass().getFields()) {
             try {
-                Object srcValue = field.get(src);
-                if (srcValue == null)
+                Object otherValue = field.get(other);
+                if (otherValue == null)
                     continue;
 
                 Object dstValue = field.get(dst);
-                if (srcValue instanceof Map) {
+                if (otherValue instanceof Map) {
                     if (dstValue == null)
-                        field.set(dst, srcValue);
+                        field.set(dst, otherValue);
                     else
-                        field.set(dst, ExtenderUtil.mergeMaps((Map<String, Object>)dstValue, (Map<String, Object>)srcValue));
+                        field.set(dst, ExtenderUtil.mergeMaps((Map<String, Object>)dstValue, (Map<String, Object>)otherValue));
                 }
-                else if (srcValue instanceof List) {
+                else if (otherValue instanceof List) {
                     if (dstValue == null)
-                        field.set(dst, srcValue);
+                        field.set(dst, otherValue);
                     else
-                        field.set(dst, ExtenderUtil.mergeLists((List<String>) dstValue, (List<String>) srcValue));
+                        field.set(dst, ExtenderUtil.mergeLists((List<String>) dstValue, (List<String>) otherValue));
                 }
                 else {
-                    field.set(dst, srcValue);
+                    field.set(dst, otherValue);
                 }
             } catch (IllegalArgumentException | IllegalAccessException ex) {
                 throw new ExtenderException(ex, "Failed to merge objects");
@@ -480,20 +487,11 @@ public class ExtenderUtil
         return context;
     }
 
-    // static public Map<String, Object> createEmptyContext(Map<String, Object> original) {
-    //     Map<String, Object> out = new HashMap<>();
-    //     Set<String> keys = original.keySet();
-    //     for (String k : keys) {
-    //         Object v = original.get(k);
-    //         if (v instanceof String) {
-    //             v = "";
-    //         } else if (v instanceof List) {
-    //             v = new ArrayList<String>();
-    //         }
-    //         out.put(k, v);
-    //     }
-    //     return out;
-    // }
+    public static PlatformConfig createPlatformConfig(AppManifestPlatformConfig appconfig) throws ExtenderException {
+        PlatformConfig config = new PlatformConfig();
+        config.context = mergeMaps(config.context, appconfig.context);
+        return config;
+    }
 
     static List<String> getStringList(Map<String, Object> context, String key) throws ExtenderException
     {

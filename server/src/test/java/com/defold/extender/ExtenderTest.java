@@ -365,11 +365,9 @@ public class ExtenderTest {
     @Test
     public void testGetManifestContext() throws IOException, ExtenderException {
         File root = new File("test-data");
-        Configuration config = Extender.loadYaml(root, new File("test-data/sdk/a/defoldsdk/extender/build.yml"), Configuration.class);
-
         ManifestConfiguration manifestConfig = Extender.loadYaml(root, new File("test-data/extendertest.emptycontext.manifest"), ManifestConfiguration.class);
         // previous issue was that it returned a null pointer
-        Map<String, Object> manifestContext = Extender.getManifestContext("x86_64-osx", config, manifestConfig);
+        Map<String, Object> manifestContext = Extender.getManifestContext("x86_64-osx", manifestConfig);
         assertNotEquals(null, manifestContext);
     }
 

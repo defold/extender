@@ -229,4 +229,15 @@ public class ExtenderUtilTest {
         assertEquals(Arrays.asList("B"), a.allowedSymbols);
         assertEquals(Arrays.asList("B"), a.context.get("common2"));
     }
+
+    @Test
+    public void testCreatePlatformConfig() throws ExtenderException {
+        AppManifestPlatformConfig appConfig = new AppManifestPlatformConfig();
+        appConfig.context.put("a", "valueA");
+        appConfig.context.put("b", Arrays.asList("B", "b"));
+        PlatformConfig config = ExtenderUtil.createPlatformConfig(appConfig);
+
+        assertEquals("valueA", config.context.getOrDefault("a", "invalid"));
+        assertEquals(Arrays.asList("B", "b"), config.context.getOrDefault("b", "invalid"));
+    }
 }
