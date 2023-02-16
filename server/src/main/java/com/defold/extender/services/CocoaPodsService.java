@@ -48,7 +48,7 @@ public class CocoaPodsService {
         public File frameworksDir;
         public String platformMinVersion;
 
-        public Set<String> getAllPodLibs(String platform) {
+        public List<String> getAllPodLibs(String platform) {
             Set<String> libs = new HashSet<>();
             for (PodSpec pod : pods) {
                 libs.addAll(pod.libraries);
@@ -59,18 +59,18 @@ public class CocoaPodsService {
                     libs.addAll(pod.osx_libraries);
                 }
             }
-            return libs;
+            return new ArrayList<String>(libs);
         }
 
-        public Set<String> getAllPodLinkFlags(String platform) {
+        public List<String> getAllPodLinkFlags(String platform) {
             Set<String> flags = new HashSet<>();
             for (PodSpec pod : pods) {
                 flags.addAll(pod.linkflags);
             }
-            return flags;
+            return new ArrayList<String>(flags);
         }
 
-        public Set<String> getAllPodFrameworks(String platform) {
+        public List<String> getAllPodFrameworks(String platform) {
             Set<String> frameworks = new HashSet<>();
             for (PodSpec pod : pods) {
                 frameworks.addAll(pod.frameworks);
@@ -81,10 +81,10 @@ public class CocoaPodsService {
                     frameworks.addAll(pod.osx_frameworks);
                 }
             }
-            return frameworks;
+            return new ArrayList<String>(frameworks);
         }
 
-        public Set<String> getAllPodWeakFrameworks(String platform) {
+        public List<String> getAllPodWeakFrameworks(String platform) {
             Set<String> weakFrameworks = new HashSet<>();
             for (PodSpec pod : pods) {
                 weakFrameworks.addAll(pod.weak_frameworks);
@@ -95,7 +95,7 @@ public class CocoaPodsService {
                     weakFrameworks.addAll(pod.osx_weak_frameworks);
                 }
             }
-            return weakFrameworks;
+            return new ArrayList<String>(weakFrameworks);
         }
     }
 

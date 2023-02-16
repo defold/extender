@@ -730,7 +730,7 @@ class Extender {
             flags.addAll(pod.osx_flags);
         }
         podContext.put("flags", flags);
-        podContext.put("defines", pod.defines);
+        podContext.put("defines", new ArrayList<String>(pod.defines));
         Map mergedContextWithPods = ExtenderUtil.mergeContexts(manifestContext, podContext);
 
         for (File src : pod.sourceFiles) {
