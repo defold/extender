@@ -753,6 +753,7 @@ class Extender {
                 Map<String, Object> manifestContext = new HashMap<>();
                 manifestContext.put("extension_name", pod.name);
                 manifestContext.put("extension_name_upper", pod.name.toUpperCase());
+                manifestContext.put("osMinVersion", resolvedPods.platformMinVersion);
 
                 // Compile pod source files
                 List<String> objs = compilePodSourceFiles(pod, manifestContext);
@@ -1061,9 +1062,6 @@ class Extender {
 
         for (String template : commands) {
             String command = templateExecutor.execute(template, context);
-            if (resolvedPods != null) {
-                command = command.replace("-miphoneos-version-min=9.0", "-miphoneos-version-min=" + resolvedPods.platformMinVersion);
-            }
 
             // WINE->clang transition pt2: Replace any redundant ".lib.lib"
             command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
