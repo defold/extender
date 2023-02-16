@@ -542,7 +542,6 @@ public class CocoaPodsService {
             // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
             String podversion = pod.replaceFirst(".*\\(", "").replace(")", "");
             if (!specsMap.containsKey(mainpodname)) {
-                String cmd = "pod spec cat --regex ^" + mainpodname + "$ " + podversion;
                 String cmd = "pod spec cat --regex ^" + mainpodname + "$ --version=" + podversion;
                 String specJson = execCommand(cmd).replace(cmd, "");
 
