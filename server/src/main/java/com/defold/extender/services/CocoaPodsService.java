@@ -537,11 +537,12 @@ public class CocoaPodsService {
         for (String pod : pods) {
             // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment'
             String podnameparts[] = pod.replaceFirst(" \\(.*\\)", "").split("/");
+            // 'GoogleUtilities'
             String mainpodname = podnameparts[0];
+            // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
+            String podversion = pod.replaceFirst(".*\\(", "").replace(")", "");
             if (!specsMap.containsKey(mainpodname)) {
-                // 'GoogleUtilities/Environment (7.10.0)'   ->   'GoogleUtilities --version=7.10.0'
-                String args = pod.replaceFirst("/.*?\\s", " ").replace("(", "--version=").replace(")", "");
-                String cmd = "pod spec cat " + args;
+                String cmd = "pod spec cat --regex ^" + mainpodname + "$ " + podversion;
                 String specJson = execCommand(cmd).replace(cmd, "");
 
                 specsMap.put(mainpodname, createPodSpec(specJson, podsDir));
@@ -562,8 +563,8 @@ public class CocoaPodsService {
             }
         }
 
+        LOGGER.info("Installed pods");
         return specs;
-
     }
 
     /**
