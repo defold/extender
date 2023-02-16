@@ -734,9 +734,14 @@ class Extender {
         Map mergedContextWithPods = ExtenderUtil.mergeContexts(manifestContext, podContext);
 
         for (File src : pod.sourceFiles) {
-            final int i = getAndIncreaseNameCount();
-            File o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPods, commands);
-            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+            if (src.getAbsolutePath().endsWith(".swift")) {
+                throw new ExtenderException("Unable to build '" + pod.name + "' since it includes Swift source files");
+            }
+            else {
+                final int i = getAndIncreaseNameCount();
+                File o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPods, commands);
+                objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+            }
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
         return objs;
