@@ -496,7 +496,7 @@ public class CocoaPodsService {
             throw new ExtenderException("Unable to find Podfile " + podFile);
         }
         File dir = podFile.getParentFile();
-        String log = execCommand("pod install --verbose", workingDir);
+        String log = execCommand("pod install  --repo-update --verbose", workingDir);
         LOGGER.info("\n" + log);
 
         File podFileLock = new File(workingDir, "Podfile.lock");
