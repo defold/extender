@@ -543,6 +543,7 @@ public class CocoaPodsService {
             String podversion = pod.replaceFirst(".*\\(", "").replace(")", "");
             if (!specsMap.containsKey(mainpodname)) {
                 String cmd = "pod spec cat --regex ^" + mainpodname + "$ " + podversion;
+                String cmd = "pod spec cat --regex ^" + mainpodname + "$ --version=" + podversion;
                 String specJson = execCommand(cmd).replace(cmd, "");
 
                 specsMap.put(mainpodname, createPodSpec(specJson, podsDir));
