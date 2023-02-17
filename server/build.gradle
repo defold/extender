@@ -52,6 +52,9 @@ dependencies {
         exclude module: 'spring-boot-starter-tomcat'
     }
 
+    implementation('com.googlecode.json-simple:json-simple:1.1.1') {
+        exclude module: 'junit'
+    }
     implementation('com.amazonaws:aws-java-sdk-s3:1.12.180')
     implementation('com.google.guava:guava:30.0-jre')
     implementation('com.samskivert:jmustache:1.15')
@@ -148,6 +151,32 @@ task buildDocker(type: Docker) {
         copy {
             from 'docker'
             into stageDir
+        }
+    }
+}
+
+task buildStandalone() {
+    dependsOn 'build', ':manifestmergetool:mainJar'
+    doLast {
+        copy {
+            from(project.projectDir) {
+                include "users/**"
+            }
+            into "build/standalone"
+        }
+        copy {
+            from("docker-base") {
+                include "template.*"
+            }
+            into "build/standalone"
+        }
+        copy {
+            from bootJar
+            into "build/standalone"
+        }
+        copy {
+            from project(':manifestmergetool').collect { it.tasks.withType(Jar) }
+            into "build/standalone"
         }
     }
 }
