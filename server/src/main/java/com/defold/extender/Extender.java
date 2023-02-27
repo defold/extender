@@ -154,16 +154,6 @@ class Extender {
                 appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
             }
 
-// TODO: Handle these cases
-            // To avoid null pointers later on
-            if (appManifest.platforms.get(platform) == null) {
-                appManifest.platforms.put(platform, new AppManifestPlatformConfig());
-            }
-            if (appManifest.platforms.get(platform).context == null) {
-                appManifest.platforms.get(platform).context = new HashMap<String, Object>();
-            }
-// end TODO
-
             String baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
             if (baseVariant != null)
             {
@@ -367,7 +357,6 @@ class Extender {
         context.put("platform", this.platform);
         context.put("host_platform", this.hostPlatform);
 
-
         resolveVariables(context);
         return context;
     }
@@ -551,11 +540,6 @@ class Extender {
         Map<String, Object> env = new HashMap<>();
         getProjectPaths(context, env);
 
-        context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(context, "includeLibs"), ExtenderUtil.getStringList(context, "excludeLibs")) );
-        context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(context, "includeJsLibs"), ExtenderUtil.getStringList(context, "excludeJsLibs")) );
-        context.put("objectFiles", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "objectFiles"), ExtenderUtil.getStringList(context, "includeObjectFiles"), ExtenderUtil.getStringList(context, "excludeObjectFiles") ));
-        context.put("dynamicLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "dynamicLibs"), ExtenderUtil.getStringList(context, "includeDynamicLibs"), ExtenderUtil.getStringList(context, "excludeDynamicLibs")) );
-
         context.put("ext", env);
         context.put("src", objs);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, output));
@@ -730,7 +714,7 @@ class Extender {
                 if (!objs.isEmpty()) {
                     // Create c++ library
                     File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
-                    Map<String, Object> context = context(manifestContext);
+                    Map<String, Object> context = createContext(manifestContext);
                     context.put("tgt", lib);
                     context.put("objs", objs);
                     String command = templateExecutor.execute(platformConfig.libCmd, context);
@@ -832,7 +816,7 @@ class Extender {
         // ***************************************************************************
         // Java
         {
-            List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, javaSourceRe);
+            List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, platformConfig.javaSourceRe);
 
             if (srcFiles.isEmpty()) {
                 LOGGER.info("No Java source found for plugin. Skipping {}", extDir);
@@ -968,7 +952,7 @@ class Extender {
         }
     }
 
-    private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
+    private List<File> linkEngine(List<String> symbols, Map<String, Object> linkContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("Linking engine");
 
         File maincpp = new File(buildDirectory , "main.cpp");
@@ -976,7 +960,7 @@ class Extender {
         List<String> extSymbols = new ArrayList<>();
         extSymbols.addAll(symbols);
 
-        Map<String, Object> mainContext = createContext(manifestContext);
+        Map<String, Object> mainContext = createContext(linkContext);
 
         extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols") );
         mainContext.put("symbols", ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols")));
@@ -985,12 +969,9 @@ class Extender {
         String main = templateExecutor.execute(config.main, mainContext);
         FileUtils.writeStringToFile(maincpp, main);
 
-        File mainObject = compileMain(maincpp, manifestContext);
+        File mainObject = compileMain(maincpp, linkContext);
 
         String writeExePattern = platformConfig.writeExePattern;
-        if (writeExePattern == null ) {
-            writeExePattern = String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt); // Legacy, remove in a few versions!
-        }
         File exe = new File(buildDirectory, writeExePattern);
 
         List<String> objects = new ArrayList<>();
@@ -1002,14 +983,10 @@ class Extender {
         Map<String, Object> env = new HashMap<>();
         getProjectPaths(mainContext, env);
 
-        Map<String, Object> context = createContext(manifestContext);
+        Map<String, Object> context = createContext(linkContext);
         context.put("src", objects);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
         context.put("ext", env);
-        context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs")) );
-        context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs")) );
-        context.put("objectFiles", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(mainContext, "objectFiles"), ExtenderUtil.getStringList(mainContext, "includeObjectFiles"), ExtenderUtil.getStringList(mainContext, "excludeObjectFiles") ));
-        context.put("dynamicLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "dynamicLibs"), ExtenderUtil.getStringList(mainContext, "includeDynamicLibs"), ExtenderUtil.getStringList(mainContext, "excludeDynamicLibs")) );
 
         // WINE->clang transition pt1: in the transition period from link.exe -> lld, we want to make sure we can write "foo" as opposed to "foo.lib"
         context.put("libs", patchLibs((List<String>) context.get("libs")));
@@ -1036,7 +1013,7 @@ class Extender {
         if (this.withSymbols) {
             String symbolCmd = platformConfig.symbolCmd;
             if (symbolCmd != null && !symbolCmd.equals("")) {
-                Map<String, Object> symbolContext = createContext(manifestContext);
+                Map<String, Object> symbolContext = createContext(linkContext);
                 symbolContext.put("src", ExtenderUtil.getRelativePath(jobDirectory, exe));
 
                 symbolCmd = templateExecutor.execute(symbolCmd, symbolContext);
@@ -1479,9 +1456,6 @@ class Extender {
         List<String> includeJars = ExtenderUtil.getStringList(mergedAppContext, "includeJars");
         List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
 
-        //exclude fake `jar` path for extensions without java code
-        excludeJars.add("(.*)/proguard_files_without_jar");
-
         List<String> extensionJars = getAllExtensionsLibJars();
 
         for (Map.Entry<String,ProGuardContext> extensionJar : extensionJarMap.entrySet()) {
@@ -1790,6 +1764,35 @@ class Extender {
         // (e.g. building java doesn't require the C++ defines)
         mergedAppContext.put("extension_name", "unknown");
         mergedAppContext.put("extension_name_upper", "UNKNOWN");
+
+        mergedAppContext.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
+        mergedAppContext.put("platform", this.platform);
+        mergedAppContext.put("host_platform", this.hostPlatform);
+
+        //exclude fake `jar` path for extensions without java code
+        List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
+        excludeJars.add("(.*)/proguard_files_without_jar");
+        mergedAppContext.put("excludeJars", excludeJars);
+    }
+
+    public Map<String, Object> getPlatformContext() {
+        return this.platformConfig.context;
+    }
+
+    public Map<String, Object> getPlatformVariantContext() {
+        return this.platformVariantConfig.context;
+    }
+
+    public Map<String, Object> getAppContext() {
+        return this.platformVariantConfig.context;
+    }
+
+    public Map<String, Object> getMergedExtensionContext(String name) {
+        return this.manifestConfigs.get(name);
+    }
+
+    public Map<String, Object> getMergedAppContext() {
+        return this.mergedAppContext;
     }
 
     private List<String> getSortedKeys(Set<String> keyset) {

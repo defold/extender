@@ -373,6 +373,8 @@ public class ExtenderUtil
     }
 
     private static final String MERGE_KEY_REPLACE = "_replace";
+
+    // Returns true by default for e.g. "myvar"
     static private boolean isMergeOp(String name)
     {
         if (name.endsWith(MERGE_KEY_REPLACE))
@@ -397,8 +399,9 @@ public class ExtenderUtil
         // Clean the names of the previous context
         Set<String> originalKeys = new HashSet<>(context.keySet());
         for (String k : originalKeys) {
+            boolean isMergeOp = isMergeOp(k);
             String key = stripMergeKey(k);
-            if (!key.equals(k))
+            if (!isMergeOp)
             {
                 Object v = context.get(k);
                 context.remove(k);
@@ -490,15 +493,49 @@ public class ExtenderUtil
         }
     }
 
+    private static class PruneMapping {
+        String targetName;
+        String includeName;
+        String excludeName;
+        PruneMapping(String targetName, String includeName, String excludeName) {
+            this.targetName = targetName;
+            this.includeName = includeName;
+            this.excludeName = excludeName;
+        }
+    };
+
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
-    static public Map<String, Object> mergeContexts(Map<String, Object> originalContext, Map<String, Object> extensionContext) throws ExtenderException {
+    static public Map<String, Object> mergeContexts(Map<String, Object> a, Map<String, Object> b) throws ExtenderException {
+        Map<String, Object> context = mergeMaps(a, b);
+
+        List<PruneMapping> mappings = new ArrayList<>();
+        mappings.add(new PruneMapping("libs", "includeLibs", "excludeLibs"));
+        mappings.add(new PruneMapping("engineLibs", "includeLibs", "excludeLibs"));
+        mappings.add(new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"));
+        mappings.add(new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"));
+        mappings.add(new PruneMapping("objectFiles", "includeDynamicLibs", "excludeDynamicLibs"));
+        mappings.add(new PruneMapping("symbols", "includeSymbols", "excludeSymbols"));
+
+        for (PruneMapping mapping : mappings) {
+            List<String> srcList = ExtenderUtil.getStringList(context, mapping.targetName);
+            if (srcList.isEmpty())
+                continue;
+            context.put(mapping.targetName,
+                ExtenderUtil.pruneItems(srcList,
+                                        ExtenderUtil.getStringList(context, mapping.includeName),
+                                        ExtenderUtil.getStringList(context, mapping.excludeName)) );
+        }
+        return context;
+
+        /*
         Map<String, Object> context = new HashMap<>(originalContext);
 
-        // Clean the names of the previous context
+        // Clean the names of the previous context. E:g. "test_replace" -> "test"
         Set<String> originalKeys = new HashSet<>(context.keySet());
         for (String k : originalKeys) {
             String key = stripMergeKey(k);
-            if (!key.equals(k))
+            boolean isMergeOp = isMergeOp(k);
+            if (!isMergeOp) // It is a merge operation
             {
                 Object v = context.get(k);
                 context.remove(k);
@@ -543,6 +580,7 @@ public class ExtenderUtil
             }
         }
         return context;
+        */
     }
 
     public static PlatformConfig createPlatformConfig(AppManifestPlatformConfig appconfig) throws ExtenderException {
@@ -682,9 +720,9 @@ public class ExtenderUtil
 
 
     public static boolean isAppleTarget(String platform) {
-        return platform.equals("x86_64-osx") ||
+        return platform.equals("arm64-osx") ||
+               platform.equals("x86_64-osx") ||
                platform.equals("x86_64-ios") ||
-               platform.equals("armv7-ios") ||
                platform.equals("arm64-ios");
     }
 

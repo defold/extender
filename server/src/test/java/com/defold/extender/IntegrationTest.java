@@ -119,8 +119,8 @@ public class IntegrationTest {
                 // At 1.3.6 we removed the support for iOS in the base container (minimizing the container size)
                 new DefoldVersion("905234d8da2e642f1075c73aaa1bfb72e49199e3", new Version(1, 3, 6), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("8cd3a634b13f4db51a37607bf32bf3a3b362c8e6", new Version(1, 4, 2), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // beta
-                new DefoldVersion("716de595e188a720203c338f947d24d6288be0fc", new Version(1, 4, 3), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+
+                new DefoldVersion("8eaab6b1281ce492163428e0e7b2e0fa247a0a93", new Version(1, 4, 3), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
