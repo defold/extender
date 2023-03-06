@@ -386,21 +386,12 @@ public class ExtenderTest {
         Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
         Map<String, Object> mergedAppContext = extender.getMergedAppContext();
 
-        System.out.printf("\n");
-        System.out.printf("\n");
-        System.out.printf("MAWE mergedAppContext\n");
-        ExtenderUtil.debugPrint(mergedAppContext, 1);
-
         List<String> libsOriginal = Arrays.asList("engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null");
         List<String> libsExpected = Arrays.asList("engine_release", "engine_service_null", "remotery_null", "record_null");
         assertEquals(libsExpected, mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
 
         Map<String, Object> extensionContext = extender.getMergedExtensionContext("Extension1");
 
-        System.out.printf("\n");
-        System.out.printf("\n");
-        System.out.printf("MAWE getMergedExtensionContext Extension1\n");
-        ExtenderUtil.debugPrint(extensionContext, 1);
         assertEquals("EXTENSION1", extensionContext.getOrDefault("extension_name_upper", "null"));
         List<String> excluded = (List<String>)extensionContext.getOrDefault("excludeLibs", new ArrayList<String>());
         assertTrue(excluded.contains("profilerext_null"));

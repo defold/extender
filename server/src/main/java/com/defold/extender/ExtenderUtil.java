@@ -526,61 +526,6 @@ public class ExtenderUtil
                                         ExtenderUtil.getStringList(context, mapping.excludeName)) );
         }
         return context;
-
-        /*
-        Map<String, Object> context = new HashMap<>(originalContext);
-
-        // Clean the names of the previous context. E:g. "test_replace" -> "test"
-        Set<String> originalKeys = new HashSet<>(context.keySet());
-        for (String k : originalKeys) {
-            String key = stripMergeKey(k);
-            boolean isMergeOp = isMergeOp(k);
-            if (!isMergeOp) // It is a merge operation
-            {
-                Object v = context.get(k);
-                context.remove(k);
-                context.put(key, v);
-            }
-        }
-
-        Set<String> keys = extensionContext.keySet();
-        for (String k : keys) {
-
-            boolean isMergeOp = isMergeOp(k);
-            String key = stripMergeKey(k);
-
-            Object v1 = context.getOrDefault(key, context.getOrDefault(k, null));
-            Object v2 = extensionContext.get(k);
-
-            if (v1 == null && v2 == null) {
-                // Simply skip keys that hold no values at all
-                context.remove(key);
-                continue;
-            }
-
-            if (v1 != null && v2 != null && !v1.getClass().equals(v2.getClass())) {
-                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
-            }
-            if (v2 != null && v2 instanceof List && !ExtenderUtil.isListOfStrings((List<Object>) v2)) {
-                throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
-            }
-
-            if (v1 != null && v2 != null && v1 instanceof List) {
-                if (isMergeOp) {
-                    v1 = ExtenderUtil.mergeLists((List<String>) v1, (List<String>) v2);
-                } else {
-                    v1 = v2;
-                }
-            }
-
-            if (v1 != null) {
-                context.put(key, v1);
-            } else {
-                context.put(key, v2);
-            }
-        }
-        return context;
-        */
     }
 
     public static PlatformConfig createPlatformConfig(AppManifestPlatformConfig appconfig) throws ExtenderException {

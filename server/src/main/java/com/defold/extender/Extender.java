@@ -479,8 +479,6 @@ class Extender {
                 continue;
             }
             includes.addAll(getExtLocalIncludeDirs(otherExtDir));
-
-            ExtenderUtil.debugPrint("Added" + otherExtDir, includes);
         }
 
         // Add include folders for resolved pods
