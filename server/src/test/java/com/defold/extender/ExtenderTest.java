@@ -394,7 +394,7 @@ ExtenderUtil.debugPrintObject("MAWE mergedAppContext", mergedAppContext, 1);
 
 ExtenderUtil.debugPrint("MAWE libsOriginal", libsOriginal);
 
-ExtenderUtil.debugPrint("MAWE mergedAppContext libs", mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
+ExtenderUtil.debugPrint("MAWE mergedAppContext libs", (List<String>)mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
 
         assertEquals(libsExpected, mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
 
