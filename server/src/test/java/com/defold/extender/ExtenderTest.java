@@ -390,12 +390,6 @@ public class ExtenderTest {
         List<String> libsOriginal = Arrays.asList("engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null");
         List<String> libsExpected = Arrays.asList("engine_release", "engine_service_null", "remotery_null", "record_null");
 
-ExtenderUtil.debugPrintObject("MAWE mergedAppContext", mergedAppContext, 1);
-
-ExtenderUtil.debugPrint("MAWE libsOriginal", libsOriginal);
-
-ExtenderUtil.debugPrint("MAWE mergedAppContext libs", (List<String>)mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
-
         assertEquals(libsExpected, mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
 
         Map<String, Object> extensionContext = extender.getMergedExtensionContext("Extension1");

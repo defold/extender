@@ -1,0 +1,31 @@
+context:
+    baseVariant: release
+
+platforms:
+    armv7-ios:
+        context:
+            excludeLibs: [profile_null]
+    arm64-ios:
+        context:
+            excludeLibs: [profile_null]
+    x86_64-ios:
+        context:
+            excludeLibs: [profile_null]
+    armv7-android:
+        context:
+            excludeLibs: [profile_null]
+    arm64-android:
+        context:
+            excludeLibs: [profile_null]
+    x86_64-osx:
+        context:
+            excludeLibs: [profile_null]
+    x86_64-linux:
+        context:
+            excludeLibs: [profile_null]
+    js-web:
+        context:
+            excludeLibs: [profile_null]
+    wasm-web:
+        context:
+            excludeLibs: [profile_null]
