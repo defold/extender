@@ -24,7 +24,7 @@ public class DefoldSDKServiceTest {
     @Test
     @Ignore("SDK too large to download on every test round.")
     public void t() throws IOException, URISyntaxException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, true, mock(MeterRegistry.class));
         File sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac");
         System.out.println(sdk.getCanonicalFile());
     }
@@ -33,7 +33,7 @@ public class DefoldSDKServiceTest {
     @Ignore("SDK too large to download on every test round.")
     public void onlyStoreTheNewest() throws IOException, URISyntaxException, ExtenderException {
         int cacheSize = 3;
-        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", cacheSize, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", cacheSize, true, mock(MeterRegistry.class));
 
         String[] sdksToDownload = {
                 "fe2b689302e79b7cf8c0bc7d934f23587b268c8a",
@@ -57,7 +57,7 @@ public class DefoldSDKServiceTest {
 
     @Test
     public void testGetSDK() throws IOException, URISyntaxException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, true, mock(MeterRegistry.class));
 
         File dir = new File("/tmp/defoldsdk/notexist");
         assertFalse(Files.exists(dir.toPath()));

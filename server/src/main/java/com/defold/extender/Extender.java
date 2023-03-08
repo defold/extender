@@ -40,7 +40,6 @@ import com.defold.extender.services.CocoaPodsService.ResolvedPods;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
-    private final Configuration config;
     private final String appManifestPath;
     private final String platform;
     private final String hostPlatform;
@@ -48,22 +47,23 @@ class Extender {
     private final File uploadDirectory;
     private final File jobDirectory;
     private final File buildDirectory;
-    private final PlatformConfig commonPlatformConfig;
-    private final PlatformConfig platformConfig;
+    private final Configuration config;                 // build.yml from the defoldsdk
+    private final PlatformConfig platformConfig;        // "common", platform, arch-platform from build.yml
+    private final PlatformConfig platformVariantConfig; // "common", platform, arch-platform from build_variant.yml
+    private final PlatformConfig platformAppConfig;     // "common", platform, arch-platform from game.appmanifest
     private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
-    private final Map<String, Object> appManifestContext;
     private final Boolean withSymbols;
     private final Boolean useJetifier;
     private final String buildArtifacts;
 
-    private Map<String, Map<String, Object>>    manifestConfigs;
     private Map<String, File>                   manifestFiles;
+    private Map<String, Map<String, Object>>    manifestConfigs;
     private Map<String, Object>                 mergedAppContext;
 
     private List<File> extDirs;
-    private List<File> manifests;
+    private List<File> manifests;       // The list of ext.manifests found in the upload
     private List<File> gradlePackages;
     private ResolvedPods resolvedPods;
     private int nameCounter = 0;
@@ -87,6 +87,21 @@ class Extender {
     private static final String MANIFEST_OSX    = "Info.plist";
     private static final String MANIFEST_ANDROID= "AndroidManifest.xml";
     private static final String MANIFEST_HTML5  = "engine_template.html";
+
+
+    // Check that the manifest only contains valid platforms
+    private final String[] ALLOWED_MANIFEST_PLATFORMS = new String[] {
+        "common",
+        "ios", "armv7-ios","arm64-ios","x86_64-ios",
+        "android", "armv7-android","arm64-android",
+        "osx", "x86-osx","x86_64-osx",
+        "linux", "x86-linux","x86_64-linux",
+        "win32", "x86-win32","x86_64-win32",
+        "web", "js-web","wasm-web",
+        "nx64", "arm64-nx64",
+        "ps4", "x86_64-ps4",
+        "ps5", "x86_64-ps5",
+    };
 
     // This class specifies the set of files that are used when running proguard on
     // the project jars that were found during the build process. This class is only
@@ -139,14 +154,6 @@ class Extender {
                 appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
             }
 
-            // To avoid null pointers later on
-            if (appManifest.platforms.get(platform) == null) {
-                appManifest.platforms.put(platform, new AppManifestPlatformConfig());
-            }
-            if (appManifest.platforms.get(platform).context == null) {
-                appManifest.platforms.get(platform).context = new HashMap<String, Object>();
-            }
-
             String baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
             if (baseVariant != null)
             {
@@ -179,17 +186,51 @@ class Extender {
             this.hostPlatform = "x86_64-linux";
         }
 
-        // TODO: Add a way to merge these platform configs: common -> platform -> arch-platform
-        this.commonPlatformConfig = config.platforms.get("common");
-        this.platformConfig = getPlatformConfig(platform);
+        if (config.platforms.get(platform) == null) {
+            throw new ExtenderException(String.format("Unsupported platform %s by this sdk", platform));
+        }
 
-        this.appManifestContext = ExtenderUtil.getAppManifestContext(appManifest, platform, baseVariantManifest);
+        // Merge the platform configs from build.yml into a single instance: common -> platform -> arch-platform
+        this.platformConfig = new PlatformConfig();
+        this.platformConfig.context = new HashMap<>(config.context); // the context from build.yml
+
+        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+            PlatformConfig platformConfigAlt = config.platforms.get(platformAlt);
+            if (platformConfigAlt == null)
+                continue;
+
+            ExtenderUtil.mergeObjects(this.platformConfig, platformConfigAlt);
+        }
+
+        // Merge the variant info into a single config
+        this.platformVariantConfig = new PlatformConfig();
+        if (baseVariantManifest != null) {
+            for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+                AppManifestPlatformConfig configAlt = baseVariantManifest.platforms.get(platformAlt);
+                if (configAlt == null)
+                    continue;
+                PlatformConfig platformConfigAlt = ExtenderUtil.createPlatformConfig(configAlt);
+                ExtenderUtil.mergeObjects(this.platformVariantConfig, platformConfigAlt);
+            }
+        }
+
+        // Merge the app manifest info into a single config
+        this.platformAppConfig = new PlatformConfig();
+        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+            AppManifestPlatformConfig configAlt = appManifest.platforms.get(platformAlt);
+            if (configAlt == null) {
+                continue;
+            }
+
+            PlatformConfig platformConfigAlt = ExtenderUtil.createPlatformConfig(configAlt);
+            ExtenderUtil.mergeObjects(this.platformAppConfig, platformConfigAlt);
+        }
+
         LOGGER.info("Using context for platform: " + platform);
 
         processExecutor.setCwd(jobDirectory);
 
-        if (this.platformConfig != null && this.platformConfig.env != null) {
-
+        {
             HashMap<String, Object> envContext = new HashMap<>();
             envContext.put("build_folder", buildDirectory);
             envContext.put("dynamo_home", sdk);
@@ -211,17 +252,7 @@ class Extender {
                 envContext.put("env." + envEntry.getKey(), envEntry.getValue());
             }
 
-            Set<String> keys;
-            if (this.commonPlatformConfig != null) {
-                keys = this.commonPlatformConfig.env.keySet();
-                for (String k : keys) {
-                    String v = this.commonPlatformConfig.env.get(k);
-                    v = templateExecutor.execute(v, envContext);
-                    processExecutor.putEnv(k, v);
-                }
-            }
-
-            keys = this.platformConfig.env.keySet();
+            Set<String> keys = this.platformConfig.env.keySet();
             for (String k : keys) {
                 String v = this.platformConfig.env.get(k);
                 v = templateExecutor.execute(v, envContext);
@@ -236,13 +267,13 @@ class Extender {
         }
 
         // The allowed symbols are the union of the values from the different "levels": "context: allowedSymbols: [...]" + "context: platforms: arm64-osx: allowedSymbols: [...]"
-        List<String> allowedSymbols = ExtenderUtil.mergeLists(this.platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
+        List<String> allowedSymbols = ExtenderUtil.mergeLists(platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
 
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
         this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
 
         // Make sure the user hasn't input anything invalid in the manifest
-        this.manifestValidator.validate(this.appManifestPath, this.uploadDirectory, appManifestContext);
+        this.manifestValidator.validate(this.appManifestPath, this.uploadDirectory, this.platformAppConfig.context);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -254,25 +285,6 @@ class Extender {
 
     Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
         this(platform, sdk, jobDirectory, uploadDirectory, buildDirectory, new HashMap<String, String>());
-    }
-
-    private PlatformConfig getPlatformConfig(String platform) throws ExtenderException {
-        PlatformConfig platformConfig = config.platforms.get(platform);
-
-        if (platformConfig == null) {
-            throw new ExtenderException(String.format("Unsupported platform %s", platform));
-        }
-
-        return platformConfig;
-    }
-
-    private String getPlatformConfigProperty(String property) {
-        String value = ExtenderUtil.get(platformConfig, property);
-        if (value == null && commonPlatformConfig != null)
-        {
-            value = ExtenderUtil.get(commonPlatformConfig, property);
-        }
-        return value;
     }
 
     private int getAndIncreaseNameCount() {
@@ -317,24 +329,8 @@ class Extender {
     }
 
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> context(Map<String, Object> manifestContext) throws ExtenderException {
-        Map<String, Object> context = new HashMap<>(config.context);
-
-        if (commonPlatformConfig != null) {
-            context = ExtenderUtil.mergeContexts(context, commonPlatformConfig.context);
-        }
-        context = ExtenderUtil.mergeContexts(context, platformConfig.context);
-        context = ExtenderUtil.mergeContexts(context, manifestContext);
-
-        // Should not be allowed to be overridden by manifests
-        context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
-        context.put("platform", this.platform);
-        context.put("host_platform", this.hostPlatform);
-
-        context.put("extension_name", manifestContext.getOrDefault("extension_name", "UNKNOWN"));
-        context.put("extension_name_upper", manifestContext.getOrDefault("extension_name_upper", "UNKNOWN"));
-
+    // Resolves all Mustache template variables
+    private void resolveVariables(Map<String, Object> context) {
         Set<String> keys = context.keySet();
         for (String k : keys) {
             Object v = context.get(k);
@@ -350,57 +346,18 @@ class Extender {
             }
             context.put(k, v);
         }
+    }
 
-        // Added to build.yml in 1.2.185 (setting for using isystem headers)
-        if (this.platform.contains("ios") || this.platform.contains("osx")) {
-            LOGGER.debug("Adding -nostdinc++ hack to ios/osx");
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> createContext(Map<String, Object> src) throws ExtenderException {
+        Map<String, Object> context = new HashMap<>(src); // TODO: Create deep copy
 
-            String sdkMacOS = "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk";
-            String sdkIphoneOS = "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_VERSION}}.sdk";
-            String sdkIphoneSimulatorOS = "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_VERSION}}.sdk";
+        // Should not be allowed to be overridden by manifests
+        context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
+        context.put("platform", this.platform);
+        context.put("host_platform", this.hostPlatform);
 
-            String swiftLibPath = "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-5.0";
-
-            String sdk;
-            if (this.platform.contains("ios")) {
-                if (this.platform.contains("arm")) {
-                    sdk = sdkIphoneOS;
-                    swiftLibPath += "/iphoneos";
-                } else {
-                    sdk = sdkIphoneSimulatorOS;
-                    swiftLibPath += "/iphonesimulator";
-                }
-            } else {
-                sdk = sdkMacOS;
-                swiftLibPath += "/macos";
-            }
-
-            sdk += "/usr/include/c++/v1";
-            String compileCmd = platformConfig.compileCmd;
-            if (!compileCmd.contains("-nostdinc++")) {
-
-                if (this.platform.contains("osx")) {
-                    String add = "-isystem {{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/include/c++/v1";
-                    compileCmd = compileCmd.replace("-stdlib=libc++", "-stdlib=libc++ " + add);
-                }
-                compileCmd = compileCmd.replace("-stdlib=libc++", "-stdlib=libc++ -nostdinc++ -isystem " + sdk);
-
-                platformConfig.compileCmd = compileCmd;
-            }
-
-            String libpath = sdk + "/usr/lib";
-            libpath = templateExecutor.execute(libpath, context);
-            swiftLibPath = templateExecutor.execute(swiftLibPath, context);
-
-            List<String> libPaths = (List<String>)context.get("libPaths");
-            if (!libPaths.contains(libpath)) {
-                libPaths.add(libpath);
-            }
-            if (!libPaths.contains(swiftLibPath)) {
-                libPaths.add(swiftLibPath);
-            }
-        }
-
+        resolveVariables(context);
         return context;
     }
 
@@ -522,8 +479,6 @@ class Extender {
                 continue;
             }
             includes.addAll(getExtLocalIncludeDirs(otherExtDir));
-
-            ExtenderUtil.debugPrint("Added" + otherExtDir, includes);
         }
 
         // Add include folders for resolved pods
@@ -556,8 +511,7 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(extDir));
         frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
 
-        Map<String, Object> context = context(manifestContext);
-
+        Map<String, Object> context = createContext(manifestContext);
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -568,26 +522,21 @@ class Extender {
     }
 
     private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmd"), commands);
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmd, commands);
     }
 
     private File addCompileFileCppShared(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, getPlatformConfigProperty("compileCmdCXXSh"), commands);
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmdCXXSh, commands);
     }
 
     private File linkCppShared(File extBuildDir, List<String> objs, Map<String, Object> manifestContext, String cmd) throws IOException, InterruptedException, ExtenderException {
         String name = String.format(platformConfig.writeShLibPattern, manifestContext.get("extension_name"));
         File output = new File(extBuildDir, name);
 
-        Map<String, Object> context = context(manifestContext);
+        Map<String, Object> context = createContext(manifestContext);
 
         Map<String, Object> env = new HashMap<>();
         getProjectPaths(context, env);
-
-        context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(context, "includeLibs"), ExtenderUtil.getStringList(context, "excludeLibs")) );
-        context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(context, "includeJsLibs"), ExtenderUtil.getStringList(context, "excludeJsLibs")) );
-        context.put("objectFiles", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "objectFiles"), ExtenderUtil.getStringList(context, "includeObjectFiles"), ExtenderUtil.getStringList(context, "excludeObjectFiles") ));
-        context.put("dynamicLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "dynamicLibs"), ExtenderUtil.getStringList(context, "includeDynamicLibs"), ExtenderUtil.getStringList(context, "excludeDynamicLibs")) );
 
         context.put("ext", env);
         context.put("src", objs);
@@ -600,10 +549,10 @@ class Extender {
     }
 
     private File compileMain(File maincpp, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-        manifestContext.put("extension_name", "ENGINE_MAIN");
-        manifestContext.put("extension_name_upper", "ENGINE_MAIN");
-        Map<String, Object> context = context(manifestContext);
         File o = uniqueTmpFile("main_tmp", ".o");
+        Map<String, Object> context = createContext(manifestContext);
+        context.put("extension_name", "ENGINE_MAIN");
+        context.put("extension_name_upper", "ENGINE_MAIN");
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, maincpp));
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
         String command = templateExecutor.execute(platformConfig.compileCmd, context);
@@ -622,10 +571,9 @@ class Extender {
     private List<File> generateProtoCxxForEngine(File extDir, Map<String, Object> manifestContext, List<File> protoFiles) throws IOException, InterruptedException, ExtenderException {
         List<File> generated = new ArrayList<>();
 
-        Map<String, Object> tmpcontext = context(manifestContext);
+        Map<String, Object> tmpcontext = createContext(manifestContext);
 
-        String protoEngineCxxCmd = getPlatformConfigProperty("protoEngineCxxCmd");
-        if (protoEngineCxxCmd == null) {
+        if (platformConfig.protoEngineCxxCmd == null) {
             LOGGER.info("Not supporting .proto files");
             return generated;
         }
@@ -641,12 +589,12 @@ class Extender {
             String name = ExtenderUtil.switchExtension(protoFile.getName(), ".cpp");
             File tgtCpp = new File(extBuildDir, name);
 
-            Map<String, Object> context = context(manifestContext);
+            Map<String, Object> context = createContext(manifestContext);
 
             context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
             context.put("ext", ImmutableMap.of("includes", includes));
             context.put("out_dir", extBuildDir);
-            String command = templateExecutor.execute(protoEngineCxxCmd, context);
+            String command = templateExecutor.execute(platformConfig.protoEngineCxxCmd, context);
             processExecutor.execute(command);
 
             LOGGER.info("Generated {}", tgtCpp);
@@ -659,7 +607,7 @@ class Extender {
     private List<File> generateProtoSrcForPlugin(File extDir, Map<String, Object> manifestContext, List<File> protoFiles, String language) throws IOException, InterruptedException, ExtenderException {
         List<File> generated = new ArrayList<>();
 
-        Map<String, Object> tmpcontext = context(manifestContext);
+        Map<String, Object> tmpcontext = createContext(manifestContext);
 
         File extBuildDir = createDir(buildDirectory, extDir.getName());
         List<String> includes = getIncludeDirs(extDir);
@@ -681,7 +629,7 @@ class Extender {
             String name = ExtenderUtil.switchExtension(protoFile.getName(), suffix);
             File tgtFile = new File(extBuildDir, name);
 
-            Map<String, Object> context = context(manifestContext);
+            Map<String, Object> context = createContext(manifestContext);
             context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
             context.put("ext", ImmutableMap.of("includes", includes));
             context.put("out_dir", extBuildDir);
@@ -690,8 +638,7 @@ class Extender {
             // Adding the source folderpath, so the output relative path gets stripped and the output becomes "extBuildDir/proto_file_name.pb.cc"
             context.put("proto_path", ExtenderUtil.getRelativePath(jobDirectory, protoFile.getParentFile()));
 
-            String protoPipelineCmd = getPlatformConfigProperty("protoPipelineCmd");
-            String command = templateExecutor.execute(protoPipelineCmd, context);
+            String command = templateExecutor.execute(platformConfig.protoPipelineCmd, context);
             processExecutor.execute(command);
 
             LOGGER.info("Generated {}", tgtFile);
@@ -765,7 +712,7 @@ class Extender {
                 if (!objs.isEmpty()) {
                     // Create c++ library
                     File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
-                    Map<String, Object> context = context(manifestContext);
+                    Map<String, Object> context = createContext(manifestContext);
                     context.put("tgt", lib);
                     context.put("objs", objs);
                     String command = templateExecutor.execute(platformConfig.libCmd, context);
@@ -808,7 +755,7 @@ class Extender {
         } else {
             lib = uniqueTmpFile("lib", ".a"); // Deprecated, remove in a few versions
         }
-        Map<String, Object> context = context(manifestContext);
+        Map<String, Object> context = createContext(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
         String command = templateExecutor.execute(platformConfig.libCmd, context);
@@ -816,8 +763,7 @@ class Extender {
     }
 
     private List<File> buildPipelineExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-        String protoEngineCxxCmd = getPlatformConfigProperty("protoEngineCxxCmd");
-        if (protoEngineCxxCmd == null) {
+        if (platformConfig.protoEngineCxxCmd == null) {
             LOGGER.info("This SDK version doesn't support compiling plugins!");
             return new ArrayList<File>();
         }
@@ -834,7 +780,6 @@ class Extender {
         // ***************************************************************************
         // C++
         {
-            String linkCmdCXXSh = getPlatformConfigProperty("linkCmdCXXSh");
             List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, platformConfig.sourceRe);
 
             if (srcFiles.isEmpty()) {
@@ -859,7 +804,7 @@ class Extender {
                 }
                 ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
-                File sharedLibrary = linkCppShared(extBuildDir, objs, manifestContext, linkCmdCXXSh);
+                File sharedLibrary = linkCppShared(extBuildDir, objs, manifestContext, platformConfig.linkCmdCXXSh);
                 outputFiles.add(sharedLibrary);
             }
 
@@ -869,14 +814,13 @@ class Extender {
         // ***************************************************************************
         // Java
         {
-            String javaSourceRe = getPlatformConfigProperty("javaSourceRe");
-            List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, javaSourceRe);
+            List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, platformConfig.javaSourceRe);
 
             if (srcFiles.isEmpty()) {
                 LOGGER.info("No Java source found for plugin. Skipping {}", extDir);
             } else {
                 generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "java");
-                List<File> generatedFiles = ExtenderUtil.listFiles(extBuildDir, javaSourceRe);
+                List<File> generatedFiles = ExtenderUtil.listFiles(extBuildDir, platformConfig.javaSourceRe);
 
                 srcFiles.addAll(generatedFiles);
 
@@ -893,7 +837,7 @@ class Extender {
                 classesDir.mkdir();
 
                 {
-                    Map<String, Object> context = createContext();
+                    Map<String, Object> context = createContext(manifestContext);
 
                     String classPath = classesDir.getAbsolutePath();
                     List<String> extraPaths = ExtenderUtil.getStringList(context, "javaPipelineClasspath");
@@ -904,21 +848,17 @@ class Extender {
                     context.put("classesDir", classesDir.getAbsolutePath());
                     context.put("classPath", classPath);
                     context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-
-                    String javacCmd = getPlatformConfigProperty("javacCmd");
-                    String command = templateExecutor.execute(javacCmd, context);
+                    String command = templateExecutor.execute(platformConfig.javacCmd, context);
                     processExecutor.execute(command);
                 }
 
                 // Collect all classes into a Jar file
-                Map<String, Object> context = createContext();
+                Map<String, Object> context = createContext(manifestContext);
                 File outputJar = new File(extBuildDir, String.format("plugin%s.jar", manifestContext.get("extension_name")));
 
                 context.put("outputJar", outputJar.getAbsolutePath());
                 context.put("classesDir", classesDir.getAbsolutePath());
-
-                String jarCmd = getPlatformConfigProperty("jarCmd");
-                String command = templateExecutor.execute(jarCmd, context);
+                String command = templateExecutor.execute(platformConfig.jarCmd, context);
                 processExecutor.execute(command);
 
                 outputFiles.add(outputJar);
@@ -1010,7 +950,7 @@ class Extender {
         }
     }
 
-    private List<File> linkEngine(List<String> symbols, Map<String, Object> manifestContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
+    private List<File> linkEngine(List<String> symbols, Map<String, Object> linkContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("Linking engine");
 
         File maincpp = new File(buildDirectory , "main.cpp");
@@ -1018,7 +958,7 @@ class Extender {
         List<String> extSymbols = new ArrayList<>();
         extSymbols.addAll(symbols);
 
-        Map<String, Object> mainContext = context(manifestContext);
+        Map<String, Object> mainContext = createContext(linkContext);
 
         extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols") );
         mainContext.put("symbols", ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols")));
@@ -1027,12 +967,9 @@ class Extender {
         String main = templateExecutor.execute(config.main, mainContext);
         FileUtils.writeStringToFile(maincpp, main);
 
-        File mainObject = compileMain(maincpp, manifestContext);
+        File mainObject = compileMain(maincpp, linkContext);
 
         String writeExePattern = platformConfig.writeExePattern;
-        if (writeExePattern == null ) {
-            writeExePattern = String.format("%sdmengine%s", platformConfig.exePrefix, platformConfig.exeExt); // Legacy, remove in a few versions!
-        }
         File exe = new File(buildDirectory, writeExePattern);
 
         List<String> objects = new ArrayList<>();
@@ -1044,14 +981,10 @@ class Extender {
         Map<String, Object> env = new HashMap<>();
         getProjectPaths(mainContext, env);
 
-        Map<String, Object> context = context(manifestContext);
+        Map<String, Object> context = createContext(linkContext);
         context.put("src", objects);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
         context.put("ext", env);
-        context.put("engineLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineLibs"), ExtenderUtil.getStringList(mainContext, "includeLibs"), ExtenderUtil.getStringList(mainContext, "excludeLibs")) );
-        context.put("engineJsLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "engineJsLibs"), ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs")) );
-        context.put("objectFiles", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(mainContext, "objectFiles"), ExtenderUtil.getStringList(mainContext, "includeObjectFiles"), ExtenderUtil.getStringList(mainContext, "excludeObjectFiles") ));
-        context.put("dynamicLibs", ExtenderUtil.pruneItems(ExtenderUtil.getStringList(context, "dynamicLibs"), ExtenderUtil.getStringList(mainContext, "includeDynamicLibs"), ExtenderUtil.getStringList(mainContext, "excludeDynamicLibs")) );
 
         // WINE->clang transition pt1: in the transition period from link.exe -> lld, we want to make sure we can write "foo" as opposed to "foo.lib"
         context.put("libs", patchLibs((List<String>) context.get("libs")));
@@ -1078,7 +1011,7 @@ class Extender {
         if (this.withSymbols) {
             String symbolCmd = platformConfig.symbolCmd;
             if (symbolCmd != null && !symbolCmd.equals("")) {
-                Map<String, Object> symbolContext = context(manifestContext);
+                Map<String, Object> symbolContext = createContext(linkContext);
                 symbolContext.put("src", ExtenderUtil.getRelativePath(jobDirectory, exe));
 
                 symbolCmd = templateExecutor.execute(symbolCmd, symbolContext);
@@ -1181,13 +1114,6 @@ class Extender {
         return createDir(new File(parent), child);
     }
 
-
-    private Map<String, Object> createContext() throws ExtenderException {
-        HashMap<String, Object> empty = new HashMap<>();
-        Map<String, Object> context = context(empty);
-        return context;
-    }
-
     /**
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
@@ -1198,7 +1124,7 @@ class Extender {
         File outputDirectory = new File(buildDirectory, "compiledResources");
         outputDirectory.mkdirs();
         try {
-            Map<String, Object> context = createContext();
+            Map<String, Object> context = createContext(mergedAppContext);
             for (String resDir : resourceDirectories) {
                 // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
                 File resourceDirectory = new File(resDir);
@@ -1231,7 +1157,7 @@ class Extender {
     private Map<String, File> linkAndroidResources(File compiledResourcesDir, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Linking Android resources");
 
-        Map<String, Object> context = createContext();
+        Map<String, Object> context = createContext(mergedAppContext);
         Map<String, File> files = new HashMap<>();
 
         try {
@@ -1307,8 +1233,7 @@ class Extender {
                 return rJavaDir;
             }
 
-            HashMap<String, Object> empty = new HashMap<>();
-            Map<String, Object> context = context(empty);
+            Map<String, Object> context = createContext(mergedAppContext);
             if (mergedAppContext.containsKey("aaptExtraPackages")) {
                 context.put("extraPackages", String.join(":", (List<String>)mergedAppContext.get("aaptExtraPackages")));
             }
@@ -1360,7 +1285,7 @@ class Extender {
                 }
 
                 // Compile sources into class files
-                Map<String, Object> context = createContext();
+                Map<String, Object> context = createContext(mergedAppContext);
                 context.put("classesDir", classesDir.getAbsolutePath());
                 context.put("classPath", classesDir.getAbsolutePath());
                 context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
@@ -1368,7 +1293,7 @@ class Extender {
                 processExecutor.execute(command);
 
                 // Collect all classes into a Jar file
-                context = createContext();
+                context = createContext(mergedAppContext);
                 context.put("outputJar", outputJar.getAbsolutePath());
                 context.put("classesDir", classesDir.getAbsolutePath());
                 command = templateExecutor.execute(platformConfig.jarCmd, context);
@@ -1462,7 +1387,7 @@ class Extender {
             }
 
             // Compile sources into class files
-            Map<String, Object> context = context(manifestContext);
+            Map<String, Object> context = createContext(manifestContext);
             context.put("classesDir", classesDir.getAbsolutePath());
             String classPath = srcDir.getAbsolutePath() + ":" + classesDir.getAbsolutePath();
             if (rJar != null) {
@@ -1483,7 +1408,7 @@ class Extender {
             processExecutor.execute(command);
 
             // Collect all classes into a Jar file
-            context = context(manifestContext);
+            context = createContext(manifestContext);
             context.put("outputJar", outputJar.getAbsolutePath());
             context.put("classesDir", classesDir.getAbsolutePath());
             command = templateExecutor.execute(platformConfig.jarCmd, context);
@@ -1508,30 +1433,16 @@ class Extender {
             builtJars.put(rJar.getAbsolutePath(), null);
         }
 
-        try {
-            Map<String, Map<String, Object>> manifestConfigs = new HashMap<>();
-            for (File manifest : this.manifests) {
-                ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
+        List<String> symbols = getSortedKeys(manifestConfigs.keySet());
+        for (String extensionSymbol : symbols) {
+            Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
+            File extensionManifest = manifestFiles.get(extensionSymbol);
 
-                Map<String, Object> manifestContext = new HashMap<>();
-                if (manifestConfig.platforms != null) {
-                    manifestContext = getManifestContext(platform, config, manifestConfig);
-                }
-
-                this.manifestValidator.validate(manifestConfig.name, manifest.getParentFile(), manifestContext);
-
-                manifestConfigs.put(manifestConfig.name, manifestContext);
-
-                Map.Entry<File, ProGuardContext> javaExtensionsEntry = buildJavaExtension(manifest, manifestContext, rJar);
-                if (javaExtensionsEntry != null) {
-                    builtJars.put(javaExtensionsEntry.getKey().getAbsolutePath(), javaExtensionsEntry.getValue());
-                }
+            Map.Entry<File, ProGuardContext> javaExtensionsEntry = buildJavaExtension(extensionManifest, extensionContext, rJar);
+            if (javaExtensionsEntry != null) {
+                builtJars.put(javaExtensionsEntry.getKey().getAbsolutePath(), javaExtensionsEntry.getValue());
             }
-
-        } catch (IOException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
         }
-
         return builtJars;
     }
 
@@ -1540,10 +1451,8 @@ class Extender {
     // returns:
     //   all jar files from each extension, as well as the engine defined jar files
     private List<String> getAllJars(Map<String,ProGuardContext> extensionJarMap) throws ExtenderException {
-        List<String> includeJars = ExtenderUtil.getStringList(appManifestContext, "includeJars");
-        List<String> excludeJars = ExtenderUtil.getStringList(appManifestContext, "excludeJars");
-        //exclude fake `jar` path for extensions without java code
-        excludeJars.add("(.*)/proguard_files_without_jar");
+        List<String> includeJars = ExtenderUtil.getStringList(mergedAppContext, "includeJars");
+        List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
 
         List<String> extensionJars = getAllExtensionsLibJars();
 
@@ -1551,7 +1460,7 @@ class Extender {
             extensionJars.add(extensionJar.getKey());
         }
 
-        Map<String, Object> context = createContext();
+        Map<String, Object> context = createContext(mergedAppContext);
         List<String> allJars = ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), includeJars, excludeJars);
         allJars.addAll( ExtenderUtil.pruneItems( extensionJars, includeJars, excludeJars) );
         return allJars;
@@ -1606,7 +1515,8 @@ class Extender {
     //   the mappings file can be uploaded to google play and then used for symbolication
     private Map.Entry<File,File> buildProGuard(List<String> allJars, Map<String,ProGuardContext> extensionJarMap) throws ExtenderException {
         // To support older versions of build.yml where proGuardCmd is not defined:
-        if (platformConfig.proGuardCmd == null || platformConfig.proGuardCmd.isEmpty() || DM_DEBUG_DISABLE_PROGUARD) {
+        String proGuardCmd = platformConfig.proGuardCmd;
+        if (proGuardCmd == null || proGuardCmd.isEmpty() || DM_DEBUG_DISABLE_PROGUARD) {
             if (DM_DEBUG_DISABLE_PROGUARD) {
                 LOGGER.info("ProGuard support disabled by environment flag DM_DEBUG_DISABLE_PROGUARD");
             } else {
@@ -1660,14 +1570,14 @@ class Extender {
         jarLibrariesList = ExtenderUtil.excludeItems(jarLibrariesList, excludeJars);
         jarList = ExtenderUtil.excludeItems(jarList, excludeJars);
 
-        Map<String, Object> context = createContext();
+        Map<String, Object> context = createContext(mergedAppContext);
         context.put("jars", jarList);
         context.put("libraryjars", jarLibrariesList);
         context.put("src", allPro);
         context.put("tgt", targetFile.getAbsolutePath());
         context.put("mapping", mappingFile.getAbsolutePath());
 
-        String command = templateExecutor.execute(platformConfig.proGuardCmd, context);
+        String command = templateExecutor.execute(proGuardCmd, context);
 
         try {
             processExecutor.execute(command);
@@ -1678,32 +1588,24 @@ class Extender {
         return new AbstractMap.SimpleEntry<File, File>(targetFile, mappingFile);
     }
 
-    public static Map<String, Object> getManifestContext(String platform, Configuration config, ManifestConfiguration manifestConfig) throws ExtenderException {
+    public void validateManifestPlatforms(ManifestConfiguration manifestConfig) throws ExtenderException {
+        if (manifestConfig.platforms == null) {
+            return;
+        }
+
+        Set<String> manifestPlatforms = new HashSet<>(manifestConfig.platforms.keySet());
+        manifestPlatforms.removeAll(Arrays.asList(ALLOWED_MANIFEST_PLATFORMS));
+        if (!manifestPlatforms.isEmpty()) {
+            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), Arrays.toString(ALLOWED_MANIFEST_PLATFORMS)));
+        }
+    }
+
+    public static Map<String, Object> getManifestContext(String platform, ManifestConfiguration manifestConfig) throws ExtenderException {
         if (manifestConfig.platforms == null) {
             return new HashMap<>();
         }
 
         ManifestPlatformConfig manifestPlatformConfig = manifestConfig.platforms.get(platform);
-
-        // Check that the manifest only contains valid platforms
-        final String[] allowedPlatforms = new String[]{
-            "common",
-            "ios", "armv7-ios","arm64-ios","x86_64-ios",
-            "android", "armv7-android","arm64-android",
-            "osx", "x86-osx","x86_64-osx",
-            "linux", "x86-linux","x86_64-linux",
-            "win32", "x86-win32","x86_64-win32",
-            "web", "js-web","wasm-web",
-            "nx64", "arm64-nx64",
-            "ps4", "x86_64-ps4",
-            "ps5", "x86_64-ps5",
-        };
-        Set<String> manifestPlatforms = new HashSet<>(manifestConfig.platforms.keySet());
-        manifestPlatforms.removeAll(Arrays.asList(allowedPlatforms));
-        if (!manifestPlatforms.isEmpty()) {
-            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), Arrays.toString(allowedPlatforms)));
-        }
-
         if (manifestPlatformConfig != null && manifestPlatformConfig.context != null) {
             return manifestPlatformConfig.context;
         }
@@ -1754,7 +1656,7 @@ class Extender {
         // The empty list is also present for backwards compatability with older build.yml
         List<String> empty_list = new ArrayList<>();
 
-        Map<String, Object> context = createContext();
+        Map<String, Object> context = createContext(mergedAppContext);
         context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
         context.put("jars", jars);
         context.put("engineJars", empty_list);
@@ -1775,7 +1677,7 @@ class Extender {
     }
 
     private File buildWin32Resources(Map<String, Object> mergedAppContext) throws ExtenderException {
-        Map<String, Object> context = context(mergedAppContext);
+        Map<String, Object> context = createContext(mergedAppContext);
         File resourceFile = new File(buildDirectory, "dmengine.res");
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
 
@@ -1794,45 +1696,101 @@ class Extender {
     }
 
     private void loadManifests() throws IOException, ExtenderException {
+        // Creates the contexts for each stage: extension and app
+        //  extension context: merge(platform, variant, extension, app)
+        //  app context:       merge(platform, variant, extensions, app)
+
         manifestConfigs = new HashMap<>();
         manifestFiles = new HashMap<>();
+
+        HashMap<String, ManifestConfiguration> _manifestConfigs = new HashMap<>();
         for (File manifest : this.manifests) {
             ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
 
             if (manifestConfig == null) {
                 throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
             }
+            validateManifestPlatforms(manifestConfig);
+            _manifestConfigs.put(manifestConfig.name, manifestConfig);
+            manifestFiles.put(manifestConfig.name, manifest);
+        }
+
+        List<String> symbols = getSortedKeys(_manifestConfigs.keySet());
+        for (String extensionSymbol : symbols) {
+            File manifest = manifestFiles.get(extensionSymbol);
+            String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
+
+            ManifestConfiguration manifestConfig = _manifestConfigs.get(extensionSymbol);
 
             Map<String, Object> manifestContext = new HashMap<>();
+            manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformConfig.context);
+            manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
+
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(platform)) {
-                Map<String, Object> ctx = getManifestContext(platformAlternative, config, manifestConfig);
+                Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
+                this.manifestValidator.validate(relativePath, manifest.getParentFile(), ctx);
+
                 manifestContext = ExtenderUtil.mergeContexts(manifestContext, ctx);
             }
 
-            String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
-            this.manifestValidator.validate(relativePath, manifest.getParentFile(), manifestContext);
+            manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformAppConfig.context);
 
             // Apply any global settings to the context
             manifestContext.put("extension_name", manifestConfig.name);
             manifestContext.put("extension_name_upper", manifestConfig.name.toUpperCase());
 
-            manifestConfigs.put(manifestConfig.name, manifestContext);
-            manifestFiles.put(manifestConfig.name, manifest);
+            manifestConfigs.put(extensionSymbol, manifestContext);
         }
 
-        mergedAppContext = ExtenderUtil.createEmptyContext(platformConfig.context);
+        // Now create the app context
+        mergedAppContext = new HashMap<>();
+        mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, this.platformConfig.context);
+        mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, this.platformVariantConfig.context);
 
-        Set<String> keys = manifestConfigs.keySet();
-        for (String k : keys) {
-            Map<String, Object> extensionContext = manifestConfigs.get(k);
-            mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, extensionContext);
+        for (String extensionSymbol : symbols) {
+            ManifestConfiguration manifestConfig = _manifestConfigs.get(extensionSymbol);
+            for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(platform)) {
+                Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
+                mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, ctx);
+            }
         }
-
         // The final link context is a merge of the app manifest and the extension contexts
-        mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, appManifestContext);
+        mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, this.platformAppConfig.context);
 
-        mergedAppContext.remove("extension_name");
-        mergedAppContext.remove("extension_name_upper");
+        // Since the defines variable is dependent on these
+        // It's easier to add them here than to curate the context before sending it to each build function
+        // (e.g. building java doesn't require the C++ defines)
+        mergedAppContext.put("extension_name", "unknown");
+        mergedAppContext.put("extension_name_upper", "UNKNOWN");
+
+        mergedAppContext.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
+        mergedAppContext.put("platform", this.platform);
+        mergedAppContext.put("host_platform", this.hostPlatform);
+
+        //exclude fake `jar` path for extensions without java code
+        List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
+        excludeJars.add("(.*)/proguard_files_without_jar");
+        mergedAppContext.put("excludeJars", excludeJars);
+    }
+
+    public Map<String, Object> getPlatformContext() {
+        return this.platformConfig.context;
+    }
+
+    public Map<String, Object> getPlatformVariantContext() {
+        return this.platformVariantConfig.context;
+    }
+
+    public Map<String, Object> getAppContext() {
+        return this.platformVariantConfig.context;
+    }
+
+    public Map<String, Object> getMergedExtensionContext(String name) {
+        return this.manifestConfigs.get(name);
+    }
+
+    public Map<String, Object> getMergedAppContext() {
+        return this.mergedAppContext;
     }
 
     private List<String> getSortedKeys(Set<String> keyset) {
@@ -1865,7 +1823,6 @@ class Extender {
             List<String> symbols = getSortedKeys(manifestConfigs.keySet());
             for (String extensionSymbol : symbols) {
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
-                extensionContext = ExtenderUtil.mergeContexts(extensionContext, appManifestContext);
                 File manifest = manifestFiles.get(extensionSymbol);
 
                 // TODO: Thread this step
@@ -1920,7 +1877,6 @@ class Extender {
             List<String> symbols = getSortedKeys(manifestConfigs.keySet());
             for (String extensionSymbol : symbols) {
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
-                extensionContext = ExtenderUtil.mergeContexts(extensionContext, appManifestContext);
                 File manifest = manifestFiles.get(extensionSymbol);
 
                 List<File> pluginOutput = buildPipelineExtension(manifest, extensionContext);
@@ -2104,27 +2060,6 @@ class Extender {
         return platformParts[1];
     }
 
-    private String getPlatformManifestName(String basePlatform) {
-        if (platformConfig.manifestName != null) {
-            return platformConfig.manifestName;
-        }
-
-        // Before 1.2.xxx
-        if (platform.contains("android")) {
-            return MANIFEST_ANDROID;
-        }
-        else if (platform.contains("ios")) {
-            return  MANIFEST_IOS;
-        }
-        else if (platform.contains("osx")) {
-            return  MANIFEST_OSX;
-        }
-        else if (platform.contains("web")) {
-            return  MANIFEST_HTML5;
-        }
-        return null;
-    }
-
     // Called for each platform, to merge the manifests into one
     private List<File> buildManifests(String platform) throws ExtenderException {
         List<File> out = new ArrayList<>();
@@ -2136,7 +2071,7 @@ class Extender {
         }
 
         String platformName = getBasePlatform(platform);
-        String manifestName = getPlatformManifestName(platformName);
+        String manifestName = this.platformConfig.manifestName;
 
         if (manifestName == null) {
             LOGGER.info("No manifest base name!");
@@ -2184,7 +2119,7 @@ class Extender {
             LOGGER.info("Merging manifests");
 
             // Merge the files
-            Map<String, Object> context = createContext();
+            Map<String, Object> context = createContext(mergedAppContext);
             context.put("mainManifest", mainManifest.getAbsolutePath());
             context.put("target", targetManifest.getAbsolutePath());
 

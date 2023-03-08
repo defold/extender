@@ -186,4 +186,58 @@ public class ExtenderUtilTest {
         assertEquals(Arrays.asList("b"), context.getOrDefault("override", null));
         assertEquals(Arrays.asList("a", "b"), context.getOrDefault("union2", null));
     }
+
+    @Test
+    public void testPruneList() throws IOException, InterruptedException, ExtenderException {
+        List<String> main = Arrays.asList("profile", "profile_null", "a");
+        List<String> include_libs = Arrays.asList("a");
+        List<String> exclude_libs = Arrays.asList("profile", "a");
+        List<String> result = ExtenderUtil.pruneItems(main, include_libs, exclude_libs);
+
+        assertEquals(Arrays.asList("profile_null", "a"), result);
+    }
+
+    @Test
+    public void testMergeObjects() throws ExtenderException {
+        PlatformConfig a = new PlatformConfig();
+        PlatformConfig b = new PlatformConfig();
+        a.env.put("common", "A");
+        a.env.put("a", "A");
+        a.context.put("common2", Arrays.asList("A"));
+        a.libCmd = "lib_cmd_a";
+        a.allowedLibs = Arrays.asList("A");
+        a.allowedFlags = Arrays.asList("A");
+
+        b.env.put("common", "B");
+        b.env.put("b", "B");
+        b.context.put("common2_replace", Arrays.asList("B"));
+        b.libCmd = "lib_cmd_b";
+        b.allowedLibs = Arrays.asList("B");
+        b.allowedSymbols = Arrays.asList("B");
+
+        ExtenderUtil.mergeObjects(a, b);
+
+        ExtenderUtil.debugPrintObject("Merged Object", a);
+
+        // a now contains the merged object
+        assertEquals("B", a.env.get("common"));
+        assertEquals("A", a.env.get("a"));
+        assertEquals("B", a.env.get("b"));
+        assertEquals("lib_cmd_b", a.libCmd);
+        assertEquals(Arrays.asList("A", "B"), a.allowedLibs);
+        assertEquals(Arrays.asList("A"), a.allowedFlags);
+        assertEquals(Arrays.asList("B"), a.allowedSymbols);
+        assertEquals(Arrays.asList("B"), a.context.get("common2"));
+    }
+
+    @Test
+    public void testCreatePlatformConfig() throws ExtenderException {
+        AppManifestPlatformConfig appConfig = new AppManifestPlatformConfig();
+        appConfig.context.put("a", "valueA");
+        appConfig.context.put("b", Arrays.asList("B", "b"));
+        PlatformConfig config = ExtenderUtil.createPlatformConfig(appConfig);
+
+        assertEquals("valueA", config.context.getOrDefault("a", "invalid"));
+        assertEquals(Arrays.asList("B", "b"), config.context.getOrDefault("b", "invalid"));
+    }
 }

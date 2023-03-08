@@ -336,6 +336,7 @@ public class ExtenderTest {
             assertTrue( items.contains("{{dynamo_home}}/ext/share/java/facebooksdk.jar") );
         }
     }
+
     @Test
     public void testAppManifestContext() throws IOException, ExtenderException {
 
@@ -356,6 +357,53 @@ public class ExtenderTest {
     }
 
     @Test
+    public void testMergedContexts() throws IOException, ExtenderException {
+
+        File jobDir = new File("test-data/manifest_override");
+        jobDir.mkdirs();
+        File uploadDir = new File(jobDir, "upload");
+        uploadDir.mkdirs();
+        File buildDir = new File(jobDir, "build");
+        buildDir.mkdirs();
+        buildDir.deleteOnExit();
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+
+
+        Map<String, String> env = new HashMap<>();
+
+        // TODO: Read these from the Dockerfile itself
+        env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
+        env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
+        env.put("XCODE_12_VERSION", "12.5");
+        env.put("IOS_14_VERSION", "14.5");
+        env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
+        env.put("MACOS_11_VERSION", "11.3");
+        env.put("XCODE_12_CLANG_VERSION", "12.0.5");
+        env.put("SWIFT_5_VERSION", "5.0");
+        env.put("SYSROOT", "/opt/platformsdk/MacOSX11.3.sdk");
+        env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
+
+        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
+        Map<String, Object> mergedAppContext = extender.getMergedAppContext();
+        System.out.printf("MAWE DEBUG UNITTEST\n");
+
+        List<String> libsOriginal = Arrays.asList("engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null");
+        List<String> libsExpected = Arrays.asList("engine_release", "engine_service_null", "remotery_null", "record_null");
+
+        assertEquals(libsExpected, mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
+
+        Map<String, Object> extensionContext = extender.getMergedExtensionContext("Extension1");
+
+        assertEquals("EXTENSION1", extensionContext.getOrDefault("extension_name_upper", "null"));
+        List<String> excluded = (List<String>)extensionContext.getOrDefault("excludeLibs", new ArrayList<String>());
+        assertTrue(excluded.contains("profilerext_null"));
+        assertTrue(excluded.contains("profile_null"));
+
+        uploadDir.delete();
+        assertTrue(true);
+    }
+
+    @Test
     public void testGetAppmanifest() throws IOException, ExtenderException {
         File root = new File("test-data");
 
@@ -367,11 +415,9 @@ public class ExtenderTest {
     @Test
     public void testGetManifestContext() throws IOException, ExtenderException {
         File root = new File("test-data");
-        Configuration config = Extender.loadYaml(root, new File("test-data/sdk/a/defoldsdk/extender/build.yml"), Configuration.class);
-
         ManifestConfiguration manifestConfig = Extender.loadYaml(root, new File("test-data/extendertest.emptycontext.manifest"), ManifestConfiguration.class);
         // previous issue was that it returned a null pointer
-        Map<String, Object> manifestContext = Extender.getManifestContext("x86_64-osx", config, manifestConfig);
+        Map<String, Object> manifestContext = Extender.getManifestContext("x86_64-osx", manifestConfig);
         assertNotEquals(null, manifestContext);
     }
 
