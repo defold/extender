@@ -338,17 +338,29 @@ public class CocoaPodsService {
                 File frameworkDir = new File(pod.dir, framework);
                 String frameworkName = frameworkDir.getName().replace(".xcframework", "");
                 
-                File armFrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
-                if (armFrameworkDir.exists()) {
-                    Path from = new File(armFrameworkDir, frameworkName + ".framework").toPath();
+                File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
+                File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
+                if (arm64_armv7FrameworkDir.exists()) {
+                    Path from = new File(arm64_armv7FrameworkDir, frameworkName + ".framework").toPath();
+                    Path to = new File(armDir, frameworkName + ".framework").toPath();
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                }
+                else if (arm64FrameworkDir.exists()) {
+                    Path from = new File(arm64FrameworkDir, frameworkName + ".framework").toPath();
                     Path to = new File(armDir, frameworkName + ".framework").toPath();
                     Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
                 }
                 
-                File x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
-                if (x86Framework.exists()) {
-                    Path from = new File(x86Framework, frameworkName + ".framework").toPath();
-                    Path to = new File(x86Framework, frameworkName + ".framework").toPath();
+                File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
+                File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
+                if (arm64_i386_x86Framework.exists()) {
+                    Path from = new File(arm64_i386_x86Framework, frameworkName + ".framework").toPath();
+                    Path to = new File(x86Dir, frameworkName + ".framework").toPath();
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                }
+                else if (arm64_x86Framework.exists()) {
+                    Path from = new File(arm64_x86Framework, frameworkName + ".framework").toPath();
+                    Path to = new File(x86Dir, frameworkName + ".framework").toPath();
                     Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
                 }
             }
@@ -485,6 +497,7 @@ public class CocoaPodsService {
             }
         }
 
+        System.out.println("podspec = " + spec);
         return spec;
     }
 
@@ -605,7 +618,7 @@ public class CocoaPodsService {
         List<PodSpec> pods = installPods(workingDir);
         copyPodFrameworks(pods, frameworksDir);
         
-        // dumpDir(jobDirectory, 0);
+        dumpDir(jobDirectory, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
