@@ -220,13 +220,13 @@ public class CocoaPodsService {
 
     /**
      * Create the main Podfile with a list of all dependencies for all uploaded extensions
+     * @param podFiles List of podfiles to merge into the main Pofile
      * @param jobDirectory The job directory from where to search for Podfiles
      * @param workingDir The working directory where pods should be resolved
      * @param platform For which platform to resolve pods
      * @return Minimum platform version
      */
-    private String createMainPodFile(File jobDirectory, File workingDir, String platform) throws IOException {
-        List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
+    private String createMainPodFile(List<File> podFiles, File jobDirectory, File workingDir, String platform) throws IOException {
         File mainPodFile = new File(workingDir, "Podfile");
 
         // This file might exist when testing and debugging the extender using a debug job folder
@@ -578,6 +578,12 @@ public class CocoaPodsService {
             throw new ExtenderException("Unsupported platform " + platform);
         }
 
+        List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
+        if (podFiles.isEmpty()) {
+            LOGGER.info("Project has no Cocoapod dependencies");
+            return null;
+        }
+
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving Cocoapod dependencies");
 
@@ -585,7 +591,7 @@ public class CocoaPodsService {
         File frameworksDir = new File(workingDir, "frameworks");
         workingDir.mkdirs();
 
-        String platformMinVersion = createMainPodFile(jobDirectory, workingDir, platform);
+        String platformMinVersion = createMainPodFile(podFiles, jobDirectory, workingDir, platform);
         List<PodSpec> pods = installPods(workingDir);
         copyPodFrameworks(pods, frameworksDir);
         
