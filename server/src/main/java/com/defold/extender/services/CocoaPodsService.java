@@ -423,7 +423,7 @@ public class CocoaPodsService {
         //
         // This is currently not supported and the presence of a string or array
         // will be treated as the default value (ie true)
-        Boolean requiresArc = True;
+        Boolean requiresArc = true;
         Object requiresArcObject = specJson.get("requires_arc");
         if (requiresArcObject instanceof Boolean) requiresArc = (Boolean)requiresArcObject;
         spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
