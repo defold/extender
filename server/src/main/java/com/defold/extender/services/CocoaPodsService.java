@@ -416,10 +416,20 @@ public class CocoaPodsService {
         // linker flags
         if (userTargetConfig != null) spec.linkflags.addAll(getAsSplitString(userTargetConfig, "OTHER_LDFLAGS"));
 
-        // flags
-        Boolean requiresArc = (Boolean)specJson.get("requires_arc");
+        // requires_arc flag
+        // The 'requires_arc' option can also be a file pattern string or array
+        // of files where arc should be enabled. See:
+        // https://guides.cocoapods.org/syntax/podspec.html#requires_arc
+        //
+        // This is currently not supported and the presence of a string or array
+        // will be treated as the default value (ie true)
+        Boolean requiresArc = True;
+        Object requiresArcObject = specJson.get("requires_arc");
+        if (requiresArcObject instanceof Boolean) requiresArc = (Boolean)requiresArcObject;
         spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
         spec.flags.addAll(getAsSplitString(specJson, "compiler_flags"));
+
+        // platform specific flags
         if (ios != null) spec.ios_flags.addAll(getAsJSONArray(ios, "compiler_flags"));
         if (osx != null) spec.osx_flags.addAll(getAsJSONArray(osx, "compiler_flags"));
 
