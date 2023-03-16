@@ -220,13 +220,13 @@ public class CocoaPodsService {
 
     /**
      * Create the main Podfile with a list of all dependencies for all uploaded extensions
+     * @param podFiles List of podfiles to merge into the main Pofile
      * @param jobDirectory The job directory from where to search for Podfiles
      * @param workingDir The working directory where pods should be resolved
      * @param platform For which platform to resolve pods
      * @return Minimum platform version
      */
-    private String createMainPodFile(File jobDirectory, File workingDir, String platform) throws IOException {
-        List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
+    private String createMainPodFile(List<File> podFiles, File jobDirectory, File workingDir, String platform) throws IOException {
         File mainPodFile = new File(workingDir, "Podfile");
 
         // This file might exist when testing and debugging the extender using a debug job folder
@@ -338,17 +338,29 @@ public class CocoaPodsService {
                 File frameworkDir = new File(pod.dir, framework);
                 String frameworkName = frameworkDir.getName().replace(".xcframework", "");
                 
-                File armFrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
-                if (armFrameworkDir.exists()) {
-                    Path from = new File(armFrameworkDir, frameworkName + ".framework").toPath();
+                File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
+                File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
+                if (arm64_armv7FrameworkDir.exists()) {
+                    Path from = new File(arm64_armv7FrameworkDir, frameworkName + ".framework").toPath();
+                    Path to = new File(armDir, frameworkName + ".framework").toPath();
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                }
+                else if (arm64FrameworkDir.exists()) {
+                    Path from = new File(arm64FrameworkDir, frameworkName + ".framework").toPath();
                     Path to = new File(armDir, frameworkName + ".framework").toPath();
                     Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
                 }
                 
-                File x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
-                if (x86Framework.exists()) {
-                    Path from = new File(x86Framework, frameworkName + ".framework").toPath();
-                    Path to = new File(x86Framework, frameworkName + ".framework").toPath();
+                File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
+                File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
+                if (arm64_i386_x86Framework.exists()) {
+                    Path from = new File(arm64_i386_x86Framework, frameworkName + ".framework").toPath();
+                    Path to = new File(x86Dir, frameworkName + ".framework").toPath();
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                }
+                else if (arm64_x86Framework.exists()) {
+                    Path from = new File(arm64_x86Framework, frameworkName + ".framework").toPath();
+                    Path to = new File(x86Dir, frameworkName + ".framework").toPath();
                     Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
                 }
             }
@@ -416,10 +428,20 @@ public class CocoaPodsService {
         // linker flags
         if (userTargetConfig != null) spec.linkflags.addAll(getAsSplitString(userTargetConfig, "OTHER_LDFLAGS"));
 
-        // flags
-        Boolean requiresArc = (Boolean)specJson.get("requires_arc");
+        // requires_arc flag
+        // The 'requires_arc' option can also be a file pattern string or array
+        // of files where arc should be enabled. See:
+        // https://guides.cocoapods.org/syntax/podspec.html#requires_arc
+        //
+        // This is currently not supported and the presence of a string or array
+        // will be treated as the default value (ie true)
+        Boolean requiresArc = true;
+        Object requiresArcObject = specJson.get("requires_arc");
+        if (requiresArcObject instanceof Boolean) requiresArc = (Boolean)requiresArcObject;
         spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
         spec.flags.addAll(getAsSplitString(specJson, "compiler_flags"));
+
+        // platform specific flags
         if (ios != null) spec.ios_flags.addAll(getAsJSONArray(ios, "compiler_flags"));
         if (osx != null) spec.osx_flags.addAll(getAsJSONArray(osx, "compiler_flags"));
 
@@ -578,6 +600,12 @@ public class CocoaPodsService {
             throw new ExtenderException("Unsupported platform " + platform);
         }
 
+        List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
+        if (podFiles.isEmpty()) {
+            LOGGER.info("Project has no Cocoapod dependencies");
+            return null;
+        }
+
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving Cocoapod dependencies");
 
@@ -585,7 +613,7 @@ public class CocoaPodsService {
         File frameworksDir = new File(workingDir, "frameworks");
         workingDir.mkdirs();
 
-        String platformMinVersion = createMainPodFile(jobDirectory, workingDir, platform);
+        String platformMinVersion = createMainPodFile(podFiles, jobDirectory, workingDir, platform);
         List<PodSpec> pods = installPods(workingDir);
         copyPodFrameworks(pods, frameworksDir);
         
