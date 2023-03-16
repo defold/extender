@@ -1,5 +1,7 @@
 
 extender:
+    sdk:
+        cache-clear-on-exit: false
     cache:
         enabled: true
         type: LOCAL

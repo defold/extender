@@ -75,6 +75,9 @@ whitelist:
     warning:              "[a-zA-Z][a-zA-Z0-9-_]+"
 
 platforms:
+  common:
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+
   x86-osx:
     # not supported anymore
 
@@ -109,6 +112,7 @@ platforms:
     compileCmd:     'clang++ -c -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.SYSROOT}} -nostdinc++ {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} -stdlib=libc++ -m64 -O2 -g -mmacosx-version-min=10.7 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     linkCmd:        'clang++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot {{env.SYSROOT}} -stdlib=libc++ -m64 -O2 -g -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         'llvm-ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    manifestName:   'Info.plist'
 
   armv7-android:
     env:
@@ -152,7 +156,7 @@ platforms:
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
     rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --auto-add-overlay -M {{manifestFile}} -I {{env.LIBRARYJAR}} -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
-    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    manifestName: 'AndroidManifest.xml'
 
   js-web:
     env:
@@ -186,8 +190,7 @@ platforms:
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    manifestName:     'engine_template.html'
-    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    manifestName:   'engine_template.html'
 
   wasm-web:
     env:
@@ -221,8 +224,7 @@ platforms:
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    manifestName:     'engine_template.html'
-    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    manifestName:   'engine_template.html'
 
   x86_64-win32:
     env:

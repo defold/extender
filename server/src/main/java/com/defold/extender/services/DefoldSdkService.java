@@ -42,6 +42,7 @@ public class DefoldSdkService {
     private final Path baseSdkDirectory;
     private final File dynamoHome;
     private final int cacheSize;
+    private final boolean cacheClearOnExit;
 
     private final MeterRegistry meterRegistry;
     // private final Counter counterSdkGet;
@@ -50,10 +51,12 @@ public class DefoldSdkService {
     @Autowired
     DefoldSdkService(@Value("${extender.sdk.location}") String baseSdkDirectory,
                      @Value("${extender.sdk.cache-size}") int cacheSize,
+                     @Value("${extender.sdk.cache-clear-on-exit}") boolean cacheClearOnExit,
                      MeterRegistry meterRegistry) throws IOException {
         this.baseSdkDirectory = new File(baseSdkDirectory).toPath();
         this.cacheSize = cacheSize;
         this.meterRegistry = meterRegistry;
+        this.cacheClearOnExit = cacheClearOnExit;
         // this.counterSdkGet = gaugeService.counter("counter.service.sdk.get");
         // this.counterSdkGetDownload = gaugeService.counter("counter.service.sdk.get.download");
 
@@ -209,6 +212,10 @@ public class DefoldSdkService {
     @PreDestroy
     @SuppressWarnings("unused")
     public void destroy() {
+        if (!this.cacheClearOnExit) {
+            LOGGER.info("Skipping cleanup of SDK cache");
+            return;
+        }
         LOGGER.info("Cleaning up SDK cache");
         try {
             Files.list(baseSdkDirectory)

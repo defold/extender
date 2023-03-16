@@ -115,12 +115,12 @@ public class IntegrationTest {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // At 1.2.185, we updated to iOS 14.5, macOS 11.3 and XCode 12.5
-                new DefoldVersion("0a8d3e879724132afb18d47e0040c2034be07504", new Version(1, 2, 185), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                new DefoldVersion("d393bae6a361f86cf2263ab312c9b3cea45253ab", new Version(1, 2, 191), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 new DefoldVersion("06bc078e490fd7d94ec01e38abac989f6cc351a5", new Version(1, 3, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // At 1.3.6 w removed the support for iOS in the base container (minimizing the container size)
+                // At 1.3.6 we removed the support for iOS in the base container (minimizing the container size)
                 new DefoldVersion("905234d8da2e642f1075c73aaa1bfb72e49199e3", new Version(1, 3, 6), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("8cd3a634b13f4db51a37607bf32bf3a3b362c8e6", new Version(1, 4, 2), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+
+                new DefoldVersion("8eaab6b1281ce492163428e0e7b2e0fa247a0a93", new Version(1, 4, 3), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release

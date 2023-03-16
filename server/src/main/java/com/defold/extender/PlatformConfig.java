@@ -6,7 +6,7 @@ import java.util.Map;
 
 class PlatformConfig {
 
-    public Map<String, String> env;
+    public Map<String, String> env = new HashMap<>();
     public Map<String, Object> context = new HashMap<>();
     public String exePrefix; // deprecated
     public String exeExt; // deprecated
