@@ -703,9 +703,7 @@ class Extender {
                 // We use the same mechanism as when building the extension and create a
                 // manifest context for each pod
                 Map<String, Object> manifestContext = new HashMap<>();
-                manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformConfig.context);
-                manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
-                manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformAppConfig.context);
+                manifestContext = ExtenderUtil.mergeContexts(manifestContext, mergedAppContext);
                 manifestContext.put("extension_name", pod.name);
                 manifestContext.put("extension_name_upper", pod.name.toUpperCase());
                 manifestContext.put("osMinVersion", resolvedPods.platformMinVersion);
