@@ -497,7 +497,6 @@ public class CocoaPodsService {
             }
         }
 
-        System.out.println("podspec = " + spec);
         return spec;
     }
 
@@ -618,7 +617,7 @@ public class CocoaPodsService {
         List<PodSpec> pods = installPods(workingDir);
         copyPodFrameworks(pods, frameworksDir);
         
-        dumpDir(jobDirectory, 0);
+        // dumpDir(jobDirectory, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
