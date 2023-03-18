@@ -85,12 +85,12 @@ platforms:
     env:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_12_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_12_CLANG_VERSION}}"
-        MACOS_VERSION:          "{{env.MACOS_11_VERSION}}"
-        SWIFT_VERSION:          "{{env.SWIFT_5_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        MACOS_VERSION:          "{{env.MACOS_13_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
         LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_11_VERSION}}.sdk"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_13_VERSION}}.sdk"
     context:
         frameworks: []
         engineLibs: ["engine_main", "engine_foo"]

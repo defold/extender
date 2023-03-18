@@ -25,13 +25,7 @@ export MANIFEST_MERGE_TOOL=${EXTENDER_DIR}/current/manifestmergetool.jar
 export JAVA_HOME=`/usr/libexec/java_home`
 
 # From Dockerfile
-export XCODE_12_VERSION=12.5
-export MACOS_10_15_VERSION=10.15
-export IOS_14_VERSION=14.5
-export LIB_TAPI_1_6_PATH=/usr/local/tapi1.6/lib
-export MACOS_11_VERSION=11.3
-export XCODE_12_CLANG_VERSION=12.0.5
-export SWIFT_5_VERSION=5.0
+# Also update setup-standalone-server.sh
 
 # Versions from >=1.2.191
 export XCODE_13_VERSION=13.2.1
@@ -41,11 +35,22 @@ export XCODE_13_CLANG_VERSION=13.0.0
 export SWIFT_5_5_VERSION=5.5
 export IOS_VERSION_MIN=9.0
 export MACOS_VERSION_MIN=10.7
+export LIB_TAPI_1_6_PATH=/usr/local/tapi1.6/lib
+
+# Versions from >=1.4.4
+export XCODE_14_VERSION=14.2
+export MACOS_13_VERSION=13.1
+export IOS_16_VERSION=16.2
+export XCODE_14_CLANG_VERSION=14.0.0
+export SWIFT_5_5_VERSION=5.5
+export IOS_VERSION_MIN=9.0
+export MACOS_VERSION_MIN=10.7
+
 
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
 
 # We need access to the toolchain binary path from within the application
-export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_13_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
+export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_14_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 
 start_service() {
     echo "${SERVICE_NAME} starting..."
