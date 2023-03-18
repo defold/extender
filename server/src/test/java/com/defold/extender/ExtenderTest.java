@@ -44,13 +44,13 @@ public class ExtenderTest {
         // TODO: Read these from the Dockerfile itself
         env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
         env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
-        env.put("XCODE_12_VERSION", "12.5");
-        env.put("IOS_14_VERSION", "14.5");
+        env.put("XCODE_14_VERSION", "14.2");
+        env.put("IOS_16_VERSION", "16.2");
         env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
-        env.put("MACOS_11_VERSION", "11.3");
-        env.put("XCODE_12_CLANG_VERSION", "12.0.5");
-        env.put("SWIFT_5_VERSION", "5.0");
-        env.put("SYSROOT", "/opt/platformsdk/MacOSX11.3.sdk");
+        env.put("MACOS_13_VERSION", "13.1");
+        env.put("XCODE_14_CLANG_VERSION", "14.0.0");
+        env.put("SWIFT_5_5_VERSION", "5.5");
+        env.put("SYSROOT", "/opt/platformsdk/MacOSX13.1.sdk");
         env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
 
         Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
@@ -374,13 +374,13 @@ public class ExtenderTest {
         // TODO: Read these from the Dockerfile itself
         env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
         env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
-        env.put("XCODE_12_VERSION", "12.5");
-        env.put("IOS_14_VERSION", "14.5");
+        env.put("XCODE_14_VERSION", "14.2");
+        env.put("IOS_16_VERSION", "16.2");
         env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
-        env.put("MACOS_11_VERSION", "11.3");
-        env.put("XCODE_12_CLANG_VERSION", "12.0.5");
-        env.put("SWIFT_5_VERSION", "5.0");
-        env.put("SYSROOT", "/opt/platformsdk/MacOSX11.3.sdk");
+        env.put("MACOS_13_VERSION", "13.1");
+        env.put("XCODE_14_CLANG_VERSION", "14.0.0");
+        env.put("SWIFT_5_5_VERSION", "5.5");
+        env.put("SYSROOT", "/opt/platformsdk/MacOSX13.1.sdk");
         env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
 
         Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
