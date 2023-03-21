@@ -30,9 +30,6 @@ export XCODE_13_VERSION=13.2.1
 export MACOS_12_VERSION=12.1
 export IOS_15_VERSION=15.2
 export XCODE_13_CLANG_VERSION=13.0.0
-export SWIFT_5_5_VERSION=5.5
-export IOS_VERSION_MIN=9.0
-export MACOS_VERSION_MIN=10.7
 export LIB_TAPI_1_6_PATH=/usr/local/tapi1.6/lib
 
 # Versions from >=1.4.4
@@ -42,7 +39,7 @@ export IOS_16_VERSION=16.2
 export XCODE_14_CLANG_VERSION=14.0.0
 export SWIFT_5_5_VERSION=5.5
 export IOS_VERSION_MIN=9.0
-export MACOS_VERSION_MIN=10.7
+export MACOS_VERSION_MIN=10.9
 
 
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
