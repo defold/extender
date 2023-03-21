@@ -22,12 +22,12 @@ ANDROID_INCLUDE_ARCH=${ANDROID_NDK}/sources/android/cpufeatures
 
 IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/clang++
 IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/ar
-IOS_MIN_VERSION=6.0
+IOS_MIN_VERSION=9.0
 IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS12.1.sdk
 
 OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/clang++
 OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain/usr/bin/ar
-OSX_MIN_VERSION=10.7
+OSX_MIN_VERSION=10.9
 OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX10.13.sdk
 
 EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-2.0.11//upstream/emscripten/em++
