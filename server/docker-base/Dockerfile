@@ -467,27 +467,6 @@ COPY template.build.gradle ${EXTENSION_BUILD_GRADLE_TEMPLATE}
 COPY template.gradle.properties ${EXTENSION_GRADLE_PROPERTIES_TEMPLATE}
 COPY template.local.properties ${EXTENSION_LOCAL_PROPERTIES_TEMPLATE}
 
-# iOS + MacOS
-# Although the building isn't done using the Docker container anymore
-# we still need to be able to resolve the variables in the case when we run the docker container locally  when debugging
-
-# NOTE: These values are replicated in server/scripts/standalone/service-standalone.sh
-
-# Versions from >=1.2.191
-ENV XCODE_13_VERSION        13.2.1
-ENV MACOS_12_VERSION        12.1
-ENV IOS_15_VERSION          15.2
-ENV XCODE_13_CLANG_VERSION  13.0.0
-
-# Versions from >=1.4.4
-ENV XCODE_14_VERSION        14.2
-ENV MACOS_13_VERSION        13.1
-ENV IOS_16_VERSION          16.2
-ENV XCODE_14_CLANG_VERSION  14.0.0
-ENV SWIFT_5_5_VERSION       5.5
-ENV IOS_VERSION_MIN         9.0
-ENV MACOS_VERSION_MIN       10.9
-
 ENV EXTENSION_PODFILE_TEMPLATE /var/extender/template.podfile
 COPY template.podfile ${EXTENSION_PODFILE_TEMPLATE}
 
