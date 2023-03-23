@@ -513,7 +513,7 @@ public class ExtenderUtil
         mappings.add(new PruneMapping("engineLibs", "includeLibs", "excludeLibs"));
         mappings.add(new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"));
         mappings.add(new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"));
-        mappings.add(new PruneMapping("objectFiles", "includeDynamicLibs", "excludeDynamicLibs"));
+        mappings.add(new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"));
         mappings.add(new PruneMapping("symbols", "includeSymbols", "excludeSymbols"));
 
         for (PruneMapping mapping : mappings) {
