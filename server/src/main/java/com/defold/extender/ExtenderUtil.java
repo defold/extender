@@ -146,6 +146,11 @@ public class ExtenderUtil
     @SuppressWarnings("unchecked")
     public static void debugPrintObject(String name, Object obj, int indent) throws ExtenderException {
         System.out.print(String.format("%s:\n", name));
+        if (obj instanceof Map)
+        {
+            debugPrint((Map<String, Object>)obj, indent);
+            return;
+        }
         for (Field field : obj.getClass().getFields()) {
             debugPrintIndent(indent);
             try {
@@ -513,7 +518,7 @@ public class ExtenderUtil
         mappings.add(new PruneMapping("engineLibs", "includeLibs", "excludeLibs"));
         mappings.add(new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"));
         mappings.add(new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"));
-        mappings.add(new PruneMapping("objectFiles", "includeDynamicLibs", "excludeDynamicLibs"));
+        mappings.add(new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"));
         mappings.add(new PruneMapping("symbols", "includeSymbols", "excludeSymbols"));
 
         for (PruneMapping mapping : mappings) {
