@@ -1,5 +1,40 @@
 # Troubleshooting common issues
 
+## Darwin server "TargetNotConnected"
+
+    An error occurred (TargetNotConnected) when calling the StartSession operation: i-0123456789abcde is not connected.
+
+The darwin server has some time drift that makes the ssh agent stop working.
+
+Locate the ip address in the EC2 console under "Public IPv4 DNS", and log in manually
+
+    ssh -i ~/.ssh/defold2_ec2.pem ec2-user@ec2-<ipaddress>.eu-west-1.compute.amazonaws.com
+
+You should have your password already set up or stored in your Bitwarden vault.
+
+Checking if it is a time drift problem:
+
+    sudo tail -f /var/log/amazon/ssm/errors.log
+
+Should produce something like:
+
+     error details - GetMessages Error: InvalidSignatureException: Signature expired: 20230324T125824Z is now earlier than 20230324T125829Z (20230324T130329Z - 5 min.)
+
+To fix this, you can set the date manually.
+First, print the date:
+
+    date +"%m%d%H%M%y"
+
+Using the result of that, you can adjust to the correct minutes (the next to last number, which should differ 5 minutes from the actual time)
+
+    $ sudo date 0324132223
+    Fri Mar 24 13:22:00 GMT 2023
+
+Verify the fix by checking for new messages in the errors.log
+
+Note that the ssm services may need a few minutes to adjust as well.
+
+
 ## No space left
 
 The docker build area is set to 64GB. The area filling up will manifest itself as suddenly failing, where it previously succeeded. Then try building again, and you might see an error like (or any disc space related error):
