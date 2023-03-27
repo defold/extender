@@ -460,6 +460,18 @@ public class CocoaPodsService {
         if (vendored != null) {
             spec.vendoredframeworks.addAll(vendored);
         }
+        if (ios != null) {
+            JSONArray ios_vendored = getAsJSONArray(ios, "vendored_frameworks");
+            if (ios_vendored != null) {
+                spec.vendoredframeworks.addAll(ios_vendored);
+            }
+        }
+        if (osx != null) {
+            JSONArray osx_vendored = getAsJSONArray(osx, "vendored_frameworks");
+            if (osx_vendored != null) {
+                spec.vendoredframeworks.addAll(osx_vendored);
+            }
+        }
 
         // libraries
         spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
