@@ -460,6 +460,18 @@ public class CocoaPodsService {
         if (vendored != null) {
             spec.vendoredframeworks.addAll(vendored);
         }
+        if (ios != null) {
+            JSONArray ios_vendored = getAsJSONArray(ios, "vendored_frameworks");
+            if (ios_vendored != null) {
+                spec.vendoredframeworks.addAll(ios_vendored);
+            }
+        }
+        if (osx != null) {
+            JSONArray osx_vendored = getAsJSONArray(osx, "vendored_frameworks");
+            if (osx_vendored != null) {
+                spec.vendoredframeworks.addAll(osx_vendored);
+            }
+        }
 
         // libraries
         spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
@@ -566,6 +578,16 @@ public class CocoaPodsService {
             if (!specsMap.containsKey(mainpodname)) {
                 String cmd = "pod spec cat --regex ^" + mainpodname + "$ --version=" + podversion;
                 String specJson = execCommand(cmd).replace(cmd, "");
+                // find first occurence of { because in some cases pod command
+                // can produce additional output before json spec
+                // For example:
+                // Ignoring ffi-1.15.4 because its extensions are not built. Try: gem pristine ffi --version 1.15.4
+                // {
+                //     "authors": "Google, Inc.",
+                //     "cocoapods_version": ">= 1.9.0",
+                //     "dependencies": {
+                //     "GoogleAppMeasurement": [
+                specJson = specJson.substring(specJson.indexOf("{", 0), specJson.length());
 
                 specsMap.put(mainpodname, createPodSpec(specJson, podsDir));
             }
