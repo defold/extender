@@ -146,6 +146,11 @@ public class ExtenderUtil
     @SuppressWarnings("unchecked")
     public static void debugPrintObject(String name, Object obj, int indent) throws ExtenderException {
         System.out.print(String.format("%s:\n", name));
+        if (obj instanceof Map)
+        {
+            debugPrint((Map<String, Object>)obj, indent);
+            return;
+        }
         for (Field field : obj.getClass().getFields()) {
             debugPrintIndent(indent);
             try {

@@ -73,6 +73,7 @@ class Extender {
     static final String FOLDER_PLUGIN_SRC = "pluginsrc";// source for the pipeline/format plugins
     static final String FOLDER_COMMON_SRC = "commonsrc";// common source shared between both types
 
+    static final String APPMANIFEST_FILENAME = "app.manifest";
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
     static final String APPMANIFEST_BUILD_ARTIFACTS_KEYWORD = "buildArtifacts";
@@ -130,7 +131,7 @@ class Extender {
 
         // Read the app manifest from the upload folder
         Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
-        List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals("app.manifest")).collect(Collectors.toList());
+        List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals(APPMANIFEST_FILENAME)).collect(Collectors.toList());
         if (appManifests.size() > 1 ) {
             throw new ExtenderException("Only one app.manifest allowed!");
         }

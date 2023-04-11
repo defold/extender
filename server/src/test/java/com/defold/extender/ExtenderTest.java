@@ -15,6 +15,9 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.YAMLException;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +30,34 @@ public class ExtenderTest {
 
     File uploadDirectory = null;
 
+    static Map<String, String> createEnv()
+    {
+        Map<String, String> env = new HashMap<>();
+
+        // TODO: Read these from the Dockerfile itself
+        env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
+        env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
+        env.put("XCODE_14_VERSION", "14.2");
+        env.put("IOS_16_VERSION", "16.2");
+        env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
+        env.put("MACOS_13_VERSION", "13.1");
+        env.put("MACOS_VERSION_MIN", "10.13");
+        env.put("XCODE_14_CLANG_VERSION", "14.0.0");
+        env.put("SWIFT_5_5_VERSION", "5.5");
+        env.put("SYSROOT", "/opt/platformsdk/MacOSX13.1.sdk");
+        env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
+
+        return env;
+    }
+
+    static void checkArray(String[] expected, Object obj)
+    {
+        List<String> l = (List<String>)obj;
+        if (l == null)
+            l = new ArrayList<String>();
+        assertEquals(Arrays.asList(expected), l);
+    }
+
     @Test
     public void testExtender() throws IOException, InterruptedException, ExtenderException {
         File jobDir = new File("/tmp/tmpJob");
@@ -38,20 +69,7 @@ public class ExtenderTest {
         buildDir.mkdirs();
         File sdk = new File("test-data/sdk/a/defoldsdk");
 
-
-        Map<String, String> env = new HashMap<>();
-
-        // TODO: Read these from the Dockerfile itself
-        env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
-        env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
-        env.put("XCODE_14_VERSION", "14.2");
-        env.put("IOS_16_VERSION", "16.2");
-        env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
-        env.put("MACOS_13_VERSION", "13.1");
-        env.put("XCODE_14_CLANG_VERSION", "14.0.0");
-        env.put("SWIFT_5_5_VERSION", "5.5");
-        env.put("SYSROOT", "/opt/platformsdk/MacOSX13.1.sdk");
-        env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
+        Map<String, String> env = createEnv();
 
         Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
 
@@ -226,12 +244,12 @@ public class ExtenderTest {
         {
             List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), "lib(.+).a");
             String[] expected = {"alib"};
-            assertArrayEquals(expected, result.toArray());
+            checkArray(expected, result);
         }
         {
             List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), Extender.FRAMEWORK_RE);
             String[] expected = {"blib"};
-            assertArrayEquals(expected, result.toArray());
+            checkArray(expected, result);
         }
     }
 
@@ -368,24 +386,10 @@ public class ExtenderTest {
         buildDir.deleteOnExit();
         File sdk = new File("test-data/sdk/a/defoldsdk");
 
-
-        Map<String, String> env = new HashMap<>();
-
-        // TODO: Read these from the Dockerfile itself
-        env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
-        env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
-        env.put("XCODE_14_VERSION", "14.2");
-        env.put("IOS_16_VERSION", "16.2");
-        env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
-        env.put("MACOS_13_VERSION", "13.1");
-        env.put("XCODE_14_CLANG_VERSION", "14.0.0");
-        env.put("SWIFT_5_5_VERSION", "5.5");
-        env.put("SYSROOT", "/opt/platformsdk/MacOSX13.1.sdk");
-        env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
+        Map<String, String> env = createEnv();
 
         Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
         Map<String, Object> mergedAppContext = extender.getMergedAppContext();
-        System.out.printf("MAWE DEBUG UNITTEST\n");
 
         List<String> libsOriginal = Arrays.asList("engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null");
         List<String> libsExpected = Arrays.asList("engine_release", "engine_service_null", "remotery_null", "record_null");
@@ -445,5 +449,107 @@ public class ExtenderTest {
         expectedItems.add("SymbolB"); // x86_64-osx
 
         assertEquals( expectedItems, context.get("excludeSymbols") );
+    }
+
+    static void writeYaml(File file, Map<String, Object> map) throws IOException
+    {
+        Yaml yaml = new Yaml();
+        String text = yaml.dump(map);
+        FileUtils.writeStringToFile(file, text);
+    }
+
+    static File setupJobFolder(String variant) throws IOException
+    {
+        File jobDir = new File("/tmp/tmpJob");
+        jobDir.mkdirs();
+        File uploadDir = new File(jobDir, "upload");
+        uploadDir.mkdirs();
+        File appDir = new File(uploadDir, "_app");
+        appDir.mkdirs();
+
+        File buildDir = new File(jobDir, "build");
+        buildDir.mkdirs();
+
+        Map<String, Object> map = new HashMap<>();
+        Map<String, Object> context = new HashMap<>();
+        Map<String, Object> platforms = new HashMap<>();
+        map.put("context", context);
+        map.put("platforms", platforms);
+        context.put(Extender.APPMANIFEST_BASE_VARIANT_KEYWORD, variant);
+
+        writeYaml(new File(appDir, Extender.APPMANIFEST_FILENAME), map);
+        return jobDir;
+    }
+
+    @Test
+    public void testVariantHeadless() throws IOException, InterruptedException, ExtenderException {
+        File jobDir = setupJobFolder("headless");
+        File uploadDir = new File(jobDir, "upload");
+        File buildDir = new File(jobDir, "build");
+
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+
+        Map<String, String> env = createEnv();
+
+        Extender extender = new Extender("x86_64-linux", sdk, jobDir, uploadDir, buildDir, env);
+
+        Map<String, Object> map = extender.getMergedAppContext();
+
+        // And, verify the variant changes libraries
+        String[] excludeLibs = {"record", "vpx", "sound", "tremolo", "graphics", "hid"};
+        checkArray(excludeLibs, map.get("excludeLibs"));
+
+        String[] excludeDynamicLibs = {"openal", "Xext", "X11", "Xi", "GL", "GLU"};
+        checkArray(excludeDynamicLibs, map.get("excludeDynamicLibs"));
+
+        String[] excludeSymbols = {"DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderTremolo", "GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"};
+        checkArray(excludeSymbols, map.get("excludeSymbols"));
+
+        // And, verify the resulting libraries
+
+        String[] libs = {"record_null", "sound_null", "graphics_null", "hid_null"};
+        checkArray(libs, map.get("libs"));
+
+        String[] dynamicLibs = {"pthread", "m", "dl"};
+        checkArray(dynamicLibs, map.get("dynamicLibs"));
+
+        FileUtils.deleteQuietly(jobDir);
+        assertTrue(true);
+    }
+
+    @Test
+    public void testVariantRelease() throws IOException, InterruptedException, ExtenderException {
+        File jobDir = setupJobFolder("release");
+        File uploadDir = new File(jobDir, "upload");
+        File buildDir = new File(jobDir, "build");
+
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+
+        Map<String, String> env = createEnv();
+
+        Extender extender = new Extender("x86_64-linux", sdk, jobDir, uploadDir, buildDir, env);
+
+        Map<String, Object> map = extender.getMergedAppContext();
+
+        // And, verify the variant changes libraries
+        String[] excludeLibs = {"engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"};
+        checkArray(excludeLibs, map.get("excludeLibs"));
+
+        String[] excludeDynamicLibs = {};
+        checkArray(excludeDynamicLibs, map.get("excludeDynamicLibs"));
+
+        String[] excludeSymbols = {};
+        checkArray(excludeSymbols, map.get("excludeSymbols"));
+
+        // And, verify the resulting libraries
+
+        String[] libs = {"engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null"};
+        checkArray(libs, map.get("libs"));
+
+        String[] dynamicLibs = {"openal", "Xext", "X11", "Xi", "GL", "GLU", "pthread", "m", "dl"};
+        checkArray(dynamicLibs, map.get("dynamicLibs"));
+
+        FileUtils.deleteQuietly(jobDir);
+        assertTrue(true);
     }
 }
