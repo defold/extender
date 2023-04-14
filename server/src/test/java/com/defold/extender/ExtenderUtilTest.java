@@ -188,6 +188,21 @@ public class ExtenderUtilTest {
     }
 
     @Test
+    public void testMergeContextListsWithVariables() throws IOException, InterruptedException, ExtenderException {
+
+        Map<String, Object> a = new HashMap<>();
+        a.put("libs", Arrays.asList("{{env.SOME_LIB_PATH}}/release"));
+
+        Map<String, Object> b = new HashMap<>();
+        b.put("libs", Arrays.asList("{{env.SOME_LIB_PATH}}/debug"));
+        b.put("excludeLibs", Arrays.asList("{{env.SOME_LIB_PATH}}/release"));
+
+        Map<String, Object> context = ExtenderUtil.mergeContexts(a, b);
+
+        assertEquals(Arrays.asList("{{env.SOME_LIB_PATH}}/debug"), context.getOrDefault("libs", null));
+    }
+
+    @Test
     public void testPruneList() throws IOException, InterruptedException, ExtenderException {
         List<String> main = Arrays.asList("profile", "profile_null", "a");
         List<String> include_libs = Arrays.asList("a");

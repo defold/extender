@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
@@ -26,6 +27,18 @@ import org.apache.commons.io.filefilter.RegexFileFilter;
 
 public class ExtenderUtil
 {
+    static Pattern createPattern(String expression) {
+        Pattern p = null;
+        try {
+            p = Pattern.compile(expression);
+        } catch (PatternSyntaxException e) {
+            p = Pattern.compile(expression, Pattern.LITERAL);
+        }
+        if (p == null) {
+            p = Pattern.compile(expression); // make it throw again
+        }
+        return p;
+    }
 
     // Excludes items from input list that matches an item in the expressions list
     static List<String> excludeItems(List<String> input, List<String> expressions) {
@@ -33,7 +46,7 @@ public class ExtenderUtil
 
         List<Pattern> patterns = new ArrayList<>();
         for (String expression : expressions) {
-            patterns.add(Pattern.compile(expression));
+            patterns.add(createPattern(expression));
         }
         for (String item : input) {
             boolean excluded = false;
@@ -62,7 +75,7 @@ public class ExtenderUtil
 
         List<Pattern> patterns = new ArrayList<>();
         for (String expression : expressions) {
-            patterns.add(Pattern.compile(expression));
+            patterns.add(createPattern(expression));
         }
         for (String item : input) {
             boolean included = false;
