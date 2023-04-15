@@ -377,14 +377,14 @@ RUN \
 # PS4 SDK
 #
 
-ENV PS4_SDK_10_000 ${PLATFORMSDK_DIR}/ps4-sdk-10.000
+ENV PS4_SDK_10  ${PLATFORMSDK_DIR}/ps4-sdk-10.500
 
-ENV PS4_SDK_10_FILENAME ps4-sdk-10.000.tar.gz
+ENV PS4_SDK_10_FILENAME ps4-sdk-10.500.tar.gz
 
 RUN \
-  echo "PS4 SDK 10.000" && \
-  mkdir -p ${PS4_SDK_10_000} && \
-  wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_10_FILENAME} | tar xz -C ${PS4_SDK_10_000} --strip-components=1
+  echo "PS4 ${PS4_SDK_10_FILENAME}" && \
+  mkdir -p ${PS4_SDK_10} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_10_FILENAME} | tar xz -C ${PS4_SDK_10} --strip-components=1
 
 
 #
