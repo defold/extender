@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
@@ -26,63 +27,76 @@ import org.apache.commons.io.filefilter.RegexFileFilter;
 
 public class ExtenderUtil
 {
+    static String convertStringToLiteral(String expression) {
+        String expressionOriginal = expression;
+        int begin = expression.indexOf("{{");
+        if (begin >= 0)
+        {
+            int end = expression.indexOf("}}", begin+2);
 
-    // Excludes items from input list that matches an item in the expressions list
-    static List<String> excludeItems(List<String> input, List<String> expressions) {
+            String prefix = expression.subSequence(0, begin).toString();
+            String substring = expression.subSequence(begin, end+2).toString();
+
+            substring = substring.replaceAll("\\{", "\\\\{");
+            substring = substring.replaceAll("\\}", "\\\\}");
+            substring = substring.replaceAll("\\.", "\\\\.");
+
+            return prefix + substring + convertStringToLiteral(expression.substring(end+2));
+        }
+        return expression;
+    }
+    static Pattern createPattern(String expression) {
+        return Pattern.compile(convertStringToLiteral(expression));
+    }
+
+    static private List<String> filterItems(List<String> input, List<String> expressions, boolean keep) {
         List<String> items = new ArrayList<>();
 
         List<Pattern> patterns = new ArrayList<>();
         for (String expression : expressions) {
-            patterns.add(Pattern.compile(expression));
+            patterns.add(createPattern(expression));
         }
         for (String item : input) {
-            boolean excluded = false;
-            if (expressions.contains(item) ) {
-                excluded = true;
+            boolean matches = false;
+            String itemLiteral = convertStringToLiteral(item);
+            if (expressions.contains(item) || expressions.contains(itemLiteral) ) {
+                matches = true;
             }
             else {
                 for (Pattern pattern : patterns) {
                     Matcher m = pattern.matcher(item);
                     if (m.matches()) {
-                        excluded = true;
+                        matches = true;
+                        break;
+                    }
+                    m = pattern.matcher(itemLiteral);
+                    if (m.matches()) {
+                        matches = true;
                         break;
                     }
                 }
             }
-            if (!excluded) {
-                items.add(item);
+
+            if (keep) {
+                if (matches)
+                    items.add(item);
+            } else {
+                if (!matches)
+                    items.add(item);
             }
         }
         return items;
     }
 
+
+    // Excludes items from input list that matches an item in the expressions list
+    static List<String> excludeItems(List<String> input, List<String> expressions) {
+        return filterItems(input, expressions, false);
+    }
+
     // Keeps the matching items from input list that matches an item in the expressions list
     static private List<String> matchItems(List<String> input, List<String> expressions) {
-        List<String> items = new ArrayList<>();
-
-        List<Pattern> patterns = new ArrayList<>();
-        for (String expression : expressions) {
-            patterns.add(Pattern.compile(expression));
-        }
-        for (String item : input) {
-            boolean included = false;
-            if (expressions.contains(item) ) {
-                included = true;
-            }
-            else {
-                for (Pattern pattern : patterns) {
-                    Matcher m = pattern.matcher(item);
-                    if (m.matches()) {
-                        included = true;
-                        break;
-                    }
-                }
-            }
-            if (included) {
-                items.add(item);
-            }
-        }
-        return items;
+        return filterItems(input, expressions, true);
     }
 
     static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns) {
