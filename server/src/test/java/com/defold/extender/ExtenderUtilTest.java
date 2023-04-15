@@ -89,6 +89,40 @@ public class ExtenderUtilTest {
 
 
     @Test
+    public void testPatternConversion() {
+        // Literals
+        {
+            String original = "abcde";
+            String expected = "abcde";
+            assertEquals(ExtenderUtil.convertStringToLiteral(original), expected);
+        }
+        // Literals, but with our Mustache templates
+        {
+            // Literals, but with our Mustache templates
+            String original = "{{env.SDK}}/some/path";
+            String expected = "\\{\\{env\\.SDK\\}\\}/some/path";
+            assertEquals(ExtenderUtil.convertStringToLiteral(original), expected);
+        }
+        {
+            String original = "prefix/{{some.VAR}}/suffix";
+            String expected = "prefix/\\{\\{some\\.VAR\\}\\}/suffix";
+            assertEquals(ExtenderUtil.convertStringToLiteral(original), expected);
+        }
+        // The expression contains a regex
+        {
+            String original = ".*/google-play-services.jar";
+            String expected = ".*/google-play-services.jar";
+            assertEquals(ExtenderUtil.convertStringToLiteral(original), expected);
+        }
+        // Both vars and regexes
+        {
+            String original = "{{some.VAR}}/path/.*.jar";
+            String expected = "\\{\\{some\\.VAR\\}\\}/path/.*.jar";
+            assertEquals(ExtenderUtil.convertStringToLiteral(original), expected);
+        }
+    }
+
+    @Test
     public void testMergeList() {
         String[] a = {"1", "2", "2", "3", "4"};
         String[] b = {"3", "5", "4", "5"};
