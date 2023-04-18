@@ -607,16 +607,13 @@ public class CocoaPodsService {
         if (osx != null) spec.osx_libraries.addAll(getAsJSONArray(osx, "libraries"));
 
         // parse subspecs
-        JSONArray default_subspecs = getAsJSONArray(specJson, "default_subspecs");
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
                 PodSpec subSpec = createPodSpec(o, spec, podsDir);
-                if (default_subspecs.isEmpty() || default_subspecs.contains(subSpec.name)) {
-                    spec.subspecs.add(subSpec);
-                }
+                spec.subspecs.add(subSpec);
             }
         }
 
