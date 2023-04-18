@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.slf4j.Logger;
@@ -664,28 +665,72 @@ class Extender {
         return objs;
     }
 
+    // remove flags starting with a specific string
+    private void removeFlag(String flagToRemoveStartsWith, List<String> flags) {
+        for (int i = flags.size() - 1; i >= 0; i--) {
+            String flag = flags.get(i);
+            if (flag.startsWith(flagToRemoveStartsWith)) {
+                flags.remove(i);
+            }
+        }
+    }
+
     // compile the source files of a pod and return a list of object files
     private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
 
-        Map<String, Object> podContext = new HashMap<>();
-        List<String> flags = new ArrayList<>(pod.flags);
+        // per supported language build lists of flags and defines
+        List<String> defines = new ArrayList<>(pod.defines);
+        List<String> flagsCpp = new ArrayList<>(pod.flags);
+        List<String> flagsObjC = new ArrayList<>(pod.flags);
+        List<String> flagsC = new ArrayList<>(pod.flags);
         if (platform.contains("ios")) {
-            flags.addAll(pod.ios_flags);
+            flagsCpp.addAll(pod.ios_flags);
+            flagsObjC.addAll(pod.ios_flags);
+            flagsC.addAll(pod.ios_flags);
+            defines.addAll(pod.ios_defines);
         }
         else if (platform.contains("osx")) {
-            flags.addAll(pod.osx_flags);
+            flagsCpp.addAll(pod.osx_flags);
+            flagsObjC.addAll(pod.osx_flags);
+            flagsC.addAll(pod.osx_flags);
+            defines.addAll(pod.osx_defines);
         }
-        podContext.put("flags", flags);
-        podContext.put("defines", new ArrayList<String>(pod.defines));
-        Map mergedContextWithPods = ExtenderUtil.mergeContexts(manifestContext, podContext);
+        removeFlag("-std=c++", flagsObjC);
+        removeFlag("-std=c++", flagsC);
+
+        // create contexts per supported language
+        Map<String, Object> podContextCpp = new HashMap<>();
+        Map<String, Object> podContextObjC = new HashMap<>();
+        Map<String, Object> podContextC = new HashMap<>();
+        podContextCpp.put("flags", flagsCpp);
+        podContextCpp.put("defines", defines);
+        podContextObjC.put("flags", flagsObjC);
+        podContextObjC.put("defines", defines);
+        podContextC.put("flags", flagsC);
+        podContextC.put("defines", defines);
+        Map mergedContextWithPodsForCpp = ExtenderUtil.mergeContexts(manifestContext, podContextCpp);
+        Map mergedContextWithPodsForObjC = ExtenderUtil.mergeContexts(manifestContext, podContextObjC);
+        Map mergedContextWithPodsForC = ExtenderUtil.mergeContexts(manifestContext, podContextC);
 
         for (File src : pod.sourceFiles) {
-            if (src.getAbsolutePath().endsWith(".swift")) {
+            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
+            if (extension.equals("swift")) {
                 throw new ExtenderException("Unable to build '" + pod.name + "' since it includes Swift source files");
             }
             else {
+                // use the correct context depending on the source file language
+                Map mergedContextWithPods = null;
+                if (extension.equals("c")) {
+                    mergedContextWithPods = mergedContextWithPodsForC;
+                }
+                else if (extension.equals("m") || extension.equals("mm")) {
+                    mergedContextWithPods = mergedContextWithPodsForObjC;
+                }
+                else {
+                    mergedContextWithPods = mergedContextWithPodsForCpp;
+                }
                 final int i = getAndIncreaseNameCount();
                 File o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPods, commands);
                 objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
