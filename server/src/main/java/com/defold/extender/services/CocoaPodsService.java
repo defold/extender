@@ -637,8 +637,21 @@ public class CocoaPodsService {
             throw new ExtenderException("Unsupported platform " + platform);
         }
 
-        List<File> podFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
-        if (podFiles.isEmpty()) {
+        // find all podfiles and filter down to a list of podfiles specifically
+        // for the platform we are resolving pods for
+        List<File> allPodFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
+        List<File> platformPodFiles = new ArrayList<>();
+        for (File podFile : allPodFiles) {
+            String parentFolder = podFile.getParentFile().getName();
+            if ((platform.contains("ios") && parentFolder.contains("ios")) ||
+                (platform.contains("osx") && parentFolder.contains("osx"))) {
+                platformPodFiles.add(podFile);
+            }
+            else {
+                LOGGER.warn("Unexpected Podfile found in " + podFile);
+            }
+        }
+        if (platformPodFiles.isEmpty()) {
             LOGGER.info("Project has no Cocoapod dependencies");
             return null;
         }
@@ -650,7 +663,7 @@ public class CocoaPodsService {
         File frameworksDir = new File(workingDir, "frameworks");
         workingDir.mkdirs();
 
-        String platformMinVersion = createMainPodFile(podFiles, jobDirectory, workingDir, platform);
+        String platformMinVersion = createMainPodFile(platformPodFiles, jobDirectory, workingDir, platform);
         List<PodSpec> pods = installPods(workingDir);
         copyPodFrameworks(pods, frameworksDir);
         
