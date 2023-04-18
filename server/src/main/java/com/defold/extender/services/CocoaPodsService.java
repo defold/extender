@@ -66,6 +66,12 @@ public class CocoaPodsService {
             Set<String> flags = new HashSet<>();
             for (PodSpec pod : pods) {
                 flags.addAll(pod.linkflags);
+                if (platform.contains("ios")) {
+                    flags.addAll(pod.ios_linkflags);
+                }
+                else if (platform.contains("osx")) {
+                    flags.addAll(pod.osx_linkflags);
+                }
             }
             return new ArrayList<String>(flags);
         }
@@ -110,10 +116,14 @@ public class CocoaPodsService {
         public PodSpec parentSpec = null;
         public List<PodSpec> subspecs = new ArrayList<>();
         public Set<String> defines = new HashSet<>();
+        public Set<String> ios_defines = new HashSet<>();
+        public Set<String> osx_defines = new HashSet<>();
         public Set<String> flags = new HashSet<>();
         public Set<String> ios_flags = new HashSet<>();
         public Set<String> osx_flags = new HashSet<>();
         public Set<String> linkflags = new HashSet<>();
+        public Set<String> ios_linkflags = new HashSet<>();
+        public Set<String> osx_linkflags = new HashSet<>();
         public Set<String> vendoredframeworks = new HashSet<>();
         public Set<String> weak_frameworks = new HashSet<>();
         public Set<String> ios_weak_frameworks = new HashSet<>();
@@ -133,10 +143,14 @@ public class CocoaPodsService {
             sb.append(indentation + "  src: " + sourceFiles + "\n");
             sb.append(indentation + "  includes: " + includePaths + "\n");
             sb.append(indentation + "  defines: " + defines + "\n");
+            sb.append(indentation + "  ios_defines: " + ios_defines + "\n");
+            sb.append(indentation + "  osx_defines: " + osx_defines + "\n");
             sb.append(indentation + "  flags: " + flags + "\n");
             sb.append(indentation + "  ios_flags: " + ios_flags + "\n");
             sb.append(indentation + "  osx_flags: " + osx_flags + "\n");
             sb.append(indentation + "  linkflags: " + linkflags + "\n");
+            sb.append(indentation + "  ios_linkflags: " + ios_linkflags + "\n");
+            sb.append(indentation + "  osx_linkflags: " + osx_linkflags + "\n");
             sb.append(indentation + "  iosversion: " + iosversion + "\n");
             sb.append(indentation + "  osxversion: " + osxversion + "\n");
             sb.append(indentation + "  weak_frameworks: " + weak_frameworks + "\n");
@@ -403,6 +417,88 @@ public class CocoaPodsService {
         return Arrays.asList(value.split(" "));
     }
 
+    // check if a string value on a JSON object exists
+    // will return false if the value doesn't exist or is an empty string
+    private boolean hasString(JSONObject o, String key) {
+        String value = (String)o.get(key);
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        return true;
+    }
+
+    // get a string value from a JSON object
+    // will return null if the value doesn't exist or is an empty string
+    private String getAsString(JSONObject o, String key) {
+        String value = (String)o.get(key);
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value;
+    }
+
+    // check if the value for a specific key on a json object matches an expected value
+    private boolean compareString(JSONObject o, String key, String expected) {
+        String value = (String)o.get(key);
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        return value.equals(expected);
+    }
+
+    private void parseConfig(JSONObject config, Set<String> flags, Set<String> linkflags, Set<String> defines) {
+        // https://pewpewthespells.com/blog/buildsettings.html
+        // defines
+        if (hasString(config, "GCC_PREPROCESSOR_DEFINITIONS")) {
+            defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
+        }
+        // linker flags
+        if (hasString(config, "OTHER_LDFLAGS")) {
+            linkflags.addAll(getAsSplitString(config, "OTHER_LDFLAGS"));
+        }
+        // compiler flags
+        if (hasString(config, "CLANG_CXX_LANGUAGE_STANDARD")) {
+            flags.add("-std=" + getAsString(config, "CLANG_CXX_LANGUAGE_STANDARD"));
+        }
+        if (hasString(config, "GCC_C_LANGUAGE_STANDARD")) {
+            flags.add("-std=" + getAsString(config, "GCC_C_LANGUAGE_STANDARD"));
+        }
+        if (hasString(config, "CLANG_CXX_LIBRARY")) {
+            flags.add("-stdlib=" + getAsString(config, "CLANG_CXX_LIBRARY"));
+        }
+        if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "NO")) {
+            flags.add("-fno-exceptions");
+        }
+        if (compareString(config, "GCC_ENABLE_EXCEPTIONS", "YES")) {
+            flags.add("-fexceptions");
+        }
+        if (compareString(config, "GCC_ENABLE_OBJC_EXCEPTIONS", "NO")) {
+            flags.add("-fno-objc-exceptions");
+        }
+        if (compareString(config, "GCC_ENABLE_CPP_RTTI", "NO")) {
+            flags.add("-fno-rtti");
+        }
+        if (compareString(config, "GCC_ENABLE_OBJC_GC", "supported")) {
+            flags.add("-fobjc-gc");
+        }
+        if (compareString(config, "GCC_ENABLE_OBJC_GC", "required")) {
+            flags.add("-fobjc-gc-only");
+        }
+        if (compareString(config, "GCC_ENABLE_ASM_KEYWORD", "NO")) {
+            flags.add("-fno-asm");
+        }
+    }
+
+    private void parseMultiPlatformConfig(PodSpec spec, JSONObject config) {
+        if (config != null) {
+            parseConfig(config, spec.flags, spec.linkflags, spec.defines);
+            JSONObject iosConfig = (JSONObject)config.get("ios");
+            JSONObject osxConfig = (JSONObject)config.get("ios");
+            if (iosConfig != null) parseConfig(iosConfig, spec.ios_flags, spec.ios_linkflags, spec.defines);
+            if (osxConfig != null) parseConfig(osxConfig, spec.osx_flags, spec.osx_linkflags, spec.defines);
+        }
+    }
+
     // https://guides.cocoapods.org/syntax/podspec.html
     private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir) throws ExtenderException {
         PodSpec spec = new PodSpec();
@@ -429,16 +525,11 @@ public class CocoaPodsService {
         JSONObject ios = (JSONObject)specJson.get("ios");
         JSONObject osx = (JSONObject)specJson.get("osx");
 
-        // defines
-        JSONObject podTargetConfig = (JSONObject)specJson.get("pod_target_xcconfig");
-        JSONObject userTargetConfig = (JSONObject)specJson.get("user_target_xcconfig"); // not recommended for use but we need to handle it
-        JSONObject config = (JSONObject)specJson.get("xcconfig");  // undocumented but used by some pods
-        if (podTargetConfig != null) spec.defines.addAll(getAsSplitString(podTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
-        if (userTargetConfig != null) spec.defines.addAll(getAsSplitString(userTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
-        if (config != null) spec.defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
+        // flags and defines
+        parseMultiPlatformConfig(spec, (JSONObject)specJson.get("pod_target_xcconfig"));
+        parseMultiPlatformConfig(spec, (JSONObject)specJson.get("user_target_xcconfig")); // not recommended for use but we need to handle it
+        parseMultiPlatformConfig(spec, (JSONObject)specJson.get("xcconfig"));  // undocumented but used by some pods
 
-        // linker flags
-        if (userTargetConfig != null) spec.linkflags.addAll(getAsSplitString(userTargetConfig, "OTHER_LDFLAGS"));
 
         // requires_arc flag
         // The 'requires_arc' option can also be a file pattern string or array
