@@ -107,6 +107,7 @@ public class CocoaPodsService {
         public String osxversion = "";
         public Set<File> sourceFiles = new HashSet<>();
         public Set<File> includePaths = new HashSet<>();
+        public PodSpec parentSpec = null;
         public List<PodSpec> subspecs = new ArrayList<>();
         public Set<String> defines = new HashSet<>();
         public Set<String> flags = new HashSet<>();
@@ -148,6 +149,7 @@ public class CocoaPodsService {
             sb.append(indentation + "  libraries: " + libraries + "\n");
             sb.append(indentation + "  ios_libraries: " + ios_libraries + "\n");
             sb.append(indentation + "  osx_libraries: " + osx_libraries + "\n");
+            sb.append(indentation + "  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
             for (PodSpec sub : subspecs) {
                 sb.append(sub.toString(indentation + "  "));
             }
@@ -407,6 +409,16 @@ public class CocoaPodsService {
         spec.name = (String)specJson.get("name");
         spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;
         spec.dir = (parent == null) ? new File(podsDir, spec.name) : parent.dir;
+        spec.parentSpec = parent;
+
+        // inherit flags and defines from the parent
+        if (parent != null) {
+            spec.flags.addAll(parent.flags);
+            spec.ios_flags.addAll(parent.ios_flags);
+            spec.osx_flags.addAll(parent.osx_flags);
+            spec.defines.addAll(parent.defines);
+            spec.linkflags.addAll(parent.linkflags);
+        }
 
         // platform versions
         JSONObject platforms = (JSONObject)specJson.get("platforms");
@@ -479,13 +491,16 @@ public class CocoaPodsService {
         if (osx != null) spec.osx_libraries.addAll(getAsJSONArray(osx, "libraries"));
 
         // parse subspecs
+        JSONArray default_subspecs = getAsJSONArray(specJson, "default_subspecs");
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
                 PodSpec subSpec = createPodSpec(o, spec, podsDir);
-                spec.subspecs.add(subSpec);
+                if (default_subspecs.isEmpty() || default_subspecs.contains(subSpec.name)) {
+                    spec.subspecs.add(subSpec);
+                }
             }
         }
 
