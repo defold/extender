@@ -428,13 +428,18 @@ public class CocoaPodsService {
     }
 
     // get a string value from a JSON object
-    // will return null if the value doesn't exist or is an empty string
-    private String getAsString(JSONObject o, String key) {
+    // will return a default value if the value doesn't exist or is an empty string
+    private String getAsString(JSONObject o, String key, String defaultValue) {
         String value = (String)o.get(key);
         if (value == null || value.trim().isEmpty()) {
-            return null;
+            return defaultValue;
         }
         return value;
+    }
+    // get a string value from a JSON object
+    // will return null if the value doesn't exist or is an empty string
+    private String getAsString(JSONObject o, String key) {
+        return getAsString(o, key, null);
     }
 
     // check if the value for a specific key on a json object matches an expected value
@@ -458,13 +463,33 @@ public class CocoaPodsService {
         }
         // compiler flags
         if (hasString(config, "CLANG_CXX_LANGUAGE_STANDARD")) {
-            flags.add("-std=" + getAsString(config, "CLANG_CXX_LANGUAGE_STANDARD"));
+            String cppStandard = getAsString(config, "CLANG_CXX_LANGUAGE_STANDARD", "compiler-default");
+            String compilerFlag = "";
+            switch (cppStandard) {
+                case "c++98":   compilerFlag = "-std=c++98"; break;
+                case "c++0x":   compilerFlag = "-std=c++11"; break;
+                case "gnu++0x": compilerFlag = "-std=gnu++11"; break;
+                case "c++14":   compilerFlag = "-std=c++1y"; break;
+                case "gnu++14": compilerFlag = "-std=gnu++1y"; break;
+                case "gnu++98": 
+                case "compiler-default": 
+                default:  compilerFlag = "-std=gnu++98"; break;
+            }
+            flags.add(compilerFlag);
         }
         if (hasString(config, "GCC_C_LANGUAGE_STANDARD")) {
             flags.add("-std=" + getAsString(config, "GCC_C_LANGUAGE_STANDARD"));
         }
         if (hasString(config, "CLANG_CXX_LIBRARY")) {
-            flags.add("-stdlib=" + getAsString(config, "CLANG_CXX_LIBRARY"));
+            String stdLib = getAsString(config, "CLANG_CXX_LIBRARY", "compiler-default");
+            String stdLibFlag = "";
+            switch (stdLib) {
+                case "libc++": stdLibFlag = "-stdlib=libc++"; break;
+                case "libstdc++":
+                case "compiler-default":
+                default: stdLibFlag = "-stdlib=libstdlibc++"; break;
+            }
+            flags.add(stdLibFlag);
         }
         if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "NO")) {
             flags.add("-fno-exceptions");
