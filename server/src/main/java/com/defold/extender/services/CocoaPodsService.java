@@ -401,6 +401,35 @@ public class CocoaPodsService {
         return Arrays.asList(value.split(" "));
     }
 
+    // check if a string value on a JSON object exists
+    // will return false if the value doesn't exist or is an empty string
+    private boolean hasString(JSONObject o, String key) {
+        String value = (String)o.get(key);
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        return true;
+    }
+
+    // get a string value from a JSON object
+    // will return null if the value doesn't exist or is an empty string
+    private String getAsString(JSONObject o, String key) {
+        String value = (String)o.get(key);
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value;
+    }
+
+    // check if the value for a specific key on a json object matches an expected value
+    private boolean compareString(JSONObject o, String key, String expected) {
+        String value = (String)o.get(key);
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        return value.equals(expected);
+    }
+
     // https://guides.cocoapods.org/syntax/podspec.html
     private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir) throws ExtenderException {
         PodSpec spec = new PodSpec();
@@ -421,7 +450,41 @@ public class CocoaPodsService {
         JSONObject podTargetConfig = (JSONObject)specJson.get("pod_target_xcconfig");
         JSONObject userTargetConfig = (JSONObject)specJson.get("user_target_xcconfig"); // not recommended for use but we need to handle it
         JSONObject config = (JSONObject)specJson.get("xcconfig");  // undocumented but used by some pods
-        if (podTargetConfig != null) spec.defines.addAll(getAsSplitString(podTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
+        if (podTargetConfig != null) {
+            // https://pewpewthespells.com/blog/buildsettings.html
+            spec.defines.addAll(getAsSplitString(podTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
+            if (hasString(podTargetConfig, "CLANG_CXX_LANGUAGE_STANDARD")) {
+                spec.flags.add("-std=" + getAsString(podTargetConfig, "CLANG_CXX_LANGUAGE_STANDARD"));
+            }
+            if (hasString(podTargetConfig, "GCC_C_LANGUAGE_STANDARD")) {
+                spec.flags.add("-std=" + getAsString(podTargetConfig, "GCC_C_LANGUAGE_STANDARD"));
+            }
+            if (hasString(podTargetConfig, "CLANG_CXX_LIBRARY")) {
+                spec.flags.add("-stdlib=" + getAsString(podTargetConfig, "CLANG_CXX_LIBRARY"));
+            }
+            if (compareString(podTargetConfig, "GCC_ENABLE_CPP_EXCEPTIONS", "NO")) {
+                spec.flags.add("-fno-exceptions");
+            }
+            if (compareString(podTargetConfig, "GCC_ENABLE_EXCEPTIONS", "YES")) {
+                spec.flags.add("-fexceptions");
+            }
+            if (compareString(podTargetConfig, "GCC_ENABLE_OBJC_EXCEPTIONS", "NO")) {
+                spec.flags.add("-fno-objc-exceptions");
+            }
+            if (compareString(podTargetConfig, "GCC_ENABLE_CPP_RTTI", "NO")) {
+                spec.flags.add("-fno-rtti");
+            }
+            if (compareString(podTargetConfig, "GCC_ENABLE_OBJC_GC", "supported")) {
+                spec.flags.add("-fobjc-gc");
+            }
+            if (compareString(podTargetConfig, "GCC_ENABLE_OBJC_GC", "required")) {
+                spec.flags.add("-fobjc-gc-only");
+            }
+            if (compareString(podTargetConfig, "GCC_ENABLE_ASM_KEYWORD", "NO")) {
+                spec.flags.add("-fno-asm");
+            }
+        }
+
         if (userTargetConfig != null) spec.defines.addAll(getAsSplitString(userTargetConfig, "GCC_PREPROCESSOR_DEFINITIONS"));
         if (config != null) spec.defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
 
