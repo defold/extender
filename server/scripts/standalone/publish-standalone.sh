@@ -42,7 +42,8 @@ deploy_artifact() {
         echo "[deploy] Copying artifact ${VERSION} to local directory ${TARGET_DIR}..."
         cp -r ${ARTIFACT_DIR} ${TARGET_DIR}/${VERSION}
         echo "[deploy] Running setup script on local machine..."
-        bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender ${DM_PACKAGES_URL}
+        mkdir -p ${TARGET_DIR}/bin
+        bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} ${TARGET_DIR}/bin/extender ${DM_PACKAGES_URL}
     else
         echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR} using key ${TARGET_KEY}..."
         scp -i ${TARGET_KEY} -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
