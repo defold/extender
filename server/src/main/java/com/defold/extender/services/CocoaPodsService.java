@@ -478,7 +478,20 @@ public class CocoaPodsService {
             flags.add(compilerFlag);
         }
         if (hasString(config, "GCC_C_LANGUAGE_STANDARD")) {
-            flags.add("-std=" + getAsString(config, "GCC_C_LANGUAGE_STANDARD"));
+            String cStandard = getAsString(config, "GCC_C_LANGUAGE_STANDARD", "compiler-default");
+            String compilerFlag = "";
+            switch (cStandard) {
+                case "ansi":  compilerFlag = "-ansi"; break;
+                case "c89":   compilerFlag = "-std=c89"; break;
+                case "gnu89": compilerFlag = "std=gnu89"; break;
+                case "c99":   compilerFlag = "-std=c99"; break;
+                case "c11":   compilerFlag = "-std=c11"; break;
+                case "gnu11": compilerFlag = "-std=gnu11"; break;
+                case "gnu99":
+                case "compiler-default": 
+                default:  compilerFlag = "-std=gnu99"; break;
+            }
+            flags.add(compilerFlag);
         }
         if (hasString(config, "CLANG_CXX_LIBRARY")) {
             String stdLib = getAsString(config, "CLANG_CXX_LIBRARY", "compiler-default");
