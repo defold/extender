@@ -103,13 +103,13 @@ public class GradleService {
         LOGGER.info("GRADLE service using directory {} with cache size {}", GradleService.this.gradleHome, cacheSize);
     }
 
-    private void updateEnvVariables(Map<String, String> env) {
-        ANDROID_SDK_ROOT = env.getOrDefault("ANDROID_SDK_ROOT", System.getenv("ANDROID_SDK_ROOT"));
-        ANDROID_SDK_VERSION = env.getOrDefault("ANDROID_SDK_VERSION", System.getenv("ANDROID_SDK_VERSION"));
+    private void updateEnvVariables(Map<String, Object> env) {
+        ANDROID_SDK_ROOT = env.getOrDefault("ANDROID_SDK_ROOT", System.getenv("ANDROID_SDK_ROOT")).toString();
+        ANDROID_SDK_VERSION = env.getOrDefault("ANDROID_SDK_VERSION", System.getenv("ANDROID_SDK_VERSION")).toString();
     }
 
     // Resolve dependencies, download them, extract to
-    public List<File> resolveDependencies(Map<String, String> env, File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+    public List<File> resolveDependencies(Map<String, Object> env, File cwd, Boolean useJetifier) throws IOException, ExtenderException {
         updateEnvVariables(env);
         // create build.gradle
         File mainGradleFile = new File(cwd, "build.gradle");

@@ -742,9 +742,9 @@ public class CocoaPodsService {
         return specs;
     }
 
-    private void updateEnvVariables(Map<String, String> env) {
-        IOS_VERSION = env.getOrDefault("IOS_VERSION_MIN", System.getenv("IOS_VERSION_MIN"));
-        OSX_VERSION = env.getOrDefault("MACOS_VERSION_MIN", System.getenv("MACOS_VERSION_MIN"));
+    private void updateEnvVariables(Map<String, Object> env) {
+        IOS_VERSION = env.getOrDefault("IOS_VERSION_MIN", System.getenv("IOS_VERSION_MIN")).toString();
+        OSX_VERSION = env.getOrDefault("MACOS_VERSION_MIN", System.getenv("MACOS_VERSION_MIN")).toString();
     }
 
     /**
@@ -753,7 +753,7 @@ public class CocoaPodsService {
      * @param platform Which platform to resolve pods for
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(Map<String, String> env, File jobDirectory, String platform) throws IOException, ExtenderException {
+    public ResolvedPods resolveDependencies(Map<String, Object> env, File jobDirectory, String platform) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
