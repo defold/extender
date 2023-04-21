@@ -175,11 +175,14 @@ public class CocoaPodsService {
         }
     }
 
-    private static final String IOS_VERSION = System.getenv("IOS_VERSION_MIN");
-    private static final String OSX_VERSION = System.getenv("MACOS_VERSION_MIN");
     private static final String PODFILE_TEMPLATE_PATH = System.getenv("EXTENSION_PODFILE_TEMPLATE");
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
+
+    // set in updateEnvVariables()
+    private String IOS_VERSION;
+    private String OSX_VERSION;
+
     private final String podfileTemplateContents;
 
     private final MeterRegistry meterRegistry;
@@ -739,16 +742,23 @@ public class CocoaPodsService {
         return specs;
     }
 
+    private void updateEnvVariables(Map<String, String> env) {
+        IOS_VERSION = env.getOrDefault("IOS_VERSION_MIN", System.getenv("IOS_VERSION_MIN"));
+        OSX_VERSION = env.getOrDefault("MACOS_VERSION_MIN", System.getenv("MACOS_VERSION_MIN"));
+    }
+
     /**
      * Entry point for Cocoapod dependency resolution.
      * @param jobDirectory Root directory of the job to resolve
      * @param platform Which platform to resolve pods for
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(File jobDirectory, String platform) throws IOException, ExtenderException {
+    public ResolvedPods resolveDependencies(Map<String, String> env, File jobDirectory, String platform) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
+
+        updateEnvVariables(env);
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for

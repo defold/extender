@@ -44,13 +44,15 @@ import java.util.regex.Pattern;
 @Service
 public class GradleService {
     private static final Logger LOGGER = LoggerFactory.getLogger(GradleService.class);
-    private static final String ANDROID_SDK_ROOT = System.getenv("ANDROID_SDK_ROOT");
-    private static final String ANDROID_SDK_VERSION = System.getenv("ANDROID_SDK_VERSION");
     private static final String BUILD_GRADLE_TEMPLATE_PATH = System.getenv("EXTENSION_BUILD_GRADLE_TEMPLATE");
     private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
     private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
     private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
+
+    // set in updateEnvVariables()
+    private String ANDROID_SDK_ROOT = System.getenv("ANDROID_SDK_ROOT");
+    private String ANDROID_SDK_VERSION = System.getenv("ANDROID_SDK_VERSION");
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
@@ -101,8 +103,14 @@ public class GradleService {
         LOGGER.info("GRADLE service using directory {} with cache size {}", GradleService.this.gradleHome, cacheSize);
     }
 
+    private void updateEnvVariables(Map<String, String> env) {
+        ANDROID_SDK_ROOT = env.getOrDefault("ANDROID_SDK_ROOT", System.getenv("ANDROID_SDK_ROOT"));
+        ANDROID_SDK_VERSION = env.getOrDefault("ANDROID_SDK_VERSION", System.getenv("ANDROID_SDK_VERSION"));
+    }
+
     // Resolve dependencies, download them, extract to
-    public List<File> resolveDependencies(File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+    public List<File> resolveDependencies(Map<String, String> env, File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+        updateEnvVariables(env);
         // create build.gradle
         File mainGradleFile = new File(cwd, "build.gradle");
         List<File> gradleFiles = ExtenderUtil.listFilesMatchingRecursive(cwd, "build\\.gradle");
