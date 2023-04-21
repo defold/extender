@@ -494,14 +494,26 @@ public class CocoaPodsService {
             }
             flags.add(stdLibFlag);
         }
+        if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "YES")) {
+            flags.add("-fcxx-exceptions");
+        }
         if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "NO")) {
-            flags.add("-fno-exceptions");
+            flags.add("-fno-cxx-exceptions");
         }
         if (compareString(config, "GCC_ENABLE_EXCEPTIONS", "YES")) {
             flags.add("-fexceptions");
         }
+        if (compareString(config, "GCC_ENABLE_EXCEPTIONS", "NO")) {
+            flags.add("-fno-exceptions");
+        }
+        if (compareString(config, "GCC_ENABLE_OBJC_EXCEPTIONS", "YES")) {
+            flags.add("-fobjc-exceptions");
+        }
         if (compareString(config, "GCC_ENABLE_OBJC_EXCEPTIONS", "NO")) {
             flags.add("-fno-objc-exceptions");
+        }
+        if (compareString(config, "GCC_ENABLE_CPP_RTTI", "YES")) {
+            flags.add("-frtti");
         }
         if (compareString(config, "GCC_ENABLE_CPP_RTTI", "NO")) {
             flags.add("-fno-rtti");
@@ -511,6 +523,9 @@ public class CocoaPodsService {
         }
         if (compareString(config, "GCC_ENABLE_OBJC_GC", "required")) {
             flags.add("-fobjc-gc-only");
+        }
+        if (compareString(config, "GCC_ENABLE_ASM_KEYWORD", "YES")) {
+            flags.add("-fasm");
         }
         if (compareString(config, "GCC_ENABLE_ASM_KEYWORD", "NO")) {
             flags.add("-fno-asm");
