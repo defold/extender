@@ -104,8 +104,8 @@ public class GradleService {
     }
 
     private void updateEnvVariables(Map<String, Object> env) {
-        ANDROID_SDK_ROOT = env.getOrDefault("ANDROID_SDK_ROOT", System.getenv("ANDROID_SDK_ROOT")).toString();
-        ANDROID_SDK_VERSION = env.getOrDefault("ANDROID_SDK_VERSION", System.getenv("ANDROID_SDK_VERSION")).toString();
+        ANDROID_SDK_ROOT = env.getOrDefault("env.ANDROID_SDK_ROOT", System.getenv("ANDROID_SDK_ROOT")).toString();
+        ANDROID_SDK_VERSION = env.getOrDefault("env.ANDROID_SDK_VERSION", System.getenv("ANDROID_SDK_VERSION")).toString();
     }
 
     // Resolve dependencies, download them, extract to

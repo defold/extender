@@ -743,8 +743,8 @@ public class CocoaPodsService {
     }
 
     private void updateEnvVariables(Map<String, Object> env) {
-        IOS_VERSION = env.getOrDefault("IOS_VERSION_MIN", System.getenv("IOS_VERSION_MIN")).toString();
-        OSX_VERSION = env.getOrDefault("MACOS_VERSION_MIN", System.getenv("MACOS_VERSION_MIN")).toString();
+        IOS_VERSION = env.getOrDefault("env.IOS_VERSION_MIN", System.getenv("IOS_VERSION_MIN")).toString();
+        OSX_VERSION = env.getOrDefault("env.MACOS_VERSION_MIN", System.getenv("MACOS_VERSION_MIN")).toString();
     }
 
     /**
