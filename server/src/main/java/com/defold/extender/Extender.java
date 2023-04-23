@@ -680,28 +680,7 @@ class Extender {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
 
-        // build lists of flags and defines per supported language
-        List<String> defines = new ArrayList<>(pod.defines);
-        List<String> flagsC = new ArrayList<>(pod.flags);
-        List<String> flagsCpp = new ArrayList<>(pod.flags);
-        List<String> flagsObjC = new ArrayList<>(pod.flags);
-        List<String> flagsObjCpp = new ArrayList<>(pod.flags);
-        if (platform.contains("ios")) {
-            defines.addAll(pod.ios_defines);
-            flagsC.addAll(pod.ios_flags);
-            flagsCpp.addAll(pod.ios_flags);
-            flagsObjC.addAll(pod.ios_flags);
-            flagsObjCpp.addAll(pod.ios_flags);
-        }
-        else if (platform.contains("osx")) {
-            defines.addAll(pod.osx_defines);
-            flagsC.addAll(pod.osx_flags);
-            flagsCpp.addAll(pod.osx_flags);
-            flagsObjC.addAll(pod.osx_flags);
-            flagsObjCpp.addAll(pod.osx_flags);
-        }
-
-        // TEMP FIX! remove hardcoded flags from context (should be removed from build.yaml perhaps?)
+        // remove hardcoded flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         removeFlag("-fno-exceptions", (List<String>)trimmedContext.get("flags"));
         removeFlag("-stdlib=libc++", (List<String>)trimmedContext.get("flags"));
@@ -712,47 +691,33 @@ class Extender {
         Map<String, Object> podContextCpp = new HashMap<>();
         Map<String, Object> podContextObjC = new HashMap<>();
         Map<String, Object> podContextObjCpp = new HashMap<>();
-        podContextC.put("flags", flagsC);
-        podContextC.put("defines", defines);
-        podContextCpp.put("flags", flagsCpp);
-        podContextCpp.put("defines", defines);
-        podContextObjC.put("flags", flagsObjC);
-        podContextObjC.put("defines", defines);
-        podContextObjCpp.put("flags", flagsObjCpp);
-        podContextObjCpp.put("defines", defines);
+
+        if (platform.contains("ios")) {
+            podContextC.put("flags", new ArrayList<String>(pod.flags.ios.c));
+            podContextC.put("defines", new ArrayList<String>(pod.defines.ios));
+            podContextCpp.put("flags", new ArrayList<String>(pod.flags.ios.cpp));
+            podContextCpp.put("defines", new ArrayList<String>(pod.defines.ios));
+            podContextObjC.put("flags", new ArrayList<String>(pod.flags.ios.objc));
+            podContextObjC.put("defines", new ArrayList<String>(pod.defines.ios));
+            podContextObjCpp.put("flags", new ArrayList<String>(pod.flags.ios.objcpp));
+            podContextObjCpp.put("defines", new ArrayList<String>(pod.defines.ios));
+        }
+        else if (platform.contains("osx")) {
+            podContextC.put("flags", new ArrayList<String>(pod.flags.osx.c));
+            podContextC.put("defines", new ArrayList<String>(pod.defines.osx));
+            podContextCpp.put("flags", new ArrayList<String>(pod.flags.osx.cpp));
+            podContextCpp.put("defines", new ArrayList<String>(pod.defines.osx));
+            podContextObjC.put("flags", new ArrayList<String>(pod.flags.osx.objc));
+            podContextObjC.put("defines", new ArrayList<String>(pod.defines.osx));
+            podContextObjCpp.put("flags", new ArrayList<String>(pod.flags.osx.objcpp));
+            podContextObjCpp.put("defines", new ArrayList<String>(pod.defines.osx));
+        }
+
+        // get the final contexts per supported language
         Map<String, Object> mergedContextWithPodsForC = ExtenderUtil.mergeContexts(trimmedContext, podContextC);
         Map<String, Object> mergedContextWithPodsForCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextCpp);
         Map<String, Object> mergedContextWithPodsForObjC = ExtenderUtil.mergeContexts(trimmedContext, podContextObjC);
         Map<String, Object> mergedContextWithPodsForObjCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextObjCpp);
-
-        // get the flags per supported language and do some fix-up
-        List<String> mergedCFlags = (List<String>)mergedContextWithPodsForC.get("flags");
-        List<String> mergedCppFlags = (List<String>)mergedContextWithPodsForCpp.get("flags");
-        List<String> mergedObjCFlags = (List<String>)mergedContextWithPodsForObjC.get("flags");
-        List<String> mergedObjCppFlags = (List<String>)mergedContextWithPodsForObjCpp.get("flags");
-        // fix c flags
-        removeFlag("-std=c++", mergedCFlags);
-        removeFlag("-stdlib=", mergedCFlags);
-        removeFlag("-fexceptions", mergedCFlags);
-        removeFlag("-fno-exceptions", mergedCFlags);
-        removeFlag("-fcxx-exceptions", mergedCFlags);
-        removeFlag("-fno-cxx-exceptions", mergedCFlags);
-        mergedCFlags.add("--language=c");
-
-        // fix cpp flags
-        removeFlag("-std=c99", mergedCppFlags);
-        mergedCppFlags.add("--language=c++");
-        
-        // fix objc flags
-        removeFlag("-std=c99", mergedObjCFlags);
-        removeFlag("-std=c++", mergedObjCFlags);
-        removeFlag("-stdlib=", mergedObjCFlags);
-        mergedObjCFlags.add("--language=objective-c");
-
-        // fix objcpp flags
-        removeFlag("-std=c99", mergedCppFlags);
-        mergedObjCppFlags.add("--language=objective-c++");
-
 
         for (File src : pod.sourceFiles) {
             String extension = FilenameUtils.getExtension(src.getAbsolutePath());

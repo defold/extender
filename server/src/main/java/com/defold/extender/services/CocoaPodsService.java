@@ -51,12 +51,11 @@ public class CocoaPodsService {
         public List<String> getAllPodLibs(String platform) {
             Set<String> libs = new HashSet<>();
             for (PodSpec pod : pods) {
-                libs.addAll(pod.libraries);
                 if (platform.contains("ios")) {
-                    libs.addAll(pod.ios_libraries);
+                    libs.addAll(pod.libraries.ios);
                 }
                 else if (platform.contains("osx")) {
-                    libs.addAll(pod.osx_libraries);
+                    libs.addAll(pod.libraries.osx);
                 }
             }
             return new ArrayList<String>(libs);
@@ -65,12 +64,11 @@ public class CocoaPodsService {
         public List<String> getAllPodLinkFlags(String platform) {
             Set<String> flags = new HashSet<>();
             for (PodSpec pod : pods) {
-                flags.addAll(pod.linkflags);
                 if (platform.contains("ios")) {
-                    flags.addAll(pod.ios_linkflags);
+                    flags.addAll(pod.linkflags.ios);
                 }
                 else if (platform.contains("osx")) {
-                    flags.addAll(pod.osx_linkflags);
+                    flags.addAll(pod.linkflags.osx);
                 }
             }
             return new ArrayList<String>(flags);
@@ -79,12 +77,11 @@ public class CocoaPodsService {
         public List<String> getAllPodFrameworks(String platform) {
             Set<String> frameworks = new HashSet<>();
             for (PodSpec pod : pods) {
-                frameworks.addAll(pod.frameworks);
                 if (platform.contains("ios")) {
-                    frameworks.addAll(pod.ios_frameworks);
+                    frameworks.addAll(pod.frameworks.ios);
                 }
                 else if (platform.contains("osx")) {
-                    frameworks.addAll(pod.osx_frameworks);
+                    frameworks.addAll(pod.frameworks.osx);
                 }
             }
             return new ArrayList<String>(frameworks);
@@ -93,15 +90,99 @@ public class CocoaPodsService {
         public List<String> getAllPodWeakFrameworks(String platform) {
             Set<String> weakFrameworks = new HashSet<>();
             for (PodSpec pod : pods) {
-                weakFrameworks.addAll(pod.weak_frameworks);
                 if (platform.contains("ios")) {
-                    weakFrameworks.addAll(pod.ios_weak_frameworks);
+                    weakFrameworks.addAll(pod.weak_frameworks.ios);
                 }
                 else if (platform.contains("osx")) {
-                    weakFrameworks.addAll(pod.osx_weak_frameworks);
+                    weakFrameworks.addAll(pod.weak_frameworks.osx);
                 }
             }
             return new ArrayList<String>(weakFrameworks);
+        }
+    }
+
+    public class LanguageSet {
+        public Set<String> c = new HashSet<>();
+        public Set<String> cpp = new HashSet<>();
+        public Set<String> objc = new HashSet<>();
+        public Set<String> objcpp = new HashSet<>();
+
+        public void add(String value) {
+            c.add(value);
+            cpp.add(value);
+            objc.add(value);
+            objcpp.add(value);
+        }
+
+        public void addAll(List<String> values) {
+            for (String v : values) {
+                add(v);
+            }
+        }
+        public void addAll(LanguageSet set) {
+            c.addAll(set.c);
+            cpp.addAll(set.cpp);
+            objc.addAll(set.objc);
+            objcpp.addAll(set.objcpp);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("c: " + c);
+            sb.append("cpp: " + cpp);
+            sb.append("objc: " + objc);
+            sb.append("objcpp: " + objcpp);
+            return sb.toString();
+        }
+    }
+
+    public class PlatformAndLanguageSet {
+        public LanguageSet ios = new LanguageSet();
+        public LanguageSet osx = new LanguageSet();
+
+        public void addAll(PlatformAndLanguageSet v) {
+            ios.addAll(v.ios);
+            osx.addAll(v.osx);
+        }
+        public void addAll(List<String> values) {
+            for (String v :  values) {
+                ios.add(v);
+                osx.add(v);
+            }
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("ios:\n" + ios.toString());
+            sb.append("osx:\n" + osx.toString());
+            return sb.toString();
+        }
+    }
+
+    public class PlatformSet {
+        public Set<String> ios = new HashSet<>();
+        public Set<String> osx = new HashSet<>();
+
+        public void addAll(PlatformSet v) {
+            ios.addAll(v.ios);
+            osx.addAll(v.osx);
+        }
+
+        public void addAll(List<String> values) {
+            for (String v :  values) {
+                ios.add(v);
+                osx.add(v);
+            }
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("ios:\n" + ios.toString());
+            sb.append("osx:\n" + osx.toString());
+            return sb.toString();
         }
     }
 
@@ -115,25 +196,14 @@ public class CocoaPodsService {
         public Set<File> includePaths = new HashSet<>();
         public PodSpec parentSpec = null;
         public List<PodSpec> subspecs = new ArrayList<>();
-        public Set<String> defines = new HashSet<>();
-        public Set<String> ios_defines = new HashSet<>();
-        public Set<String> osx_defines = new HashSet<>();
-        public Set<String> flags = new HashSet<>();
-        public Set<String> ios_flags = new HashSet<>();
-        public Set<String> osx_flags = new HashSet<>();
-        public Set<String> linkflags = new HashSet<>();
-        public Set<String> ios_linkflags = new HashSet<>();
-        public Set<String> osx_linkflags = new HashSet<>();
+
+        public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
+        public PlatformSet defines = new PlatformSet();
+        public PlatformSet linkflags = new PlatformSet();
         public Set<String> vendoredframeworks = new HashSet<>();
-        public Set<String> weak_frameworks = new HashSet<>();
-        public Set<String> ios_weak_frameworks = new HashSet<>();
-        public Set<String> osx_weak_frameworks = new HashSet<>();
-        public Set<String> frameworks = new HashSet<>();
-        public Set<String> ios_frameworks = new HashSet<>();
-        public Set<String> osx_frameworks = new HashSet<>();
-        public Set<String> libraries = new HashSet<>();
-        public Set<String> ios_libraries = new HashSet<>();
-        public Set<String> osx_libraries = new HashSet<>();
+        public PlatformSet weak_frameworks = new PlatformSet();
+        public PlatformSet frameworks = new PlatformSet();
+        public PlatformSet libraries = new PlatformSet();
         public File dir;
 
         public String toString(String indentation) {
@@ -143,26 +213,12 @@ public class CocoaPodsService {
             sb.append(indentation + "  src: " + sourceFiles + "\n");
             sb.append(indentation + "  includes: " + includePaths + "\n");
             sb.append(indentation + "  defines: " + defines + "\n");
-            sb.append(indentation + "  ios_defines: " + ios_defines + "\n");
-            sb.append(indentation + "  osx_defines: " + osx_defines + "\n");
             sb.append(indentation + "  flags: " + flags + "\n");
-            sb.append(indentation + "  ios_flags: " + ios_flags + "\n");
-            sb.append(indentation + "  osx_flags: " + osx_flags + "\n");
             sb.append(indentation + "  linkflags: " + linkflags + "\n");
-            sb.append(indentation + "  ios_linkflags: " + ios_linkflags + "\n");
-            sb.append(indentation + "  osx_linkflags: " + osx_linkflags + "\n");
-            sb.append(indentation + "  iosversion: " + iosversion + "\n");
-            sb.append(indentation + "  osxversion: " + osxversion + "\n");
             sb.append(indentation + "  weak_frameworks: " + weak_frameworks + "\n");
-            sb.append(indentation + "  ios_weak_frameworks: " + ios_weak_frameworks + "\n");
-            sb.append(indentation + "  osx_weak_frameworks: " + osx_weak_frameworks + "\n");
             sb.append(indentation + "  frameworks: " + frameworks + "\n");
-            sb.append(indentation + "  ios_frameworks: " + ios_frameworks + "\n");
-            sb.append(indentation + "  osx_frameworks: " + osx_frameworks + "\n");
             sb.append(indentation + "  vendoredframeworks: " + vendoredframeworks + "\n");
             sb.append(indentation + "  libraries: " + libraries + "\n");
-            sb.append(indentation + "  ios_libraries: " + ios_libraries + "\n");
-            sb.append(indentation + "  osx_libraries: " + osx_libraries + "\n");
             sb.append(indentation + "  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
             for (PodSpec sub : subspecs) {
                 sb.append(sub.toString(indentation + "  "));
@@ -451,7 +507,7 @@ public class CocoaPodsService {
         return value.equals(expected);
     }
 
-    private void parseConfig(JSONObject config, Set<String> flags, Set<String> linkflags, Set<String> defines) {
+    private void parseConfig(JSONObject config, LanguageSet flags, Set<String> linkflags, Set<String> defines) {
         // https://pewpewthespells.com/blog/buildsettings.html
         // defines
         if (hasString(config, "GCC_PREPROCESSOR_DEFINITIONS")) {
@@ -475,7 +531,8 @@ public class CocoaPodsService {
                 case "compiler-default": 
                 default:  compilerFlag = "-std=gnu++98"; break;
             }
-            flags.add(compilerFlag);
+            flags.cpp.add(compilerFlag);
+            flags.objcpp.add(compilerFlag);
         }
         if (hasString(config, "GCC_C_LANGUAGE_STANDARD")) {
             String cStandard = getAsString(config, "GCC_C_LANGUAGE_STANDARD", "compiler-default");
@@ -491,7 +548,7 @@ public class CocoaPodsService {
                 case "compiler-default": 
                 default:  compilerFlag = "-std=gnu99"; break;
             }
-            flags.add(compilerFlag);
+            flags.c.add(compilerFlag);
         }
         if (hasString(config, "CLANG_CXX_LIBRARY")) {
             String stdLib = getAsString(config, "CLANG_CXX_LIBRARY", "compiler-default");
@@ -502,13 +559,14 @@ public class CocoaPodsService {
                 case "compiler-default":
                 default: stdLibFlag = "-stdlib=libstdlibc++"; break;
             }
-            flags.add(stdLibFlag);
+            flags.cpp.add(stdLibFlag);
+            flags.objcpp.add(stdLibFlag);
         }
         if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "YES")) {
-            flags.add("-fcxx-exceptions");
+            flags.cpp.add("-fcxx-exceptions");
         }
         if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "NO")) {
-            flags.add("-fno-cxx-exceptions");
+            flags.cpp.add("-fno-cxx-exceptions");
         }
         if (compareString(config, "GCC_ENABLE_EXCEPTIONS", "YES")) {
             flags.add("-fexceptions");
@@ -517,22 +575,26 @@ public class CocoaPodsService {
             flags.add("-fno-exceptions");
         }
         if (compareString(config, "GCC_ENABLE_OBJC_EXCEPTIONS", "YES")) {
-            flags.add("-fobjc-exceptions");
+            flags.objc.add("-fobjc-exceptions");
+            flags.objcpp.add("-fobjc-exceptions");
         }
         if (compareString(config, "GCC_ENABLE_OBJC_EXCEPTIONS", "NO")) {
-            flags.add("-fno-objc-exceptions");
+            flags.objc.add("-fno-objc-exceptions");
+            flags.objcpp.add("-fno-objc-exceptions");
         }
         if (compareString(config, "GCC_ENABLE_CPP_RTTI", "YES")) {
-            flags.add("-frtti");
+            flags.cpp.add("-frtti");
         }
         if (compareString(config, "GCC_ENABLE_CPP_RTTI", "NO")) {
-            flags.add("-fno-rtti");
+            flags.cpp.add("-fno-rtti");
         }
         if (compareString(config, "GCC_ENABLE_OBJC_GC", "supported")) {
-            flags.add("-fobjc-gc");
+            flags.objc.add("-fobjc-gc");
+            flags.objcpp.add("-fobjc-gc");
         }
         if (compareString(config, "GCC_ENABLE_OBJC_GC", "required")) {
-            flags.add("-fobjc-gc-only");
+            flags.objc.add("-fobjc-gc-only");
+            flags.objcpp.add("-fobjc-gc-only");
         }
         if (compareString(config, "GCC_ENABLE_ASM_KEYWORD", "YES")) {
             flags.add("-fasm");
@@ -544,11 +606,12 @@ public class CocoaPodsService {
 
     private void parseMultiPlatformConfig(PodSpec spec, JSONObject config) {
         if (config != null) {
-            parseConfig(config, spec.flags, spec.linkflags, spec.defines);
+            parseConfig(config, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
+            parseConfig(config, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
             JSONObject iosConfig = (JSONObject)config.get("ios");
             JSONObject osxConfig = (JSONObject)config.get("ios");
-            if (iosConfig != null) parseConfig(iosConfig, spec.ios_flags, spec.ios_linkflags, spec.defines);
-            if (osxConfig != null) parseConfig(osxConfig, spec.osx_flags, spec.osx_linkflags, spec.defines);
+            if (iosConfig != null) parseConfig(iosConfig, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
+            if (osxConfig != null) parseConfig(osxConfig, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
         }
     }
 
@@ -562,11 +625,12 @@ public class CocoaPodsService {
 
         // inherit flags and defines from the parent
         if (parent != null) {
-            spec.flags.addAll(parent.flags);
-            spec.ios_flags.addAll(parent.ios_flags);
-            spec.osx_flags.addAll(parent.osx_flags);
-            spec.defines.addAll(parent.defines);
-            spec.linkflags.addAll(parent.linkflags);
+            spec.flags.ios.addAll(parent.flags.ios);
+            spec.flags.osx.addAll(parent.flags.osx);
+            spec.defines.ios.addAll(parent.defines.ios);
+            spec.defines.osx.addAll(parent.defines.osx);
+            spec.linkflags.ios.addAll(parent.linkflags.ios);
+            spec.linkflags.ios.addAll(parent.linkflags.ios);
         }
 
         // platform versions
@@ -594,22 +658,37 @@ public class CocoaPodsService {
         Boolean requiresArc = true;
         Object requiresArcObject = specJson.get("requires_arc");
         if (requiresArcObject instanceof Boolean) requiresArc = (Boolean)requiresArcObject;
-        spec.flags.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
-        spec.flags.addAll(getAsSplitString(specJson, "compiler_flags"));
+        spec.flags.ios.objc.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+        spec.flags.ios.objcpp.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+        spec.flags.osx.objc.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+        spec.flags.osx.objcpp.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+        
+        // compiler flags
+        spec.flags.ios.addAll(getAsSplitString(specJson, "compiler_flags"));
+        spec.flags.osx.addAll(getAsSplitString(specJson, "compiler_flags"));
+
+        spec.flags.ios.c.add("--language=c");
+        spec.flags.osx.c.add("--language=c");
+        spec.flags.ios.cpp.add("--language=c++");
+        spec.flags.osx.cpp.add("--language=c++");
+        spec.flags.ios.objc.add("--language=objective-c");
+        spec.flags.osx.objc.add("--language=objective-c");
+        spec.flags.ios.objcpp.add("--language=objective-c++");
+        spec.flags.osx.objcpp.add("--language=objective-c++");
 
         // platform specific flags
-        if (ios != null) spec.ios_flags.addAll(getAsJSONArray(ios, "compiler_flags"));
-        if (osx != null) spec.osx_flags.addAll(getAsJSONArray(osx, "compiler_flags"));
+        if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
+        if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
 
         // frameworks
         spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
-        if (ios != null) spec.ios_frameworks.addAll(getAsJSONArray(ios, "frameworks"));
-        if (osx != null) spec.osx_frameworks.addAll(getAsJSONArray(osx, "frameworks"));
+        if (ios != null) spec.frameworks.ios.addAll(getAsJSONArray(ios, "frameworks"));
+        if (osx != null) spec.frameworks.osx.addAll(getAsJSONArray(osx, "frameworks"));
 
         // weak frameworks
         spec.weak_frameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
-        if (ios != null) spec.ios_weak_frameworks.addAll(getAsJSONArray(ios, "weak_frameworks"));
-        if (osx != null) spec.osx_weak_frameworks.addAll(getAsJSONArray(osx, "weak_frameworks"));
+        if (ios != null) spec.weak_frameworks.ios.addAll(getAsJSONArray(ios, "weak_frameworks"));
+        if (osx != null) spec.weak_frameworks.osx.addAll(getAsJSONArray(osx, "weak_frameworks"));
 
         // vendored_frameworks
         JSONArray vendored = getAsJSONArray(specJson, "vendored_frameworks");
@@ -631,8 +710,8 @@ public class CocoaPodsService {
 
         // libraries
         spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
-        if (ios != null) spec.ios_libraries.addAll(getAsJSONArray(ios, "libraries"));
-        if (osx != null) spec.osx_libraries.addAll(getAsJSONArray(osx, "libraries"));
+        if (ios != null) spec.libraries.ios.addAll(getAsJSONArray(ios, "libraries"));
+        if (osx != null) spec.libraries.osx.addAll(getAsJSONArray(osx, "libraries"));
 
         // parse subspecs
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
