@@ -9,7 +9,6 @@ if [ "" == "$TARGET_DIR" ]; then
     TARGET_DIR=/usr/local/extender
 fi
 
-source ${SCRIPT_DIR}/shared/tools.sh
 source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 
 build_artifact ${SOURCE_DIR}
