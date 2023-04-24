@@ -9,7 +9,6 @@ TARGET_HOST=build-darwin-stage.defold.com
 TARGET_USER=xcloud
 TARGET_DIR=/usr/local/extender
 
-source ${SCRIPT_DIR}/shared/tools.sh
 source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 
 check_uncommitted_changes ${SOURCE_DIR}

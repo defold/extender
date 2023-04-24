@@ -2,6 +2,20 @@
 
 ARTIFACT_PATH=build/artifact-standalone
 
+check_uncommitted_changes() {
+    DIR=$1
+
+    OLD_DIR=$(pwd)
+    cd ${DIR}
+    MODIFIED_FILES=$(git status --untracked-files=no --porcelain)
+    cd ${OLD_DIR}
+
+    if [ -n "${MODIFIED_FILES}" ]; then
+        echo "Error! You have uncommitted changes!"
+        exit 1
+    fi
+}
+
 build_artifact() {
     SOURCE_DIR=$1
     SERVER_DIR=${SOURCE_DIR}/server
