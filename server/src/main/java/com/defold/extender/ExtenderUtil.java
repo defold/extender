@@ -128,7 +128,7 @@ public class ExtenderUtil
                 debugPrint((Map<String, Object>)v, indent+1);
             } else {
                 debugPrintIndent(indent);
-                System.out.println(String.format("%s:\t%s", key, v.toString() ) );
+                System.out.println(String.format("%s:\t%s", key, (v != null) ? v.toString() : "null" ) );
             }
         }
     }
