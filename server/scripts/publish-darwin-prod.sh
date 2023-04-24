@@ -12,7 +12,6 @@ TARGET_USER=ec2-user
 TARGET_DIR=/usr/local/extender-${PRODUCTION_VARIANT}
 TARGET_KEY=~/.ssh/defold2_ec2.pem
 
-source ${SCRIPT_DIR}/shared/tools.sh
 source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 
 check_uncommitted_changes ${SOURCE_DIR}
