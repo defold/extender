@@ -665,25 +665,14 @@ class Extender {
         return objs;
     }
 
-    // remove flags starting with a specific string
-    private void removeFlag(String flagToRemoveStartsWith, List<String> flags) {
-        for (int i = flags.size() - 1; i >= 0; i--) {
-            String flag = flags.get(i);
-            if (flag.startsWith(flagToRemoveStartsWith)) {
-                flags.remove(i);
-            }
-        }
-    }
-
     // compile the source files of a pod and return a list of object files
     private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
 
-        // remove hardcoded flags from context
+        // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
-        removeFlag("-fno-exceptions", (List<String>)trimmedContext.get("flags"));
-        removeFlag("-stdlib=libc++", (List<String>)trimmedContext.get("flags"));
+        trimmedContext.put("flags", new ArrayList<String>());
 
         // create contexts per supported language
         // add pod flags and defines
