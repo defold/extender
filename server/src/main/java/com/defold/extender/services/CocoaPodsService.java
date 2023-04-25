@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,7 +49,7 @@ public class CocoaPodsService {
         public String platformMinVersion;
 
         public List<String> getAllPodLibs(String platform) {
-            Set<String> libs = new HashSet<>();
+            Set<String> libs = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
                 if (platform.contains("ios")) {
                     libs.addAll(pod.libraries.ios);
@@ -62,7 +62,7 @@ public class CocoaPodsService {
         }
 
         public List<String> getAllPodLinkFlags(String platform) {
-            Set<String> flags = new HashSet<>();
+            Set<String> flags = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
                 if (platform.contains("ios")) {
                     flags.addAll(pod.linkflags.ios);
@@ -75,7 +75,7 @@ public class CocoaPodsService {
         }
 
         public List<String> getAllPodFrameworks(String platform) {
-            Set<String> frameworks = new HashSet<>();
+            Set<String> frameworks = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
                 if (platform.contains("ios")) {
                     frameworks.addAll(pod.frameworks.ios);
@@ -88,7 +88,7 @@ public class CocoaPodsService {
         }
 
         public List<String> getAllPodWeakFrameworks(String platform) {
-            Set<String> weakFrameworks = new HashSet<>();
+            Set<String> weakFrameworks = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
                 if (platform.contains("ios")) {
                     weakFrameworks.addAll(pod.weak_frameworks.ios);
@@ -102,10 +102,10 @@ public class CocoaPodsService {
     }
 
     public class LanguageSet {
-        public Set<String> c = new HashSet<>();
-        public Set<String> cpp = new HashSet<>();
-        public Set<String> objc = new HashSet<>();
-        public Set<String> objcpp = new HashSet<>();
+        public Set<String> c = new LinkedHashSet<>();
+        public Set<String> cpp = new LinkedHashSet<>();
+        public Set<String> objc = new LinkedHashSet<>();
+        public Set<String> objcpp = new LinkedHashSet<>();
 
         public void add(String value) {
             c.add(value);
@@ -162,8 +162,8 @@ public class CocoaPodsService {
     }
 
     public class PlatformSet {
-        public Set<String> ios = new HashSet<>();
-        public Set<String> osx = new HashSet<>();
+        public Set<String> ios = new LinkedHashSet<>();
+        public Set<String> osx = new LinkedHashSet<>();
 
         public void addAll(PlatformSet v) {
             ios.addAll(v.ios);
@@ -192,15 +192,15 @@ public class CocoaPodsService {
         public String originalJSON = "";
         public String iosversion = "";
         public String osxversion = "";
-        public Set<File> sourceFiles = new HashSet<>();
-        public Set<File> includePaths = new HashSet<>();
+        public Set<File> sourceFiles = new LinkedHashSet<>();
+        public Set<File> includePaths = new LinkedHashSet<>();
         public PodSpec parentSpec = null;
         public List<PodSpec> subspecs = new ArrayList<>();
 
         public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
         public PlatformSet defines = new PlatformSet();
         public PlatformSet linkflags = new PlatformSet();
-        public Set<String> vendoredframeworks = new HashSet<>();
+        public Set<String> vendoredframeworks = new LinkedHashSet<>();
         public PlatformSet weak_frameworks = new PlatformSet();
         public PlatformSet frameworks = new PlatformSet();
         public PlatformSet libraries = new PlatformSet();
@@ -371,7 +371,7 @@ public class CocoaPodsService {
      * @return List of include paths
      */
     private List<File> findPodIncludePaths(PodSpec pod, String pattern) {
-        Set<File> includePaths = new HashSet<>();
+        Set<File> includePaths = new LinkedHashSet<>();
 
         String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
         List<File> podSrcFiles = ExtenderUtil.listFilesGlob(pod.dir, absolutePatternPath);
@@ -540,7 +540,7 @@ public class CocoaPodsService {
             switch (cStandard) {
                 case "ansi":  compilerFlag = "-ansi"; break;
                 case "c89":   compilerFlag = "-std=c89"; break;
-                case "gnu89": compilerFlag = "std=gnu89"; break;
+                case "gnu89": compilerFlag = "-std=gnu89"; break;
                 case "c99":   compilerFlag = "-std=c99"; break;
                 case "c11":   compilerFlag = "-std=c11"; break;
                 case "gnu11": compilerFlag = "-std=gnu11"; break;
@@ -787,7 +787,7 @@ public class CocoaPodsService {
             - GoogleAppMeasurement (= 8.13.0)
         */
         List<String> lines = Files.readAllLines(podFileLock.toPath());
-        Set<String> pods = new HashSet<>();
+        Set<String> pods = new LinkedHashSet<>();
         while (!lines.isEmpty()) if (lines.remove(0).startsWith("PODS:")) break;
         while (!lines.isEmpty()) {
             String line = lines.remove(0);
