@@ -47,7 +47,7 @@ targetCompatibility = 1.8
 dependencies {
     implementation('org.jsoup:jsoup:1.11.3')
     implementation('com.android.tools.build:manifest-merger:27.2.0')
-    implementation('org.apache.commons:commons-configuration2:2.7')
+    implementation('org.apache.commons:commons-configuration2:2.8.0')
 
     testImplementation('commons-io:commons-io:2.11.0')
     testImplementation('junit:junit:4.13')
