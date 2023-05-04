@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.defold.extender.FrameworkUtil;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.CocoaPodsService.PodSpec;
@@ -741,34 +742,62 @@ class Extender {
     }
 
     // build the source files of each resolved pod file into a library
-    private void buildPods() throws IOException, InterruptedException, ExtenderException {
-        LOGGER.info("buildPods");
-        if (resolvedPods != null) {
-            for (PodSpec pod : resolvedPods.pods) {
-                // The source files of each pod will be compiled and built as a library.
-                // We use the same mechanism as when building the extension and create a
-                // manifest context for each pod
-                Map<String, Object> manifestContext = new HashMap<>();
-                manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformConfig.context);
-                manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
-                manifestContext.put("extension_name", pod.name);
-                manifestContext.put("extension_name_upper", pod.name.toUpperCase());
-                manifestContext.put("osMinVersion", resolvedPods.platformMinVersion);
+    private List<File> buildPods() throws IOException, InterruptedException, ExtenderException {
+        List<File> outputFiles = new ArrayList<>();
+        if (resolvedPods == null) {
+            LOGGER.info("buildPods - no pods");
+            return outputFiles;
+        }
 
-                // Compile pod source files
-                List<String> objs = compilePodSourceFiles(pod, manifestContext);
-                if (!objs.isEmpty()) {
-                    // Create c++ library
-                    File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
-                    Map<String, Object> context = createContext(manifestContext);
-                    context.put("tgt", lib);
-                    context.put("objs", objs);
-                    String command = templateExecutor.execute(platformConfig.libCmd, context);
-                    processExecutor.execute(command);
+        LOGGER.info("buildPods");
+        for (PodSpec pod : resolvedPods.pods) {
+            // The source files of each pod will be compiled and built as a library.
+            // We use the same mechanism as when building the extension and create a
+            // manifest context for each pod
+            Map<String, Object> manifestContext = new HashMap<>();
+            manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformConfig.context);
+            manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
+            manifestContext.put("extension_name", pod.name);
+            manifestContext.put("extension_name_upper", pod.name.toUpperCase());
+            manifestContext.put("osMinVersion", resolvedPods.platformMinVersion);
+
+            // Compile pod source files
+            List<String> objs = compilePodSourceFiles(pod, manifestContext);
+            if (!objs.isEmpty()) {
+                // Create c++ library
+                File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
+                Map<String, Object> context = createContext(manifestContext);
+                context.put("tgt", lib);
+                context.put("objs", objs);
+                String command = templateExecutor.execute(platformConfig.libCmd, context);
+                processExecutor.execute(command);
+            }
+        }
+
+        LOGGER.info("buildPods - adding dynamic frameworks to build output");
+        List<String> paths = getFrameworkPaths(resolvedPods.frameworksDir);
+        for (String path : paths) {
+            File[] frameworkDirs = new File(path).listFiles();
+            for (File frameworkDir : frameworkDirs) {
+                if (FrameworkUtil.isDynamicallyLinked(frameworkDir)) {
+                    // copy framework and filter out certain files and folders
+                    LOGGER.info("buildPods - adding " + frameworkDir.getName());
+                    File frameworkDst = new File(buildDirectory, frameworkDir.getName());
+                    FileUtils.copyDirectory(frameworkDir, frameworkDst, new FileFilter() {
+                        @Override
+                        public boolean accept(File pathname) {
+                            String name = pathname.getName();
+                            return !name.equals("Headers")
+                                && !name.equals("Modules");
+                        }
+                    });
+                    outputFiles.add(frameworkDst);
                 }
             }
         }
-   }
+
+        return outputFiles;
+    }
 
     private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildExtension");
@@ -1865,8 +1894,9 @@ class Extender {
         }
         LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
 
+        List<File> outputFiles = new ArrayList<>();
         try {
-            buildPods();
+            outputFiles.addAll(buildPods());
 
             List<String> symbols = getSortedKeys(manifestConfigs.keySet());
             for (String extensionSymbol : symbols) {
@@ -1892,9 +1922,8 @@ class Extender {
             }
             Map mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
-            List<File> exes = linkEngine(symbols, mergedAppContextWithPods, resourceFile);
-
-            return exes;
+            outputFiles.addAll(linkEngine(symbols, mergedAppContextWithPods, resourceFile));
+            return outputFiles;
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
