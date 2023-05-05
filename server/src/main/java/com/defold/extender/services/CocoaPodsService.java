@@ -248,8 +248,8 @@ public class CocoaPodsService {
         podFiles.remove(mainPodFile);
 
         String mainPodfilePlatformVersion = (platform.contains("ios") ? 
-            jobEnvContext.get("env.IOS_VERSION_MIN"): 
-            jobEnvContext.get("env.MACOS_VERSION_MIN"));
+            jobEnvContext.get("env.IOS_VERSION_MIN").toString(): 
+            jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
         String mainPodfilePlatform = (platform.contains("ios") ? "ios" : "osx");
 
         // Load all Podfiles
