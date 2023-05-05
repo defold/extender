@@ -147,7 +147,7 @@ public class GradleService {
 
     private void createLocalPropertiesFile(File localPropertiesFile, Map<String, Object> jobEnvContext) throws IOException {
         HashMap<String, Object> envContext = new HashMap<>();
-        envContext.put("android-sdk-root", jobEnvContext.get("env.ANDROID_SDK_ROOT").toString());
+        envContext.put("android-sdk-root", jobEnvContext.get("env.ANDROID_SDK_ROOT"));
         String contents = templateExecutor.execute(localPropertiesTemplateContents, envContext);
         Files.write(localPropertiesFile.toPath(), contents.getBytes());
     }
@@ -159,7 +159,7 @@ public class GradleService {
         }
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("gradle-files", values);
-        envContext.put("compile-sdk-version", jobEnvContext.get("env.ANDROID_SDK_VERSION").toString());
+        envContext.put("compile-sdk-version", jobEnvContext.get("env.ANDROID_SDK_VERSION"));
         envContext.put("gradle-plugin-version", GRADLE_PLUGIN_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
         Files.write(mainGradleFile.toPath(), contents.getBytes());

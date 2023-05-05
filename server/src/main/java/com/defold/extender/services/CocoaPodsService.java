@@ -248,8 +248,8 @@ public class CocoaPodsService {
         podFiles.remove(mainPodFile);
 
         String mainPodfilePlatformVersion = (platform.contains("ios") ? 
-            jobEnvContext.get("env.IOS_VERSION_MIN").toString(): 
-            jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
+            jobEnvContext.get("env.IOS_VERSION_MIN"): 
+            jobEnvContext.get("env.MACOS_VERSION_MIN"));
         String mainPodfilePlatform = (platform.contains("ios") ? "ios" : "osx");
 
         // Load all Podfiles
@@ -560,10 +560,10 @@ public class CocoaPodsService {
         // platform versions
         JSONObject platforms = (JSONObject)specJson.get("platforms");
         if (platforms != null) {
-            spec.iosversion = (String)platforms.getOrDefault("ios", jobEnvContext.get("env.IOS_VERSION_MIN").toString());
+            spec.iosversion = (String)platforms.getOrDefault("ios", jobEnvContext.get("env.IOS_VERSION_MIN"));
         }
         if (platforms != null) {
-            spec.osxversion = (String)platforms.getOrDefault("osx", jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
+            spec.osxversion = (String)platforms.getOrDefault("osx", jobEnvContext.get("env.MACOS_VERSION_MIN"));
         }
 
         // for multi platform settings
