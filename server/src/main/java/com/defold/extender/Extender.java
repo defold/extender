@@ -2201,7 +2201,7 @@ class Extender {
 
     void resolve(GradleService gradleService) throws ExtenderException {
         try {
-            gradlePackages = gradleService.resolveDependencies(jobDirectory, useJetifier);
+            gradlePackages = gradleService.resolveDependencies(this.platformConfig.context, jobDirectory, useJetifier);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
@@ -2210,7 +2210,7 @@ class Extender {
 
     void resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
         try {
-            resolvedPods = cocoaPodsService.resolveDependencies(jobDirectory, platform);
+            resolvedPods = cocoaPodsService.resolveDependencies(this.platformConfig.context, jobDirectory, platform);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());

@@ -44,8 +44,6 @@ import java.util.regex.Pattern;
 @Service
 public class GradleService {
     private static final Logger LOGGER = LoggerFactory.getLogger(GradleService.class);
-    private static final String ANDROID_SDK_ROOT = System.getenv("ANDROID_SDK_ROOT");
-    private static final String ANDROID_SDK_VERSION = System.getenv("ANDROID_SDK_VERSION");
     private static final String BUILD_GRADLE_TEMPLATE_PATH = System.getenv("EXTENSION_BUILD_GRADLE_TEMPLATE");
     private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
     private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
@@ -101,14 +99,22 @@ public class GradleService {
         LOGGER.info("GRADLE service using directory {} with cache size {}", GradleService.this.gradleHome, cacheSize);
     }
 
+    private Map<String, Object> createJobEnvContext(Map<String, Object> env) {
+        Map<String, Object> context = new HashMap<>(env);
+        context.putIfAbsent("env.ANDROID_SDK_ROOT", System.getenv("ANDROID_SDK_ROOT"));
+        context.putIfAbsent("env.ANDROID_SDK_VERSION", System.getenv("ANDROID_SDK_VERSION"));
+        return context;
+    }
+
     // Resolve dependencies, download them, extract to
-    public List<File> resolveDependencies(File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+    public List<File> resolveDependencies(Map<String, Object> env, File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+        Map<String, Object> jobEnvContext = createJobEnvContext(env);
         // create build.gradle
         File mainGradleFile = new File(cwd, "build.gradle");
         List<File> gradleFiles = ExtenderUtil.listFilesMatchingRecursive(cwd, "build\\.gradle");
         // This file might exist when testing and debugging the extender using a debug job folder
         gradleFiles.remove(mainGradleFile);
-        createBuildGradleFile(mainGradleFile, gradleFiles);
+        createBuildGradleFile(mainGradleFile, gradleFiles, jobEnvContext);
 
         // create gradle.properties
         File gradlePropertiesFile = new File(cwd, "gradle.properties");
@@ -116,7 +122,7 @@ public class GradleService {
 
         // create local.properties
         File localPropertiesFile = new File(cwd, "local.properties");
-        createLocalPropertiesFile(localPropertiesFile);
+        createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
         return downloadDependencies(cwd);
     }
@@ -139,21 +145,21 @@ public class GradleService {
         Files.write(gradlePropertiesFile.toPath(), contents.getBytes());
     }
 
-    private void createLocalPropertiesFile(File localPropertiesFile) throws IOException {
+    private void createLocalPropertiesFile(File localPropertiesFile, Map<String, Object> jobEnvContext) throws IOException {
         HashMap<String, Object> envContext = new HashMap<>();
-        envContext.put("android-sdk-root", ANDROID_SDK_ROOT);
+        envContext.put("android-sdk-root", jobEnvContext.get("env.ANDROID_SDK_ROOT"));
         String contents = templateExecutor.execute(localPropertiesTemplateContents, envContext);
         Files.write(localPropertiesFile.toPath(), contents.getBytes());
     }
 
-    private void createBuildGradleFile(File mainGradleFile, List<File> gradleFiles) throws IOException {
+    private void createBuildGradleFile(File mainGradleFile, List<File> gradleFiles, Map<String, Object> jobEnvContext) throws IOException {
         List<String> values = new ArrayList<>();
         for (File file : gradleFiles) {
             values.add(file.getAbsolutePath());
         }
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("gradle-files", values);
-        envContext.put("compile-sdk-version", ANDROID_SDK_VERSION);
+        envContext.put("compile-sdk-version", jobEnvContext.get("env.ANDROID_SDK_VERSION"));
         envContext.put("gradle-plugin-version", GRADLE_PLUGIN_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
         Files.write(mainGradleFile.toPath(), contents.getBytes());

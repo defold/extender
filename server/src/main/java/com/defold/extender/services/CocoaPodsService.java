@@ -175,11 +175,10 @@ public class CocoaPodsService {
         }
     }
 
-    private static final String IOS_VERSION = System.getenv("IOS_VERSION_MIN");
-    private static final String OSX_VERSION = System.getenv("MACOS_VERSION_MIN");
     private static final String PODFILE_TEMPLATE_PATH = System.getenv("EXTENSION_PODFILE_TEMPLATE");
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
+
     private final String podfileTemplateContents;
 
     private final MeterRegistry meterRegistry;
@@ -242,13 +241,15 @@ public class CocoaPodsService {
      * @param platform For which platform to resolve pods
      * @return Minimum platform version
      */
-    private String createMainPodFile(List<File> podFiles, File jobDirectory, File workingDir, String platform) throws IOException {
+    private String createMainPodFile(List<File> podFiles, File jobDirectory, File workingDir, String platform, Map<String, Object> jobEnvContext) throws IOException {
         File mainPodFile = new File(workingDir, "Podfile");
 
         // This file might exist when testing and debugging the extender using a debug job folder
         podFiles.remove(mainPodFile);
 
-        String mainPodfilePlatformVersion = (platform.contains("ios") ? IOS_VERSION : OSX_VERSION);
+        String mainPodfilePlatformVersion = (platform.contains("ios") ? 
+            jobEnvContext.get("env.IOS_VERSION_MIN").toString(): 
+            jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
         String mainPodfilePlatform = (platform.contains("ios") ? "ios" : "osx");
 
         // Load all Podfiles
@@ -540,7 +541,7 @@ public class CocoaPodsService {
     }
 
     // https://guides.cocoapods.org/syntax/podspec.html
-    private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir) throws ExtenderException {
+    private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir, Map<String, Object> jobEnvContext) throws ExtenderException {
         PodSpec spec = new PodSpec();
         spec.name = (String)specJson.get("name");
         spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;
@@ -558,8 +559,12 @@ public class CocoaPodsService {
 
         // platform versions
         JSONObject platforms = (JSONObject)specJson.get("platforms");
-        if (platforms != null) spec.iosversion = (String)platforms.getOrDefault("ios", IOS_VERSION);
-        if (platforms != null) spec.osxversion = (String)platforms.getOrDefault("osx", OSX_VERSION);
+        if (platforms != null) {
+            spec.iosversion = (String)platforms.getOrDefault("ios", jobEnvContext.get("env.IOS_VERSION_MIN"));
+        }
+        if (platforms != null) {
+            spec.osxversion = (String)platforms.getOrDefault("osx", jobEnvContext.get("env.MACOS_VERSION_MIN"));
+        }
 
         // for multi platform settings
         JSONObject ios = (JSONObject)specJson.get("ios");
@@ -627,7 +632,7 @@ public class CocoaPodsService {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
-                PodSpec subSpec = createPodSpec(o, spec, podsDir);
+                PodSpec subSpec = createPodSpec(o, spec, podsDir, jobEnvContext);
                 spec.subspecs.add(subSpec);
             }
         }
@@ -655,8 +660,8 @@ public class CocoaPodsService {
         return spec;
     }
 
-    private PodSpec createPodSpec(String specJson, File podsDir) throws ExtenderException {
-        PodSpec spec = createPodSpec(parseJson(specJson), null, podsDir);
+    private PodSpec createPodSpec(String specJson, File podsDir, Map<String, Object> jobEnvContext) throws ExtenderException {
+        PodSpec spec = createPodSpec(parseJson(specJson), null, podsDir, jobEnvContext);
         spec.originalJSON = specJson;
         return spec;
     }
@@ -664,9 +669,10 @@ public class CocoaPodsService {
     /**
      * Install pods from a podfile and create PodSpec instances for each installed pod.
      * @param workingDir Directory where to install pods. The directory must contain a valid Podfile
+     * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
      * @return A list of PodSpec instances for the installed pods
      */
-    private List<PodSpec> installPods(File workingDir) throws IOException, ExtenderException {
+    private List<PodSpec> installPods(File workingDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         File podFile = new File(workingDir, "Podfile");
         if (!podFile.exists()) {
@@ -732,7 +738,7 @@ public class CocoaPodsService {
                 //     "GoogleAppMeasurement": [
                 specJson = specJson.substring(specJson.indexOf("{", 0), specJson.length());
 
-                specsMap.put(mainpodname, createPodSpec(specJson, podsDir));
+                specsMap.put(mainpodname, createPodSpec(specJson, podsDir, jobEnvContext));
             }
 
             PodSpec mainpod = specsMap.get(mainpodname);
@@ -754,16 +760,25 @@ public class CocoaPodsService {
         return specs;
     }
 
+    private Map<String, Object> createJobEnvContext(Map<String, Object> env) {
+        Map<String, Object> context = new HashMap<>(env);
+        context.putIfAbsent("env.IOS_VERSION_MIN", System.getenv("IOS_VERSION_MIN"));
+        context.putIfAbsent("env.MACOS_VERSION_MIN", System.getenv("MACOS_VERSION_MIN"));
+        return context;
+    }
+
     /**
      * Entry point for Cocoapod dependency resolution.
      * @param jobDirectory Root directory of the job to resolve
      * @param platform Which platform to resolve pods for
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(File jobDirectory, String platform) throws IOException, ExtenderException {
+    public ResolvedPods resolveDependencies(Map<String, Object> env, File jobDirectory, String platform) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
+
+        Map<String, Object> jobEnvContext = createJobEnvContext(env);
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for
@@ -791,8 +806,8 @@ public class CocoaPodsService {
         File frameworksDir = new File(workingDir, "frameworks");
         workingDir.mkdirs();
 
-        String platformMinVersion = createMainPodFile(platformPodFiles, jobDirectory, workingDir, platform);
-        List<PodSpec> pods = installPods(workingDir);
+        String platformMinVersion = createMainPodFile(platformPodFiles, jobDirectory, workingDir, platform, jobEnvContext);
+        List<PodSpec> pods = installPods(workingDir, jobEnvContext);
         copyPodFrameworks(pods, frameworksDir);
         
         // dumpDir(jobDirectory, 0);
