@@ -775,6 +775,9 @@ class Extender {
         }
 
         LOGGER.info("buildPods - adding dynamic frameworks to build output");
+        File frameworksBuildDir = new File(buildDirectory, "frameworks");
+        frameworksBuildDir.mkdir();
+
         List<String> paths = getFrameworkPaths(resolvedPods.frameworksDir);
         for (String path : paths) {
             File[] frameworkDirs = new File(path).listFiles();
@@ -782,8 +785,8 @@ class Extender {
                 if (FrameworkUtil.isDynamicallyLinked(frameworkDir)) {
                     // copy framework and filter out certain files and folders
                     LOGGER.info("buildPods - adding " + frameworkDir.getName());
-                    File frameworkDst = new File(buildDirectory, frameworkDir.getName());
-                    FileUtils.copyDirectory(frameworkDir, frameworkDst, new FileFilter() {
+                    File frameworkDestDir = new File(frameworksBuildDir, frameworkDir.getName());
+                    FileUtils.copyDirectory(frameworkDir, frameworkDestDir, new FileFilter() {
                         @Override
                         public boolean accept(File pathname) {
                             String name = pathname.getName();
@@ -791,7 +794,7 @@ class Extender {
                                 && !name.equals("Modules");
                         }
                     });
-                    outputFiles.add(frameworkDst);
+                    outputFiles.add(frameworkDestDir);
                 }
             }
         }
