@@ -30,6 +30,9 @@ public class FrameworkUtil {
 
     /**
      * Check if a framework is dynamically linked
+     * Cocoapods (written in Ruby) uses the "macho" gem to do the same thing:
+     * https://github.com/CocoaPods/CocoaPods/blob/master/lib/cocoapods/xcode/linkage_analyzer.rb#L16
+     * https://github.com/Homebrew/ruby-macho/
      * @param framework The framework to check (eg Foo.framework) 
      * @return true if dynamically linked
      */
