@@ -12,7 +12,8 @@ BUILD=./build
 
 PACKAGE_NAME=com/defold/dummy
 
-ANDROID_JAR=$DYNAMO_HOME/ext/share/java/android.jar
+ANDROID_SDK_VERSION=33
+ANDROID_JAR=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 
 mkdir -p $BUILD
 
