@@ -34,6 +34,22 @@ Verify the fix by checking for new messages in the errors.log
 
 Note that the ssm services may need a few minutes to adjust as well.
 
+### Network time server
+
+You can check which time server is set:
+
+    % sudo systemsetup -getnetworktimeserver
+    Network Time Server: 169.254.169.123
+
+Then you can set a new time server `time.aws.com`:
+
+    % sudo systemsetup -setnetworktimeserver time.aws.com
+    setNetworkTimeServer: time.aws.com
+
+Afterwards, you can verify the time:
+
+    date +"%m%d%H%M%y"
+
 
 ## No space left
 

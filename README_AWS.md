@@ -26,3 +26,54 @@ sudo ln -sfn /usr/local/opt/openjdk@11/libexec/openjdk.jdk /Library/Java/JavaVir
 # install cocoapods
 sudo gem install cocoapods
 ```
+
+### Network time server
+
+You can check which time server is set:
+
+    % sudo systemsetup -getnetworktimeserver
+    Network Time Server: 169.254.169.123
+
+Then you can set a new time server `time.aws.com`:
+
+    % sudo systemsetup -setnetworktimeserver time.aws.com
+    setNetworkTimeServer: time.aws.com
+
+Afterwards, you can verify the time:
+
+    date +"%m%d%H%M%y"
+
+### Cron jobs
+
+To keep the instance disk usage to a minimum, we need to clean it periodically
+
+#### The script
+
+Currently, we don't have an upload/install step for this, so we'll add it manually after logging in via SSH.
+
+    $ cd /usr/local
+    $ sudo nano ./extender-cron.sh
+    $ sudo chmod +x extender-cron.sh
+
+Add the following
+
+    #!/usr/bin/env bash
+    echo "Running extender-cron.sh"
+    date
+    pod cache clean --all
+
+#### Scheduling
+
+You can add a cronjob by using [crontab](https://man7.org/linux/man-pages/man5/crontab.5.html) (using VIM):
+
+    crontab -e
+
+Or, using another editor:
+
+    VISUAL=nano crontab -e
+
+Add a line like so, and adding an interval (here we set once a week):
+
+    0 0 * * 0 cd /usr/local && ./extender-cron.sh /tmp/extender-cron.stdout.log 2>/tmp//extender-cron.stderr.log
+
+
