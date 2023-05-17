@@ -648,10 +648,11 @@ public class CocoaPodsService {
         JSONObject osx = (JSONObject)specJson.get("osx");
 
         // flags and defines
+        // https://guides.cocoapods.org/syntax/podspec.html#pod_target_xcconfig
+        // https://guides.cocoapods.org/syntax/podspec.html#user_target_xcconfig
         parseMultiPlatformConfig(spec, (JSONObject)specJson.get("pod_target_xcconfig"));
         parseMultiPlatformConfig(spec, (JSONObject)specJson.get("user_target_xcconfig")); // not recommended for use but we need to handle it
         parseMultiPlatformConfig(spec, (JSONObject)specJson.get("xcconfig"));  // undocumented but used by some pods
-
 
         // requires_arc flag
         // The 'requires_arc' option can also be a file pattern string or array
@@ -669,9 +670,9 @@ public class CocoaPodsService {
         spec.flags.osx.objcpp.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
         
         // compiler flags
+        // https://guides.cocoapods.org/syntax/podspec.html#compiler_flags
         spec.flags.ios.addAll(getAsSplitString(specJson, "compiler_flags"));
         spec.flags.osx.addAll(getAsSplitString(specJson, "compiler_flags"));
-
         spec.flags.ios.c.add("--language=c");
         spec.flags.osx.c.add("--language=c");
         spec.flags.ios.cpp.add("--language=c++");
@@ -680,22 +681,23 @@ public class CocoaPodsService {
         spec.flags.osx.objc.add("--language=objective-c");
         spec.flags.ios.objcpp.add("--language=objective-c++");
         spec.flags.osx.objcpp.add("--language=objective-c++");
-
-        // platform specific flags
         if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
         if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
 
         // frameworks
+        // https://guides.cocoapods.org/syntax/podspec.html#frameworks
         spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
         if (ios != null) spec.frameworks.ios.addAll(getAsJSONArray(ios, "frameworks"));
         if (osx != null) spec.frameworks.osx.addAll(getAsJSONArray(osx, "frameworks"));
 
         // weak frameworks
+        // https://guides.cocoapods.org/syntax/podspec.html#weak_frameworks
         spec.weak_frameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
         if (ios != null) spec.weak_frameworks.ios.addAll(getAsJSONArray(ios, "weak_frameworks"));
         if (osx != null) spec.weak_frameworks.osx.addAll(getAsJSONArray(osx, "weak_frameworks"));
 
         // vendored_frameworks
+        // https://guides.cocoapods.org/syntax/podspec.html#vendored_frameworks
         JSONArray vendored = getAsJSONArray(specJson, "vendored_frameworks");
         if (vendored != null) {
             spec.vendoredframeworks.addAll(vendored);
@@ -714,11 +716,13 @@ public class CocoaPodsService {
         }
 
         // libraries
+        // https://guides.cocoapods.org/syntax/podspec.html#libraries
         spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
         if (ios != null) spec.libraries.ios.addAll(getAsJSONArray(ios, "libraries"));
         if (osx != null) spec.libraries.osx.addAll(getAsJSONArray(osx, "libraries"));
 
         // parse subspecs
+        // https://guides.cocoapods.org/syntax/podspec.html#subspec
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
@@ -730,6 +734,7 @@ public class CocoaPodsService {
         }
 
         // find source and header files
+        // https://guides.cocoapods.org/syntax/podspec.html#source_files
         List<String> sourceFilePatterns = new ArrayList<>();
         JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
         if (sourceFiles != null) {
