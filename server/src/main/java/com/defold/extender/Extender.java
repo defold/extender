@@ -776,13 +776,13 @@ class Extender {
 
         List<String> paths = getFrameworkPaths(resolvedPods.frameworksDir);
         for (String path : paths) {
-            File[] frameworkDirs = new File(path).listFiles();
-            for (File frameworkDir : frameworkDirs) {
-                if (FrameworkUtil.isDynamicallyLinked(frameworkDir)) {
+            File[] frameworks = new File(path).listFiles();
+            for (File framework : frameworks) {
+                if (FrameworkUtil.isDynamicallyLinked(framework)) {
                     // copy framework and filter out certain files and folders
-                    LOGGER.info("buildPods - adding " + frameworkDir.getName());
-                    File frameworkDestDir = new File(frameworksBuildDir, frameworkDir.getName());
-                    FileUtils.copyDirectory(frameworkDir, frameworkDestDir, new FileFilter() {
+                    LOGGER.info("buildPods - adding " + framework.getName());
+                    File frameworkDestDir = new File(frameworksBuildDir, framework.getName());
+                    FileUtils.copyDirectory(framework, frameworkDestDir, new FileFilter() {
                         @Override
                         public boolean accept(File pathname) {
                             String name = pathname.getName();
