@@ -390,7 +390,19 @@ public class CocoaPodsService {
         }
 
         return new ArrayList<File>(includePaths);
-    }    
+    }
+
+    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File toDir) throws IOException {
+        File[] files = architectureDir.listFiles();
+        for (File file : files) {
+            String filename = file.getName();
+            if (filename.endsWith(".framework") || (filename.endsWith(".a"))) {
+                Path from = file.toPath();
+                Path to = new File(toDir, filename).toPath();
+                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+            }
+        }
+    }
 
     /**
      * Find all .xcframeworks (vendored frameworks) in a list of pods and copy any arm
@@ -414,27 +426,19 @@ public class CocoaPodsService {
                 File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
                 File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
                 if (arm64_armv7FrameworkDir.exists()) {
-                    Path from = new File(arm64_armv7FrameworkDir, frameworkName + ".framework").toPath();
-                    Path to = new File(armDir, frameworkName + ".framework").toPath();
-                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armDir);
                 }
                 else if (arm64FrameworkDir.exists()) {
-                    Path from = new File(arm64FrameworkDir, frameworkName + ".framework").toPath();
-                    Path to = new File(armDir, frameworkName + ".framework").toPath();
-                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armDir);
                 }
                 
                 File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
                 File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
                 if (arm64_i386_x86Framework.exists()) {
-                    Path from = new File(arm64_i386_x86Framework, frameworkName + ".framework").toPath();
-                    Path to = new File(x86Dir, frameworkName + ".framework").toPath();
-                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86Dir);
                 }
                 else if (arm64_x86Framework.exists()) {
-                    Path from = new File(arm64_x86Framework, frameworkName + ".framework").toPath();
-                    Path to = new File(x86Dir, frameworkName + ".framework").toPath();
-                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86Dir);
                 }
             }
         }
