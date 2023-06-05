@@ -16,8 +16,7 @@ This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It als
 
 ## Building .proto files
 
-If you are build a native extension that has .proto files, and you are using a non-Linux DYNAMO_HOME,
-then chances are that you don't have the `libdlib_shared.so` file installed.
+If you are building a native extension that has .proto files, and you are using a non-Linux DYNAMO_HOME, then chances are that you don't have the `libdlib_shared.so` file installed.
 
 It is needed for building the proto files, and you can install it from a previous defoldsdk.
 

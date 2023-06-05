@@ -51,12 +51,7 @@ public class CocoaPodsService {
         public List<String> getAllPodLibs(String platform) {
             Set<String> libs = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                if (platform.contains("ios")) {
-                    libs.addAll(pod.libraries.ios);
-                }
-                else if (platform.contains("osx")) {
-                    libs.addAll(pod.libraries.osx);
-                }
+                libs.addAll(pod.libraries.get(platform));
             }
             return new ArrayList<String>(libs);
         }
@@ -64,25 +59,26 @@ public class CocoaPodsService {
         public List<String> getAllPodLinkFlags(String platform) {
             Set<String> flags = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                if (platform.contains("ios")) {
-                    flags.addAll(pod.linkflags.ios);
-                }
-                else if (platform.contains("osx")) {
-                    flags.addAll(pod.linkflags.osx);
-                }
+                flags.addAll(pod.linkflags.get(platform));
             }
             return new ArrayList<String>(flags);
+        }
+
+        public List<String> getAllPodResources(String platform) {
+            Set<String> resources = new LinkedHashSet<>();
+            for (PodSpec pod : pods) {
+                String podDir = pod.dir.getAbsolutePath();
+                for (String resource : pod.resources.get(platform)) {
+                    resources.add(podDir + "/" + resource);
+                }
+            }
+            return new ArrayList<String>(resources);
         }
 
         public List<String> getAllPodFrameworks(String platform) {
             Set<String> frameworks = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                if (platform.contains("ios")) {
-                    frameworks.addAll(pod.frameworks.ios);
-                }
-                else if (platform.contains("osx")) {
-                    frameworks.addAll(pod.frameworks.osx);
-                }
+                frameworks.addAll(pod.frameworks.get(platform));
             }
             return new ArrayList<String>(frameworks);
         }
@@ -90,12 +86,7 @@ public class CocoaPodsService {
         public List<String> getAllPodWeakFrameworks(String platform) {
             Set<String> weakFrameworks = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                if (platform.contains("ios")) {
-                    weakFrameworks.addAll(pod.weak_frameworks.ios);
-                }
-                else if (platform.contains("osx")) {
-                    weakFrameworks.addAll(pod.weak_frameworks.osx);
-                }
+                weakFrameworks.addAll(pod.weak_frameworks.get(platform));
             }
             return new ArrayList<String>(weakFrameworks);
         }
@@ -177,6 +168,16 @@ public class CocoaPodsService {
             }
         }
 
+        public Set<String> get(String platform) {
+            if (platform.contains("ios")) {
+                return ios;
+            }
+            else if (platform.contains("osx")) {
+                return osx;
+            }
+            return new LinkedHashSet<String>();
+        }
+
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
@@ -202,6 +203,7 @@ public class CocoaPodsService {
         public PlatformSet linkflags = new PlatformSet();
         public Set<String> vendoredframeworks = new LinkedHashSet<>();
         public PlatformSet weak_frameworks = new PlatformSet();
+        public PlatformSet resources = new PlatformSet();
         public PlatformSet frameworks = new PlatformSet();
         public PlatformSet libraries = new PlatformSet();
         public File dir;
@@ -216,6 +218,7 @@ public class CocoaPodsService {
             sb.append(indentation + "  flags: " + flags + "\n");
             sb.append(indentation + "  linkflags: " + linkflags + "\n");
             sb.append(indentation + "  weak_frameworks: " + weak_frameworks + "\n");
+            sb.append(indentation + "  resources: " + resources + "\n");
             sb.append(indentation + "  frameworks: " + frameworks + "\n");
             sb.append(indentation + "  vendoredframeworks: " + vendoredframeworks + "\n");
             sb.append(indentation + "  libraries: " + libraries + "\n");
@@ -652,10 +655,11 @@ public class CocoaPodsService {
         JSONObject osx = (JSONObject)specJson.get("osx");
 
         // flags and defines
+        // https://guides.cocoapods.org/syntax/podspec.html#pod_target_xcconfig
+        // https://guides.cocoapods.org/syntax/podspec.html#user_target_xcconfig
         parseMultiPlatformConfig(spec, (JSONObject)specJson.get("pod_target_xcconfig"));
         parseMultiPlatformConfig(spec, (JSONObject)specJson.get("user_target_xcconfig")); // not recommended for use but we need to handle it
         parseMultiPlatformConfig(spec, (JSONObject)specJson.get("xcconfig"));  // undocumented but used by some pods
-
 
         // requires_arc flag
         // The 'requires_arc' option can also be a file pattern string or array
@@ -673,9 +677,9 @@ public class CocoaPodsService {
         spec.flags.osx.objcpp.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
         
         // compiler flags
+        // https://guides.cocoapods.org/syntax/podspec.html#compiler_flags
         spec.flags.ios.addAll(getAsSplitString(specJson, "compiler_flags"));
         spec.flags.osx.addAll(getAsSplitString(specJson, "compiler_flags"));
-
         spec.flags.ios.c.add("--language=c");
         spec.flags.osx.c.add("--language=c");
         spec.flags.ios.cpp.add("--language=c++");
@@ -684,22 +688,32 @@ public class CocoaPodsService {
         spec.flags.osx.objc.add("--language=objective-c");
         spec.flags.ios.objcpp.add("--language=objective-c++");
         spec.flags.osx.objcpp.add("--language=objective-c++");
-
-        // platform specific flags
         if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
         if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
 
+        // resources
+        // https://guides.cocoapods.org/syntax/podspec.html#resources
+        spec.resources.addAll(getAsJSONArray(specJson, "resource"));
+        spec.resources.addAll(getAsJSONArray(specJson, "resources"));
+        if (ios != null) spec.resources.ios.addAll(getAsJSONArray(ios, "resource"));
+        if (osx != null) spec.resources.osx.addAll(getAsJSONArray(osx, "resource"));
+        if (ios != null) spec.resources.ios.addAll(getAsJSONArray(ios, "resources"));
+        if (osx != null) spec.resources.osx.addAll(getAsJSONArray(osx, "resources"));
+
         // frameworks
+        // https://guides.cocoapods.org/syntax/podspec.html#frameworks
         spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
         if (ios != null) spec.frameworks.ios.addAll(getAsJSONArray(ios, "frameworks"));
         if (osx != null) spec.frameworks.osx.addAll(getAsJSONArray(osx, "frameworks"));
 
         // weak frameworks
+        // https://guides.cocoapods.org/syntax/podspec.html#weak_frameworks
         spec.weak_frameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
         if (ios != null) spec.weak_frameworks.ios.addAll(getAsJSONArray(ios, "weak_frameworks"));
         if (osx != null) spec.weak_frameworks.osx.addAll(getAsJSONArray(osx, "weak_frameworks"));
 
         // vendored_frameworks
+        // https://guides.cocoapods.org/syntax/podspec.html#vendored_frameworks
         JSONArray vendored = getAsJSONArray(specJson, "vendored_frameworks");
         if (vendored != null) {
             spec.vendoredframeworks.addAll(vendored);
@@ -718,11 +732,13 @@ public class CocoaPodsService {
         }
 
         // libraries
+        // https://guides.cocoapods.org/syntax/podspec.html#libraries
         spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
         if (ios != null) spec.libraries.ios.addAll(getAsJSONArray(ios, "libraries"));
         if (osx != null) spec.libraries.osx.addAll(getAsJSONArray(osx, "libraries"));
 
         // parse subspecs
+        // https://guides.cocoapods.org/syntax/podspec.html#subspec
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
@@ -734,6 +750,7 @@ public class CocoaPodsService {
         }
 
         // find source and header files
+        // https://guides.cocoapods.org/syntax/podspec.html#source_files
         List<String> sourceFilePatterns = new ArrayList<>();
         JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
         if (sourceFiles != null) {

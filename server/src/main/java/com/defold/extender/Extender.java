@@ -770,6 +770,25 @@ class Extender {
             }
         }
 
+        LOGGER.info("buildPods - adding framework resource to build output");
+        File resourcesBuildDir = new File(buildDirectory, "resources");
+        resourcesBuildDir.mkdir();
+        List<String> resources = resolvedPods.getAllPodResources(platform);
+        for (String resource : resources) {
+            File resourceFile = new File(resource);
+            if (resourceFile.isFile()) {
+                File resourceDestFile = new File(resourcesBuildDir, resourceFile.getName());
+                Files.copy(resourceFile.toPath(), resourceDestFile.toPath());
+                outputFiles.add(resourceDestFile);
+            }
+            else {
+                File resourceDestDir = new File(resourcesBuildDir, resourceFile.getName());
+                FileUtils.copyDirectory(resourceFile, resourceDestDir);
+                outputFiles.add(resourceDestDir);
+            }
+        }
+
+
         LOGGER.info("buildPods - adding dynamic frameworks to build output");
         File frameworksBuildDir = new File(buildDirectory, "frameworks");
         frameworksBuildDir.mkdir();
