@@ -388,6 +388,21 @@ RUN \
 
 
 #
+# PS5 SDK
+#
+
+ENV PS5_SDK_7_VERSION 7.000
+ENV PS5_SDK_7  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_7_VERSION}
+
+ENV PS5_SDK_7_FILENAME ps5-sdk-${PS5_SDK_7_VERSION}.tar.gz
+
+RUN \
+  echo "PS5 ${PS5_SDK_7_FILENAME}" && \
+  mkdir -p ${PS5_SDK_7} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS5_SDK_7_FILENAME} | tar xz -C ${PS5_SDK_7} --strip-components=1
+
+
+#
 # Wine
 #
 
