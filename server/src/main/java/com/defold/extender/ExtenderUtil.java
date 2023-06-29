@@ -582,6 +582,28 @@ public class ExtenderUtil
         return result;
     }
 
+    // Find all static libs (*.a) in a dir
+    // Returns list of lib names without initial "lib" and ".a" extension
+    static public List<String> collectStaticLibsByName(File dir) {
+        List<String> result = new ArrayList<>();
+        Pattern p = Pattern.compile("(.+)\\.a");
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
+            for (File f : files) {
+                Matcher m = p.matcher(f.getName());
+                if (m.matches()) {
+                    String name = m.group(1);
+                    if (name.startsWith("lib")) {
+                        name = name.replaceFirst("lib", "");
+                    }
+                    result.add(name);
+                }
+            }
+        }
+        Collections.sort(result);
+        return result;
+    }
+
     // Does a regexp match on the absolute path for each file found in a directory
     static public List<String> collectFilesByPath(File dir, String re) {
         List<String> result = new ArrayList<>();
