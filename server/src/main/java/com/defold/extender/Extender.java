@@ -381,20 +381,25 @@ class Extender {
         return frameworks;
     }
 
-    private List<String> getFrameworkPaths(File dir) {
-        List<String> frameworkPaths = new ArrayList<>();
+    // Get a list of subfolders matching the current platform
+    private List<String> getPlatformPaths(File dir) {
+        List<String> paths = new ArrayList<>();
         final String[] platformParts = this.platform.split("-");
-        File libDir = new File(dir, "lib" + File.separator + this.platform);
+        File libDir = new File(dir, this.platform);
         if (libDir.exists()) {
-            frameworkPaths.add(libDir.getAbsolutePath());
+            paths.add(libDir.getAbsolutePath());
         }
         if (platformParts.length == 2) {
-            File dirShort = new File(dir, "lib" + File.separator + platformParts[1]);
+            File dirShort = new File(dir, platformParts[1]);
             if (dirShort.exists()) {
-                frameworkPaths.add(dirShort.getAbsolutePath());
+                paths.add(dirShort.getAbsolutePath());
             }
         }
-        return frameworkPaths;
+        return paths;
+    }
+
+    private List<String> getFrameworkPaths(File dir) {
+        return getPlatformPaths(new File(dir, "lib"));
     }
     private List<String> getFrameworkPaths(ResolvedPods resolvedPods) {
         List<String> frameworkPaths = new ArrayList<>();
