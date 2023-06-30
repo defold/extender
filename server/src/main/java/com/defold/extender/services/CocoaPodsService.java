@@ -234,29 +234,27 @@ public class CocoaPodsService {
         public PlatformSet libraries = new PlatformSet();
         public File dir;
 
-        public String toString(String indentation) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(indentation + name + ":" + version + "\n");
-            sb.append(indentation + "  dir: " + dir + "\n");
-            sb.append(indentation + "  src: " + sourceFiles + "\n");
-            sb.append(indentation + "  includes: " + includePaths + "\n");
-            sb.append(indentation + "  defines: " + defines + "\n");
-            sb.append(indentation + "  flags: " + flags + "\n");
-            sb.append(indentation + "  linkflags: " + linkflags + "\n");
-            sb.append(indentation + "  weak_frameworks: " + weak_frameworks + "\n");
-            sb.append(indentation + "  resources: " + resources + "\n");
-            sb.append(indentation + "  frameworks: " + frameworks + "\n");
-            sb.append(indentation + "  vendoredframeworks: " + vendoredframeworks + "\n");
-            sb.append(indentation + "  libraries: " + libraries + "\n");
-            sb.append(indentation + "  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
-            for (PodSpec sub : subspecs) {
-                sb.append(sub.toString(indentation + "  "));
-            }
-            return sb.toString();
-        }
         @Override
         public String toString() {
-            return toString("");
+            StringBuilder sb = new StringBuilder();
+            sb.append(name + ":" + version + "\n");
+            sb.append("  dir: " + dir + "\n");
+            sb.append("  src: " + sourceFiles + "\n");
+            sb.append("  includes: " + includePaths + "\n");
+            sb.append("  defines: " + defines + "\n");
+            sb.append("  flags: " + flags + "\n");
+            sb.append("  linkflags: " + linkflags + "\n");
+            sb.append("  weak_frameworks: " + weak_frameworks + "\n");
+            sb.append("  resources: " + resources + "\n");
+            sb.append("  frameworks: " + frameworks + "\n");
+            sb.append("  vendoredframeworks: " + vendoredframeworks + "\n");
+            sb.append("  libraries: " + libraries + "\n");
+            sb.append("  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
+            for (PodSpec sub : subspecs) {
+                sb.append("  subspec: " + sub.name + "\n");
+            }
+            return sb.toString();
+   
         }
     }
 
