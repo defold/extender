@@ -48,7 +48,7 @@ public class CocoaPodsService {
         public File frameworksDir;
         public String platformMinVersion;
 
-        // In the functions beloe we also get the values from the parent spec
+        // In the functions below we also get the values from the parent spec
         // if one exists. A parent spec inherits all of its subspecs (unless a 
         // default_spec is set). And the subspecs inherit the values of their
         // parent
