@@ -492,7 +492,7 @@ class Extender {
         return includes;
     }
 
-    private List<String> getFrameworkIncludeDirs(ResolvedPods pods) {
+    private List<String> getFrameworkStaticLibIncludeDirs(ResolvedPods pods) {
         List<String> includeDirs = new ArrayList<>();
         if (resolvedPods != null) {
             includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + this.platform)));
@@ -531,7 +531,7 @@ class Extender {
                 podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
             }
             includes.addAll(podIncludes);
-            includes.addAll(getFrameworkIncludeDirs(resolvedPods));
+            includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
         }
 
         return pruneNonExisting(includes);
