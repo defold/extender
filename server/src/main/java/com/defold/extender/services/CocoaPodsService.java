@@ -457,6 +457,11 @@ public class CocoaPodsService {
                 Path to = new File(destFrameworkDir, filename).toPath();
                 Files.copy(from, to);
             }
+            // headers (for the static libs)
+            else if (filename.equals("Headers")) {
+                File from = file;
+                File to = destHeaderDir;
+                copyDirectoryRecursively(from, to);
             }
         }
     }
