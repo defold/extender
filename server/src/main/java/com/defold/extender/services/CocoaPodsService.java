@@ -804,13 +804,19 @@ public class CocoaPodsService {
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
+        JSONArray defaultSubspecs = getAsJSONArray(specJson, "default_subspecs");
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
                 PodSpec subSpec = createPodSpec(o, spec, podsDir, jobEnvContext);
-                spec.subspecs.add(subSpec);
+                if ((defaultSubspecs != null) && defaultSubspecs.contains(subSpec.name)) {
+                    spec.subspecs.add(subSpec);
+                }
+                else {
+                    spec.subspecs.add(subSpec);
+                }
             }
         }
 
