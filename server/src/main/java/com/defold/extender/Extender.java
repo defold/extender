@@ -409,6 +409,23 @@ class Extender {
         return frameworkPaths;
     }
 
+    private List<String> getFrameworkStaticLibs(ResolvedPods resolvedPods) {
+        List<String> staticLibs = new ArrayList<>();
+        if (resolvedPods != null) {
+            final File dir = resolvedPods.frameworksDir;
+            final String[] platformParts = this.platform.split("-");
+            staticLibs.addAll(ExtenderUtil.collectStaticLibsByName(new File(dir, "lib" + File.separator + this.platform))); // e.g. armv64-ios
+            if (platformParts.length == 2) {
+                staticLibs.addAll(ExtenderUtil.collectStaticLibsByName(new File(dir, "lib" + File.separator + platformParts[1]))); // e.g. "ios"
+            }
+        }
+        return staticLibs;
+    }
+    private List<String> getFrameworkStaticLibPaths(ResolvedPods resolvedPods) {
+        return getPlatformPaths(new File(resolvedPods.frameworksDir, "lib"));
+    }
+
+
     private List<String> getExtensionLibJars(File extDir) {
         List<String> jars = new ArrayList<>();
         jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
@@ -996,8 +1013,13 @@ class Extender {
 
         extShLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.shlibRe));
         extLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.stlibRe));
-        extFrameworks.addAll(getFrameworks(resolvedPods));
-        extFrameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+
+        if (resolvedPods != null) {
+            extFrameworks.addAll(getFrameworks(resolvedPods));
+            extFrameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+            extLibs.addAll(getFrameworkStaticLibs(resolvedPods));
+            extLibPaths.addAll(getFrameworkStaticLibPaths(resolvedPods));
+        }
 
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
