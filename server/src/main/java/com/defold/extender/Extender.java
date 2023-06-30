@@ -492,6 +492,18 @@ class Extender {
         return includes;
     }
 
+    private List<String> getFrameworkIncludeDirs(ResolvedPods pods) {
+        List<String> includeDirs = new ArrayList<>();
+        if (resolvedPods != null) {
+            includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + this.platform)));
+            String[] platformParts = this.platform.split("-");
+            if (platformParts.length == 2) {
+                includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + platformParts[1])));
+            }
+        }
+        return includeDirs;
+    }
+
     private List<String> getIncludeDirs(File extDir) {
         List<String> includes = getExtLocalIncludeDirs(extDir);
 
@@ -519,6 +531,7 @@ class Extender {
                 podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
             }
             includes.addAll(podIncludes);
+            includes.addAll(getFrameworkIncludeDirs(resolvedPods));
         }
 
         return pruneNonExisting(includes);
