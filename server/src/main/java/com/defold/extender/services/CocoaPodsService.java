@@ -419,14 +419,44 @@ public class CocoaPodsService {
         return new ArrayList<File>(includePaths);
     }
 
-    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File toDir) throws IOException {
+    // copy the files and folders of a directory recursively
+    // the function will also resolve symlinks while copying files and folders
+    private void copyDirectoryRecursively(File fromDir, File toDir) throws IOException {
+        toDir.mkdirs();
+        File resolved = fromDir.toPath().toRealPath().toFile();
+        File[] files = fromDir.toPath().toRealPath().toFile().listFiles();
+        for (File file : files) {
+            if (file.isDirectory()) {
+                File sourceDir = file;
+                File destDir = new File(toDir, file.getName());
+                copyDirectoryRecursively(sourceDir, destDir);
+            }
+            else {
+                // follow symlink (if one exists) and then copy file
+                File sourceFile = file.toPath().toRealPath().toFile();
+                File destFile = new File(toDir, sourceFile.getName());
+                Files.copy(sourceFile.toPath(), destFile.toPath());
+            }
+        }
+    }
+
+    // helper function to copy the frameworks, static libs and headers from a
+    // platform architecture folder (inside an .xcframework)
+    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir) throws IOException {
         File[] files = architectureDir.listFiles();
         for (File file : files) {
             String filename = file.getName();
-            if (filename.endsWith(".framework") || (filename.endsWith(".a"))) {
-                Path from = file.toPath();
-                Path to = new File(toDir, filename).toPath();
-                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+            if (filename.endsWith(".framework")) {
+                File from = file;
+                File to = new File(destFrameworkDir, filename);
+                copyDirectoryRecursively(from, to);
+            }
+            // static libs
+            else if (filename.endsWith(".a")) {
+                Path from = file.toPath().toRealPath();
+                Path to = new File(destFrameworkDir, filename).toPath();
+                Files.copy(from, to);
+            }
             }
         }
     }
@@ -435,15 +465,21 @@ public class CocoaPodsService {
      * Find all .xcframeworks (vendored frameworks) in a list of pods and copy any arm
      * and x86 .framworks for use later when building extensions using the pods
      * @param pods The pods to process
-     * @param frameworksDir Directory where to copy frameworks
+     * @param frameworksDir Directory where to copy frameworks and framework libs
      */
     private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir) throws IOException {
         LOGGER.info("Copying pod frameworks");
         File libDir = new File(frameworksDir, "lib");
-        File armDir = new File(libDir, "arm64-ios");
-        File x86Dir = new File(libDir, "x86_64-ios");
-        armDir.mkdirs();
-        x86Dir.mkdirs();
+        File armLibDir = new File(libDir, "arm64-ios");
+        File x86LibDir = new File(libDir, "x86_64-ios");
+        armLibDir.mkdirs();
+        x86LibDir.mkdirs();
+
+        File headersDir = new File(frameworksDir, "headers");
+        File armHeaderDir = new File(headersDir, "arm64-ios");
+        File x86HeaderDir = new File(headersDir, "x86_64-ios");
+        armHeaderDir.mkdirs();
+        x86HeaderDir.mkdirs();
 
         for (PodSpec pod : pods) {
             for (String framework : pod.vendoredframeworks) {
@@ -453,19 +489,19 @@ public class CocoaPodsService {
                 File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
                 File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
                 if (arm64_armv7FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armLibDir, armHeaderDir);
                 }
                 else if (arm64FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armDir);
+                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armLibDir, armHeaderDir);
                 }
                 
                 File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
                 File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
                 if (arm64_i386_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86Dir);
+                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86LibDir, x86HeaderDir);
                 }
                 else if (arm64_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86Dir);
+                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86LibDir, x86HeaderDir);
                 }
             }
         }
