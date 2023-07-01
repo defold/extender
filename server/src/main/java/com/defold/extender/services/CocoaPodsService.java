@@ -222,6 +222,7 @@ public class CocoaPodsService {
         public Set<File> sourceFiles = new LinkedHashSet<>();
         public Set<File> includePaths = new LinkedHashSet<>();
         public PodSpec parentSpec = null;
+        public List<String> defaultSubspecs = new ArrayList<>();
         public List<PodSpec> subspecs = new ArrayList<>();
 
         public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
@@ -804,18 +805,14 @@ public class CocoaPodsService {
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
+        spec.defaultSubspecs.addAll(getAsJSONArray(specJson, "default_subspecs"));
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
                 PodSpec subSpec = createPodSpec(o, spec, podsDir, jobEnvContext);
-                if ((defaultSubspecs != null) && defaultSubspecs.contains(subSpec.name)) {
-                    spec.subspecs.add(subSpec);
-                }
-                else {
-                    spec.subspecs.add(subSpec);
-                }
+                spec.subspecs.add(subSpec);
             }
         }
 
