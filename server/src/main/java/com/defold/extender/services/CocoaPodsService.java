@@ -147,9 +147,9 @@ public class CocoaPodsService {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("c: " + c);
-            sb.append("cpp: " + cpp);
-            sb.append("objc: " + objc);
-            sb.append("objcpp: " + objcpp);
+            sb.append(" cpp: " + cpp);
+            sb.append(" objc: " + objc);
+            sb.append(" objcpp: " + objcpp);
             return sb.toString();
         }
     }
@@ -172,8 +172,8 @@ public class CocoaPodsService {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append("ios:\n" + ios.toString());
-            sb.append("osx:\n" + osx.toString());
+            sb.append("ios: " + ios.toString());
+            sb.append(" osx: " + osx.toString());
             return sb.toString();
         }
     }
@@ -207,8 +207,8 @@ public class CocoaPodsService {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append("ios:\n" + ios.toString());
-            sb.append("osx:\n" + osx.toString());
+            sb.append("ios: " + ios.toString());
+            sb.append(" osx: " + osx.toString());
             return sb.toString();
         }
     }
