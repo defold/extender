@@ -804,7 +804,6 @@ public class CocoaPodsService {
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
-        JSONArray defaultSubspecs = getAsJSONArray(specJson, "default_subspecs");
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
@@ -890,9 +889,8 @@ public class CocoaPodsService {
         while (!lines.isEmpty()) {
             String line = lines.remove(0);
             if (line.trim().isEmpty()) break;
-            // - FirebaseCore (8.13.0):
             if (line.startsWith("  -")) {
-                // '- "GoogleUtilities/Environment (7.10.0)"":'   ->   'GoogleUtilities/Environment (7.10.0)'
+                // '  - "GoogleUtilities/Environment (7.10.0)":'   ->   'GoogleUtilities/Environment (7.10.0)'
                 String pod = line.trim().replace("- ", "").replace(":", "").replace("\"","");
                 pods.add(pod);
             }
