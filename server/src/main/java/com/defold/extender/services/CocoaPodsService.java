@@ -48,45 +48,71 @@ public class CocoaPodsService {
         public File frameworksDir;
         public String platformMinVersion;
 
+        // In the functions below we also get the values from the parent spec
+        // if one exists. A parent spec inherits all of its subspecs (unless a 
+        // default_spec is set). And the subspecs inherit the values of their
+        // parent
+        // https://guides.cocoapods.org/syntax/podspec.html#subspec
+
+        private void addPodLibs(String platform, PodSpec pod, Set<String> libs) {
+            libs.addAll(pod.libraries.get(platform));
+            if (pod.parentSpec != null) addPodLibs(platform, pod.parentSpec, libs);
+        }
         public List<String> getAllPodLibs(String platform) {
             Set<String> libs = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                libs.addAll(pod.libraries.get(platform));
+                addPodLibs(platform, pod, libs);
             }
             return new ArrayList<String>(libs);
         }
 
+        private void addPodLinkFlags(String platform, PodSpec pod, Set<String> flags) {
+            flags.addAll(pod.linkflags.get(platform));
+            if (pod.parentSpec != null) addPodLinkFlags(platform, pod.parentSpec, flags);
+        }
         public List<String> getAllPodLinkFlags(String platform) {
             Set<String> flags = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                flags.addAll(pod.linkflags.get(platform));
+                addPodLinkFlags(platform, pod, flags);
             }
             return new ArrayList<String>(flags);
         }
 
+        private void addPodResources(String platform, PodSpec pod, Set<String> resources) {
+            String podDir = pod.dir.getAbsolutePath();
+            for (String resource : pod.resources.get(platform)) {
+                resources.add(podDir + "/" + resource);
+            }
+            if (pod.parentSpec != null) addPodResources(platform, pod.parentSpec, resources);
+        }
         public List<String> getAllPodResources(String platform) {
             Set<String> resources = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                String podDir = pod.dir.getAbsolutePath();
-                for (String resource : pod.resources.get(platform)) {
-                    resources.add(podDir + "/" + resource);
-                }
+                addPodResources(platform, pod, resources);
             }
             return new ArrayList<String>(resources);
         }
 
+        private void addPodFrameworks(String platform, PodSpec pod, Set<String> frameworks) {
+            frameworks.addAll(pod.frameworks.get(platform));
+            if (pod.parentSpec != null) addPodFrameworks(platform, pod.parentSpec, frameworks);
+        }
         public List<String> getAllPodFrameworks(String platform) {
             Set<String> frameworks = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                frameworks.addAll(pod.frameworks.get(platform));
+                addPodFrameworks(platform, pod, frameworks);
             }
             return new ArrayList<String>(frameworks);
         }
 
+        private void addPodWeakFrameworks(String platform, PodSpec pod, Set<String> weakFrameworks) {
+            weakFrameworks.addAll(pod.weak_frameworks.get(platform));
+            if (pod.parentSpec != null) addPodWeakFrameworks(platform, pod.parentSpec, weakFrameworks);
+        }
         public List<String> getAllPodWeakFrameworks(String platform) {
             Set<String> weakFrameworks = new LinkedHashSet<>();
             for (PodSpec pod : pods) {
-                weakFrameworks.addAll(pod.weak_frameworks.get(platform));
+                addPodWeakFrameworks(platform, pod, weakFrameworks);
             }
             return new ArrayList<String>(weakFrameworks);
         }
@@ -208,29 +234,27 @@ public class CocoaPodsService {
         public PlatformSet libraries = new PlatformSet();
         public File dir;
 
-        public String toString(String indentation) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(indentation + name + ":" + version + "\n");
-            sb.append(indentation + "  dir: " + dir + "\n");
-            sb.append(indentation + "  src: " + sourceFiles + "\n");
-            sb.append(indentation + "  includes: " + includePaths + "\n");
-            sb.append(indentation + "  defines: " + defines + "\n");
-            sb.append(indentation + "  flags: " + flags + "\n");
-            sb.append(indentation + "  linkflags: " + linkflags + "\n");
-            sb.append(indentation + "  weak_frameworks: " + weak_frameworks + "\n");
-            sb.append(indentation + "  resources: " + resources + "\n");
-            sb.append(indentation + "  frameworks: " + frameworks + "\n");
-            sb.append(indentation + "  vendoredframeworks: " + vendoredframeworks + "\n");
-            sb.append(indentation + "  libraries: " + libraries + "\n");
-            sb.append(indentation + "  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
-            for (PodSpec sub : subspecs) {
-                sb.append(sub.toString(indentation + "  "));
-            }
-            return sb.toString();
-        }
         @Override
         public String toString() {
-            return toString("");
+            StringBuilder sb = new StringBuilder();
+            sb.append(name + ":" + version + "\n");
+            sb.append("  dir: " + dir + "\n");
+            sb.append("  src: " + sourceFiles + "\n");
+            sb.append("  includes: " + includePaths + "\n");
+            sb.append("  defines: " + defines + "\n");
+            sb.append("  flags: " + flags + "\n");
+            sb.append("  linkflags: " + linkflags + "\n");
+            sb.append("  weak_frameworks: " + weak_frameworks + "\n");
+            sb.append("  resources: " + resources + "\n");
+            sb.append("  frameworks: " + frameworks + "\n");
+            sb.append("  vendoredframeworks: " + vendoredframeworks + "\n");
+            sb.append("  libraries: " + libraries + "\n");
+            sb.append("  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
+            for (PodSpec sub : subspecs) {
+                sb.append("  subspec: " + sub.name + "\n");
+            }
+            return sb.toString();
+   
         }
     }
 
@@ -395,14 +419,49 @@ public class CocoaPodsService {
         return new ArrayList<File>(includePaths);
     }
 
-    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File toDir) throws IOException {
+    // copy the files and folders of a directory recursively
+    // the function will also resolve symlinks while copying files and folders
+    private void copyDirectoryRecursively(File fromDir, File toDir) throws IOException {
+        toDir.mkdirs();
+        File resolved = fromDir.toPath().toRealPath().toFile();
+        File[] files = fromDir.toPath().toRealPath().toFile().listFiles();
+        for (File file : files) {
+            if (file.isDirectory()) {
+                File sourceDir = file;
+                File destDir = new File(toDir, file.getName());
+                copyDirectoryRecursively(sourceDir, destDir);
+            }
+            else {
+                // follow symlink (if one exists) and then copy file
+                File sourceFile = file.toPath().toRealPath().toFile();
+                File destFile = new File(toDir, sourceFile.getName());
+                Files.copy(sourceFile.toPath(), destFile.toPath());
+            }
+        }
+    }
+
+    // helper function to copy the frameworks, static libs and headers from a
+    // platform architecture folder (inside an .xcframework)
+    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir) throws IOException {
         File[] files = architectureDir.listFiles();
         for (File file : files) {
             String filename = file.getName();
-            if (filename.endsWith(".framework") || (filename.endsWith(".a"))) {
-                Path from = file.toPath();
-                Path to = new File(toDir, filename).toPath();
-                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+            if (filename.endsWith(".framework")) {
+                File from = file;
+                File to = new File(destFrameworkDir, filename);
+                copyDirectoryRecursively(from, to);
+            }
+            // static libs
+            else if (filename.endsWith(".a")) {
+                Path from = file.toPath().toRealPath();
+                Path to = new File(destFrameworkDir, filename).toPath();
+                Files.copy(from, to);
+            }
+            // headers (for the static libs)
+            else if (filename.equals("Headers")) {
+                File from = file;
+                File to = destHeaderDir;
+                copyDirectoryRecursively(from, to);
             }
         }
     }
@@ -411,15 +470,21 @@ public class CocoaPodsService {
      * Find all .xcframeworks (vendored frameworks) in a list of pods and copy any arm
      * and x86 .framworks for use later when building extensions using the pods
      * @param pods The pods to process
-     * @param frameworksDir Directory where to copy frameworks
+     * @param frameworksDir Directory where to copy frameworks and framework libs
      */
     private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir) throws IOException {
         LOGGER.info("Copying pod frameworks");
         File libDir = new File(frameworksDir, "lib");
-        File armDir = new File(libDir, "arm64-ios");
-        File x86Dir = new File(libDir, "x86_64-ios");
-        armDir.mkdirs();
-        x86Dir.mkdirs();
+        File armLibDir = new File(libDir, "arm64-ios");
+        File x86LibDir = new File(libDir, "x86_64-ios");
+        armLibDir.mkdirs();
+        x86LibDir.mkdirs();
+
+        File headersDir = new File(frameworksDir, "headers");
+        File armHeaderDir = new File(headersDir, "arm64-ios");
+        File x86HeaderDir = new File(headersDir, "x86_64-ios");
+        armHeaderDir.mkdirs();
+        x86HeaderDir.mkdirs();
 
         for (PodSpec pod : pods) {
             for (String framework : pod.vendoredframeworks) {
@@ -429,19 +494,19 @@ public class CocoaPodsService {
                 File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
                 File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
                 if (arm64_armv7FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armLibDir, armHeaderDir);
                 }
                 else if (arm64FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armDir);
+                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armLibDir, armHeaderDir);
                 }
                 
                 File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
                 File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
                 if (arm64_i386_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86Dir);
+                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86LibDir, x86HeaderDir);
                 }
                 else if (arm64_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86Dir);
+                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86LibDir, x86HeaderDir);
                 }
             }
         }
@@ -739,13 +804,19 @@ public class CocoaPodsService {
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
+        JSONArray defaultSubspecs = getAsJSONArray(specJson, "default_subspecs");
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
                 PodSpec subSpec = createPodSpec(o, spec, podsDir, jobEnvContext);
-                spec.subspecs.add(subSpec);
+                if ((defaultSubspecs != null) && defaultSubspecs.contains(subSpec.name)) {
+                    spec.subspecs.add(subSpec);
+                }
+                else {
+                    spec.subspecs.add(subSpec);
+                }
             }
         }
 
