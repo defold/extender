@@ -928,11 +928,15 @@ public class CocoaPodsService {
                 specs.add(mainpod);
             }
             else {
-                String subspecname = podnameparts[1];
-                for (PodSpec subspec : mainpod.subspecs) {
-                    if (subspec.name.equals(subspecname)) {
-                        specs.add(subspec);
-                        break;
+                PodSpec current = mainpod;
+                for (int i = 1; i < podnameparts.length; i++) {
+                    String subspecname = podnameparts[i];
+                    for (PodSpec subspec : current.subspecs) {
+                        if (subspec.name.equals(subspecname)) {
+                            specs.add(subspec);
+                            current = subspec;
+                            break;
+                        }
                     }
                 }
             }
