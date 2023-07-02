@@ -147,9 +147,9 @@ public class CocoaPodsService {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("c: " + c);
-            sb.append("cpp: " + cpp);
-            sb.append("objc: " + objc);
-            sb.append("objcpp: " + objcpp);
+            sb.append(" cpp: " + cpp);
+            sb.append(" objc: " + objc);
+            sb.append(" objcpp: " + objcpp);
             return sb.toString();
         }
     }
@@ -172,8 +172,8 @@ public class CocoaPodsService {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append("ios:\n" + ios.toString());
-            sb.append("osx:\n" + osx.toString());
+            sb.append("ios: " + ios.toString());
+            sb.append(" osx: " + osx.toString());
             return sb.toString();
         }
     }
@@ -207,8 +207,8 @@ public class CocoaPodsService {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append("ios:\n" + ios.toString());
-            sb.append("osx:\n" + osx.toString());
+            sb.append("ios: " + ios.toString());
+            sb.append(" osx: " + osx.toString());
             return sb.toString();
         }
     }
@@ -222,6 +222,7 @@ public class CocoaPodsService {
         public Set<File> sourceFiles = new LinkedHashSet<>();
         public Set<File> includePaths = new LinkedHashSet<>();
         public PodSpec parentSpec = null;
+        public List<String> defaultSubspecs = new ArrayList<>();
         public List<PodSpec> subspecs = new ArrayList<>();
 
         public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
@@ -804,19 +805,14 @@ public class CocoaPodsService {
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
-        JSONArray defaultSubspecs = getAsJSONArray(specJson, "default_subspecs");
+        spec.defaultSubspecs.addAll(getAsJSONArray(specJson, "default_subspecs"));
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
                 PodSpec subSpec = createPodSpec(o, spec, podsDir, jobEnvContext);
-                if ((defaultSubspecs != null) && defaultSubspecs.contains(subSpec.name)) {
-                    spec.subspecs.add(subSpec);
-                }
-                else {
-                    spec.subspecs.add(subSpec);
-                }
+                spec.subspecs.add(subSpec);
             }
         }
 
@@ -890,9 +886,8 @@ public class CocoaPodsService {
         while (!lines.isEmpty()) {
             String line = lines.remove(0);
             if (line.trim().isEmpty()) break;
-            // - FirebaseCore (8.13.0):
             if (line.startsWith("  -")) {
-                // '- "GoogleUtilities/Environment (7.10.0)"":'   ->   'GoogleUtilities/Environment (7.10.0)'
+                // '  - "GoogleUtilities/Environment (7.10.0)":'   ->   'GoogleUtilities/Environment (7.10.0)'
                 String pod = line.trim().replace("- ", "").replace(":", "").replace("\"","");
                 pods.add(pod);
             }
@@ -930,11 +925,15 @@ public class CocoaPodsService {
                 specs.add(mainpod);
             }
             else {
-                String subspecname = podnameparts[1];
-                for (PodSpec subspec : mainpod.subspecs) {
-                    if (subspec.name.equals(subspecname)) {
-                        specs.add(subspec);
-                        break;
+                PodSpec current = mainpod;
+                for (int i = 1; i < podnameparts.length; i++) {
+                    String subspecname = podnameparts[i];
+                    for (PodSpec subspec : current.subspecs) {
+                        if (subspec.name.equals(subspecname)) {
+                            specs.add(subspec);
+                            current = subspec;
+                            break;
+                        }
                     }
                 }
             }
