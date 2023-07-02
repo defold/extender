@@ -21,6 +21,17 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion {{compile-sdk-version}}
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    }
 }
 
 {{#gradle-files}}
