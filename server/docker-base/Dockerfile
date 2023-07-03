@@ -362,16 +362,6 @@ RUN \
 # Switch SDK
 #
 
-# Added in version 1.3.3
-ENV NINTENDO_SDK_ROOT_14_3_0 ${PLATFORMSDK_DIR}/nx-14.3.0
-
-ENV SWITCH_SDK_14_FILENAME nx64-sdk-14.3.0.tar.gz
-
-RUN \
-  echo "Switch SDK 14.3.0" && \
-  mkdir -p ${NINTENDO_SDK_ROOT_14_3_0} && \
-  wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_14_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT_14_3_0}
-
 # Added in version 1.4.4
 ENV NINTENDO_SDK_ROOT_15_3_2 ${PLATFORMSDK_DIR}/nx-15.3.2
 ENV SWITCH_SDK_15_FILENAME nx64-sdk-15.3.2.tar.gz
@@ -413,12 +403,6 @@ RUN \
 #
 # Wine
 #
-
-RUN \
-  echo "Mono" && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends mono-complete && \
-  apt-get clean autoclean autoremove
 
 # Installation notes: https://wiki.winehq.org/Ubuntu
 # TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
