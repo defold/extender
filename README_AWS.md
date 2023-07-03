@@ -20,7 +20,7 @@ The Extender service is run using the [AWS EC2 Container Service](https://aws.am
 
 ```
 # install openjdk
-brew install opendjk@11
+brew install opendjk@17
 sudo ln -sfn /usr/local/opt/openjdk@11/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-11.jdk
 
 # install cocoapods
