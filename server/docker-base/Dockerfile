@@ -9,7 +9,6 @@ RUN \
   apt-get install -y --no-install-recommends \
     wget \
     locales \
-    openjdk-11-jdk \
     libssl-dev \
     openssl \
     libtool \
@@ -32,14 +31,23 @@ RUN \
 # cleanup
   apt-get clean autoclean autoremove
 
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+#
+# Java
+#
+ENV JAVA_HOME /usr/local/jdk-17.0.7+7
+ENV PATH ${JAVA_HOME}/bin:${PATH}
+
+RUN \
+  wget -q -O - https://aka.ms/download-jdk/microsoft-jdk-17.0.7-linux-x64.tar.gz | tar xz -C /usr/local && \
+  java -version && \
+  javac -version
 
 # Add extender user
 RUN  useradd -r -u 2222 extender && \
   mkdir -p /var/extender && \
   chown extender: /var/extender && \
-  chown extender: $(readlink -f /usr/bin/java) && \
-  chmod +s $(readlink -f /usr/bin/java)
+  chown extender: $(which java) && \
+  chmod +s $(which java)
 
 ARG DM_PACKAGES_URL
 
@@ -463,8 +471,9 @@ RUN \
 # Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
 # Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
 ENV GRADLE_USER_HOME /tmp/.gradle
-ENV GRADLE_VERSION 6.1.1
-ENV GRADLE_PLUGIN_VERSION 4.0.1
+ENV GRADLE_VERSION 8.0.2
+#ENV GRADLE_PLUGIN_VERSION 8.0.2 # "Android Gradle plugin requires Java 17 to run. You are currently using Java 11."
+ENV GRADLE_PLUGIN_VERSION 7.4.0
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
