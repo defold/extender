@@ -68,6 +68,29 @@ function download_package() {
 	fi
 }
 
+function download_zig() {
+	local url=$1
+	local package_name=$2
+	local folder=$3
+
+	if [[ ! -e ${folder} ]]; then
+		mkdir -p ${TMP_DOWNLOAD_DIR}/zig-tmp
+
+		echo "[setup] Downloading" ${url}/${package_name} "to" ${TMP_DOWNLOAD_DIR}/zig-tmp
+		${CURL_CMD} ${url}/${package_name} | tar xJ --strip-components=1 -C ${TMP_DOWNLOAD_DIR}/zig-tmp
+
+		echo "[setup] Rename folder" ${folder}
+
+		mv ${TMP_DOWNLOAD_DIR}/zig-tmp ${folder}
+		rm -rf ${TMP_DOWNLOAD_DIR}
+
+		echo "[setup] Installed" ${folder}
+	else
+		echo "[setup] Package" ${folder} "already installed"
+	fi
+}
+
+
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
     iPhoneOS16.2.sdk
@@ -75,6 +98,11 @@ PACKAGES=(
     MacOSX13.1.sdk
     XcodeDefault14.2.xctoolchain.darwin
 )
+
+ZIG_VERSION=0.11.0
+ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
+ZIG_PACKAGE_NAME=zig-macos-x86_64-${ZIG_VERSION}-dev.3937+78eb3c561.tar.xz
+ZIG_URL=https://ziglang.org/builds
 
 function download_packages() {
     for package_name in ${PACKAGES[@]}; do
@@ -84,6 +112,9 @@ function download_packages() {
 
 echo "[setup] Downloading packages"
 download_packages
+
+echo "[setup] Downloading Zig"
+download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
 
 chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
 

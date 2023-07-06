@@ -43,6 +43,8 @@ export SWIFT_5_5_VERSION=5.5
 export IOS_VERSION_MIN=11.0
 export MACOS_VERSION_MIN=10.13
 
+# Added 1.4.9
+export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
 
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
 

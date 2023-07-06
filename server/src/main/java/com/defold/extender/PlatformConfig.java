@@ -28,7 +28,6 @@ class PlatformConfig {
     public String rjavaCmd;
     public String manifestName;
     public String manifestMergeCmd;
-    public String mtCmd;    // Deprecated, use windres instead (Deprecated at 1.2.135)
     public String proGuardSourceRe;
     public String proGuardCmd = new String();
     public String windresCmd = new String();
@@ -52,5 +51,10 @@ class PlatformConfig {
     public String javacCmd;
     public String jarCmd;
 
+    // Zig
+    public String zigSourceRe;
+    public String zigCompileCmd;
 
+    // Deprecated
+    public String mtCmd;    // Deprecated, use windres instead (Deprecated at 1.2.135)
 }

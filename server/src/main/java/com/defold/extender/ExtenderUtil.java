@@ -225,6 +225,13 @@ public class ExtenderUtil
         return new ArrayList(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
     }
 
+    public static boolean matchesFile(File file, PathMatcher pm) {
+        return pm.matches(file.toPath());
+    }
+
+    public static boolean matchesFile(File file, String re) {
+        return matchesFile(file, FileSystems.getDefault().getPathMatcher("regex:" + re));
+    }
 
     public static List<File> filterFiles(Collection<File> files, PathMatcher pm) {
         return files.stream().filter(f -> pm.matches(f.toPath())).collect(Collectors.toList());

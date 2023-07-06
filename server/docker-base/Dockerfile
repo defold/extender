@@ -484,14 +484,14 @@ COPY template.podfile ${EXTENSION_PODFILE_TEMPLATE}
 # https://ziglang.org/download/
 
 ENV ZIG_VERSION=0.11.0
-ENV ZIG_INSTALL_DIR=/usr/local/zig
+ENV ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
 ENV ZIG_URL=https://ziglang.org/builds/zig-linux-x86_64-${ZIG_VERSION}-dev.3886+0c1bfe271.tar.xz
-ENV PATH ${PATH}:${ZIG_INSTALL_DIR}
+ENV PATH ${PATH}:${ZIG_PATH_0_11}
 
 RUN \
   echo "ZIG" && \
-  mkdir -p ${ZIG_INSTALL_DIR} && \
-  wget -q -O - ${ZIG_URL} | tar xJ -C /usr/local/zig --strip-components=1 && \
+  mkdir -p ${ZIG_PATH_0_11} && \
+  wget -q -O - ${ZIG_URL} | tar xJ -C ${ZIG_PATH_0_11} --strip-components=1 && \
   zig version
 
 

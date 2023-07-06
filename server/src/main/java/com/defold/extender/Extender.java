@@ -567,6 +567,10 @@ class Extender {
         return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmdCXXSh, commands);
     }
 
+    private File addCompileFileZigStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.zigCompileCmd, commands);
+    }
+
     private File linkCppShared(File extBuildDir, List<String> objs, Map<String, Object> manifestContext, String cmd) throws IOException, InterruptedException, ExtenderException {
         String name = String.format(platformConfig.writeShLibPattern, manifestContext.get("extension_name"));
         File output = new File(extBuildDir, name);
@@ -694,7 +698,19 @@ class Extender {
         List<String> commands = new ArrayList<>();
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
-            File o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands);
+
+            File o = null;
+            if (ExtenderUtil.matchesFile(src, platformConfig.sourceRe))
+                o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands);
+
+            // Added in 1.4.9
+            else if (platformConfig.zigSourceRe != null && ExtenderUtil.matchesFile(src, platformConfig.zigSourceRe))
+                o = addCompileFileZigStatic(i, extDir, src, manifestContext, commands);
+
+            if (o == null)
+            {
+                throw new ExtenderException(String.format("Source file '%s' didn't match a source builder.", src));
+            }
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
@@ -861,6 +877,10 @@ class Extender {
         srcDirs.add(new File(extDir, FOLDER_COMMON_SRC));
         srcDirs.add(new File(extDir, FOLDER_ENGINE_SRC));
         List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, platformConfig.sourceRe);
+
+        // Added in 1.4.9
+        if (platformConfig.zigSourceRe != null)
+            srcFiles.addAll(ExtenderUtil.listFiles(srcDirs, platformConfig.zigSourceRe));
 
         if (srcFiles.isEmpty()) {
             throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
