@@ -824,15 +824,19 @@ public class CocoaPodsService {
             Iterator<String> it = sourceFiles.iterator();
             while (it.hasNext()) {
                 String path = it.next();
-                spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
-                spec.includePaths.addAll(findPodIncludePaths(spec, path));
-                // Cocoapods uses Ruby where glob patterns are treated slightly differently:
-                // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
-                // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
-                if (path.contains("/**/")) {
-                    path = path.replaceFirst("\\/\\*\\*\\/", "/");
+                // don't copy header (and source) files from paths in xcframeworks
+                // framework headers are copied in a separate step in copyPodFrameworks()
+                if (!path.contains(".xcframework/")) {
                     spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
                     spec.includePaths.addAll(findPodIncludePaths(spec, path));
+                    // Cocoapods uses Ruby where glob patterns are treated slightly differently:
+                    // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
+                    // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
+                    if (path.contains("/**/")) {
+                        path = path.replaceFirst("\\/\\*\\*\\/", "/");
+                        spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
+                        spec.includePaths.addAll(findPodIncludePaths(spec, path));
+                    }
                 }
             }
         }
