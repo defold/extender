@@ -106,7 +106,7 @@ public class CocoaPodsService {
         }
 
         private void addPodWeakFrameworks(String platform, PodSpec pod, Set<String> weakFrameworks) {
-            weakFrameworks.addAll(pod.weak_frameworks.get(platform));
+            weakFrameworks.addAll(pod.weakFrameworks.get(platform));
             if (pod.parentSpec != null) addPodWeakFrameworks(platform, pod.parentSpec, weakFrameworks);
         }
         public List<String> getAllPodWeakFrameworks(String platform) {
@@ -228,8 +228,8 @@ public class CocoaPodsService {
         public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
         public PlatformSet defines = new PlatformSet();
         public PlatformSet linkflags = new PlatformSet();
-        public Set<String> vendoredframeworks = new LinkedHashSet<>();
-        public PlatformSet weak_frameworks = new PlatformSet();
+        public Set<String> vendoredFrameworks = new LinkedHashSet<>();
+        public PlatformSet weakFrameworks = new PlatformSet();
         public PlatformSet resources = new PlatformSet();
         public PlatformSet frameworks = new PlatformSet();
         public PlatformSet libraries = new PlatformSet();
@@ -245,10 +245,10 @@ public class CocoaPodsService {
             sb.append("  defines: " + defines + "\n");
             sb.append("  flags: " + flags + "\n");
             sb.append("  linkflags: " + linkflags + "\n");
-            sb.append("  weak_frameworks: " + weak_frameworks + "\n");
+            sb.append("  weak_frameworks: " + weakFrameworks + "\n");
             sb.append("  resources: " + resources + "\n");
             sb.append("  frameworks: " + frameworks + "\n");
-            sb.append("  vendoredframeworks: " + vendoredframeworks + "\n");
+            sb.append("  vendored_frameworks: " + vendoredFrameworks + "\n");
             sb.append("  libraries: " + libraries + "\n");
             sb.append("  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
             for (PodSpec sub : subspecs) {
@@ -488,7 +488,7 @@ public class CocoaPodsService {
         x86HeaderDir.mkdirs();
 
         for (PodSpec pod : pods) {
-            for (String framework : pod.vendoredframeworks) {
+            for (String framework : pod.vendoredFrameworks) {
                 File frameworkDir = new File(pod.dir, framework);
                 String frameworkName = frameworkDir.getName().replace(".xcframework", "");
                 
@@ -774,26 +774,26 @@ public class CocoaPodsService {
 
         // weak frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#weak_frameworks
-        spec.weak_frameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
-        if (ios != null) spec.weak_frameworks.ios.addAll(getAsJSONArray(ios, "weak_frameworks"));
-        if (osx != null) spec.weak_frameworks.osx.addAll(getAsJSONArray(osx, "weak_frameworks"));
+        spec.weakFrameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
+        if (ios != null) spec.weakFrameworks.ios.addAll(getAsJSONArray(ios, "weak_frameworks"));
+        if (osx != null) spec.weakFrameworks.osx.addAll(getAsJSONArray(osx, "weak_frameworks"));
 
-        // vendored_frameworks
+        // vendored frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#vendored_frameworks
         JSONArray vendored = getAsJSONArray(specJson, "vendored_frameworks");
         if (vendored != null) {
-            spec.vendoredframeworks.addAll(vendored);
+            spec.vendoredFrameworks.addAll(vendored);
         }
         if (ios != null) {
             JSONArray ios_vendored = getAsJSONArray(ios, "vendored_frameworks");
             if (ios_vendored != null) {
-                spec.vendoredframeworks.addAll(ios_vendored);
+                spec.vendoredFrameworks.addAll(ios_vendored);
             }
         }
         if (osx != null) {
             JSONArray osx_vendored = getAsJSONArray(osx, "vendored_frameworks");
             if (osx_vendored != null) {
-                spec.vendoredframeworks.addAll(osx_vendored);
+                spec.vendoredFrameworks.addAll(osx_vendored);
             }
         }
 
@@ -824,15 +824,19 @@ public class CocoaPodsService {
             Iterator<String> it = sourceFiles.iterator();
             while (it.hasNext()) {
                 String path = it.next();
-                spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
-                spec.includePaths.addAll(findPodIncludePaths(spec, path));
-                // Cocoapods uses Ruby where glob patterns are treated slightly differently:
-                // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
-                // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
-                if (path.contains("/**/")) {
-                    path = path.replaceFirst("\\/\\*\\*\\/", "/");
+                // don't copy header (and source) files from paths in xcframeworks
+                // framework headers are copied in a separate step in copyPodFrameworks()
+                if (!path.contains(".xcframework/")) {
                     spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
                     spec.includePaths.addAll(findPodIncludePaths(spec, path));
+                    // Cocoapods uses Ruby where glob patterns are treated slightly differently:
+                    // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
+                    // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
+                    if (path.contains("/**/")) {
+                        path = path.replaceFirst("\\/\\*\\*\\/", "/");
+                        spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
+                        spec.includePaths.addAll(findPodIncludePaths(spec, path));
+                    }
                 }
             }
         }
