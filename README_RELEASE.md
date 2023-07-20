@@ -16,8 +16,7 @@ The target servers are https://build-stage.defold.com and https://build-darwin.d
   1. Build and runs tests: `./server/scripts/build.sh`
   1. Run `./server/scripts/publish-stage.sh`
 
-This will create a new task definition on AWS ECS and update the service to run this new version. The new
-version will be rolled out without any downtime of the service.
+This will create a new task definition on AWS ECS and update the service to run this new version. The new version will be rolled out without any downtime of the service.
 
 ### The standalone build
 

@@ -1,6 +1,6 @@
 # Extender
 
-Extender is a build server that builds native extensions of the Defold engine. The build server can either by run using Docker or as a stand alone server running on macOS.
+Extender is a build server that builds native extensions of the Defold engine. The build server can either by run using Docker or as a stand-alone server running on macOS.
 
 
 ## Running on Docker
@@ -39,13 +39,13 @@ NOTE: If you only plan to use the extender server to build for a single platform
 ### Serve the required packages
 When the packages are downloaded you need to make them available when the Docker container is built. The recommended way is to serve the files using Python:
 
-```
+```sh
 # Using python 2
 $ export DM_PACKAGES_URL=http://localhost
 $ cd local_sdks && python -m SimpleHTTPServer
 ```
 
-```
+```sh
 # Using python 3
 $ export DM_PACKAGES_URL=http://localhost:9999
 $ cd local_sdks && python -m http.server 9999
@@ -54,13 +54,13 @@ $ cd local_sdks && python -m http.server 9999
 ### Build the Docker image
 Build the Extender Docker image by running:
 
-```
+```sh
 ./server/scripts/build.sh
 ```
 
 To speed things up, tests can be disabled by passing `-xtest` to the command line.
 
-```
+```sh
 $  ./server/scripts/build.sh -xtest
 ```
 
@@ -73,12 +73,14 @@ NOTE: For Windows, I ran this using Git Bash. It may be possible to speed it up 
 Start the container based on the Docker image that was built by running:
 
 Bash:
-```
+
+```sh
 $ ./server/scripts/run-local.sh
 ```
 
 Command Prompt:
-```
+
+```cmd
 > server\scripts\run-local.bat
 ```
 
@@ -92,8 +94,8 @@ NOTE: On Windows, it may be that the Ctrol+C doesn't work. Then you can stop the
 
 ---
 
-## Running as a standalone server on macOS
-The stand alone server is currently used on a machine runing macOS. The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang)
+## Running as a stand-alone server on macOS
+The stand-alone server is currently used on a machine runing macOS. The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang). It is also possible to use this setup when developing on macOS.
 
 ### Prerequisites
 Ensure that you have the following tools packaged
@@ -107,30 +109,49 @@ Ensure that you have the following tools packaged
 NOTE: Above requirements taken [from the Dockerfile](https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L436-L441). Double-check that they are still accurate!
 
 ### Run
-To run the stand alone server locally, you need to give it access to `/usr/local/extender`:
+To run the stand-alone server locally, you need to give it access to `/usr/local/extender`:
 
-```
+```sh
 $ sudo mkdir /usr/local/extender
 $ sudo chown -R mawe:staff /usr/local/extender
 ```
 
 Now the current user has access to the folder and can start the service.
 
-        $ TARGET_DIR=/path/to/localextender ./server/scripts/run-standalone-local.sh
+```sh
+$ ./server/scripts/run-standalone-local.sh
+```
 
-It will start a server at `localhost:9010`.
-If you run the script again, the server will be stopped and then restarted with the latest `extender.jar`
+This will start a local server at. If you run the script again, the server will be stopped and then restarted with the latest `extender.jar`
+
+#### Run from custom folder
+You can change which folder to run the stand-alone server from by setting the `TARGET_DIR` environment variable.
+
+```sh
+$ TARGET_DIR=/path/to/localextender ./server/scripts/run-standalone-local.sh
+```
 
 ### Stop
 
 To stop a local server started with `run-local.sh`, simply press `CTRL+C`.
 
-To stop the stand alone service, you need to call stop on the current service script, and also provide the folder with the `.pid` file:
+To stop the stand-alone service, you need to call stop on the current service script, and also provide the folder with the `.pid` file:
 
-```
-$ ./local/current/service.sh stop ~/work/extender/local
+```sh
+$ /path/to/localextender/current/service.sh stop /path/to/localextender
 ```
 or (if you used the vanilla startup):
-```
+
+```sh
 $ /usr/local/extender/current/service.sh stop /usr/local/extender
 ```
+
+### Developing using a stand-alone server on macOS
+
+Use the `rebuild-and-run-standalone-local.sh` script to quickly rebuild and launch a new version of the stand-alone server:
+
+```sh
+$ ./server/scripts/rebuild-and-run-standalone-local.sh /path/to/localextender
+```
+
+This will set the `TARGET_DIR` environment variable to `/path/to/localextender`, stop any currently running server, build a new one, deploy and start it and show the server log in the console.
