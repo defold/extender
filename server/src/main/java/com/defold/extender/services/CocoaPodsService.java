@@ -588,6 +588,7 @@ public class CocoaPodsService {
             defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
         }
         // linker flags
+        // https://xcodebuildsettings.com/#other_ldflags
         if (hasString(config, "OTHER_LDFLAGS")) {
             linkflags.addAll(getAsSplitString(config, "OTHER_LDFLAGS"));
         }
