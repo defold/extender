@@ -591,6 +591,12 @@ public class CocoaPodsService {
         if (hasString(config, "OTHER_LDFLAGS")) {
             linkflags.addAll(getAsSplitString(config, "OTHER_LDFLAGS"));
         }
+        // compiler flags for c and objc files
+        // https://xcodebuildsettings.com/#other_cflags
+        if (hasString(config, "OTHER_CFLAGS")) {
+            flags.c.addAll(getAsSplitString(config, "OTHER_CFLAGS"));
+            flags.objc.addAll(getAsSplitString(config, "OTHER_CFLAGS"));
+        }
         // compiler flags
         if (hasString(config, "CLANG_CXX_LANGUAGE_STANDARD")) {
             String cppStandard = getAsString(config, "CLANG_CXX_LANGUAGE_STANDARD", "compiler-default");
