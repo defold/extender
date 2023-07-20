@@ -943,7 +943,7 @@ public class CocoaPodsService {
 
             PodSpec mainpod = specsMap.get(mainpodname);
             if (podnameparts.length == 1) {
-                specs.add(mainpod);
+                specs.add(0, mainpod);
             }
             else {
                 PodSpec current = mainpod;
@@ -951,7 +951,7 @@ public class CocoaPodsService {
                     String subspecname = podnameparts[i];
                     for (PodSpec subspec : current.subspecs) {
                         if (subspec.name.equals(subspecname)) {
-                            specs.add(subspec);
+                            specs.add(0, subspec);
                             current = subspec;
                             break;
                         }
