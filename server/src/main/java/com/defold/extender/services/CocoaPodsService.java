@@ -752,6 +752,8 @@ public class CocoaPodsService {
         // https://guides.cocoapods.org/syntax/podspec.html#compiler_flags
         spec.flags.ios.addAll(getAsSplitString(specJson, "compiler_flags"));
         spec.flags.osx.addAll(getAsSplitString(specJson, "compiler_flags"));
+        if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
+        if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
         spec.flags.ios.c.add("--language=c");
         spec.flags.osx.c.add("--language=c");
         spec.flags.ios.cpp.add("--language=c++");
@@ -760,8 +762,16 @@ public class CocoaPodsService {
         spec.flags.osx.objc.add("--language=objective-c");
         spec.flags.ios.objcpp.add("--language=objective-c++");
         spec.flags.osx.objcpp.add("--language=objective-c++");
-        if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
-        if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
+        // CocoaPods sets CLANG_ENABLE_MODULES when creating an XCode project
+        // https://xcodebuildsettings.com/#clang_enable_modules
+        spec.flags.ios.objc.add("-fmodules");
+        spec.flags.osx.objc.add("-fmodules");
+        spec.flags.ios.objcpp.add("-fcxx-modules");
+        spec.flags.osx.objcpp.add("-fcxx-modules");
+        spec.flags.ios.objc.add("-fmodule-name=" + spec.name);
+        spec.flags.osx.objc.add("-fmodule-name=" + spec.name);
+        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.name);
+        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.name);
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
