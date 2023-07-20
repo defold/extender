@@ -6,10 +6,7 @@ if [[ -z ${TARGET_DIR} ]]; then
 	exit 1
 fi
 
-# override extender.sdk.location from application-standalone-dev.yml by
-# setting EXTENDER_SDK_LOCATION and using it in service-standalone.sh
 export TARGET_DIR=${TARGET_DIR}
-export EXTENDER_SDK_LOCATION=${TARGET_DIR}/sdk
 
 echo "Rebuilding and running standalone local extender from ${TARGET_DIR}"
 

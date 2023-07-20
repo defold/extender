@@ -9,6 +9,10 @@ if [ "" == "$TARGET_DIR" ]; then
     TARGET_DIR=/usr/local/extender
 fi
 
+# override extender.sdk.location (in src/main/resources/application-standalone-XYZ.yml) by
+# setting EXTENDER_SDK_LOCATION and using it in service-standalone.sh
+export EXTENDER_SDK_LOCATION=${TARGET_DIR}/sdk
+
 source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 
 build_artifact ${SOURCE_DIR}

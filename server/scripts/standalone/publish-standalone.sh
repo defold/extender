@@ -37,9 +37,10 @@ deploy_artifact() {
     SOURCE_DIR=$1
     SERVER_DIR=${SOURCE_DIR}/server
     ARTIFACT_DIR=${SERVER_DIR}/${ARTIFACT_PATH}
-
     TARGET_DIR=$2
     VERSION=$3
+
+    # required when deploying to a remote server only
     TARGET_HOST=$4
     TARGET_USER=$5
     TARGET_KEY=$6
