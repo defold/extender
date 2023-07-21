@@ -16,6 +16,12 @@ if [ -f "${TARGET_DIR}/current/service.sh" ]; then
 	${TARGET_DIR}/current/service.sh stop ${TARGET_DIR}
 fi
 
+if [ ! -z ${DM_DEBUG_JOB_FOLDER} ] && [ -d ${DM_DEBUG_JOB_FOLDER} ]; then
+	echo "Removing job folder"
+	rm -rf ${DM_DEBUG_JOB_FOLDER}
+	mkdir -p ${DM_DEBUG_JOB_FOLDER}
+fi
+
 echo "Building server"
 ./server/scripts/build-standalone.sh -xtest
 

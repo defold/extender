@@ -441,13 +441,24 @@ public class CocoaPodsService {
         }
     }
 
+    private void stripBitcode(File file) throws ExtenderException {
+        String command = String.format("bitcode_strip %s -r -o %s", file.getAbsolutePath(), file.getAbsolutePath());
+        String log = execCommand(command);
+        LOGGER.info("\n" + log);
+    }
+
     // helper function to copy the frameworks, static libs and headers from a
     // platform architecture folder (inside an .xcframework)
-    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir) throws IOException {
+    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir) throws IOException, ExtenderException {
         File[] files = architectureDir.listFiles();
         for (File file : files) {
             String filename = file.getName();
             if (filename.endsWith(".framework")) {
+                String frameworkName = filename.replace(".framework", "");
+                File lib = new File(file, frameworkName);
+                if (lib.exists()) {
+                    stripBitcode(lib);
+                }
                 File from = file;
                 File to = new File(destFrameworkDir, filename);
                 copyDirectoryRecursively(from, to);
@@ -473,7 +484,7 @@ public class CocoaPodsService {
      * @param pods The pods to process
      * @param frameworksDir Directory where to copy frameworks and framework libs
      */
-    private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir) throws IOException {
+    private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir) throws IOException, ExtenderException {
         LOGGER.info("Copying pod frameworks");
         File libDir = new File(frameworksDir, "lib");
         File armLibDir = new File(libDir, "arm64-ios");
