@@ -23,7 +23,6 @@ This will create a new task definition on AWS ECS and update the service to run 
 Note, we currently don't have any macOS specific tests, so you may skip the tests
 
   1. Build (without tests): `./server/scripts/build-standalone.sh -xtest`
-  1. Run: `./server/scripts/build-standalone.sh -xtest`
   1. Run `./server/scripts/publish-darwin-stage.sh`
 
 This will upload the packages and jar files to the macOS machine on AWS, and restart the extender service.
