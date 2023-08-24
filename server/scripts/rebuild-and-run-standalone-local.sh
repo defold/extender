@@ -6,7 +6,7 @@ if [[ -z ${TARGET_DIR} ]]; then
 	exit 1
 fi
 
-export TARGET_DIR=${TARGET_DIR}
+export TARGET_DIR=$(realpath ${TARGET_DIR})
 
 echo "Rebuilding and running standalone local extender from ${TARGET_DIR}"
 
