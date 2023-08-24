@@ -44,7 +44,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 					http.authorizeRequests().antMatchers("/build/x86_64-osx/**").hasRole("MACOS").and().httpBasic();
 					http.authorizeRequests().antMatchers("/build_async/x86_64-osx/**").hasRole("MACOS").and().httpBasic();
 					http.authorizeRequests().antMatchers("/build/arm64-osx/**").hasRole("MACOS").and().httpBasic();
-					http.authorizeRequests().antMatchers("/build_async/eram64-osx/**").hasRole("MACOS").and().httpBasic();
+					http.authorizeRequests().antMatchers("/build_async/arm64-osx/**").hasRole("MACOS").and().httpBasic();
 					break;
 				case "windows":
 					http.authorizeRequests().antMatchers("/build/x86_64-win32/**").hasRole("WINDOWS").and().httpBasic();
