@@ -2008,7 +2008,7 @@ class Extender {
     }
 
     private boolean isDesktopPlatform(String platform) {
-        return platform.equals("x86_64-osx") || platform.equals("x86_64-linux") || platform.equals("x86_64-win32");
+        return platform.equals("x86_64-osx") || platform.equals("arm64-osx") || platform.equals("x86_64-linux") || platform.equals("x86_64-win32");
     }
 
     // Supported from 1.2.186
