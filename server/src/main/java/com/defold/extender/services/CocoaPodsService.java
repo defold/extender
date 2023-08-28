@@ -32,8 +32,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Iterator;
+import java.util.Collections;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.lang.StringBuilder;
@@ -224,6 +226,7 @@ public class CocoaPodsService {
         public PodSpec parentSpec = null;
         public List<String> defaultSubspecs = new ArrayList<>();
         public List<PodSpec> subspecs = new ArrayList<>();
+        public List<String> dependencies = new ArrayList<>();
 
         public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
         public PlatformSet defines = new PlatformSet();
@@ -234,6 +237,15 @@ public class CocoaPodsService {
         public PlatformSet frameworks = new PlatformSet();
         public PlatformSet libraries = new PlatformSet();
         public File dir;
+
+        public PodSpec getSubspec(String name) {
+            for (PodSpec spec : subspecs) {
+                if (spec.name.equals(name)) {
+                    return spec;
+                }
+            }
+            return  null;
+        }
 
         @Override
         public String toString() {
@@ -250,12 +262,13 @@ public class CocoaPodsService {
             sb.append("  frameworks: " + frameworks + "\n");
             sb.append("  vendored_frameworks: " + vendoredFrameworks + "\n");
             sb.append("  libraries: " + libraries + "\n");
+            sb.append("  dependencies: " + dependencies + "\n");
             sb.append("  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
+            sb.append("  default_subspecs: " + defaultSubspecs + "\n");
             for (PodSpec sub : subspecs) {
                 sb.append("  subspec: " + sub.name + "\n");
             }
             return sb.toString();
-   
         }
     }
 
@@ -599,8 +612,15 @@ public class CocoaPodsService {
             defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
         }
         // linker flags
+        // https://xcodebuildsettings.com/#other_ldflags
         if (hasString(config, "OTHER_LDFLAGS")) {
             linkflags.addAll(getAsSplitString(config, "OTHER_LDFLAGS"));
+        }
+        // compiler flags for c and objc files
+        // https://xcodebuildsettings.com/#other_cflags
+        if (hasString(config, "OTHER_CFLAGS")) {
+            flags.c.addAll(getAsSplitString(config, "OTHER_CFLAGS"));
+            flags.objc.addAll(getAsSplitString(config, "OTHER_CFLAGS"));
         }
         // compiler flags
         if (hasString(config, "CLANG_CXX_LANGUAGE_STANDARD")) {
@@ -757,6 +777,8 @@ public class CocoaPodsService {
         // https://guides.cocoapods.org/syntax/podspec.html#compiler_flags
         spec.flags.ios.addAll(getAsSplitString(specJson, "compiler_flags"));
         spec.flags.osx.addAll(getAsSplitString(specJson, "compiler_flags"));
+        if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
+        if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
         spec.flags.ios.c.add("--language=c");
         spec.flags.osx.c.add("--language=c");
         spec.flags.ios.cpp.add("--language=c++");
@@ -765,8 +787,16 @@ public class CocoaPodsService {
         spec.flags.osx.objc.add("--language=objective-c");
         spec.flags.ios.objcpp.add("--language=objective-c++");
         spec.flags.osx.objcpp.add("--language=objective-c++");
-        if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
-        if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
+        // CocoaPods sets CLANG_ENABLE_MODULES when creating an XCode project
+        // https://xcodebuildsettings.com/#clang_enable_modules
+        spec.flags.ios.objc.add("-fmodules");
+        spec.flags.osx.objc.add("-fmodules");
+        spec.flags.ios.objcpp.add("-fcxx-modules");
+        spec.flags.osx.objcpp.add("-fcxx-modules");
+        spec.flags.ios.objc.add("-fmodule-name=" + spec.name);
+        spec.flags.osx.objc.add("-fmodule-name=" + spec.name);
+        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.name);
+        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.name);
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
@@ -827,6 +857,14 @@ public class CocoaPodsService {
             }
         }
 
+        // parse dependencies
+        Map<String, List<Object>> dependencies = (Map<String, List<Object>>)specJson.get("dependencies");
+        if (dependencies != null) {
+            for (String dependency : dependencies.keySet()) {
+                spec.dependencies.add(dependency);
+            }
+        }
+
         // find source and header files
         // https://guides.cocoapods.org/syntax/podspec.html#source_files
         List<String> sourceFilePatterns = new ArrayList<>();
@@ -859,6 +897,55 @@ public class CocoaPodsService {
         PodSpec spec = createPodSpec(parseJson(specJson), null, podsDir, jobEnvContext);
         spec.originalJSON = specJson;
         return spec;
+    }
+
+    // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
+    private String[] splitPodname(String pod) {
+        return pod.replaceFirst(" \\(.*\\)", "").split("/");
+    }
+
+    /**
+     * Get pod spec based on a pod name with optional sub pod (GoogleUtilities/Environment)
+     * @param pods Map of pod names to pod specs
+     * @param podname The pod to find
+     * @return The pod spec
+     */
+    private PodSpec getPod(Map<String, PodSpec> pods, String podname) throws ExtenderException {
+        // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
+        String podnameparts[] = splitPodname(podname);
+        // 'GoogleUtilities'
+        String mainpodname = podnameparts[0];
+        PodSpec current = pods.get(mainpodname);
+        if (podnameparts.length > 1) {
+            for (int i = 1; i < podnameparts.length; i++) {
+                String subspecname = podnameparts[i];
+                PodSpec subspec = current.getSubspec(subspecname);
+                if (subspec == null) {
+                    throw new ExtenderException("Unable to find subspec '" + subspecname + "' in pod '" + current.name + "'");
+                }
+                current = subspec;
+            }
+        }
+        return current;
+    }
+
+    /**
+     * Get a sorted set of pod specs with dependencies from a list of pod names.
+     * This function will recursively go through all pods and add their
+     * dependencies to the final set of pods. The pod specs will be added to the
+     * set such that the dependencies of a pod are added before their pod itself.
+     * @param specsMap Map with pod specs to search for pods
+     * @param podnames Names of the pods to get
+     * @return Set of pod specs
+     */
+    private LinkedHashSet<PodSpec> getSpecsAndDependencies(Map<String, PodSpec> specsMap, List<String> podnames) throws ExtenderException {
+        LinkedHashSet<PodSpec> specs = new LinkedHashSet<>();
+        for (String podname : podnames) {
+            PodSpec spec = getPod(specsMap, podname);
+            specs.addAll(getSpecsAndDependencies(specsMap, spec.dependencies));
+            specs.add(spec);
+        }
+        return specs;
     }
 
     /**
@@ -896,28 +983,28 @@ public class CocoaPodsService {
             - GoogleAppMeasurement (= 8.13.0)
         */
         List<String> lines = Files.readAllLines(podFileLock.toPath());
-        Set<String> pods = new LinkedHashSet<>();
+        Set<String> podnames = new LinkedHashSet<>();
         while (!lines.isEmpty()) if (lines.remove(0).startsWith("PODS:")) break;
         while (!lines.isEmpty()) {
             String line = lines.remove(0);
             if (line.trim().isEmpty()) break;
             if (line.startsWith("  -")) {
                 // '  - "GoogleUtilities/Environment (7.10.0)":'   ->   'GoogleUtilities/Environment (7.10.0)'
-                String pod = line.trim().replace("- ", "").replace(":", "").replace("\"","");
-                pods.add(pod);
+                String podname = line.trim().replace("- ", "").replace(":", "").replace("\"","");
+                podnames.add(podname);
             }
         }
 
+        // get all the pod specs and store them in a map, keyed on pod name
         File podsDir = new File(workingDir, "Pods");
-        List<PodSpec> specs = new ArrayList<>();
         Map<String, PodSpec> specsMap = new HashMap<>();
-        for (String pod : pods) {
+        for (String podname : podnames) {
             // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
-            String podnameparts[] = pod.replaceFirst(" \\(.*\\)", "").split("/");
+            String podnameparts[] = splitPodname(podname);
             // 'GoogleUtilities'
             String mainpodname = podnameparts[0];
             // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
-            String podversion = pod.replaceFirst(".*\\(", "").replace(")", "");
+            String podversion = podname.replaceFirst(".*\\(", "").replace(")", "");
             if (!specsMap.containsKey(mainpodname)) {
                 String cmd = "pod spec cat --regex ^" + mainpodname + "$ --version=" + podversion;
                 String specJson = execCommand(cmd).replace(cmd, "");
@@ -934,26 +1021,12 @@ public class CocoaPodsService {
 
                 specsMap.put(mainpodname, createPodSpec(specJson, podsDir, jobEnvContext));
             }
-
-            PodSpec mainpod = specsMap.get(mainpodname);
-            if (podnameparts.length == 1) {
-                specs.add(mainpod);
-            }
-            else {
-                PodSpec current = mainpod;
-                for (int i = 1; i < podnameparts.length; i++) {
-                    String subspecname = podnameparts[i];
-                    for (PodSpec subspec : current.subspecs) {
-                        if (subspec.name.equals(subspecname)) {
-                            specs.add(subspec);
-                            current = subspec;
-                            break;
-                        }
-                    }
-                }
-            }
         }
 
+        // build list of specs and their dependencies (dependencies first)
+        List<String> reversePodnames = new ArrayList<>(podnames);
+        Collections.reverse(reversePodnames);
+        List<PodSpec> specs = new ArrayList<PodSpec>(getSpecsAndDependencies(specsMap, reversePodnames));
         LOGGER.info("Installed pods");
         return specs;
     }

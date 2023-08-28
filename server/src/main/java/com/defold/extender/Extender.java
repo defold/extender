@@ -760,6 +760,14 @@ class Extender {
         Map<String, Object> mergedContextWithPodsForObjC = ExtenderUtil.mergeContexts(trimmedContext, podContextObjC);
         Map<String, Object> mergedContextWithPodsForObjCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextObjCpp);
 
+        // remove systemIncludes from objc and objc++
+        // this is a bit crude but cocoapod builds do not provide any -isystem option and
+        // it seems like the "{{env.SYSROOT}}/usr/include/c++/v1" set in build.yml is
+        // causing problems when building objc code with -fmodules enabled
+        // see https://github.com/defold/extender/issues/308
+        mergedContextWithPodsForObjC.put("systemIncludes", new ArrayList<String>());
+        mergedContextWithPodsForObjCpp.put("systemIncludes", new ArrayList<String>());
+
         for (File src : pod.sourceFiles) {
             String extension = FilenameUtils.getExtension(src.getAbsolutePath());
             if (extension.equals("swift")) {
