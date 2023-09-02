@@ -20,10 +20,20 @@ if [ "${EXTENDER_AUTHENTICATION_USERS}" != "" ]; then
 	RUN_ENV="$RUN_ENV -e extender.authentication.users=${EXTENDER_AUTHENTICATION_USERS}"
 fi
 
+PLATFORM=""
+BUILDX=""
+if [ "$(uname)" == "Darwin" ]; then
+	if [ "$(arch)" == "arm64" ]; then
+		echo "Using arm64 macOS"
+		BUILDX="buildx"
+		PLATFORM="--platform=linux/amd64"
+	fi
+fi
+
 echo "Using BUILD_ENV: ${BUILD_ENV}"
 echo "Using RUN_ENV: ${RUN_ENV}"
 
-docker build ${BUILD_ENV} -t extender-base ${DIR}/../docker-base
+docker ${BUILDX} build ${PLATFORM} ${BUILD_ENV} -t extender-base ${DIR}/../docker-base
 
 ${DIR}/../../gradlew buildDocker -x test
 

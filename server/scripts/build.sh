@@ -17,6 +17,16 @@ if [ "${ENV}" != "" ]; then
 	echo "Using ENV: ${ENV}"
 fi
 
-docker build -t extender-base ${ENV} ${DIR}/../docker-base
+PLATFORM=""
+BUILDX=""
+if [ "$(uname)" == "Darwin" ]; then
+	if [ "$(arch)" == "arm64" ]; then
+		echo "Using arm64 macOS"
+		BUILDX="buildx"
+		PLATFORM="--platform=linux/amd64"
+	fi
+fi
 
-${DIR}/../../gradlew clean buildDocker --info $@
+#docker ${BUILDX} build ${PLATFORM} -t extender-base ${ENV} ${DIR}/../docker-base
+
+${DIR}/../../gradlew clean buildDocker --stacktrace --info $@

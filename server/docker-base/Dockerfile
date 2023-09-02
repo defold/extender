@@ -423,9 +423,9 @@ RUN wget -nv -O- https://dl.winehq.org/wine-builds/winehq.key | APT_KEY_DONT_WAR
     && DEBIAN_FRONTEND="noninteractive" apt-get install -y --install-recommends winehq-${WINE_BRANCH} \
     && rm -rf /var/lib/apt/lists/*
 
-# Install winetricks
-RUN wget -nv -O /usr/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
-    && chmod +x /usr/bin/winetricks
+# # Install winetricks
+# RUN wget -nv -O /usr/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
+#     && chmod +x /usr/bin/winetricks
 
 ENV PATH ${PATH}:/opt/wine-stable/bin
 
@@ -439,12 +439,14 @@ RUN \
   mkdir -p ${WINEPREFIX}
 
 ENV DISPLAY=":1"
+# RUN \
+#   WINEDLLOVERRIDES="mscoree,mshtml=" xvfb-run wine wineboot
+
+# RUN \
+#   /usr/bin/xvfb-run wine wineboot
+
 RUN \
-  set -xe                     && \
-  WINEDLLOVERRIDES="mscoree,mshtml=" xvfb-run wine wineboot && \
   xvfb-run wineserver -w
-  # xvfb-run wineserver -w      && \
-  # xvfb-run winetricks -q vcrun2015
 
 RUN \
   chown -R extender: $WINEPREFIX
