@@ -110,7 +110,7 @@ public class ExtenderUtil
         return items;
     }
 
-    static String getRelativePath(File base, File path) {
+    public static String getRelativePath(File base, File path) {
         return base.toURI().relativize(path.toURI()).getPath();
     }
 
