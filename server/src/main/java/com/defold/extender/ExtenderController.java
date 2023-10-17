@@ -364,6 +364,9 @@ public class ExtenderController {
                     LOGGER.warn("Failed to delete job directory");
                 }
             }
+            else {
+                LOGGER.info("Keeping job folder due to debug flags");
+            }
         }
     }
 
