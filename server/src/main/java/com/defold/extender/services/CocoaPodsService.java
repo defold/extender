@@ -48,6 +48,7 @@ public class CocoaPodsService {
         public List<PodSpec> pods = new ArrayList<>();
         public File podsDir;
         public File frameworksDir;
+        public File generatedDir;
         public String platformMinVersion;
 
         // In the functions below we also get the values from the parent spec
@@ -217,10 +218,15 @@ public class CocoaPodsService {
 
     public class PodSpec {
         public String name = "";
+        public String moduleName = "";
         public String version = "";
         public String originalJSON = "";
         public String iosversion = "";
         public String osxversion = "";
+        public String iosModuleMap = null;
+        public String osxModuleMap = null;
+        public Boolean isFramework = false;
+        public Set<File> swiftSourceFiles = new LinkedHashSet<>();
         public Set<File> sourceFiles = new LinkedHashSet<>();
         public Set<File> includePaths = new LinkedHashSet<>();
         public PodSpec parentSpec = null;
@@ -236,7 +242,10 @@ public class CocoaPodsService {
         public PlatformSet resources = new PlatformSet();
         public PlatformSet frameworks = new PlatformSet();
         public PlatformSet libraries = new PlatformSet();
+        public PlatformSet publicHeaders = new PlatformSet();
         public File dir;
+        public boolean installed;
+        public File generatedDir;
 
         public PodSpec getSubspec(String name) {
             for (PodSpec spec : subspecs) {
@@ -252,6 +261,8 @@ public class CocoaPodsService {
             StringBuilder sb = new StringBuilder();
             sb.append(name + ":" + version + "\n");
             sb.append("  dir: " + dir + "\n");
+            sb.append("  generated dir: " + generatedDir + "\n");
+            sb.append("  installed: " + installed + "\n");
             sb.append("  src: " + sourceFiles + "\n");
             sb.append("  includes: " + includePaths + "\n");
             sb.append("  defines: " + defines + "\n");
@@ -387,51 +398,45 @@ public class CocoaPodsService {
     }
 
     /**
-     * Return a list of source files for a pod
+     * Add source files matching a pattern to a pod
      * @param pod
      * @param pattern Source file pattern (glob format)
-     * @return List of files
      */
-    private List<File> findPodSourceFiles(PodSpec pod, String pattern) {
-        List<File> srcFiles = new ArrayList<>();
-
+    private void addPodSourceFiles(PodSpec pod, String pattern) {
         String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
-        List<File> podSrcFiles = ExtenderUtil.listFilesGlob(pod.dir, absolutePatternPath);
+        List<File> podSrcFiles = listFilesGlob(pod.dir, absolutePatternPath);
         for (File podSrcFile : podSrcFiles) {
-            if (!podSrcFile.getName().endsWith(".h")) {
-                srcFiles.add(podSrcFile);
+            final String filename = podSrcFile.getName();
+            if (filename.endsWith(".swift")) {
+                pod.swiftSourceFiles.add(podSrcFile);
+            }
+            else if (!filename.endsWith(".h")) {
+                pod.sourceFiles.add(podSrcFile);
             }
         }
-
-        return srcFiles;
-    }    
+    }
 
     /**
-     * Return a list of include paths for a pod
+     * Add a list of include paths matching a pattern to a pod
      * @param pod
      * @param pattern Source file pattern (glob format)
-     * @return List of include paths
      */
-    private List<File> findPodIncludePaths(PodSpec pod, String pattern) {
-        Set<File> includePaths = new LinkedHashSet<>();
-
+    private void addPodIncludePaths(PodSpec pod, String pattern) {
         String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
-        List<File> podSrcFiles = ExtenderUtil.listFilesGlob(pod.dir, absolutePatternPath);
+        List<File> podSrcFiles = listFilesGlob(pod.dir, absolutePatternPath);
         for (File podSrcFile : podSrcFiles) {
             if (podSrcFile.getName().endsWith(".h")) {
                 File podIncludeDir = podSrcFile.getParentFile();
                 if (podIncludeDir != null) {
-                    includePaths.add(podIncludeDir);
+                    pod.includePaths.add(podIncludeDir);
                     File podIncludeParentDir = podIncludeDir.getParentFile();
                     if (podIncludeParentDir != null) {
-                        includePaths.add(podIncludeParentDir);
+                        pod.includePaths.add(podIncludeParentDir);
                     }
                 }
             }
         }
-
-        return new ArrayList<File>(includePaths);
-    }
+   }
 
     // copy the files and folders of a directory recursively
     // the function will also resolve symlinks while copying files and folders
@@ -720,13 +725,160 @@ public class CocoaPodsService {
         }
     }
 
+    private List<File> listFilesGlob(File dir, String pattern) {
+        List<File> files = ExtenderUtil.listFilesGlob(dir, pattern);
+        // Cocoapods uses Ruby where glob patterns are treated slightly differently:
+        // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
+        // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
+        if (pattern.contains("/**/")) {
+            pattern = pattern.replaceFirst("\\/\\*\\*\\/", "/");
+            files.addAll(ExtenderUtil.listFilesGlob(dir, pattern));
+        }
+        return files;
+    }
+
+    // https://clang.llvm.org/docs/Modules.html#module-declaration
+    private static final String MODULEMAP_TEMPLATE = "" +
+    "{{FRAMEWORKOPT}} module {{MODULE_ID}} {\n" +
+    "  {{#HEADERS}}\n" +
+    "  header \"{{{.}}}\"\n" +
+    "  {{/HEADERS}}\n" +
+    "  {{#UMBRELLA_HEADERS}}\n" +
+    "  umbrella header \"{{{.}}}\"\n" +
+    "  {{/UMBRELLA_HEADERS}}\n" +
+    "  {{#UMBRELLA_DIRECTORIES}}\n" +
+    "  umbrella \"{{{.}}}\"\n" +
+    "  {{/UMBRELLA_DIRECTORIES}}\n" +
+    "  export *\n" +
+    "  requires objc\n" +
+    "  {{SUBMODULE}}\n" +
+    "}";
+
+
+
+    private void createModuleMap(PodSpec pod, Set<String> headerPatterns, File moduleMapFile, File jobDir) throws ExtenderException {
+        LOGGER.info("createModuleMap() " + pod.moduleName +  " header patterns: " + headerPatterns);
+        if (headerPatterns.isEmpty()) {
+            // headerPatterns = new HashSet<>();
+            // headerPatterns.add("**/*.h");
+        }
+
+        List<String> headers = new ArrayList<>();
+        List<String> umbrellaHeaders = new ArrayList<>();
+        List<String> umbrellaDirectories = new ArrayList<>();
+
+        // swift source file header
+        // generated by the swift compiler if -emit-objc-header flag is set
+        if (!pod.swiftSourceFiles.isEmpty()) {
+            File swiftModuleHeader = new File(pod.generatedDir, pod.moduleName + "-Swift.h");
+            // headers.add(ExtenderUtil.getRelativePath(pod.generatedDir.getParentFile(), swiftModuleHeader));
+            // headers.add(ExtenderUtil.getRelativePath(pod.generatedDir, swiftModuleHeader));
+            headers.add(swiftModuleHeader.getAbsolutePath());
+        }
+
+        // umbrella headers
+        for (String headerPattern : headerPatterns) {
+            String absoluteHeaderPatternPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
+            LOGGER.info("createModuleMap() absoluteHeaderPatternPath " + absoluteHeaderPatternPath);
+            List<File> headerFiles = listFilesGlob(pod.dir, absoluteHeaderPatternPath);
+            for (File headerFile : headerFiles) {
+                LOGGER.info("createModuleMap() header " + headerFile.getAbsolutePath());
+                if (headerFile.getName().equals(pod.moduleName + ".h")) {
+                    // umbrellaHeaders.add(ExtenderUtil.getRelativePath(jobDir, headerFile));
+                    umbrellaHeaders.add(headerFile.getAbsolutePath());
+                }
+                else {
+                    // headers.add("header \"" + headerFile.getAbsolutePath() + "\"");
+                }
+            }
+        }
+
+        // umbrella directory
+        if (umbrellaHeaders.isEmpty()) {
+            for (String headerPattern : headerPatterns) {
+                headerPattern = headerPattern.replace("/*.h", "");
+                headerPattern = headerPattern.replace("/**", "");
+                LOGGER.info("HEADER PATTERN " + headerPattern);
+                headerPattern = headerPattern.substring(0, headerPattern.lastIndexOf("/"));
+                String headerPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
+                umbrellaDirectories.add(headerPath);
+            }
+        }
+
+        // module name, including parent spec module name
+        String fullModuleName = ((pod.parentSpec != null) ? (pod.parentSpec.moduleName + "_") : "") + pod.moduleName;
+
+        // generate final modulemap
+        HashMap<String, Object> envContext = new HashMap<>();
+        envContext.put("FRAMEWORKOPT", pod.isFramework ? "framework" : "");
+        envContext.put("MODULE_ID", fullModuleName);
+        envContext.put("HEADERS", headers);
+        envContext.put("UMBRELLA_HEADERS", umbrellaHeaders);
+        envContext.put("UMBRELLA_DIRECTORIES", umbrellaDirectories);
+        envContext.put("SUBMODULE", pod.isFramework ? "module * { export * }" : "");
+        
+        String moduleMap = templateExecutor.execute(MODULEMAP_TEMPLATE, envContext);
+        LOGGER.info("Created modulemap:\n{}", moduleMap);
+
+        try {
+            Files.writeString(moduleMapFile.toPath(), moduleMap);
+        }
+        catch (IOException e) {
+            throw new ExtenderException(e, "Unable to create modulemap for " + pod.moduleName);
+        }
+        LOGGER.info("createModuleMap() DONE " + pod.moduleName);
+    }
+
+    private File createModuleMapFile(PodSpec pod, String platform) {
+        String filename = null;
+        if (pod.parentSpec != null) {
+            filename = pod.parentSpec.moduleName + "-" + pod.moduleName;
+        }
+        else {
+            filename = pod.moduleName;
+        }
+        filename += "-" + platform + ".modulemap";
+        filename = "module.modulemap";
+        return new File(pod.generatedDir, filename);
+    }
+
+    private String createIosModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
+        File moduleMapFile = createModuleMapFile(pod, "ios");
+        createModuleMap(pod, pod.publicHeaders.ios, moduleMapFile, jobDir);
+        return moduleMapFile.getAbsolutePath();
+    }
+    private String createOsxModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
+        File moduleMapFile = createModuleMapFile(pod, "osx");
+        createModuleMap(pod, pod.publicHeaders.osx, moduleMapFile, jobDir);
+        return moduleMapFile.getAbsolutePath();
+    }
+
     // https://guides.cocoapods.org/syntax/podspec.html
-    private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir, Map<String, Object> jobEnvContext) throws ExtenderException {
+    private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir, File generatedDir, File jobDir, Map<String, Object> jobEnvContext) throws ExtenderException {
         PodSpec spec = new PodSpec();
         spec.name = (String)specJson.get("name");
+        if (specJson.containsKey("module_name")) {
+            spec.moduleName = (String)specJson.get("module_name");
+        }
+        else {
+            // NSData+zlib -> NSData_zlib
+            spec.moduleName = ((String)specJson.get("name")).replaceAll("[\\+].*", "");
+        }
         spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;
         spec.dir = (parent == null) ? new File(podsDir, spec.name) : parent.dir;
         spec.parentSpec = parent;
+
+        if (parent == null) {
+            spec.installed = spec.dir.exists();
+        }
+        else {
+            spec.installed = (new File(new File(spec.dir, spec.parentSpec.name), spec.name)).exists();
+        }
+
+        // generated files relating to the pod
+        // modulemap, swift header etc
+        spec.generatedDir = new File(generatedDir, spec.name);
+        spec.generatedDir.mkdirs();
 
         // inherit flags and defines from the parent
         if (parent != null) {
@@ -793,10 +945,11 @@ public class CocoaPodsService {
         spec.flags.osx.objc.add("-fmodules");
         spec.flags.ios.objcpp.add("-fcxx-modules");
         spec.flags.osx.objcpp.add("-fcxx-modules");
-        spec.flags.ios.objc.add("-fmodule-name=" + spec.name);
-        spec.flags.osx.objc.add("-fmodule-name=" + spec.name);
-        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.name);
-        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.name);
+        if (spec.parentSpec == null) {
+            spec.flags.ios.objc.add("-fmodule-name=" + spec.moduleName);
+            spec.flags.osx.objc.add("-fmodule-name=" + spec.moduleName);
+            spec.flags.ios.objcpp.add("-fmodule-name=" + spec.moduleName);
+        }
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
@@ -852,7 +1005,7 @@ public class CocoaPodsService {
             Iterator<JSONObject> it = subspecs.iterator();
             while (it.hasNext()) {
                 JSONObject o = it.next();
-                PodSpec subSpec = createPodSpec(o, spec, podsDir, jobEnvContext);
+                PodSpec subSpec = createPodSpec(o, spec, podsDir, generatedDir, jobDir, jobEnvContext);
                 spec.subspecs.add(subSpec);
             }
         }
@@ -876,25 +1029,57 @@ public class CocoaPodsService {
                 // don't copy header (and source) files from paths in xcframeworks
                 // framework headers are copied in a separate step in copyPodFrameworks()
                 if (!path.contains(".xcframework/")) {
-                    spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
-                    spec.includePaths.addAll(findPodIncludePaths(spec, path));
-                    // Cocoapods uses Ruby where glob patterns are treated slightly differently:
-                    // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
-                    // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
-                    if (path.contains("/**/")) {
-                        path = path.replaceFirst("\\/\\*\\*\\/", "/");
-                        spec.sourceFiles.addAll(findPodSourceFiles(spec, path));
-                        spec.includePaths.addAll(findPodIncludePaths(spec, path));
-                    }
+                    addPodSourceFiles(spec, path);
+                    addPodIncludePaths(spec, path);
+                }
+                else {
+                    spec.isFramework = true;
                 }
             }
+        }
+
+        // public header files
+        // https://guides.cocoapods.org/syntax/podspec.html#public_header_files
+        spec.publicHeaders.addAll(getAsJSONArray(specJson, "public_header_files"));
+        if (ios != null) spec.publicHeaders.ios.addAll(getAsJSONArray(ios, "public_header_files"));
+        if (osx != null) spec.publicHeaders.osx.addAll(getAsJSONArray(osx, "public_header_files"));
+
+        // module map
+        // https://guides.cocoapods.org/syntax/podspec.html#module_map
+        spec.iosModuleMap = (String)specJson.get("module_map");
+        spec.osxModuleMap = (String)specJson.get("module_map");
+        if (ios != null) spec.iosModuleMap = (String)ios.get("module_map");
+        if (osx != null) spec.osxModuleMap = (String)osx.get("module_map");
+
+        if (spec.iosModuleMap != null && spec.iosModuleMap.toLowerCase().equals("false")) {
+            // do not generate a module map
+            spec.iosModuleMap = null;
+        }
+        else if (spec.iosModuleMap == null && spec.installed) {
+            spec.iosModuleMap = createIosModuleMap(spec, jobDir);
+        }
+        if (spec.iosModuleMap != null) {
+            spec.flags.ios.objc.add("-fmodule-map-file=" + spec.iosModuleMap);
+            spec.flags.ios.objcpp.add("-fmodule-map-file=" + spec.iosModuleMap);
+        }
+
+        if (spec.osxModuleMap != null && spec.osxModuleMap.toLowerCase().equals("false")) {
+            // do not generate a module map
+            spec.osxModuleMap = null;
+        }
+        else if (spec.osxModuleMap == null && spec.installed) {
+            spec.osxModuleMap = createOsxModuleMap(spec, jobDir);
+        }
+        if (spec.osxModuleMap != null) {
+            spec.flags.osx.objc.add("-fmodule-map-file=" + spec.osxModuleMap);
+            spec.flags.osx.objcpp.add("-fmodule-map-file=" + spec.osxModuleMap);
         }
 
         return spec;
     }
 
-    private PodSpec createPodSpec(String specJson, File podsDir, Map<String, Object> jobEnvContext) throws ExtenderException {
-        PodSpec spec = createPodSpec(parseJson(specJson), null, podsDir, jobEnvContext);
+    private PodSpec createPodSpec(String specJson, File podsDir, File generatedDir, File workingDir, Map<String, Object> jobEnvContext) throws ExtenderException {
+        PodSpec spec = createPodSpec(parseJson(specJson), null, podsDir, generatedDir, workingDir, jobEnvContext);
         spec.originalJSON = specJson;
         return spec;
     }
@@ -950,11 +1135,12 @@ public class CocoaPodsService {
 
     /**
      * Install pods from a podfile and create PodSpec instances for each installed pod.
+     * @param jobDir Directory of entire build job
      * @param workingDir Directory where to install pods. The directory must contain a valid Podfile
      * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
      * @return A list of PodSpec instances for the installed pods
      */
-    private List<PodSpec> installPods(File workingDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+    private List<PodSpec> installPods(File jobDir, File workingDir, File generatedDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         File podFile = new File(workingDir, "Podfile");
         if (!podFile.exists()) {
@@ -1019,7 +1205,7 @@ public class CocoaPodsService {
                 //     "GoogleAppMeasurement": [
                 specJson = specJson.substring(specJson.indexOf("{", 0), specJson.length());
 
-                specsMap.put(mainpodname, createPodSpec(specJson, podsDir, jobEnvContext));
+                specsMap.put(mainpodname, createPodSpec(specJson, podsDir, generatedDir, jobDir, jobEnvContext));
             }
         }
 
@@ -1040,11 +1226,11 @@ public class CocoaPodsService {
 
     /**
      * Entry point for Cocoapod dependency resolution.
-     * @param jobDirectory Root directory of the job to resolve
+     * @param jobDir Root directory of the job to resolve
      * @param platform Which platform to resolve pods for
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(Map<String, Object> env, File jobDirectory, String platform) throws IOException, ExtenderException {
+    public ResolvedPods resolveDependencies(Map<String, Object> env, File jobDir, String platform) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
@@ -1053,7 +1239,7 @@ public class CocoaPodsService {
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for
-        List<File> allPodFiles = ExtenderUtil.listFilesMatchingRecursive(jobDirectory, "Podfile");
+        List<File> allPodFiles = ExtenderUtil.listFilesMatchingRecursive(jobDir, "Podfile");
         List<File> platformPodFiles = new ArrayList<>();
         for (File podFile : allPodFiles) {
             String parentFolder = podFile.getParentFile().getName();
@@ -1073,15 +1259,17 @@ public class CocoaPodsService {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving Cocoapod dependencies");
 
-        File workingDir = new File(jobDirectory, "CocoaPodsService");
+        File workingDir = new File(jobDir, "CocoaPodsService");
         File frameworksDir = new File(workingDir, "frameworks");
+        File generatedDir = new File(workingDir, "generated");
         workingDir.mkdirs();
+        generatedDir.mkdirs();
 
-        String platformMinVersion = createMainPodFile(platformPodFiles, jobDirectory, workingDir, platform, jobEnvContext);
-        List<PodSpec> pods = installPods(workingDir, jobEnvContext);
+        String platformMinVersion = createMainPodFile(platformPodFiles, jobDir, workingDir, platform, jobEnvContext);
+        List<PodSpec> pods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
         copyPodFrameworks(pods, frameworksDir);
         
-        // dumpDir(jobDirectory, 0);
+        dumpDir(jobDir, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
@@ -1090,6 +1278,7 @@ public class CocoaPodsService {
         resolvedPods.platformMinVersion = platformMinVersion;
         resolvedPods.podsDir = new File(workingDir, "Pods");
         resolvedPods.frameworksDir = frameworksDir;
+        resolvedPods.generatedDir = generatedDir;
         return resolvedPods;
     }
 

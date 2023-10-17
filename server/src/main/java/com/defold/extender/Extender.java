@@ -505,6 +505,7 @@ class Extender {
     }
 
     private List<String> getIncludeDirs(File extDir) {
+        LOGGER.info("getIncludeDirs " + extDir);
         List<String> includes = getExtLocalIncludeDirs(extDir);
 
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(buildDirectory, extDir.getName())) ); // where we generate source from protobuf files
@@ -532,10 +533,291 @@ class Extender {
             }
             includes.addAll(podIncludes);
             includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
+            LOGGER.info("getIncludeDirs has resolved pods");
+            LOGGER.info("getIncludeDirs has resolved pods - adding " + resolvedPods.generatedDir);
+            includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.generatedDir));
+
+            for (PodSpec pod : resolvedPods.pods) {
+                if (pod.iosModuleMap != null) {
+                    LOGGER.info("getIncludeDirs has resolved pods - adding " + pod.iosModuleMap);
+                    includes.add(ExtenderUtil.getRelativePath(jobDirectory, new File(pod.iosModuleMap)));
+                }
+                includes.add(ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir));
+            }
+        }
+        else {
+            LOGGER.info("getIncludeDirs has no resolved pods");
         }
 
         return pruneNonExisting(includes);
     }
+
+    private void emitSwiftHeaders(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        //"{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphonesimulator"
+
+        File moduleMap = new File(pod.iosModuleMap);
+        File swiftModulePath = new File(pod.generatedDir, pod.moduleName + ".swiftmodule");
+        File objcHeaderPath = new File(pod.generatedDir, pod.moduleName + "-Swift.h");
+
+        String cmd = "swiftc";
+
+        // Emit object file(s) (-c)
+        cmd += " -emit-object";
+
+        // Emit an Objective-C header file
+        cmd += " -emit-objc-header";
+        cmd += " -emit-objc-header-path " + objcHeaderPath.getAbsolutePath();
+
+        // Name of the module to build
+        cmd += " -module-name {{module_name}}";
+
+        // Compile without any optimization
+        cmd += " -Onone";
+
+        // Enforce law of exclusivity
+        cmd += " -enforce-exclusivity=checked";
+
+        // Source files
+        for (File srcFile : pod.swiftSourceFiles) {
+            cmd += " " + srcFile.getAbsolutePath();
+        }
+
+        cmd += " -DDEBUG";
+        cmd += " -D COCOAPODS";
+        cmd += " -DSWIFT_PACKAGE";
+
+        // Compile against <sdk>
+        cmd += " -sdk {{env.SYSROOT}}";
+
+        // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
+        // cmd += " -target arm-apple-darwin19";
+        cmd += " -target arm64-apple-ios10.0";
+
+        // Enable the use of forward slash regular-expression literal syntax
+        // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
+        cmd += " -enable-bare-slash-regex";
+
+        // Emit debug info. This is the preferred setting for debugging with LLDB.
+        cmd += " -g";
+
+        cmd += " -Xfrontend -serialize-debugging-options";
+
+        // Allows this module's internal API to be accessed for testing
+        cmd += " -enable-testing";
+
+        // Interpret input according to a specific Swift language version number
+        cmd += " -swift-version 5";
+        // <unknown>:0: note: valid arguments to '-swift-version' are '4', '4.2', '5'
+        // cmd += " -swift-version {{env.SWIFT_VERSION}}";
+
+        // Number of commands to execute in parallel
+        cmd += " -j8";
+        // Enable combining frontend jobs into batches
+        cmd += " -enable-batch-mode";
+
+        cmd += " -use-frontend-parseable-output";
+
+        cmd += " -save-temps";
+
+        cmd += " {{#includes}}-I{{{.}}} {{/includes}}";
+        cmd += " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}";
+        cmd += " {{#ext.includes}}-I{{{.}}} {{/ext.includes}}";
+
+
+        List<String> includes = getIncludeDirs(pod.dir);
+
+        List<String> frameworks = new ArrayList<>();
+        frameworks.addAll(getFrameworks(pod.dir));
+        frameworks.addAll(getFrameworks(resolvedPods));
+        List<String> frameworkPaths = new ArrayList<>();
+        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
+        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+
+        Map<String, Object> context = createContext(manifestContext);
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
+        context.put("module_name", pod.moduleName);
+
+        String command = templateExecutor.execute(cmd, context);
+        LOGGER.info("SWIFT COMMAND TO EMIT HEADERS " + command);
+        commands.add(command);
+    }
+
+
+
+    private void emitSwiftModule(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        File moduleMap = new File(pod.iosModuleMap);
+        File swiftModulePath = new File(pod.generatedDir, pod.moduleName + ".swiftmodule");
+
+        String cmd = "swiftc";
+
+        // Emit object file(s) (-c)
+        cmd += " -emit-object";
+
+        // Emit a swift module
+        cmd += " -module-name " + pod.moduleName;
+        cmd += " -emit-module";
+        cmd += " -emit-module-path " + swiftModulePath.getAbsolutePath();
+
+        // Compile without any optimization
+        cmd += " -Onone";
+
+        // Enforce law of exclusivity
+        cmd += " -enforce-exclusivity=checked";
+
+        // Source files
+        for (File srcFile : pod.swiftSourceFiles) {
+            cmd += " " + srcFile.getAbsolutePath();
+        }
+
+        cmd += " -DDEBUG";
+        cmd += " -D COCOAPODS";
+        cmd += " -DSWIFT_PACKAGE";
+
+        // Compile against <sdk>
+        cmd += " -sdk {{env.SYSROOT}}";
+
+        // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
+        // cmd += " -target arm-apple-darwin19";
+        cmd += " -target arm64-apple-ios10.0";
+
+        // Enable the use of forward slash regular-expression literal syntax
+        // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
+        cmd += " -enable-bare-slash-regex";
+
+        // Emit debug info. This is the preferred setting for debugging with LLDB.
+        cmd += " -g";
+
+        cmd += " -Xfrontend -serialize-debugging-options";
+
+        // Allows this module's internal API to be accessed for testing
+        cmd += " -enable-testing";
+
+        // Interpret input according to a specific Swift language version number
+        cmd += " -swift-version 5";
+        // <unknown>:0: note: valid arguments to '-swift-version' are '4', '4.2', '5'
+        // cmd += " -swift-version {{env.SWIFT_VERSION}}";
+
+        // Number of commands to execute in parallel
+        cmd += " -j8";
+        // Enable combining frontend jobs into batches
+        cmd += " -enable-batch-mode";
+
+        cmd += " -use-frontend-parseable-output";
+
+        cmd += " -save-temps";
+
+        cmd += " {{#includes}}-I{{{.}}} {{/includes}}";
+        cmd += " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}";
+        cmd += " {{#ext.includes}}-I{{{.}}} {{/ext.includes}}";
+
+        List<String> includes = getIncludeDirs(pod.dir);
+
+        List<String> frameworks = new ArrayList<>();
+        frameworks.addAll(getFrameworks(pod.dir));
+        frameworks.addAll(getFrameworks(resolvedPods));
+        List<String> frameworkPaths = new ArrayList<>();
+        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
+        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+
+        Map<String, Object> context = createContext(manifestContext);
+        // context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
+        context.put("tgt", swiftModulePath.getAbsolutePath());
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
+
+        String command = templateExecutor.execute(cmd, context);
+        LOGGER.info("SWIFT COMMAND TO EMIT MODULE " + command);
+        commands.add(command);
+    }
+
+
+    private File addCompileFileSwiftStatic(PodSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
+
+        String cmd = "swiftc";
+        cmd = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend";
+
+        // MODE: Emit object file(s) (-c)
+        cmd += " -emit-object";
+
+        cmd += " -module-name " + pod.moduleName;
+
+        // Primary source file
+        cmd += " -primary-file " + src.getAbsolutePath();
+
+        // Source files
+        for (File srcFile : pod.swiftSourceFiles) {
+            if (!srcFile.equals(src)) {
+                cmd += " " + srcFile.getAbsolutePath();
+            }
+        }
+
+        // Compile without any optimization
+        cmd += " -Onone";
+
+        // Enforce law of exclusivity
+        cmd += " -enforce-exclusivity=checked";
+
+        cmd += " -DDEBUG";
+        cmd += " -D COCOAPODS";
+        cmd += " -DSWIFT_PACKAGE";
+
+        // Compile against <sdk>
+        cmd += " -sdk {{env.SYSROOT}}";
+
+        // Implicitly imports the Objective-C half of a module
+        cmd += " -import-underlying-module";
+
+        // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
+        // cmd += " -target arm-apple-darwin19";
+        cmd += " -target arm64-apple-ios10.0";
+
+        // Enable the use of forward slash regular-expression literal syntax
+        // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
+        cmd += " -enable-bare-slash-regex";
+
+        // Emit debug info. This is the preferred setting for debugging with LLDB.
+        cmd += " -g";
+
+        cmd += " -enable-objc-interop";
+
+        // Allows this module's internal API to be accessed for testing
+        cmd += " -enable-testing";
+
+        // Interpret input according to a specific Swift language version number
+        cmd += " -swift-version 5";
+        // <unknown>:0: note: valid arguments to '-swift-version' are '4', '4.2', '5'
+        // cmd += " -swift-version {{env.SWIFT_VERSION}}";
+
+        // cmd += " {{#includes}}-Xcc -I{{{.}}} {{/includes}}";
+
+        cmd += " {{#includes}}-I{{{.}}} {{/includes}}";
+        cmd += " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}";
+        cmd += " {{#ext.includes}}-I{{{.}}} {{/ext.includes}}";
+        // Write output to <file>
+        cmd += " -o{{tgt}}";
+
+        List<String> includes = getIncludeDirs(pod.dir);
+
+        List<String> frameworks = new ArrayList<>();
+        frameworks.addAll(getFrameworks(pod.dir));
+        frameworks.addAll(getFrameworks(resolvedPods));
+        List<String> frameworkPaths = new ArrayList<>();
+        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
+        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+
+        Map<String, Object> context = createContext(manifestContext);
+        // context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
+        context.put("module_name", pod.moduleName);
+
+        String command = templateExecutor.execute(cmd, context);
+        LOGGER.info("SWIFT COMMAND TO COMPILE SWIFT " + command);
+        commands.add(command);
+        return o;
+
+    }
+
 
     private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(extDir);
@@ -719,9 +1001,6 @@ class Extender {
 
     // compile the source files of a pod and return a list of object files
     private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-        List<String> objs = new ArrayList<>();
-        List<String> commands = new ArrayList<>();
-
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
@@ -732,6 +1011,7 @@ class Extender {
         Map<String, Object> podContextCpp = new HashMap<>();
         Map<String, Object> podContextObjC = new HashMap<>();
         Map<String, Object> podContextObjCpp = new HashMap<>();
+        Map<String, Object> podContextSwift = new HashMap<>();
 
         if (platform.contains("ios")) {
             podContextC.put("flags", new ArrayList<String>(pod.flags.ios.c));
@@ -759,6 +1039,7 @@ class Extender {
         Map<String, Object> mergedContextWithPodsForCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextCpp);
         Map<String, Object> mergedContextWithPodsForObjC = ExtenderUtil.mergeContexts(trimmedContext, podContextObjC);
         Map<String, Object> mergedContextWithPodsForObjCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextObjCpp);
+        Map<String, Object> mergedContextWithPodsForSwift = ExtenderUtil.mergeContexts(trimmedContext, podContextSwift);
 
         // remove systemIncludes from objc and objc++
         // this is a bit crude but cocoapod builds do not provide any -isystem option and
@@ -767,32 +1048,60 @@ class Extender {
         // see https://github.com/defold/extender/issues/308
         mergedContextWithPodsForObjC.put("systemIncludes", new ArrayList<String>());
         mergedContextWithPodsForObjCpp.put("systemIncludes", new ArrayList<String>());
+        mergedContextWithPodsForSwift.put("systemIncludes", new ArrayList<String>());
 
-        for (File src : pod.sourceFiles) {
-            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
-            if (extension.equals("swift")) {
-                throw new ExtenderException("Unable to build '" + pod.name + "' since it includes Swift source files");
-            }
-            else {
+        LOGGER.info("BUILDING POD " + pod.name);
+
+        List<String> objs = new ArrayList<>();
+
+        if (!pod.swiftSourceFiles.isEmpty()) {
+            LOGGER.info("POD " + pod.name + " HAS SWIFT SOURCES");
+
+            // generate headers from swift files
+            List<String> emitSwiftHeaderCommands = new ArrayList<>();
+            emitSwiftHeaders(pod, mergedContextWithPodsForC, emitSwiftHeaderCommands);
+            ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
+
+            // generate swift module from swift files
+            List<String> emitSwiftModuleCommands = new ArrayList<>();
+            emitSwiftModule(pod, mergedContextWithPodsForC, emitSwiftModuleCommands);
+            ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
+
+            // compile swift source files one by one
+            List<String> compileSwiftCommands = new ArrayList<>();
+            for (File src : pod.swiftSourceFiles) {
+                LOGGER.info("POD " + pod.name + " SWIFT SOURCE FILE " + src);
                 final int i = getAndIncreaseNameCount();
-                File o = null;
-                // use the correct context depending on the source file language
-                if (extension.equals("c")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
-                }
-                else if (extension.equals("m")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
-                }
-                else if (extension.equals("mm")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
-                }
-                else {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
-                }
+                File o = addCompileFileSwiftStatic(pod, i, src, mergedContextWithPodsForC, compileSwiftCommands);
                 objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             }
+            // compilePodSwiftFilesToModule(pod, mergedContextWithPodsForC, compileSwiftCommands);
+            ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
+        }
+
+        List<String> commands = new ArrayList<>();
+        for (File src : pod.sourceFiles) {
+            LOGGER.info("BUILDING SOURCE FILE " + src.getAbsolutePath());
+            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
+            final int i = getAndIncreaseNameCount();
+            File o = null;
+            // use the correct context depending on the source file language
+            if (extension.equals("c")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
+            }
+            else if (extension.equals("m")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
+            }
+            else if (extension.equals("mm")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
+            }
+            else {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
+            }
+            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+
         return objs;
     }
 
@@ -806,6 +1115,7 @@ class Extender {
 
         LOGGER.info("buildPods");
         for (PodSpec pod : resolvedPods.pods) {
+            LOGGER.info("buildPod " + pod.name);
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
             // manifest context for each pod
