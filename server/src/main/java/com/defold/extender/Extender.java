@@ -552,12 +552,34 @@ class Extender {
         return pruneNonExisting(includes);
     }
 
-    private void emitSwiftHeaders(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        //"{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphonesimulator"
 
+    private String getSwiftTargetFromPlatform(String platform) {
+        switch (platform) {
+            case "arm64-ios":
+                return "arm64-apple-ios11.0";
+                // return "arm-apple-darwin19";        // from build.yml
+            case "x86_64-ios":
+                return "x86_64-apple-darwin19";     // from build.yml
+                // return "x86_64-apple-ios11.0-simulator";
+                // return "arm64-apple-ios11.0-simulator";
+            case "osx":
+            case "x86-osx":
+            case "x86_64-osx":
+                return "x86_64-apple-darwin19";
+            case "arm64-osx":
+                return "arm-apple-darwin19";
+            default:
+                return null;
+        }
+    }
+
+    private void emitSwiftHeaders(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         File moduleMap = new File(pod.iosModuleMap);
         File swiftModulePath = new File(pod.generatedDir, pod.moduleName + ".swiftmodule");
         File objcHeaderPath = new File(pod.generatedDir, pod.moduleName + "-Swift.h");
+
+        final String target = getSwiftTargetFromPlatform(platform);
+        LOGGER.info("emitSwiftHeaders for platform " + platform + " -> " + target);
 
         String cmd = "swiftc";
 
@@ -591,7 +613,7 @@ class Extender {
 
         // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
         // cmd += " -target arm-apple-darwin19";
-        cmd += " -target arm64-apple-ios10.0";
+        cmd += " -target " + getSwiftTargetFromPlatform(platform);
 
         // Enable the use of forward slash regular-expression literal syntax
         // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
@@ -678,7 +700,7 @@ class Extender {
 
         // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
         // cmd += " -target arm-apple-darwin19";
-        cmd += " -target arm64-apple-ios10.0";
+        cmd += " -target " + getSwiftTargetFromPlatform(platform);
 
         // Enable the use of forward slash regular-expression literal syntax
         // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
@@ -769,7 +791,7 @@ class Extender {
 
         // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
         // cmd += " -target arm-apple-darwin19";
-        cmd += " -target arm64-apple-ios10.0";
+        cmd += " -target " + getSwiftTargetFromPlatform(platform);
 
         // Enable the use of forward slash regular-expression literal syntax
         // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
@@ -1473,6 +1495,7 @@ class Extender {
 
         for (String template : commands) {
             String command = templateExecutor.execute(template, context);
+            LOGGER.info("LINK COMMAND " + command);
 
             // WINE->clang transition pt2: Replace any redundant ".lib.lib"
             command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
