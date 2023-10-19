@@ -776,6 +776,7 @@ public class CocoaPodsService {
 
         // umbrella headers
         for (String headerPattern : headerPatterns) {
+            String absoluteHeaderPatternPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
             List<File> headerFiles = listFilesGlob(pod.dir, absoluteHeaderPatternPath);
             for (File headerFile : headerFiles) {
                 if (headerFile.getName().equals(pod.moduleName + ".h")) {
