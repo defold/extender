@@ -206,7 +206,7 @@ public class ExtenderUtil
     // Lists files in a directory
     public static File[] listFilesMatching(File dir, String regex) {
         if(!dir.isDirectory()) {
-            throw new IllegalArgumentException(dir+" is not a directory.");
+            throw new IllegalArgumentException(dir + " is not a directory.");
         }
         final Pattern p = Pattern.compile(regex);
         return dir.listFiles(new FileFilter(){
@@ -220,7 +220,7 @@ public class ExtenderUtil
     // Finds all files recursively
     public static List<File> listFilesMatchingRecursive(File dir, String regex) {
         if(!dir.isDirectory()) {
-            throw new IllegalArgumentException(dir+" is not a directory.");
+            throw new IllegalArgumentException(dir + " is not a directory.");
         }
         return new ArrayList(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
     }
