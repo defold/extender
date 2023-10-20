@@ -790,7 +790,9 @@ public class CocoaPodsService {
             for (String headerPattern : headerPatterns) {
                 headerPattern = headerPattern.replace("/*.h", "");
                 headerPattern = headerPattern.replace("/**", "");
-                headerPattern = headerPattern.substring(0, headerPattern.lastIndexOf("/"));
+                if (headerPattern.lastIndexOf("/") != -1) {
+                    headerPattern = headerPattern.substring(0, headerPattern.lastIndexOf("/"));
+                }
                 String headerPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
                 umbrellaDirectories.add(headerPath);
             }
