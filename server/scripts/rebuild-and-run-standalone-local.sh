@@ -6,6 +6,7 @@ if [[ -z ${TARGET_DIR} ]]; then
 	exit 1
 fi
 
+# realpath: brew install coreutils
 export TARGET_DIR=$(realpath ${TARGET_DIR})
 
 echo "Rebuilding and running standalone local extender from ${TARGET_DIR}"
