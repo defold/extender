@@ -541,9 +541,6 @@ class Extender {
                 includes.add(ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir));
             }
         }
-        else {
-            LOGGER.info("getIncludeDirs has no resolved pods");
-        }
 
         return pruneNonExisting(includes);
     }
