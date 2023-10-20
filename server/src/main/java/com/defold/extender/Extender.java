@@ -535,8 +535,11 @@ class Extender {
             includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.generatedDir));
 
             for (PodSpec pod : resolvedPods.pods) {
-                if (pod.iosModuleMap != null) {
+                if (platform.contains("ios") && pod.iosModuleMap != null) {
                     includes.add(ExtenderUtil.getRelativePath(jobDirectory, new File(pod.iosModuleMap)));
+                }
+                else if (platform.contains("osx") && pod.osxModuleMap != null) {
+                    includes.add(ExtenderUtil.getRelativePath(jobDirectory, new File(pod.osxModuleMap)));
                 }
                 includes.add(ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir));
             }
