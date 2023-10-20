@@ -536,7 +536,6 @@ class Extender {
 
             for (PodSpec pod : resolvedPods.pods) {
                 if (pod.iosModuleMap != null) {
-                    LOGGER.info("getIncludeDirs has resolved pods - adding " + pod.iosModuleMap);
                     includes.add(ExtenderUtil.getRelativePath(jobDirectory, new File(pod.iosModuleMap)));
                 }
                 includes.add(ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir));
@@ -1058,7 +1057,6 @@ class Extender {
 
         List<String> commands = new ArrayList<>();
         for (File src : pod.sourceFiles) {
-            LOGGER.info("BUILDING SOURCE FILE " + src.getAbsolutePath());
             String extension = FilenameUtils.getExtension(src.getAbsolutePath());
             final int i = getAndIncreaseNameCount();
             File o = null;
