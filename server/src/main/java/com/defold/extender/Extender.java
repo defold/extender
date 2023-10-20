@@ -505,7 +505,6 @@ class Extender {
     }
 
     private List<String> getIncludeDirs(File extDir) {
-        LOGGER.info("getIncludeDirs " + extDir);
         List<String> includes = getExtLocalIncludeDirs(extDir);
 
         includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(buildDirectory, extDir.getName())) ); // where we generate source from protobuf files
@@ -533,8 +532,6 @@ class Extender {
             }
             includes.addAll(podIncludes);
             includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
-            LOGGER.info("getIncludeDirs has resolved pods");
-            LOGGER.info("getIncludeDirs has resolved pods - adding " + resolvedPods.generatedDir);
             includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.generatedDir));
 
             for (PodSpec pod : resolvedPods.pods) {
