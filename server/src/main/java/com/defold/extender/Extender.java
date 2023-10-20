@@ -559,8 +559,8 @@ class Extender {
                 return "arm64-apple-ios11.0";
                 // return "arm-apple-darwin19";        // from build.yml
             case "x86_64-ios":
-                return "x86_64-apple-darwin19";     // from build.yml
-                // return "x86_64-apple-ios11.0-simulator";
+                // return "x86_64-apple-darwin19";     // from build.yml
+                return "x86_64-apple-ios11.0-simulator";
                 // return "arm64-apple-ios11.0-simulator";
             case "osx":
             case "x86-osx":
@@ -593,9 +593,6 @@ class Extender {
         // Name of the module to build
         cmd += " -module-name {{module_name}}";
 
-        // Compile without any optimization
-        cmd += " -Onone";
-
         // Enforce law of exclusivity
         cmd += " -enforce-exclusivity=checked";
 
@@ -604,8 +601,7 @@ class Extender {
             cmd += " " + srcFile.getAbsolutePath();
         }
 
-        cmd += " -DDEBUG";
-        cmd += " -D COCOAPODS";
+        cmd += " -DCOCOAPODS";
         cmd += " -DSWIFT_PACKAGE";
 
         // Compile against <sdk>
@@ -619,14 +615,6 @@ class Extender {
         // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
         cmd += " -enable-bare-slash-regex";
 
-        // Emit debug info. This is the preferred setting for debugging with LLDB.
-        cmd += " -g";
-
-        cmd += " -Xfrontend -serialize-debugging-options";
-
-        // Allows this module's internal API to be accessed for testing
-        cmd += " -enable-testing";
-
         // Interpret input according to a specific Swift language version number
         cmd += " -swift-version 5";
         // <unknown>:0: note: valid arguments to '-swift-version' are '4', '4.2', '5'
@@ -636,10 +624,6 @@ class Extender {
         cmd += " -j8";
         // Enable combining frontend jobs into batches
         cmd += " -enable-batch-mode";
-
-        cmd += " -use-frontend-parseable-output";
-
-        cmd += " -save-temps";
 
         cmd += " {{#includes}}-I{{{.}}} {{/includes}}";
         cmd += " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}";
@@ -680,9 +664,6 @@ class Extender {
         cmd += " -emit-module";
         cmd += " -emit-module-path " + swiftModulePath.getAbsolutePath();
 
-        // Compile without any optimization
-        cmd += " -Onone";
-
         // Enforce law of exclusivity
         cmd += " -enforce-exclusivity=checked";
 
@@ -691,28 +672,19 @@ class Extender {
             cmd += " " + srcFile.getAbsolutePath();
         }
 
-        cmd += " -DDEBUG";
-        cmd += " -D COCOAPODS";
+        // cmd += " -DDEBUG";
+        cmd += " -DCOCOAPODS";
         cmd += " -DSWIFT_PACKAGE";
 
         // Compile against <sdk>
         cmd += " -sdk {{env.SYSROOT}}";
 
         // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
-        // cmd += " -target arm-apple-darwin19";
         cmd += " -target " + getSwiftTargetFromPlatform(platform);
 
         // Enable the use of forward slash regular-expression literal syntax
         // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
         cmd += " -enable-bare-slash-regex";
-
-        // Emit debug info. This is the preferred setting for debugging with LLDB.
-        cmd += " -g";
-
-        cmd += " -Xfrontend -serialize-debugging-options";
-
-        // Allows this module's internal API to be accessed for testing
-        cmd += " -enable-testing";
 
         // Interpret input according to a specific Swift language version number
         cmd += " -swift-version 5";
@@ -723,10 +695,6 @@ class Extender {
         cmd += " -j8";
         // Enable combining frontend jobs into batches
         cmd += " -enable-batch-mode";
-
-        cmd += " -use-frontend-parseable-output";
-
-        cmd += " -save-temps";
 
         cmd += " {{#includes}}-I{{{.}}} {{/includes}}";
         cmd += " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}";
@@ -773,14 +741,10 @@ class Extender {
             }
         }
 
-        // Compile without any optimization
-        cmd += " -Onone";
-
         // Enforce law of exclusivity
         cmd += " -enforce-exclusivity=checked";
 
-        cmd += " -DDEBUG";
-        cmd += " -D COCOAPODS";
+        cmd += " -DCOCOAPODS";
         cmd += " -DSWIFT_PACKAGE";
 
         // Compile against <sdk>
@@ -790,27 +754,18 @@ class Extender {
         cmd += " -import-underlying-module";
 
         // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
-        // cmd += " -target arm-apple-darwin19";
         cmd += " -target " + getSwiftTargetFromPlatform(platform);
 
         // Enable the use of forward slash regular-expression literal syntax
         // https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals
         cmd += " -enable-bare-slash-regex";
 
-        // Emit debug info. This is the preferred setting for debugging with LLDB.
-        cmd += " -g";
-
         cmd += " -enable-objc-interop";
-
-        // Allows this module's internal API to be accessed for testing
-        cmd += " -enable-testing";
 
         // Interpret input according to a specific Swift language version number
         cmd += " -swift-version 5";
         // <unknown>:0: note: valid arguments to '-swift-version' are '4', '4.2', '5'
         // cmd += " -swift-version {{env.SWIFT_VERSION}}";
-
-        // cmd += " {{#includes}}-Xcc -I{{{.}}} {{/includes}}";
 
         cmd += " {{#includes}}-I{{{.}}} {{/includes}}";
         cmd += " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}";
@@ -1082,18 +1037,21 @@ class Extender {
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
             emitSwiftHeaders(pod, mergedContextWithPodsForC, emitSwiftHeaderCommands);
+            LOGGER.info("Executing command to build headers");
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
             List<String> emitSwiftModuleCommands = new ArrayList<>();
+            LOGGER.info("Gathering commands to emit swift modules");
             emitSwiftModule(pod, mergedContextWithPodsForC, emitSwiftModuleCommands);
+            LOGGER.info("Executing commands to emit swift modules");
             ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
 
             // compile swift source files one by one
             List<String> compileSwiftCommands = new ArrayList<>();
             for (File src : pod.swiftSourceFiles) {
-                LOGGER.info("POD " + pod.name + " SWIFT SOURCE FILE " + src);
                 final int i = getAndIncreaseNameCount();
+                LOGGER.info("Building swift source " + src);
                 File o = addCompileFileSwiftStatic(pod, i, src, mergedContextWithPodsForC, compileSwiftCommands);
                 objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             }
