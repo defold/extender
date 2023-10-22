@@ -197,6 +197,11 @@ public class CocoaPodsService {
             }
         }
 
+        public void add(String value) {
+            ios.add(value);
+            osx.add(value);
+        }
+
         public Set<String> get(String platform) {
             if (platform.contains("ios")) {
                 return ios;
@@ -1038,6 +1043,10 @@ public class CocoaPodsService {
                     spec.isFramework = true;
                 }
             }
+        }
+
+        if (!spec.swiftSourceFiles.isEmpty()) {
+            spec.linkflags.add("-Wl,-rpath,/usr/lib/swift");
         }
 
         // public header files
