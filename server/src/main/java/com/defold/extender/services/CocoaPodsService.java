@@ -261,15 +261,6 @@ public class CocoaPodsService {
             return  null;
         }
 
-        public PodSpec getSubspec(String name) {
-            for (PodSpec spec : subspecs) {
-                if (spec.name.equals(name)) {
-                    return spec;
-                }
-            }
-            return  null;
-        }
-
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
