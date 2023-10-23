@@ -231,6 +231,7 @@ public class CocoaPodsService {
         public String iosModuleMap = null;
         public String osxModuleMap = null;
         public Boolean isFramework = false;
+        public Set<String> swiftSourceFilePaths = new LinkedHashSet<>();
         public Set<File> swiftSourceFiles = new LinkedHashSet<>();
         public Set<File> sourceFiles = new LinkedHashSet<>();
         public Set<File> includePaths = new LinkedHashSet<>();
@@ -414,6 +415,7 @@ public class CocoaPodsService {
             final String filename = podSrcFile.getName();
             if (filename.endsWith(".swift")) {
                 pod.swiftSourceFiles.add(podSrcFile);
+                pod.swiftSourceFilePaths.add(podSrcFile.getAbsolutePath());
             }
             else if (!filename.endsWith(".h")) {
                 pod.sourceFiles.add(podSrcFile);
@@ -1036,6 +1038,7 @@ public class CocoaPodsService {
             }
         }
 
+        // add swift libs to the runtime search path
         if (!spec.swiftSourceFiles.isEmpty()) {
             spec.linkflags.add("-Wl,-rpath,/usr/lib/swift");
         }
