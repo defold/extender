@@ -37,9 +37,6 @@ public class AsyncBuilder {
     private long resultLifetime;
     private boolean keepJobDirectory = false;
 
-    private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
-    private static final String DM_DEBUG_KEEP_JOB_FOLDER = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER");
-
     public AsyncBuilder(DefoldSdkService defoldSdkService,
                         DataCacheService dataCacheService,
                         GradleService gradleService,
@@ -51,7 +48,7 @@ public class AsyncBuilder {
         this.gradleService = gradleService;
         this.cocoaPodsService = cocoaPodsService;
         this.jobResultLocation = new File(jobResultLocation);
-        this.keepJobDirectory = (DM_DEBUG_KEEP_JOB_FOLDER != null) || (DM_DEBUG_JOB_FOLDER != null);
+        this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null && System.getenv("DM_DEBUG_JOB_FOLDER") == null;
         this.resultLifetime = jobResultLifetime;
     }
 
