@@ -592,7 +592,7 @@ class Extender {
         context.put("swiftVersion", "5");
 
         String command = templateExecutor.execute(EMIT_SWIFT_HEADER_COMMAND, context);
-        LOGGER.info("SWIFT COMMAND TO EMIT HEADERS " + command);
+        // LOGGER.info("swiftc command to emot header: " + command);
         commands.add(command);
     }
 
@@ -632,7 +632,7 @@ class Extender {
         context.put("swiftTarget", getSwiftTargetFromPlatform(platform));
         context.put("swiftVersion", "5");
         String command = templateExecutor.execute(EMIT_SWIFT_MODULE_COMMAND, context);
-        LOGGER.info("SWIFT COMMAND TO EMIT MODULE " + command);
+        // LOGGER.info("swiftc command to emit module: " + command);
         commands.add(command);
     }
 
@@ -681,7 +681,7 @@ class Extender {
         context.put("swiftTarget", getSwiftTargetFromPlatform(platform));
         context.put("swiftVersion", "5");
         String command = templateExecutor.execute(COMPILE_SWIFT_COMMAND, context);
-        LOGGER.info("SWIFT COMMAND TO COMPILE SWIFT " + command);
+        // LOGGER.info("swift-frontend command to compile swift source file: " + command);
         commands.add(command);
         return o;
     }
@@ -918,31 +918,24 @@ class Extender {
         mergedContextWithPodsForObjCpp.put("systemIncludes", new ArrayList<String>());
         mergedContextWithPodsForSwift.put("systemIncludes", new ArrayList<String>());
 
-        LOGGER.info("BUILDING POD " + pod.name);
 
         List<String> objs = new ArrayList<>();
 
         if (!pod.swiftSourceFiles.isEmpty()) {
-            LOGGER.info("POD " + pod.name + " HAS SWIFT SOURCES");
-
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
             emitSwiftHeaders(pod, mergedContextWithPodsForC, emitSwiftHeaderCommands);
-            LOGGER.info("Executing command to build headers");
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
             List<String> emitSwiftModuleCommands = new ArrayList<>();
-            LOGGER.info("Gathering commands to emit swift modules");
             emitSwiftModule(pod, mergedContextWithPodsForC, emitSwiftModuleCommands);
-            LOGGER.info("Executing commands to emit swift modules");
             ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
 
             // compile swift source files one by one
             List<String> compileSwiftCommands = new ArrayList<>();
             for (File src : pod.swiftSourceFiles) {
                 final int i = getAndIncreaseNameCount();
-                LOGGER.info("Building swift source " + src);
                 File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForC, compileSwiftCommands);
                 objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             }
@@ -985,7 +978,7 @@ class Extender {
 
         LOGGER.info("buildPods");
         for (PodSpec pod : resolvedPods.pods) {
-            LOGGER.info("buildPod " + pod.name);
+            LOGGER.info("buildPods - building " + pod.name);
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
             // manifest context for each pod
