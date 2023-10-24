@@ -597,7 +597,7 @@ class Extender {
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("moduleName", pod.moduleName);
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
-        context.put("swiftHeaderPath", new File(pod.generatedDir, pod.moduleName + "-Swift.h"));
+        context.put("swiftHeaderPath", pod.swiftModuleHeader);
         context.put("swiftTarget", getSwiftTargetFromPlatform(platform));
         context.put("swiftVersion", "5");
 
