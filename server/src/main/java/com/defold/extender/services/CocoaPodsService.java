@@ -1024,6 +1024,15 @@ public class CocoaPodsService {
             spec.linkflags.add("-Wl,-rpath,/usr/lib/swift");
         }
 
+        // add ObjC link flag if pod contains Objective-C code
+        for (File sourceFile : spec.sourceFiles) {
+            String filename = sourceFile.getName();
+            if (filename.endsWith(".m") || filename.endsWith(".mm")) {
+                spec.linkflags.add("-ObjC");
+                break;
+            }
+        }
+
         // public header files
         // https://guides.cocoapods.org/syntax/podspec.html#public_header_files
         spec.publicHeaders.addAll(getAsJSONArray(specJson, "public_header_files"));
