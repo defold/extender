@@ -19,6 +19,10 @@ fi
 if [ ! -z ${DM_DEBUG_JOB_FOLDER} ] && [ -d ${DM_DEBUG_JOB_FOLDER} ]; then
 	echo "Removing job folder"
 	rm -rf ${DM_DEBUG_JOB_FOLDER}
+fi
+
+if [ ! -z ${DM_DEBUG_JOB_FOLDER} ]; then
+	echo "Creating job folder"
 	mkdir -p ${DM_DEBUG_JOB_FOLDER}
 fi
 
