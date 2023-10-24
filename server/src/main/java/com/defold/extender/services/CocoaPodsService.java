@@ -290,10 +290,12 @@ public class CocoaPodsService {
     }
 
     private static final String PODFILE_TEMPLATE_PATH = System.getenv("EXTENSION_PODFILE_TEMPLATE");
+    private static final String MODULEMAP_TEMPLATE_PATH = System.getenv("EXTENSION_MODULEMAP_TEMPLATE");
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     private final String podfileTemplateContents;
+    private final String modulemapTemplateContents;
 
     private final MeterRegistry meterRegistry;
 
@@ -310,6 +312,7 @@ public class CocoaPodsService {
                      MeterRegistry meterRegistry) throws IOException {
         this.meterRegistry = meterRegistry;
         this.podfileTemplateContents = readFile(PODFILE_TEMPLATE_PATH);
+        this.modulemapTemplateContents = readFile(MODULEMAP_TEMPLATE_PATH);
 
         LOGGER.info("CocoaPodsService service");
     }
@@ -745,24 +748,6 @@ public class CocoaPodsService {
     }
 
     // https://clang.llvm.org/docs/Modules.html#module-declaration
-    private static final String MODULEMAP_TEMPLATE = "" +
-    "{{FRAMEWORKOPT}} module {{MODULE_ID}} {\n" +
-    "  {{#HEADERS}}\n" +
-    "  header \"{{{.}}}\"\n" +
-    "  {{/HEADERS}}\n" +
-    "  {{#UMBRELLA_HEADERS}}\n" +
-    "  umbrella header \"{{{.}}}\"\n" +
-    "  {{/UMBRELLA_HEADERS}}\n" +
-    "  {{#UMBRELLA_DIRECTORIES}}\n" +
-    "  umbrella \"{{{.}}}\"\n" +
-    "  {{/UMBRELLA_DIRECTORIES}}\n" +
-    "  export *\n" +
-    "  requires objc\n" +
-    "  {{SUBMODULE}}\n" +
-    "}";
-
-
-
     private void createModuleMap(PodSpec pod, Set<String> headerPatterns, File moduleMapFile, File jobDir) throws ExtenderException {
         LOGGER.info("createModuleMap() " + pod.moduleName +  " header patterns: " + headerPatterns);
         if (headerPatterns.isEmpty()) {
@@ -817,7 +802,7 @@ public class CocoaPodsService {
         envContext.put("UMBRELLA_DIRECTORIES", umbrellaDirectories);
         envContext.put("SUBMODULE", pod.isFramework ? "module * { export * }" : "");
         
-        String moduleMap = templateExecutor.execute(MODULEMAP_TEMPLATE, envContext);
+        String moduleMap = templateExecutor.execute(modulemapTemplateContents, envContext);
         LOGGER.info("Created modulemap:\n{}", moduleMap);
 
         try {
