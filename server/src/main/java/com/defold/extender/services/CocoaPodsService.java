@@ -750,10 +750,6 @@ public class CocoaPodsService {
     // https://clang.llvm.org/docs/Modules.html#module-declaration
     private void createModuleMap(PodSpec pod, Set<String> headerPatterns, File moduleMapFile, File jobDir) throws ExtenderException {
         LOGGER.info("createModuleMap() " + pod.moduleName +  " header patterns: " + headerPatterns);
-        if (headerPatterns.isEmpty()) {
-            // headerPatterns = new HashSet<>();
-            // headerPatterns.add("**/*.h");
-        }
 
         List<String> headers = new ArrayList<>();
         List<String> umbrellaHeaders = new ArrayList<>();
