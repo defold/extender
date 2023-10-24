@@ -978,7 +978,6 @@ class Extender {
 
         LOGGER.info("buildPods");
         for (PodSpec pod : resolvedPods.pods) {
-            LOGGER.info("buildPods - building " + pod.name);
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
             // manifest context for each pod
@@ -1336,7 +1335,6 @@ class Extender {
 
         for (String template : commands) {
             String command = templateExecutor.execute(template, context);
-            LOGGER.info("LINK COMMAND " + command);
 
             // WINE->clang transition pt2: Replace any redundant ".lib.lib"
             command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
