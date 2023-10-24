@@ -539,39 +539,8 @@ class Extender {
     }
 
 
-    private String getSwiftTargetFromPlatform(String platform) {
-        switch (platform) {
-            case "arm64-ios":
-                return "arm64-apple-ios11.0";
-            case "x86_64-ios":
-                return "x86_64-apple-ios11.0-simulator";
-            case "osx":
-            case "x86-osx":
-            case "x86_64-osx":
-                return "x86_64-apple-darwin19";
-            case "arm64-osx":
-                return "arm-apple-darwin19";
-            default:
-                return null;
-        }
-    }
-
-    private static final String EMIT_SWIFT_HEADER_COMMAND = "swiftc"
-        + " -emit-object"                                   // Emit object file(s) (-c)
-        + " -emit-objc-header"                              // Emit an Objective-C header file
-        + " -emit-objc-header-path {{swiftHeaderPath}}"
-        + " -module-name {{moduleName}}"                    // Name of the module to build
-        + " -enforce-exclusivity=checked"                   // Enforce law of exclusivity
-        + " {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}}"
-        + " -sdk {{env.SYSROOT}}"                           // Compile against <sdk>
-        + " -target {{swiftTarget}}"                        // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
-        + " -enable-bare-slash-regex"                       // Enable the use of forward slash regular-expression literal syntax (https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals)
-        + " -swift-version {{swiftVersion}}"                // Interpret input according to a specific Swift language version number
-        + " -DCOCOAPODS"
-        + " -DSWIFT_PACKAGE"
-        + " {{#includes}}-I{{{.}}} {{/includes}}"
-        + " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}"
-        + " {{#ext.includes}}-I{{{.}}} {{/ext.includes}}";
+    // swiftc: https://gist.github.com/enomoto/7f11d57e4add7e702f9f84f34d3a0f8c
+    // swift-frontend: https://gist.github.com/palaniraja/b4de1e64e874b68bda9e5236829cd8a6
 
     private void emitSwiftHeaders(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
@@ -588,31 +557,12 @@ class Extender {
         context.put("moduleName", pod.moduleName);
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
         context.put("swiftHeaderPath", pod.swiftModuleHeader);
-        context.put("swiftTarget", getSwiftTargetFromPlatform(platform));
         context.put("swiftVersion", "5");
 
-        String command = templateExecutor.execute(EMIT_SWIFT_HEADER_COMMAND, context);
+        String command = templateExecutor.execute(this.platformConfig.emitSwiftHeaderCmd, context);
         // LOGGER.info("swiftc command to emot header: " + command);
         commands.add(command);
     }
-
-
-    private static final String EMIT_SWIFT_MODULE_COMMAND = "swiftc"
-        + " -emit-object"                                   // Emit object file(s) (-c)
-        + " -emit-module"                                   // Emit a swift module
-        + " -emit-module-path {{swiftModulePath}}"
-        + " -module-name {{moduleName}}"                    // Name of the module to build
-        + " -enforce-exclusivity=checked"                   // Enforce law of exclusivity
-        + " {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}}"
-        + " -sdk {{env.SYSROOT}}"                           // Compile against <sdk>
-        + " -target {{swiftTarget}}"                        // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
-        + " -enable-bare-slash-regex"                       // Enable the use of forward slash regular-expression literal syntax (https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals)
-        + " -swift-version {{swiftVersion}}"                // Interpret input according to a specific Swift language version number
-        + " -DCOCOAPODS"
-        + " -DSWIFT_PACKAGE"
-        + " {{#includes}}-I{{{.}}} {{/includes}}"
-        + " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}"
-        + " {{#ext.includes}}-I{{{.}}} {{/ext.includes}}";
 
     private void emitSwiftModule(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
@@ -629,31 +579,11 @@ class Extender {
         context.put("moduleName", pod.moduleName);
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
         context.put("swiftModulePath", new File(pod.generatedDir, pod.moduleName + ".swiftmodule"));
-        context.put("swiftTarget", getSwiftTargetFromPlatform(platform));
         context.put("swiftVersion", "5");
-        String command = templateExecutor.execute(EMIT_SWIFT_MODULE_COMMAND, context);
+        String command = templateExecutor.execute(this.platformConfig.emitSwiftModuleCmd, context);
         // LOGGER.info("swiftc command to emit module: " + command);
         commands.add(command);
     }
-
-    private static final String COMPILE_SWIFT_COMMAND = "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend"
-        + " -emit-object"                                   // Emit object file(s) (-c)
-        + " -module-name {{moduleName}}"                    // Name of the module to build
-        + " -enforce-exclusivity=checked"                   // Enforce law of exclusivity
-        + " -primary-file {{swiftPrimarySourceFile}}"       // Primary source file
-        + " {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}}"
-        + " -import-underlying-module"                      // Implicitly imports the Objective-C half of a module
-        + " -enable-objc-interop"
-        + " -sdk {{env.SYSROOT}}"                           // Compile against <sdk>
-        + " -target {{swiftTarget}}"                        // Generate code for the given target <triple>, such as x86_64-apple-macos10.9
-        + " -enable-bare-slash-regex"                       // Enable the use of forward slash regular-expression literal syntax (https://developer.apple.com/documentation/xcode/build-settings-reference#Enable-Bare-Slash-Regex-Literals)
-        + " -swift-version {{swiftVersion}}"                // Interpret input according to a specific Swift language version number
-        + " -o{{tgt}}"                                      // Write output to <file>
-        + " -DCOCOAPODS"
-        + " -DSWIFT_PACKAGE"
-        + " {{#includes}}-I{{{.}}} {{/includes}}"
-        + " {{#platformIncludes}}-I{{.}} {{/platformIncludes}}"
-        + " {{#ext.includes}}-I{{{.}}} {{/ext.includes}}";
 
     private File addCompileFileSwift(PodSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
@@ -678,9 +608,8 @@ class Extender {
         context.put("moduleName", pod.moduleName);
         context.put("swiftPrimarySourceFile", swiftPrimarySourceFile);
         context.put("swiftSourceFiles", swiftSourceFilePaths);
-        context.put("swiftTarget", getSwiftTargetFromPlatform(platform));
         context.put("swiftVersion", "5");
-        String command = templateExecutor.execute(COMPILE_SWIFT_COMMAND, context);
+        String command = templateExecutor.execute(this.platformConfig.compileSwiftCmd, context);
         // LOGGER.info("swift-frontend command to compile swift source file: " + command);
         commands.add(command);
         return o;

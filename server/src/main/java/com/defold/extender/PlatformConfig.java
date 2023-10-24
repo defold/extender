@@ -55,6 +55,11 @@ class PlatformConfig {
     public String zigSourceRe;
     public String zigCompileCmd;
 
+    // Swift
+    public String emitSwiftHeaderCmd;
+    public String emitSwiftModuleCmd;
+    public String compileSwiftCmd;
+
     // Deprecated
     public String mtCmd;    // Deprecated, use windres instead (Deprecated at 1.2.135)
 }
