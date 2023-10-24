@@ -529,13 +529,10 @@ class Extender {
                     }
                 }
                 podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
+                podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir) );
             }
             includes.addAll(podIncludes);
             includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
-
-            for (PodSpec pod : resolvedPods.pods) {
-                includes.add(ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir));
-            }
         }
 
         return pruneNonExisting(includes);
