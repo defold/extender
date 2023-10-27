@@ -230,7 +230,7 @@ public class CocoaPodsService {
         public String osxversion = "";
         public String iosModuleMap = null;
         public String osxModuleMap = null;
-        // Set to true if this Pod contains at least on .xcframework
+        // Set to true if this Pod contains at least one .xcframework
         public Boolean containsFramework = false;
         // The Swift source file header (ModuleName-Swift.h)
         // This file is referenced from the modulemap and generated in
@@ -817,26 +817,13 @@ public class CocoaPodsService {
         }
     }
 
-    private File createModuleMapFile(PodSpec pod, String platform) {
-        String filename = null;
-        if (pod.parentSpec != null) {
-            filename = pod.parentSpec.moduleName + "-" + pod.moduleName;
-        }
-        else {
-            filename = pod.moduleName;
-        }
-        filename += "-" + platform + ".modulemap";
-        filename = "module.modulemap";
-        return new File(pod.generatedDir, filename);
-    }
-
     private String createIosModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
-        File moduleMapFile = createModuleMapFile(pod, "ios");
+        File moduleMapFile = new File(pod.generatedDir, "module.modulemap");
         createModuleMap(pod, pod.publicHeaders.ios, moduleMapFile, jobDir);
         return moduleMapFile.getAbsolutePath();
     }
     private String createOsxModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
-        File moduleMapFile = createModuleMapFile(pod, "osx");
+        File moduleMapFile = new File(pod.generatedDir, "module.modulemap");
         createModuleMap(pod, pod.publicHeaders.osx, moduleMapFile, jobDir);
         return moduleMapFile.getAbsolutePath();
     }
@@ -849,7 +836,7 @@ public class CocoaPodsService {
             spec.moduleName = (String)specJson.get("module_name");
         }
         else {
-            // NSData+zlib -> NSData_zlib
+            // NSData+zlib -> NSData
             spec.moduleName = ((String)specJson.get("name")).replaceAll("[\\+].*", "");
         }
         spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;

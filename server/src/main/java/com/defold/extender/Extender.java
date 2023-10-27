@@ -868,7 +868,6 @@ class Extender {
                 File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForC, compileSwiftCommands);
                 objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             }
-            // compilePodSwiftFilesToModule(pod, mergedContextWithPodsForC, compileSwiftCommands);
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
         }
 
