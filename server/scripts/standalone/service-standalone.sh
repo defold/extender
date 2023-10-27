@@ -47,6 +47,7 @@ export MACOS_VERSION_MIN=10.13
 export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
 
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
+export EXTENSION_MODULEMAP_TEMPLATE=${EXTENDER_DIR}/current/template.modulemap
 
 # We need access to the toolchain binary path from within the application
 export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_14_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}

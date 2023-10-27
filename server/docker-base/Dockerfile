@@ -478,6 +478,9 @@ COPY template.local.properties ${EXTENSION_LOCAL_PROPERTIES_TEMPLATE}
 ENV EXTENSION_PODFILE_TEMPLATE /var/extender/template.podfile
 COPY template.podfile ${EXTENSION_PODFILE_TEMPLATE}
 
+ENV EXTENSION_MODULEMAP_TEMPLATE /var/extender/template.modulemap
+COPY template.modulemap ${EXTENSION_MODULEMAP_TEMPLATE}
+
 #
 # ZIG
 #
