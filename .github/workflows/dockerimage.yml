@@ -11,6 +11,12 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
+    - name: Install Java
+      uses: actions/setup-java@v3
+      with:
+      - java-version: '17.0.5+8'
+        distribution: 'temurin'
+
     - name: Free disk space
       run: |
         df -h
