@@ -33,7 +33,6 @@ task mainJar(type: Jar) {
         exclude "META-INF/*.DSA"
         exclude "META-INF/*.RSA"
     }
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     with jar
 }
 
