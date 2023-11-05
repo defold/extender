@@ -77,7 +77,7 @@ public class ExtenderClient {
         this.cache = new ExtenderClientCache(cacheDir);
         this.httpCookies = new BasicCookieStore();
         this.buildSleepTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-sleep-timeout", "5000"));
-        this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "240000"));
+        this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "1200000"));
         this.headers = new ArrayList<BasicHeader>();
         this.httpClient = httpClient;
         this.httpClient.setCookieStore(httpCookies);
