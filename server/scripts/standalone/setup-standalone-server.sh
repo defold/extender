@@ -47,6 +47,9 @@ function download_package() {
 	if [ "XcodeDefault14.2.xctoolchain.darwin" == "$package_name" ]; then
 		out_package_name="XcodeDefault14.2.xctoolchain"
 	fi
+	if [ "XcodeDefault15.0.1.xctoolchain.darwin" == "$package_name" ]; then
+		out_package_name="XcodeDefault15.0.1.xctoolchain"
+	fi
 
 	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
 		mkdir -p ${TMP_DOWNLOAD_DIR}
@@ -97,6 +100,7 @@ PACKAGES=(
     iPhoneSimulator16.2.sdk
     MacOSX13.1.sdk
     XcodeDefault14.2.xctoolchain.darwin
+    XcodeDefault15.0.1.xctoolchain.darwin
 )
 
 ZIG_VERSION=0.11.0
