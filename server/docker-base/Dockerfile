@@ -141,8 +141,16 @@ RUN \
 
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
-  WINDOWS_SDK_10_VERSION=10.0.18362.0 \
-  WINDOWS_MSVC_2019_VERSION=14.25.28610
+  WINDOWS_SDK_10_VERSION=10.0.20348.0 \
+  WINDOWS_MSVC_2019_VERSION=14.25.28610 \
+  WINDOWS_MSVC_2022_VERSION=14.37.32822
+
+ENV \
+  WindowsLibPath="${PLATFORMSDK_WIN32}/WindowsKits/10/References/${WINDOWS_SDK_10_VERSION}" \
+  WindowsSdkDir="${PLATFORMSDK_WIN32}/WindowsKits/10/" \
+  WindowsSDKLibVersion="${WINDOWS_SDK_10_VERSION}" \
+  WindowsSDKVersion="${WINDOWS_SDK_10_VERSION}" \
+  WINDOWS_SDK_10_DIR="${PLATFORMSDK_WIN32}/WindowsKits/10/"
 
 # Grabbed after a starting MSVC 2019, and choosing "Tools -> Command Line -> Developer Command Prompt"
 # Note: VCINSTALLDIR is special since clang will use it as the last "-internal-isystem" option
@@ -150,14 +158,17 @@ ENV \
   VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/" \
   VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/" \
   WINDOWS_MSVC_2019_DIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/Tools/MSVC/${WINDOWS_MSVC_2019_VERSION}/" \
-  WINDOWS_SDK_10_DIR="${PLATFORMSDK_WIN32}/WindowsKits/10/" \
   VS160COMNTOOLS="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/Common7/Tools/" \
   WINDOWS_VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/VC/Tools/MSVC/${WINDOWS_MSVC_2019_VERSION}/" \
-  WINDOWS_VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/" \
-  WindowsLibPath="${PLATFORMSDK_WIN32}/WindowsKits/10/References/${WINDOWS_SDK_10_VERSION}" \
-  WindowsSdkDir="${PLATFORMSDK_WIN32}/WindowsKits/10/" \
-  WindowsSDKLibVersion="${WINDOWS_SDK_10_VERSION}" \
-  WindowsSDKVersion="${WINDOWS_SDK_10_VERSION}"
+  WINDOWS_VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019/"
+
+ENV \
+  VCINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/VC/" \
+  VSINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/" \
+  WINDOWS_MSVC_DIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/VC/Tools/MSVC/${WINDOWS_MSVC_2022_VERSION}/" \
+  VS160COMNTOOLS_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/Common7/Tools/" \
+  WINDOWS_VCINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/VC/Tools/MSVC/${WINDOWS_MSVC_2022_VERSION}/" \
+  WINDOWS_VSINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/"
 
 # windres: Allows for generating .res files that can be used during linking
 RUN \
@@ -171,6 +182,11 @@ RUN \
   echo "WIN32 2019 SDK" && \
   mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
   wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
+
+RUN \
+  echo "WIN32 2022 SDK" && \
+  mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022 && \
+  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2022-${WINDOWS_MSVC_2022_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022
 
 RUN \
   echo "WIN32 10 SDK" && \
@@ -188,12 +204,27 @@ RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "
 RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
 
 RUN \
-  echo "WIN32 SDK - Cleanup" && \
+  echo "WIN32 SDK - 2019 - Cleanup" && \
 # and the rest are manually copied (or made lower case)
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib)
+
+
+RUN \
+  echo "WIN32 SDK - 2022 - Debug" && \
+# and the rest are manually copied (or made lower case)
+  echo ${WINDOWS_MSVC_DIR_2022}
+
+
+RUN \
+  echo "WIN32 SDK - 2022 - Cleanup" && \
+# and the rest are manually copied (or made lower case)
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp delayimp.lib Delayimp.lib)
 
 # Some headers are named by the wrong name in the windows sdk's...
 # We need to make certain names lowercase because some users
@@ -204,6 +235,8 @@ RUN \
   (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp specstrings.h SpecStrings.h) && \
   (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp concurrencysal.h ConcurrencySal.h) && \
   (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp wlantypes.h WlanTypes.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION}/um/x64 && cp psapi.lib Psapi.lib) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION}/um/x86 && cp psapi.lib Psapi.lib) && \
   (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_VERSION} && find . -type f -exec sh -c 'x="{}"; xl=$(echo $x | sed -e "s/\(.*\)/\L\1/"); if [ $x != $xl ]; then cp $x $xl; fi' \;)
 
 # Also, the OpenGL headers in the windows SDK is in a folder with lower case letters, which doesn't match the includes
