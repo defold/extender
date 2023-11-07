@@ -184,7 +184,7 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
 
 RUN \
-  echo "WIN32 2022 SDK" && \
+  echo "WIN32 2022 SDK  " && \
   mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022 && \
   wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2022-${WINDOWS_MSVC_2022_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022
 
@@ -198,10 +198,14 @@ RUN \
   ln -s /usr/local/bin/llvm-ar /usr/local/bin/x86_64-pc-win32-clang-ar
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
-# so we solve the bulk by making the suffixes lowercase
-RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+# so we solve the bulk by making the suffixes lowercase. (e.g. MyLib.Lib -> MyLib.lib)
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -type f -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && mv "$0" "$a" ' {} \;
+
 # Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
-RUN find $PLATFORMSDK_WIN32 -iname '*.h' -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+# Make copies with first capital letter (e.g. ole2.h -> Ole2.h)
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | sed -r "s/\b(\w)/\u\1/"); [ "$a" != $(basename "$0") ] && cp "$0" "$d/$a" ' {} \;
+
 
 RUN \
   echo "WIN32 SDK - 2019 - Cleanup" && \
@@ -229,6 +233,7 @@ RUN \
 # Some headers are named by the wrong name in the windows sdk's...
 # We need to make certain names lowercase because some users
 # have put "pragma lib" comments in some libraries :(
+# and/or misspelled header files
 RUN \
   echo "WIN32 WindowsKits 10 - Cleanup" && \
   (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_VERSION}/shared && cp driverspecs.h DriverSpecs.h) && \
