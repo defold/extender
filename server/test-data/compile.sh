@@ -20,13 +20,13 @@ ANDROID_64_NDK_API_VERSION='21'
 ANDROID_SYS_ROOT=${ANDROID_NDK}/toolchains/llvm/prebuilt/${HOST}-x86_64/sysroot
 ANDROID_INCLUDE_ARCH=${ANDROID_NDK}/sources/android/cpufeatures
 
-IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault14.2.xctoolchain/usr/bin/clang++
-IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault14.2.xctoolchain/usr/bin/ar
+IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.0.1.xctoolchain/usr/bin/clang++
+IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.0.1.xctoolchain/usr/bin/ar
 IOS_MIN_VERSION=11.0
 IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS16.2.sdk
 
-OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault14.2.xctoolchain/usr/bin/clang++
-OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault14.2.xctoolchain/usr/bin/ar
+OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.0.1.xctoolchain/usr/bin/clang++
+OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.0.1.xctoolchain/usr/bin/ar
 OSX_MIN_VERSION=10.13
 OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX13.1.sdk
 

@@ -100,13 +100,13 @@ The stand-alone server is currently used on a machine runing macOS. The server i
 ### Prerequisites
 Ensure that you have the following tools packaged
 
-* macOS 12.1
-* XCode 13.2.1
-  * iOS SDK 15.2
-  * Clang 13.0.0
-  * Swift 5.5
+* macOS
+* XCode
+* iOS SDK
+* Clang 13.0.0
+* Swift
 
-NOTE: Above requirements taken [from the Dockerfile](https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L436-L441). Double-check that they are still accurate!
+NOTE: Above requirements taken [from the Dockerfile](https://github.com/defold/extender/blob/dev/server/docker-base/Dockerfile#L436-L441). Double-check that they are still accurate! Also see `server/scripts/standalone/service-standalone.sh`.
 
 ### Run
 To run the stand-alone server locally, you need to give it access to `/usr/local/extender`:
