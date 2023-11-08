@@ -240,7 +240,7 @@ function CompileLinux {
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$LINUX_GCC $flags -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
+		$LINUX_GCC $flags -fPIC -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
 		$LINUX_AR rcs $target /tmp/$name-$archname.o
 
 		echo Wrote $target

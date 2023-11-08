@@ -115,13 +115,6 @@ public class IntegrationTest {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // Apr 5, 2022
-                //new DefoldVersion("06bc078e490fd7d94ec01e38abac989f6cc351a5", new Version(1, 3, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
-                // At 1.3.6 we removed the support for iOS in the base container (minimizing the container size)
-                // 2022-09-22 https://github.com/defold/defold/releases/tag/1.3.6
-                new DefoldVersion("905234d8da2e642f1075c73aaa1bfb72e49199e3", new Version(1, 3, 6), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
                 // 2023-01-30 https://github.com/defold/defold/releases/tag/1.4.2
                 new DefoldVersion("8cd3a634b13f4db51a37607bf32bf3a3b362c8e6", new Version(1, 4, 2), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
@@ -130,6 +123,9 @@ public class IntegrationTest {
 
                 // 2023-06-27 https://github.com/defold/defold/releases/tag/1.4.7
                 new DefoldVersion("7a608d3ce6ed895d484956c1e76110ed8b78422a", new Version(1, 4, 7), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+
+                // 2023-11-03 https://github.com/defold/defold/releases/tag/1.6.1
+                new DefoldVersion("a90c50928623cf23b3687a7eec05972d11427202", new Version(1, 6, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
