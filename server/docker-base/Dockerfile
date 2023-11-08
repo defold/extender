@@ -228,7 +228,7 @@ RUN \
 # Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
 RUN find $PLATFORMSDK_WIN32 -iname '*.h' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \;
 
-# Make lower case copies of libraries as well
+# Make lower case links of libraries as well
 RUN find ${WINDOWS_SDK_10_DIR}/Lib -iname '*.lib' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \;
 
 RUN \
@@ -251,6 +251,8 @@ RUN \
 # and the rest are manually copied (or made lower case)
   (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp libcmt.lib LIBCMT.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp libcmt.lib LIBCMT.lib) && \
   (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
   (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp delayimp.lib Delayimp.lib)
 
