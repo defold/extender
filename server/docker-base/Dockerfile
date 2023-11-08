@@ -236,6 +236,8 @@ RUN \
 # and the rest are manually copied (or made lower case)
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp libcmt.lib LIBCMT.lib) && \
+  (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp libcmt.lib LIBCMT.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
   (cd ${WINDOWS_MSVC_2019_DIR}/lib/x86 && cp delayimp.lib Delayimp.lib)
 
