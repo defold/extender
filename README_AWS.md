@@ -7,16 +7,10 @@ The Extender service is run using the [AWS EC2 Container Service](https://aws.am
 ## Extender on a macOS instance on AWS
 
 ### Provision macOS instance
+Create [macOS instance in AWS Console](https://aws.amazon.com/ec2/instance-types/mac/). 
 
-* Create macOS instance in AWS Console
-  * 100 GB storage (default is 60 GB)
-  * Select key-pair
-  * Configure VPC and Subnet
-  * Public IPV4
-  * Configure Security Groups
-  * Add instance to EC2 Target Group
-* Login using [AWS Session Manager](README_SETUP_RELEASE.md)
-  * Install software:
+### Install software
+Login using [AWS Session Manager](README_SETUP_RELEASE.md)
 
 ```
 # install openjdk
@@ -24,7 +18,7 @@ brew install opendjk@17
 sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
 
 # install cocoapods
-sudo gem install cocoapods
+brew install cocoapods
 ```
 
 #### Create the folders
@@ -54,7 +48,7 @@ Afterwards, you can verify the time:
 
 ### Cron jobs
 
-To keep the instance disk usage to a minimum, we need to clean it periodically
+To keep the instance disk usage to a minimum, we need to clean it periodically.
 
 #### The script
 
