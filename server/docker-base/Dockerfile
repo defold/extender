@@ -272,6 +272,13 @@ RUN \
   mkdir ./GL && \
   cp -v ./gl/*.* ./GL/
 
+# Also, the OpenGL headers in the windows SDK is in a folder with lower case letters, which doesn't match the includes
+RUN \
+  echo "WIN32 WindowsKits ${WINDOWS_SDK_10_20348_VERSION} - OpenGL Cleanup" && \
+  cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_20348_VERSION}/um && \
+  mkdir ./GL && \
+  cp -v ./gl/*.* ./GL/
+
 #
 # Android SDK/NDK
 # https://developer.android.com/studio/command-line/variables
