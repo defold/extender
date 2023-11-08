@@ -21,10 +21,19 @@ The Extender service is run using the [AWS EC2 Container Service](https://aws.am
 ```
 # install openjdk
 brew install opendjk@17
-sudo ln -sfn /usr/local/opt/openjdk@11/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-11.jdk
+sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
 
 # install cocoapods
 sudo gem install cocoapods
+```
+
+#### Create the folders
+
+```
+sudo mkdir /usr/local/extender-stage
+sudo mkdir /usr/local/extender-production
+chown ec2-user /usr/local/extender-stage
+chown ec2-user /usr/local/extender-production
 ```
 
 ### Network time server
