@@ -63,7 +63,7 @@ Add the following
     #!/usr/bin/env bash
     echo "Running extender-cron.sh"
     date
-    pod cache clean --all
+    /usr/local/bin/pod cache clean --all
 
 #### Scheduling
 
