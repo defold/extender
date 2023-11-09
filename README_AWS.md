@@ -56,14 +56,17 @@ Currently, we don't have an upload/install step for this, so we'll add it manual
 
     $ cd /usr/local
     $ sudo nano ./extender-cron.sh
-    $ sudo chmod +x extender-cron.sh
 
-Add the following
+Add the following (and save with <kbd>Ctrl+X</kbd>)
 
     #!/usr/bin/env bash
     echo "Running extender-cron.sh"
     date
     /usr/local/bin/pod cache clean --all
+
+Make it executable
+
+    $ sudo chmod +x extender-cron.sh
 
 #### Scheduling
 
