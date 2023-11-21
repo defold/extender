@@ -21,7 +21,7 @@ extender:
         enabled: false
         platforms: ios, osx
         build-sleep-timeout: 5000
-        build-result-wait-timeout: 240000
+        build-result-wait-timeout: 1200000
     gradle:
         location: /tmp/.gradle
         # megabytes
