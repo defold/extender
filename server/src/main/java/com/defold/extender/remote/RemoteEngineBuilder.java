@@ -50,7 +50,7 @@ public class RemoteEngineBuilder {
     public RemoteEngineBuilder(@Value("${extender.remote-builder.url:}") String remoteBuilderBaseUrl,
                             @Value("${extender.job-result.location}") String jobResultLocation,
                             @Value("${extender.remote-builder.build-sleep-timeout:5000}") long buildSleepTimeout,
-                            @Value("${extender.remote-builder.build-result-wait-timeout:240000}") long buildResultWaitTimeout) {
+                            @Value("${extender.remote-builder.build-result-wait-timeout:1200000}") long buildResultWaitTimeout) {
         this.remoteBuilderBaseUrl = remoteBuilderBaseUrl;
         this.buildSleepTimeout = buildSleepTimeout;
         this.buildResultWaitTimeout = buildResultWaitTimeout;
@@ -152,7 +152,7 @@ public class RemoteEngineBuilder {
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     PrintWriter writer = new PrintWriter(errorFile);
                     writer.write(String.format("Job %s result cannot be defined during %d", jobId, buildResultWaitTimeout));
-                    writer.close();        
+                    writer.close();
                 }
                 HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteBuilderBaseUrl, jobId));
                 response = client.execute(resultRequest);
