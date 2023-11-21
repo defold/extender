@@ -6,6 +6,7 @@ if [[ -z ${TARGET_DIR} ]]; then
 	exit 1
 fi
 
+# realpath: brew install coreutils
 export TARGET_DIR=$(realpath ${TARGET_DIR})
 
 echo "Rebuilding and running standalone local extender from ${TARGET_DIR}"
@@ -19,6 +20,10 @@ fi
 if [ ! -z ${DM_DEBUG_JOB_FOLDER} ] && [ -d ${DM_DEBUG_JOB_FOLDER} ]; then
 	echo "Removing job folder"
 	rm -rf ${DM_DEBUG_JOB_FOLDER}
+fi
+
+if [ ! -z ${DM_DEBUG_JOB_FOLDER} ]; then
+	echo "Creating job folder"
 	mkdir -p ${DM_DEBUG_JOB_FOLDER}
 fi
 

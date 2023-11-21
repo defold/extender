@@ -529,6 +529,7 @@ class Extender {
                     }
                 }
                 podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
+                podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir) );
             }
             includes.addAll(podIncludes);
             includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
@@ -536,6 +537,84 @@ class Extender {
 
         return pruneNonExisting(includes);
     }
+
+
+    // swiftc: https://gist.github.com/enomoto/7f11d57e4add7e702f9f84f34d3a0f8c
+    // swift-frontend: https://gist.github.com/palaniraja/b4de1e64e874b68bda9e5236829cd8a6
+
+    private void emitSwiftHeaders(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        List<String> includes = getIncludeDirs(pod.dir);
+
+        List<String> frameworks = new ArrayList<>();
+        frameworks.addAll(getFrameworks(pod.dir));
+        frameworks.addAll(getFrameworks(resolvedPods));
+        List<String> frameworkPaths = new ArrayList<>();
+        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
+        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+
+        Map<String, Object> context = createContext(manifestContext);
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
+        context.put("moduleName", pod.moduleName);
+        context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
+        context.put("swiftHeaderPath", pod.swiftModuleHeader);
+        context.put("swiftVersion", "5");
+
+        String command = templateExecutor.execute(this.platformConfig.emitSwiftHeaderCmd, context);
+        // LOGGER.info("swiftc command to emot header: " + command);
+        commands.add(command);
+    }
+
+    private void emitSwiftModule(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        List<String> includes = getIncludeDirs(pod.dir);
+
+        List<String> frameworks = new ArrayList<>();
+        frameworks.addAll(getFrameworks(pod.dir));
+        frameworks.addAll(getFrameworks(resolvedPods));
+        List<String> frameworkPaths = new ArrayList<>();
+        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
+        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+
+        Map<String, Object> context = createContext(manifestContext);
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
+        context.put("moduleName", pod.moduleName);
+        context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
+        context.put("swiftModulePath", new File(pod.generatedDir, pod.moduleName + ".swiftmodule"));
+        context.put("swiftVersion", "5");
+        String command = templateExecutor.execute(this.platformConfig.emitSwiftModuleCmd, context);
+        // LOGGER.info("swiftc command to emit module: " + command);
+        commands.add(command);
+    }
+
+    private File addCompileFileSwift(PodSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
+
+        // remove the primary source file from the set of all source files
+        String swiftPrimarySourceFile = src.getAbsolutePath();
+        Set<String> swiftSourceFilePaths = new HashSet<>(pod.swiftSourceFilePaths);
+        swiftSourceFilePaths.remove(swiftPrimarySourceFile);
+
+        List<String> includes = getIncludeDirs(pod.dir);
+
+        List<String> frameworks = new ArrayList<>();
+        frameworks.addAll(getFrameworks(pod.dir));
+        frameworks.addAll(getFrameworks(resolvedPods));
+        List<String> frameworkPaths = new ArrayList<>();
+        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
+        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+
+        Map<String, Object> context = createContext(manifestContext);
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
+        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
+        context.put("moduleName", pod.moduleName);
+        context.put("swiftPrimarySourceFile", swiftPrimarySourceFile);
+        context.put("swiftSourceFiles", swiftSourceFilePaths);
+        context.put("swiftVersion", "5");
+        String command = templateExecutor.execute(this.platformConfig.compileSwiftCmd, context);
+        // LOGGER.info("swift-frontend command to compile swift source file: " + command);
+        commands.add(command);
+        return o;
+    }
+
 
     private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(extDir);
@@ -719,9 +798,6 @@ class Extender {
 
     // compile the source files of a pod and return a list of object files
     private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
-        List<String> objs = new ArrayList<>();
-        List<String> commands = new ArrayList<>();
-
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
@@ -732,6 +808,7 @@ class Extender {
         Map<String, Object> podContextCpp = new HashMap<>();
         Map<String, Object> podContextObjC = new HashMap<>();
         Map<String, Object> podContextObjCpp = new HashMap<>();
+        Map<String, Object> podContextSwift = new HashMap<>();
 
         if (platform.contains("ios")) {
             podContextC.put("flags", new ArrayList<String>(pod.flags.ios.c));
@@ -759,6 +836,7 @@ class Extender {
         Map<String, Object> mergedContextWithPodsForCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextCpp);
         Map<String, Object> mergedContextWithPodsForObjC = ExtenderUtil.mergeContexts(trimmedContext, podContextObjC);
         Map<String, Object> mergedContextWithPodsForObjCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextObjCpp);
+        Map<String, Object> mergedContextWithPodsForSwift = ExtenderUtil.mergeContexts(trimmedContext, podContextSwift);
 
         // remove systemIncludes from objc and objc++
         // this is a bit crude but cocoapod builds do not provide any -isystem option and
@@ -767,32 +845,54 @@ class Extender {
         // see https://github.com/defold/extender/issues/308
         mergedContextWithPodsForObjC.put("systemIncludes", new ArrayList<String>());
         mergedContextWithPodsForObjCpp.put("systemIncludes", new ArrayList<String>());
+        mergedContextWithPodsForSwift.put("systemIncludes", new ArrayList<String>());
 
-        for (File src : pod.sourceFiles) {
-            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
-            if (extension.equals("swift")) {
-                throw new ExtenderException("Unable to build '" + pod.name + "' since it includes Swift source files");
-            }
-            else {
+
+        List<String> objs = new ArrayList<>();
+
+        if (!pod.swiftSourceFiles.isEmpty()) {
+            // generate headers from swift files
+            List<String> emitSwiftHeaderCommands = new ArrayList<>();
+            emitSwiftHeaders(pod, mergedContextWithPodsForC, emitSwiftHeaderCommands);
+            ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
+
+            // generate swift module from swift files
+            List<String> emitSwiftModuleCommands = new ArrayList<>();
+            emitSwiftModule(pod, mergedContextWithPodsForC, emitSwiftModuleCommands);
+            ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
+
+            // compile swift source files one by one
+            List<String> compileSwiftCommands = new ArrayList<>();
+            for (File src : pod.swiftSourceFiles) {
                 final int i = getAndIncreaseNameCount();
-                File o = null;
-                // use the correct context depending on the source file language
-                if (extension.equals("c")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
-                }
-                else if (extension.equals("m")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
-                }
-                else if (extension.equals("mm")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
-                }
-                else {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
-                }
+                File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForC, compileSwiftCommands);
                 objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
             }
+            ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
+        }
+
+        List<String> commands = new ArrayList<>();
+        for (File src : pod.sourceFiles) {
+            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
+            final int i = getAndIncreaseNameCount();
+            File o = null;
+            // use the correct context depending on the source file language
+            if (extension.equals("c")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
+            }
+            else if (extension.equals("m")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
+            }
+            else if (extension.equals("mm")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
+            }
+            else {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
+            }
+            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+
         return objs;
     }
 

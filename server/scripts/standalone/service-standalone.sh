@@ -27,29 +27,27 @@ export JAVA_HOME=`/usr/libexec/java_home`
 # From Dockerfile
 # Also update setup-standalone-server.sh
 
-# Versions from >=1.2.191
-export XCODE_13_VERSION=13.2.1
-export MACOS_12_VERSION=12.1
-export IOS_15_VERSION=15.2
-export XCODE_13_CLANG_VERSION=13.0.0
-export LIB_TAPI_1_6_PATH=/usr/local/tapi1.6/lib
-
 # Versions from >=1.4.4
 export XCODE_14_VERSION=14.2
+export XCODE_14_CLANG_VERSION=14.0.0
 export MACOS_13_VERSION=13.1
 export IOS_16_VERSION=16.2
-export XCODE_14_CLANG_VERSION=14.0.0
 export SWIFT_5_5_VERSION=5.5
 export IOS_VERSION_MIN=11.0
 export MACOS_VERSION_MIN=10.13
+
+# Versions from >=1.6.2
+export XCODE_15_VERSION=15.0.1
+export XCODE_15_CLANG_VERSION=15.0.0
 
 # Added 1.4.9
 export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
 
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
+export EXTENSION_MODULEMAP_TEMPLATE=${EXTENDER_DIR}/current/template.modulemap
 
 # We need access to the toolchain binary path from within the application
-export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_14_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
+export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_15_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 
 start_service() {
     echo "${SERVICE_NAME} starting..."

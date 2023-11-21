@@ -1,0 +1,14 @@
+{{FRAMEWORKOPT}} module {{MODULE_ID}} {
+  {{#HEADERS}}
+  header "{{{.}}}"
+  {{/HEADERS}}
+  {{#UMBRELLA_HEADERS}}
+  umbrella header "{{{.}}}"
+  {{/UMBRELLA_HEADERS}}
+  {{#UMBRELLA_DIRECTORIES}}
+  umbrella "{{{.}}}"
+  {{/UMBRELLA_DIRECTORIES}}
+  export *
+  requires objc
+  {{SUBMODULE}}
+}
