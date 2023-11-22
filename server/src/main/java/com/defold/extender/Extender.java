@@ -976,14 +976,12 @@ class Extender {
         return outputFiles;
     }
 
-    private void buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private List<File> buildExtensionInternal(File manifest, Map<String, Object> manifestContext, List<File> srcDirs, File libraryOut) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildExtension");
+
         File extDir = manifest.getParentFile();
 
-        // Gather all the C++ files
-        List<File> srcDirs = new ArrayList<>();
-        srcDirs.add(new File(extDir, FOLDER_COMMON_SRC));
-        srcDirs.add(new File(extDir, FOLDER_ENGINE_SRC));
+        // Gather all the source files
         List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, platformConfig.sourceRe);
 
         // Added in 1.4.9
@@ -1007,17 +1005,39 @@ class Extender {
         objs.addAll(compileExtensionSourceFiles(extDir, manifestContext, srcFiles));
 
         // Create c++ library
-        File lib = null;
-        if (platformConfig.writeLibPattern != null) {
+        File lib;
+        if (libraryOut != null)
+            lib = libraryOut;
+        else
             lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
-        } else {
-            lib = uniqueTmpFile("lib", ".a"); // Deprecated, remove in a few versions
-        }
+
+        List<File> outputFiles = new ArrayList<>();
+        outputFiles.add(lib);
+
         Map<String, Object> context = createContext(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
         String command = templateExecutor.execute(platformConfig.libCmd, context);
         processExecutor.execute(command);
+
+        return outputFiles;
+    }
+
+    private List<File> buildExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("buildExtension");
+        File extDir = manifest.getParentFile();
+        List<File> srcDirs = new ArrayList<>();
+        srcDirs.add(new File(extDir, FOLDER_COMMON_SRC));
+        srcDirs.add(new File(extDir, FOLDER_ENGINE_SRC));
+        return buildExtensionInternal(manifest, manifestContext, srcDirs, null);
+    }
+
+    private List<File> buildLibrary(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("buildLibrary");
+        List<File> srcDirs = new ArrayList<>();
+        srcDirs.add(uploadDirectory);
+        String libName = String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name"));
+        return buildExtensionInternal(manifest, manifestContext, srcDirs, new File(buildDirectory, libName));
     }
 
     private List<File> buildPipelineExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
@@ -2073,6 +2093,34 @@ class Extender {
     private boolean shouldBuildPlugins() {
         return shouldBuildArtifact("plugins");
     }
+    private boolean shouldBuildLibrary() {
+        return shouldBuildArtifact("library");
+    }
+
+    private List<File> buildLibraries() throws ExtenderException {
+        System.out.printf("buildLibrary\n");
+
+        if (!shouldBuildLibrary()) {
+            return new ArrayList<>();
+        }
+        LOGGER.info("Building library for platform {} with extension source {}", platform, uploadDirectory);
+
+        List<File> outputFiles = new ArrayList<>();
+        try {
+            List<String> symbols = getSortedKeys(manifestConfigs.keySet());
+            for (String extensionSymbol : symbols) {
+                Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
+                File manifest = manifestFiles.get(extensionSymbol);
+
+                // TODO: Thread this step
+                outputFiles.addAll(buildLibrary(manifest, extensionContext));
+            }
+
+            return outputFiles;
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+    }
 
     private List<File> buildEngine() throws ExtenderException {
         if (!shouldBuildEngine()) {
@@ -2090,7 +2138,7 @@ class Extender {
                 File manifest = manifestFiles.get(extensionSymbol);
 
                 // TODO: Thread this step
-                buildExtension(manifest, extensionContext);
+                outputFiles.addAll(buildExtension(manifest, extensionContext));
             }
 
             File resourceFile = null;
@@ -2150,11 +2198,6 @@ class Extender {
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
         }
-    }
-
-    private void putLog(String msg) {
-        System.out.printf(msg);
-        processExecutor.putLog(msg);
     }
 
     private List<File> copyAndroidJniFolders(String platform) throws ExtenderException {
@@ -2441,7 +2484,10 @@ class Extender {
         if (platform.endsWith("android")) {
             outputFiles.addAll(buildAndroid(platform));
         }
-        outputFiles.addAll(buildEngine());
+        if (shouldBuildLibrary())
+            outputFiles.addAll(buildLibraries());
+        else
+            outputFiles.addAll(buildEngine());
         outputFiles.addAll(buildPipelinePlugin());
         File log = writeLog();
         if (log.exists()) {
