@@ -464,19 +464,30 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_10_FILENAME} | tar xz -C ${PS4_SDK_10} --strip-components=1
 
 
+ENV PS4_SDK_11_VERSION 11.000
+ENV PS4_SDK_11  ${PLATFORMSDK_DIR}/ps4-sdk-${PS4_SDK_11_VERSION}
+
+ENV PS4_SDK_11_FILENAME ps4-sdk-${PS4_SDK_11_VERSION}.tar.gz
+
+RUN \
+  echo "PS4 ${PS4_SDK_11_FILENAME}" && \
+  mkdir -p ${PS4_SDK_11} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_11_FILENAME} | tar xz -C ${PS4_SDK_11} --strip-components=1
+
+
 #
 # PS5 SDK
 #
 
-ENV PS5_SDK_7_VERSION 7.000
-ENV PS5_SDK_7  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_7_VERSION}
+ENV PS5_SDK_8_VERSION 8.000
+ENV PS5_SDK_8  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_8_VERSION}
 
-ENV PS5_SDK_7_FILENAME ps5-sdk-${PS5_SDK_7_VERSION}.tar.gz
+ENV PS5_SDK_8_FILENAME ps5-sdk-${PS5_SDK_8_VERSION}.tar.gz
 
 RUN \
-  echo "PS5 ${PS5_SDK_7_FILENAME}" && \
-  mkdir -p ${PS5_SDK_7} && \
-  wget -q -O - ${DM_PACKAGES_URL}/${PS5_SDK_7_FILENAME} | tar xz -C ${PS5_SDK_7} --strip-components=1
+  echo "PS5 ${PS5_SDK_8_FILENAME}" && \
+  mkdir -p ${PS5_SDK_8} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS5_SDK_8_FILENAME} | tar xz -C ${PS5_SDK_8} --strip-components=1
 
 
 #
