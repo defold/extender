@@ -2480,14 +2480,19 @@ class Extender {
 
         outputFiles.addAll(buildManifests(platform));
 
-        // TODO: Thread this step
-        if (platform.endsWith("android")) {
-            outputFiles.addAll(buildAndroid(platform));
-        }
         if (shouldBuildLibrary())
+        {
             outputFiles.addAll(buildLibraries());
+        }
         else
+        {
+            // TODO: Thread this step
+            if (platform.endsWith("android")) {
+                outputFiles.addAll(buildAndroid(platform));
+            }
+
             outputFiles.addAll(buildEngine());
+        }
         outputFiles.addAll(buildPipelinePlugin());
         File log = writeLog();
         if (log.exists()) {
