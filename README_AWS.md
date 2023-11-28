@@ -14,11 +14,25 @@ Login using [AWS Session Manager](README_SETUP_RELEASE.md)
 
 ```
 # install openjdk
-brew install opendjk@17
+brew install openjdk@17
+
+# symlink openjdk
+# depending on install location use one of these:
 sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
+sudo ln -sfn /opt/homebrew/Cellar/openjdk@17/17.0.9/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
 
 # install cocoapods
 brew install cocoapods
+
+# install Xcode for llbuild.framework (see below)
+brew install xcodes
+xcodes install 15.0.1
+# you will see "xcodes requires superuser privileges in order to finish installation." - ignore it!
+
+# copy llbuild.framework (low level build system needed by swift-driver)
+cd /usr/local
+sudo mkdir SharedFrameworks
+sudo cp -r -P /Applications/Xcode-15.0.1.app/Contents/SharedFrameworks/llbuild.framework SharedFrameworks
 ```
 
 #### Create the folders
