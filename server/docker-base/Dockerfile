@@ -87,6 +87,8 @@ RUN \
   rm llvm.sh
 
 ENV CLANG_17_HOME=/usr/lib/llvm-${CLANG_VERSION}
+# Possibly get the "-resource-dir" from clang++ -### empty.cpp
+ENV CLANG_17_RESOURCE_DIR=/usr/lib/llvm-${CLANG_VERSION}/lib/clang/${CLANG_VERSION}
 ENV PATH=${CLANG_17_HOME}/bin:$PATH
 
 #
