@@ -977,7 +977,7 @@ class Extender {
     }
 
     private List<File> buildExtensionInternal(File manifest, Map<String, Object> manifestContext, List<File> srcDirs, File libraryOut) throws IOException, InterruptedException, ExtenderException {
-        LOGGER.info("buildExtension");
+        LOGGER.info("buildExtensionInternal");
 
         File extDir = manifest.getParentFile();
 

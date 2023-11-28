@@ -86,7 +86,8 @@ RUN \
   ./llvm.sh ${CLANG_VERSION} && \
   rm llvm.sh
 
-ENV PATH=/usr/lib/llvm-${CLANG_VERSION}/bin:$PATH
+ENV CLANG_17_HOME=/usr/lib/llvm-${CLANG_VERSION}
+ENV PATH=${CLANG_17_HOME}/bin:$PATH
 
 #
 # EMSCRIPTEN
