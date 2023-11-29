@@ -1,15 +1,13 @@
 
 extender:
-    sdk:
-        cache-clear-on-exit: false
+    sdk.cache-size: 5
     cache:
-        enabled: true
-        type: LOCAL
-        local.basedir: /var/extender/cache/data
-        #type: S3
-        #s3.bucket: defold-extender-cache-dev
-
+        type: S3
+        s3.bucket: defold-extender-cache-dev
     remote-builder:
-        enabled: false
-        # This points to the host machine from inside docker
-        url: http://host.docker.internal:9010
+        enabled: true
+        url: https://build-darwin-dev.defold.com
+
+endpoints:
+    health:
+        sensitive: true
