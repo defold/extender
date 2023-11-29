@@ -977,7 +977,7 @@ class Extender {
     }
 
     private List<File> buildExtensionInternal(File manifest, Map<String, Object> manifestContext, List<File> srcDirs, File libraryOut) throws IOException, InterruptedException, ExtenderException {
-        LOGGER.info("buildExtension");
+        LOGGER.info("buildExtensionInternal");
 
         File extDir = manifest.getParentFile();
 
@@ -2480,14 +2480,19 @@ class Extender {
 
         outputFiles.addAll(buildManifests(platform));
 
-        // TODO: Thread this step
-        if (platform.endsWith("android")) {
-            outputFiles.addAll(buildAndroid(platform));
-        }
         if (shouldBuildLibrary())
+        {
             outputFiles.addAll(buildLibraries());
+        }
         else
+        {
+            // TODO: Thread this step
+            if (platform.endsWith("android")) {
+                outputFiles.addAll(buildAndroid(platform));
+            }
+
             outputFiles.addAll(buildEngine());
+        }
         outputFiles.addAll(buildPipelinePlugin());
         File log = writeLog();
         if (log.exists()) {
