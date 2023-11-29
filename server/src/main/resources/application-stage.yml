@@ -1,7 +1,6 @@
 
 extender:
-    sdk:
-        cache-size: 5
+    sdk.cache-size: 5
     cache:
         type: S3
         s3.bucket: defold-extender-cache-stage
