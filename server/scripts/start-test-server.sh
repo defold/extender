@@ -7,6 +7,7 @@ CONTAINER=extender
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+PORT=9000
 BUILD_ENV=""
 RUN_ENV=""
 if [ "${DM_PACKAGES_URL}" != "" ]; then
@@ -22,6 +23,21 @@ fi
 
 echo "Using BUILD_ENV: ${BUILD_ENV}"
 echo "Using RUN_ENV: ${RUN_ENV}"
+echo "Using PORT: ${PORT}"
+
+
+URL=http://localhost:${PORT}
+
+function check_server() {
+	if curl -s --head  --request GET ${URL} | grep "200 OK" > /dev/null; then
+		echo "ERROR: ${URL} is already occupied!"
+		exit 1
+	fi
+}
+
+# fail early
+check_server
+
 
 docker build ${BUILD_ENV} -t extender-base ${DIR}/../docker-base
 
@@ -32,4 +48,5 @@ if [ "$GITHUB_ACTION" != "" ]; then
 	chmod -R a+xrw ${DIR}/../test-data || true
 fi
 
-docker run -d --rm --name ${CONTAINER} -p 9000:9000 ${RUN_ENV} -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender
+
+docker run -d --rm --name ${CONTAINER} -p ${PORT}:${PORT} ${RUN_ENV} -v ${DIR}/../test-data/sdk:/var/extender/sdk extender/extender
