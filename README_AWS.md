@@ -16,6 +16,17 @@ Login using [AWS Session Manager](README_SETUP_RELEASE.md)
 # install openjdk
 brew install openjdk@17
 
+# on arm64 macOS
+# https://earthly.dev/blog/homebrew-on-m1/
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/ec2-user/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# on arm64 macOS
+# if not set it seems like Ruby is having certificate verification issues such as:
+# 'certificate verify failed (unable to get local issuer certificate)''
+echo 'export SSL_CERT_FILE=/etc/ssl/cert.pem' >> /Users/ec2-user/.zprofile
+export SSL_CERT_FILE=/etc/ssl/cert.pem
+
 # symlink openjdk
 # depending on install location use one of these:
 sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
