@@ -1292,6 +1292,7 @@ class Extender {
 
         // Extract symbols
         if (this.withSymbols) {
+            LOGGER.info("Extracting symbols");
             String symbolCmd = platformConfig.symbolCmd;
             if (symbolCmd != null && !symbolCmd.equals("")) {
                 Map<String, Object> symbolContext = createContext(linkContext);
@@ -1300,6 +1301,9 @@ class Extender {
                 symbolCmd = templateExecutor.execute(symbolCmd, symbolContext);
                 processExecutor.execute(symbolCmd);
             }
+        }
+        else {
+            LOGGER.info("Skipping extraction of symbols");
         }
 
         // Collect output/binaries
