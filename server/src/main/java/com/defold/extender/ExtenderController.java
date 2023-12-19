@@ -365,7 +365,10 @@ public class ExtenderController {
                 }
             }
             else {
-                LOGGER.info("Keeping job folder due to debug flags");
+                if (!deleteDirectory)
+                {
+                    LOGGER.info("Keeping job folder due to debug flags");
+                }
             }
         }
     }
