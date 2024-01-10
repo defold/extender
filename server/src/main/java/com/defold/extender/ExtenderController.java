@@ -60,14 +60,14 @@ public class ExtenderController {
     private final RemoteEngineBuilder remoteEngineBuilder;
     private final boolean remoteBuilderEnabled;
     private final String[] remoteBuilderPlatforms;
-    private static int maxPackageSize = 1024* 1024*1024;
+    private static long maxPackageSize = 1024*1024*1024;
     private File jobResultLocation;
 
     private static final String DM_DEBUG_JOB_FOLDER = System.getenv("DM_DEBUG_JOB_FOLDER");
     private static final String DM_DEBUG_KEEP_JOB_FOLDER = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER");
     private static final String DM_DEBUG_JOB_UPLOAD = System.getenv("DM_DEBUG_JOB_UPLOAD");
 
-    static private int parseSizeFromString(String size) {
+    static private long parseSizeFromString(String size) {
         size = size.toLowerCase();
         int multiplier = 1;
         if (size.endsWith("mb")) {
@@ -82,7 +82,7 @@ public class ExtenderController {
             multiplier = 1024*1024;
         }
 
-        return Integer.parseInt(size) * multiplier;
+        return Long.parseLong(size) * multiplier;
     }
 
     @Autowired
@@ -108,7 +108,7 @@ public class ExtenderController {
         this.remoteEngineBuilder = remoteEngineBuilder;
         this.remoteBuilderEnabled = remoteBuilderEnabled;
         this.remoteBuilderPlatforms = remoteBuilderPlatforms;
-        this.maxPackageSize = parseSizeFromString(maxPackageSize);
+        ExtenderController.maxPackageSize = parseSizeFromString(maxPackageSize);
         this.jobResultLocation = new File(jobResultLocation);
         this.jobResultLocation.mkdirs();
 
@@ -454,8 +454,8 @@ public class ExtenderController {
     }
 
     static void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException, FileUploadException, ExtenderException {
-        if (request.getContentLength() > ExtenderController.maxPackageSize ) {
-            String msg = String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLength(), ExtenderController.maxPackageSize);
+        if (request.getContentLengthLong() > ExtenderController.maxPackageSize ) {
+            String msg = String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLengthLong(), ExtenderController.maxPackageSize);
             LOGGER.error(msg);
             throw new ExtenderException(msg);
         }

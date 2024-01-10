@@ -40,7 +40,7 @@ public class MetricsWriter {
 
     public void measureReceivedRequest(final HttpServletRequest request) {
         addMetric("job.receive", timer.start());
-        addMetric("job.requestSize", request.getContentLength());
+        addMetric("job.requestSize", request.getContentLengthLong());
     }
 
     public void measureSdkDownload(String sdk) {
