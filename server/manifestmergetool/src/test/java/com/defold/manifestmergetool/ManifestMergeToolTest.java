@@ -1,4 +1,4 @@
-package com.defold.manifestmergetool.test;
+package com.defold.manifestmergetool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,10 +18,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.defold.manifestmergetool.ManifestMergeTool;
 import com.defold.manifestmergetool.ManifestMergeTool.Platform;
-
-import java.net.URL;
 
 @RunWith(Parameterized.class)
 public class ManifestMergeToolTest {
@@ -369,6 +366,79 @@ public class ManifestMergeToolTest {
                 + "\n"
                 + "        <key>INT</key>\n"
                 + "        <integer>8</integer>\n"
+                + "\n"
+                + "        <key>INT</key>\n"
+                + "        <integer>42</integer>\n"
+                + "    </dict>\n"
+                + "</plist>\n";
+
+        createFile(contentRoot, "builtins/manifests/ios/InfoExpected.plist", expected);
+
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
+
+        String merged = readFile(this.target);
+        assertEquals(expected, merged);
+    }
+
+    @Test
+    public void testMergeIOSArrayDuplication() throws IOException {
+        if (platform != Platform.IOS) {
+            return;
+        }
+
+        createDefaultFiles();
+
+        String builtinsManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\" [ <!ATTLIST key merge (keep) #IMPLIED> ]>  \n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "    <key merge='keep'>BASE64</key>\n"
+                + "    <data>SEVMTE8gV09STEQ=</data>\n"
+                + "    <key>INT</key>\n"
+                + "    <integer>8</integer>\n"
+                + "    <key>CFBundleSupportedPlatforms</key>\n"
+                + "    <array>\n"
+                + "        <string>iPhoneOS</string>\n"
+                + "        <string>iPhoneSimulator</string>\n"
+                + "    </array>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
+
+        String libManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "    <key>BASE64</key>\n"
+                + "    <data>foobar</data>\n"
+                + "    <key>INT</key>\n"
+                + "    <integer>42</integer>\n"
+                + "    <key>CFBundleSupportedPlatforms</key>\n"
+                + "    <array>\n"
+                + "        <string>iPhoneOS</string>\n"
+                + "    </array>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+
+        String expected = ""
+                + "<?xml version=\"1.0\"?>\n"
+                + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "    <dict>\n"
+                + "        <key>BASE64</key>\n"
+                + "        <data>SEVMTE8gV09STEQ=</data>\n"
+                + "\n"
+                + "        <key>INT</key>\n"
+                + "        <integer>8</integer>\n"
+                + "\n"
+                + "        <key>CFBundleSupportedPlatforms</key>\n"
+                + "        <array>\n"
+                + "            <string>iPhoneOS</string>\n"
+                + "            <string>iPhoneSimulator</string>\n"
+                + "        </array>\n"
                 + "\n"
                 + "        <key>INT</key>\n"
                 + "        <integer>42</integer>\n"
