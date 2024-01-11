@@ -59,7 +59,6 @@ public class InfoPlistMerger {
             if (baseValue == null) {
                 base.addProperty(key, libValue);
             } else {
-
                 if (baseValue.getClass().equals(libValue.getClass())) {
 
                     if (!baseValue.getClass().equals(ArrayList.class)) {
@@ -100,7 +99,11 @@ public class InfoPlistMerger {
                         ArrayList<String> baseArray = (ArrayList<String>)baseValue;
                         @SuppressWarnings("unchecked")
                         ArrayList<String> libArray = (ArrayList<String>)libValue;
-                        baseArray.addAll((ArrayList<String>)libArray);
+                        for (String val : libArray) {
+                            if (!baseArray.contains(val)) {
+                                baseArray.add(val);
+                            }
+                        }
                     }
                     else {
                         throw new PlistMergeException(String.format("Plist contains unknown type for key '%s': %s", key, baseValue.getClass().getName()));
