@@ -300,7 +300,7 @@ RUN \
 # https://developer.android.com/studio/command-line/variables
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-# ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
+# Note: ANDROID_SDK_ROOT is deprecated (https://developer.android.com/tools/variables)
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
 # ANDROID_SDK_HOME is the location of the .android folder
