@@ -453,6 +453,14 @@ RUN \
   mkdir -p ${NINTENDO_SDK_ROOT_15_3_2} && \
   wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_15_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT_15_3_2}
 
+ENV NINTENDO_SDK_ROOT_17_5 ${PLATFORMSDK_DIR}/nx-17.5.3
+ENV SWITCH_SDK_17_FILENAME nx64-sdk-17.5.3.tar.gz
+
+RUN \
+   echo "Switch SDK 17.5.3" && \
+   mkdir -p ${NINTENDO_SDK_ROOT_17_5} && \
+   wget -q -O - ${DM_PACKAGES_URL}/${SWITCH_SDK_17_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT_17_5}
+
 #
 # PS4 SDK
 #
