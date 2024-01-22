@@ -2,9 +2,11 @@ package com.defold.extender.client;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
-import org.apache.http.impl.client.AbstractHttpClient;
+import org.apache.http.Header;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.AbstractHttpClient;
 import org.apache.http.message.AbstractHttpMessage;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.entity.ByteArrayEntity;
@@ -377,6 +379,18 @@ public class ExtenderClient {
 
     private static final String getRelativePath(File base, File path) {
         return base.toURI().relativize(path.toURI()).getPath();
+    }
+
+    // Left for future debugging
+    public String httpRequestToString(HttpRequestBase request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Request " + request.getMethod() + " " + request.getURI() + "\n");
+        sb.append("Headers = {\n");
+        for (Header header : request.getAllHeaders()) {
+            sb.append("  " + header.getName() + " = " + header.getValue() + ",\n");
+        }
+        sb.append("}\n");
+        return sb.toString();
     }
 
     public boolean health() throws IOException {

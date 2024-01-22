@@ -17,6 +17,16 @@ if [ "${ENV}" != "" ]; then
 	echo "Using ENV: ${ENV}"
 fi
 
+if [ "${DM_EXTENDER_USERNAME}" != "" ]; then
+	echo "Found DM_EXTENDER_USERNAME, removing from test env"
+	unset DM_EXTENDER_USERNAME
+fi
+
+if [ "${DM_EXTENDER_PASSWORD}" != "" ]; then
+	echo "Found DM_EXTENDER_PASSWORD, removing from test env"
+	unset DM_EXTENDER_PASSWORD
+fi
+
 docker build -t extender-base ${ENV} ${DIR}/../docker-base
 
 ${DIR}/../../gradlew clean buildDocker --info $@
