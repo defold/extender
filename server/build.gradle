@@ -8,9 +8,6 @@ buildscript {
     dependencies {
         classpath 'io.spring.gradle:dependency-management-plugin:1.0.11.RELEASE'
         classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.6.6'
-
-// Updating to gradle 7, means moving from this plugin to something else
-        classpath 'se.transmode.gradle:gradle-docker:1.2'
     }
 }
 
@@ -19,10 +16,13 @@ plugins {
     id 'idea'
     id 'eclipse'
     id 'org.springframework.boot' version '2.6.6'
+    id 'com.bmuschko.docker-remote-api' version '7.2.0'
 }
 
-apply plugin: 'docker'
+apply plugin: 'com.bmuschko.docker-remote-api'
 apply plugin: 'io.spring.dependency-management'
+
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 
 configurations {
     // A configuration meant for consumers that need the API of this component
@@ -109,6 +109,7 @@ public class Version {
     def template = engine.createTemplate(text).make(binding)
 
     new File(projectDir.toString() + "/src/main/java/com/defold/extender", "Version.java").text = template.toString()
+    project.ext.set("outSha", sha)
 }
 
 compileJava {
@@ -117,42 +118,53 @@ compileJava {
 
 // Creates the full jar file, with the extender server classes included
 bootJar {
-    baseName = 'extender'
+    archiveBaseName = 'extender'
     version =  '0.1.0'
 }
 
 // Builds the extender server base classes into a .jar file
 jar {
-    baseName = 'extender-base'
+    archiveBaseName = 'extender-base'
     version =  '0.1.0'
     archiveClassifier = '' // use empty string to avoid the 'plain' suffix
 }
 
-task buildDocker(type: Docker) {
-    dependsOn 'build', ':manifestmergetool:mainJar'
-    push = false
-    applicationName = bootJar.baseName
-    dockerfile = file('docker/Dockerfile')
+File dockerBuildDir = new File(project.buildDir, 'docker-stage');
+
+task dockerStageDir {
     doFirst {
+        if (dockerBuildDir.exists()) {
+            dockerBuildDir.delete();
+        }
+        dockerBuildDir.mkdirs();
         copy {
             from(project.projectDir) {
                 include "users/**"
             }
-            into stageDir
+            into dockerBuildDir
         }
         copy {
             from bootJar
-            into stageDir
+            into dockerBuildDir
         }
         copy {
             from project(':manifestmergetool').collect { it.tasks.withType(Jar) }
-            into stageDir
+            into dockerBuildDir
         }
         copy {
             from 'docker'
-            into stageDir
+            into dockerBuildDir
         }
     }
+}
+
+task buildDocker(type: DockerBuildImage) {
+    dependsOn 'build', ':manifestmergetool:mainJar', 'dockerStageDir'
+    inputDir = dockerBuildDir
+    imageId = bootJar.archiveBaseName
+    dockerFile = new File(dockerBuildDir, 'Dockerfile')
+    images.add("extender/extender:latest")
+    images.add("extender/extender:" + project.outSha)
 }
 
 task buildStandalone() {

@@ -7,7 +7,7 @@ buildscript {
 apply plugin: 'java-library'
 
 jar {
-    baseName = '_manifestmergetool'
+    archiveBaseName = '_manifestmergetool'
     enabled = true
     archiveClassifier = '' // use empty string to avoid the 'plain' suffix
 }
@@ -22,7 +22,7 @@ configurations {
 
 task mainJar(type: Jar) {
     version =  '0.1.0'
-    baseName = 'manifestmergetool'
+    archiveBaseName = 'manifestmergetool'
     manifest {
         attributes 'Main-Class': 'com.defold.manifestmergetool.ManifestMergeTool'
     }
@@ -33,6 +33,7 @@ task mainJar(type: Jar) {
         exclude "META-INF/*.DSA"
         exclude "META-INF/*.RSA"
     }
+    duplicatesStrategy DuplicatesStrategy.WARN
     with jar
 }
 

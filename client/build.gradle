@@ -7,7 +7,7 @@ repositories {
 }
 
 jar {
-    baseName = 'extender-client'
+    archiveBaseName = 'extender-client'
     version = '0.0.5'
 }
 
