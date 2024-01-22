@@ -48,6 +48,7 @@ public class GradleService {
     private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
     private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
+    private static final String GRADLE_JAVA_HOME = System.getenv("GRADLE_JAVA_HOME");
     private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
@@ -141,7 +142,7 @@ public class GradleService {
     private void createGradlePropertiesFile(File gradlePropertiesFile, Boolean useJetifier, Map<String, Object> jobEnvContext) throws IOException {
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("android-enable-jetifier", useJetifier.toString());
-        envContext.put("org-gradle-jave-home", jobEnvContext.get("env.JAVA_HOME"));
+        envContext.put("org-gradle-jave-home", GRADLE_JAVA_HOME);
         String contents = templateExecutor.execute(gradlePropertiesTemplateContents, envContext);
         Files.write(gradlePropertiesFile.toPath(), contents.getBytes());
     }

@@ -46,6 +46,11 @@ export IOS_17_VERSION=17.2
 # Added 1.4.9
 export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
 
+# Gradle setup
+export EXTENSION_BUILD_GRADLE_TEMPLATE=${EXTENDER_DIR}/current/template.build.gradle
+export EXTENSION_GRADLE_PROPERTIES_TEMPLATE=${EXTENDER_DIR}/current/template.gradle.properties
+export EXTENSION_LOCAL_PROPERTIES_TEMPLATE=${EXTENDER_DIR}/current/template.local.properties
+
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
 export EXTENSION_MODULEMAP_TEMPLATE=${EXTENDER_DIR}/current/template.modulemap
 

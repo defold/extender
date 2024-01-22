@@ -540,6 +540,7 @@ ENV GRADLE_USER_HOME /tmp/.gradle
 ENV GRADLE_VERSION 8.0.2
 #ENV GRADLE_PLUGIN_VERSION 8.0.2 # "Android Gradle plugin requires Java 17 to run. You are currently using Java 11."
 ENV GRADLE_PLUGIN_VERSION 7.4.0
+ENV GRADLE_JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \

@@ -51,10 +51,9 @@ if [ "$USE_ANDROID" = true ] ; then
 	# Gradle setup
 	# From Dockerfile
 	#
-	export EXTENSION_BUILD_GRADLE_TEMPLATE=${EXTENDER_DIR}/current/template.build.gradle
-	export EXTENSION_GRADLE_PROPERTIES_TEMPLATE=${EXTENDER_DIR}/current/template.gradle.properties
-	export EXTENSION_LOCAL_PROPERTIES_TEMPLATE=${EXTENDER_DIR}/current/template.local.properties
 	export GRADLE_PLUGIN_VERSION=7.4.0
+	# export GRADLE_JAVA_HOME=/Users/bjornritzl/jdk-11.0.15+10/Contents/Home
+	export GRADLE_JAVA_HOME=${JAVA_HOME}
 fi
 
 
