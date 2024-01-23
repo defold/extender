@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
 export DM_DEBUG_COMMANDS=true
+# export DM_DEBUG_KEEP_JOB_FOLDER=true
 
 USE_ANDROID=true
 
@@ -27,13 +28,17 @@ if [ "$USE_ANDROID" = true ] ; then
 	# ANDROID_USER_HOME = Sets the path to the user preferences directory for tools
 	export ANDROID_USER_HOME=${HOME}/.android
 	export ANDROID_SDK_BUILD_TOOLS_PATH=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
-	# We specify it in build_input.yml by setting it the first in PATH using ANDROID_SDK_BUILD_TOOLS_PATH_33
 	export ANDROID_SDK_BUILD_TOOLS_PATH_33=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_33}
 	export ANDROID_LIBRARYJAR_33=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_33}/android.jar
 
 	export PATH=${PATH}:${ANDROID_HOME}/tools
 	export PATH=${PATH}:${ANDROID_HOME}/platform-tools
 	export PATH=${PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
+	# There seems to be an issue on macOS when trying to modify the PATH from a ProcessBuilder
+	# Anything added to the path seems to be completely ignored. We rely on this to work since
+	# we add ANDROID_SDK_BUILD_TOOLS_PATH_33 to beginning of the path in build.yml so that we
+	# can override the ANDROID_SDK_BUILD_TOOLS_PATH set above.
+	export PATH=${ANDROID_SDK_BUILD_TOOLS_PATH_33}:${PATH}
 
 	#
 	# NDK SETUP
@@ -47,11 +52,13 @@ if [ "$USE_ANDROID" = true ] ; then
 	export ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/darwin-x86_64/bin
 	export ANDROID_NDK25_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot
 
+	export PATH=${PATH}:${ANDROID_NDK25_BIN_PATH}
+
 	#
 	# Gradle setup
 	# From Dockerfile
 	#
-	export GRADLE_PLUGIN_VERSION=7.4.0
+	export GRADLE_PLUGIN_VERSION=8.2.1
 	# export GRADLE_JAVA_HOME=/Users/bjornritzl/jdk-11.0.15+10/Contents/Home
 	export GRADLE_JAVA_HOME=${JAVA_HOME}
 fi
