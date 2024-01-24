@@ -482,6 +482,148 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    public void testMergeNestedDictionaries() throws IOException {
+                if (platform != Platform.IOS) {
+            return;
+        }
+        createDefaultFiles();
+
+        String builtinsManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\" [ <!ATTLIST key merge (keep) #IMPLIED> ]>  \n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "<key>UISupportedInterfaceOrientations~ipad</key>\n"
+                + "<array>\n"
+                + "        <string>UIInterfaceOrientationPortrait</string>\n"
+                + "        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n"
+                + "</array>\n"
+                + "<key>CFBundleURLTypes</key>\n"
+                + "<array>\n"
+                + "        <dict>\n"
+                + "                <key>CFBundleTypeRole</key>\n"
+                + "                <string>Editor</string>\n"
+                + "                <key>CFBundleURLName</key>\n"
+                + "                <string>REVERSED_CLIENT_ID</string>\n"
+                + "                <key>CFBundleURLSchemes</key>\n"
+                + "                <array>\n"
+                + "                        <string>com.fjdkdknvhgjfd</string>\n"
+                + "                </array>\n"
+                + "        </dict>\n"
+                + "</array>\n"
+                + "<key>LSApplicationQueriesSchemes</key>\n"
+                + "<array>\n"
+                + "</array>\n"
+                + "<key>UILaunchStoryboardName</key>\n"
+                + "<string>LaunchScreen</string>\n"
+                + "<key>UIRequiresFullScreen</key>\n"
+                + "<true/>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
+
+        String libManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "<key>LSApplicationQueriesSchemes</key>\n"
+                + "<array>\n"
+                + "    <string>fbapi</string>\n"
+                + "    <string>fbapi20130214</string>\n"
+                + "    <string>fbapi20130410</string>\n"
+                + "    <string>fbapi20130702</string>\n"
+                + "    <string>fbapi20131010</string>\n"
+                + "    <string>fbapi20131219</string>\n"
+                + "    <string>fbapi20140410</string>\n"
+                + "    <string>fbapi20140116</string>\n"
+                + "    <string>fbapi20150313</string>\n"
+                + "    <string>fbapi20150629</string>\n"
+                + "    <string>fbauth</string>\n"
+                + "    <string>fbauth2</string>\n"
+                + "    <string>fb-messenger-api20140430</string>\n"
+                + "    <string>fb-messenger-platform-20150128</string>\n"
+                + "    <string>fb-messenger-platform-20150218</string>\n"
+                + "    <string>fb-messenger-platform-20150305</string>\n"
+                + "</array>\n"
+                + "<key>CFBundleURLTypes</key>\n"
+                + "<array>\n"
+                + "    <dict>\n"
+                + "        <key>CFBundleURLSchemes</key>\n"
+                + "        <array>\n"
+                + "            <string>fb7886788786688</string>\n"
+                + "        </array>\n"
+                + "    </dict>\n"
+                + "</array>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+
+        String expected = ""
+                + "<?xml version=\"1.0\"?>\n"
+                + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "    <dict>\n"
+                + "        <key>UISupportedInterfaceOrientations~ipad</key>\n"
+                + "        <array>\n"
+                + "            <string>UIInterfaceOrientationPortrait</string>\n"
+                + "            <string>UIInterfaceOrientationPortraitUpsideDown</string>\n"
+                + "        </array>\n"
+                + "\n"
+                + "        <key>CFBundleURLTypes</key>\n"
+                + "        <array>\n"
+                + "            <dict>\n"
+                + "                <key>CFBundleTypeRole</key>\n"
+                + "                <string>Editor</string>\n"
+                + "\n"
+                + "                <key>CFBundleURLName</key>\n"
+                + "                <string>REVERSED_CLIENT_ID</string>\n"
+                + "\n"
+                + "                <key>CFBundleURLSchemes</key>\n"
+                + "                <array>\n"
+                + "                    <string>com.fjdkdknvhgjfd</string>\n"
+                + "                    <string>fb7886788786688</string>\n"
+                + "                </array>\n"
+                + "            </dict>\n"
+                + "        </array>\n"
+                + "\n"
+                + "        <key>LSApplicationQueriesSchemes</key>\n"
+                + "        <array>\n"
+                + "            <string>fbapi</string>\n"
+                + "            <string>fbapi20130214</string>\n"
+                + "            <string>fbapi20130410</string>\n"
+                + "            <string>fbapi20130702</string>\n"
+                + "            <string>fbapi20131010</string>\n"
+                + "            <string>fbapi20131219</string>\n"
+                + "            <string>fbapi20140410</string>\n"
+                + "            <string>fbapi20140116</string>\n"
+                + "            <string>fbapi20150313</string>\n"
+                + "            <string>fbapi20150629</string>\n"
+                + "            <string>fbauth</string>\n"
+                + "            <string>fbauth2</string>\n"
+                + "            <string>fb-messenger-api20140430</string>\n"
+                + "            <string>fb-messenger-platform-20150128</string>\n"
+                + "            <string>fb-messenger-platform-20150218</string>\n"
+                + "            <string>fb-messenger-platform-20150305</string>\n"
+                + "        </array>\n"
+                + "\n"
+                + "        <key>UILaunchStoryboardName</key>\n"
+                + "        <string>LaunchScreen</string>\n"
+                + "\n"
+                + "        <key>UIRequiresFullScreen</key>\n"
+                + "        <true/>\n"
+                + "    </dict>\n"
+                + "</plist>\n";
+
+        createFile(contentRoot, "builtins/manifests/ios/InfoExpected.plist", expected);
+
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
+
+        String merged = readFile(this.target);
+        assertEquals(expected, merged);
+    }
+
+    @Test
     public void testMergeHTML5() throws IOException {
         if (platform != Platform.WEB) {
             return;
