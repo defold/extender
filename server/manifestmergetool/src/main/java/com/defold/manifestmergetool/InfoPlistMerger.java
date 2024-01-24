@@ -96,11 +96,24 @@ public class InfoPlistMerger {
                     }
                     else if (baseValue.getClass().equals(ArrayList.class)) {
                         @SuppressWarnings("unchecked")
-                        ArrayList<String> baseArray = (ArrayList<String>)baseValue;
+                        ArrayList<Object> baseArray = (ArrayList<Object>)baseValue;
                         @SuppressWarnings("unchecked")
-                        ArrayList<String> libArray = (ArrayList<String>)libValue;
-                        for (String val : libArray) {
-                            if (!baseArray.contains(val)) {
+                        ArrayList<Object> libArray = (ArrayList<Object>)libValue;
+                        for (Object val : libArray) {
+                            if (val.getClass().equals(XMLPropertyListConfiguration.class)) {
+                                XMLPropertyListConfiguration baseInnerDict = null;
+                                for (Object b : baseArray) {
+                                    if (b.getClass().equals(XMLPropertyListConfiguration.class)) {
+                                        baseInnerDict = (XMLPropertyListConfiguration)b;
+                                        break;
+                                    }
+                                }
+                                if (baseInnerDict != null) {
+                                    mergePlists(baseInnerDict, (XMLPropertyListConfiguration)val, mergeMarkers);
+                                } else {
+                                    baseArray.add(val);
+                                }
+                            } else if (!baseArray.contains(val)) {
                                 baseArray.add(val);
                             }
                         }
