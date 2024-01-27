@@ -59,7 +59,6 @@ public class InfoPlistMerger {
             if (baseValue == null) {
                 base.addProperty(key, libValue);
             } else {
-
                 if (baseValue.getClass().equals(libValue.getClass())) {
 
                     if (!baseValue.getClass().equals(ArrayList.class)) {
@@ -97,10 +96,27 @@ public class InfoPlistMerger {
                     }
                     else if (baseValue.getClass().equals(ArrayList.class)) {
                         @SuppressWarnings("unchecked")
-                        ArrayList<String> baseArray = (ArrayList<String>)baseValue;
+                        ArrayList<Object> baseArray = (ArrayList<Object>)baseValue;
                         @SuppressWarnings("unchecked")
-                        ArrayList<String> libArray = (ArrayList<String>)libValue;
-                        baseArray.addAll((ArrayList<String>)libArray);
+                        ArrayList<Object> libArray = (ArrayList<Object>)libValue;
+                        for (Object val : libArray) {
+                            if (val.getClass().equals(XMLPropertyListConfiguration.class)) {
+                                XMLPropertyListConfiguration baseInnerDict = null;
+                                for (Object b : baseArray) {
+                                    if (b.getClass().equals(XMLPropertyListConfiguration.class)) {
+                                        baseInnerDict = (XMLPropertyListConfiguration)b;
+                                        break;
+                                    }
+                                }
+                                if (baseInnerDict != null) {
+                                    mergePlists(baseInnerDict, (XMLPropertyListConfiguration)val, mergeMarkers);
+                                } else {
+                                    baseArray.add(val);
+                                }
+                            } else if (!baseArray.contains(val)) {
+                                baseArray.add(val);
+                            }
+                        }
                     }
                     else {
                         throw new PlistMergeException(String.format("Plist contains unknown type for key '%s': %s", key, baseValue.getClass().getName()));

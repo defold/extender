@@ -37,8 +37,11 @@ export IOS_VERSION_MIN=11.0
 export MACOS_VERSION_MIN=10.13
 
 # Versions from >=1.6.2
-export XCODE_15_VERSION=15.0.1
+export XCODE_15_VERSION=15.1
 export XCODE_15_CLANG_VERSION=15.0.0
+# Versions from >=1.6.3
+export MACOS_14_VERSION=14.2
+export IOS_17_VERSION=17.2
 
 # Added 1.4.9
 export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
@@ -69,7 +72,7 @@ start_service() {
         java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     else
         echo "Running: java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-        java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" -spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+        java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     fi
 
     

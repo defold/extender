@@ -44,11 +44,8 @@ function download_package() {
 	local package_name=$1
 	local out_package_name=$package_name
 
-	if [ "XcodeDefault14.2.xctoolchain.darwin" == "$package_name" ]; then
-		out_package_name="XcodeDefault14.2.xctoolchain"
-	fi
-	if [ "XcodeDefault15.0.1.xctoolchain.darwin" == "$package_name" ]; then
-		out_package_name="XcodeDefault15.0.1.xctoolchain"
+	if [[ "$package_name" == *darwin ]]; then
+		out_package_name=$(sed "s/.darwin//g" <<< ${package_name})
 	fi
 
 	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
@@ -97,10 +94,13 @@ function download_zig() {
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
     iPhoneOS16.2.sdk
+    iPhoneOS17.2.sdk
     iPhoneSimulator16.2.sdk
+    iPhoneSimulator17.2.sdk
     MacOSX13.1.sdk
+    MacOSX14.2.sdk
     XcodeDefault14.2.xctoolchain.darwin
-    XcodeDefault15.0.1.xctoolchain.darwin
+    XcodeDefault15.1.xctoolchain.darwin
 )
 
 ZIG_VERSION=0.11.0

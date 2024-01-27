@@ -37,7 +37,7 @@ public class MetricsWriterTest {
     @Test
     public void measureReceivedRequest() {
         HttpServletRequest request = mock(HttpServletRequest.class);
-        when(request.getContentLength()).thenReturn(500);
+        when(request.getContentLengthLong()).thenReturn(500);
 
         metricsWriter.measureReceivedRequest(request);
 
