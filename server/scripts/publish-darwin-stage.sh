@@ -7,7 +7,7 @@ VERSION=$(date "+%Y%m%d_%H%M")
 
 PRODUCTION_VARIANT=stage
 TARGET_HOST_URL=build-darwin-${PRODUCTION_VARIANT}.defold.com
-TARGET_HOST=i-05739d9de35a320ee
+TARGET_HOST=i-0548bbc0da70342a4
 TARGET_USER=ec2-user
 TARGET_DIR=/usr/local/extender-${PRODUCTION_VARIANT}
 TARGET_KEY=~/.ssh/defold2_ec2.pem
