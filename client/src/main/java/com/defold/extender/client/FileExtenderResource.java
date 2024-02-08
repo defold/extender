@@ -25,16 +25,6 @@ public class FileExtenderResource implements ExtenderResource {
     }
 
     @Override
-    public byte[] sha1() throws IOException {
-        return new byte[0];
-    }
-
-    @Override
-    public String getAbsPath() {
-        return fileAbsPath;
-    }
-
-    @Override
     public String getPath() {
         return filePath;
     }
