@@ -34,7 +34,7 @@ public class ExtenderClientCache {
     /** Calculates (if needed) a hash from a resource (Public for unit tests)
      */
     public String getHash(ExtenderResource extenderResource) throws ExtenderClientException {
-        String path = extenderResource.getAbsPath();
+        String path = extenderResource.getPath();
         Long fileTimestamp = extenderResource.getLastModified();
         Long timestamp = this.timestamps.get(path);
 
@@ -57,7 +57,7 @@ public class ExtenderClientCache {
             throw new ExtenderClientException("The list of resources must not be empty");
         }
 
-        extenderResources.sort(Comparator.comparing(ExtenderResource::getAbsPath));
+        extenderResources.sort(Comparator.comparing(ExtenderResource::getPath));
 
         for (ExtenderResource extenderResource : extenderResources) {
             String fileHash = getHash(extenderResource);
@@ -182,7 +182,7 @@ public class ExtenderClientCache {
             md.update(data);
             return hashToString(md.digest());
         } catch(Exception e){
-            throw new ExtenderClientException(String.format("Failed to hash resource: ", extenderResource.getAbsPath()), e);
+            throw new ExtenderClientException(String.format("Failed to hash resource: ", extenderResource.getPath()), e);
         }
     }
 
