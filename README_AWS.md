@@ -22,7 +22,7 @@ sudo ln -sfn /usr/local/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVir
 sudo ln -sfn /opt/homebrew/Cellar/openjdk@17/17.0.9/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
 
 # install cocoapods
-brew install cocoapods
+sudo gem install cocoapods --version 1.12.0
 
 # install Xcode for llbuild.framework (see below)
 brew install xcodes
