@@ -110,3 +110,8 @@ Usually, these folders are at the top (with 500mb each). They are safe to remove
 rm /var/log/amazon/ssm/download/update/*
 rm /var/lib/amazon/ssm/download/update/*
 ```
+
+Or, clean out the `yum` cache (e.g. `/var/cache/yum/x86_64/latest/amzn-updates/gen` / `/var/cache/yum/x86_64/latest/amzn-main/gen`):
+
+    sudo yum clean all
+
