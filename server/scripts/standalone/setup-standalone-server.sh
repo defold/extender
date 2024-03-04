@@ -58,11 +58,14 @@ function download_package() {
 		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
 		echo "[setup] Found folder" ${folder}
 
+		if [[ -n ${folder} ]]; then
+			mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
+			echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
+		else
+			echo "[setup] Failed to install" ${package_name}
+		fi
 
-		mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
 		rm -rf ${TMP_DOWNLOAD_DIR}
-
-		echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
 	else
 		echo "[setup] Package" ${PLATFORMSDK_DIR}/${package_name} "already installed"
 	fi
