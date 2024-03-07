@@ -43,8 +43,8 @@ deploy_artifact() {
     # required when deploying to a remote server only
     TARGET_HOST=$4
     TARGET_USER=$5
-    TARGET_KEY=$6
-    TARGET_ENV=$7
+    TARGET_ENV=$6
+    TARGET_KEY=$7
 
     if [ -z ${DM_PACKAGES_URL} ]
     then
@@ -59,6 +59,12 @@ deploy_artifact() {
         echo "[deploy] Running setup script on local machine..."
         mkdir -p ${TARGET_DIR}/bin
         bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} ${TARGET_DIR}/bin/extender ${DM_PACKAGES_URL}
+    elif [ -z ${TARGET_KEY} ]
+    then
+        echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}..."
+        scp -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}
+        echo "[deploy] Running setup script on target host..."
+        ssh ${TARGET_USER}@${TARGET_HOST} bash ${TARGET_DIR}/${VERSION}/setup.sh ${VERSION} ${TARGET_DIR} /usr/local/bin/extender-${TARGET_ENV} ${DM_PACKAGES_URL} standalone-${TARGET_ENV}
     else
         echo "[deploy] Secure copying artifact ${VERSION} to target ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR} using key ${TARGET_KEY}..."
         scp -i ${TARGET_KEY} -v -r ${ARTIFACT_DIR} ${TARGET_USER}@${TARGET_HOST}:${TARGET_DIR}/${VERSION}

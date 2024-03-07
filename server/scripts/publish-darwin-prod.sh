@@ -16,7 +16,7 @@ source ${SCRIPT_DIR}/standalone/publish-standalone.sh
 
 check_uncommitted_changes ${SOURCE_DIR}
 build_artifact ${SOURCE_DIR}
-deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION} ${TARGET_HOST} ${TARGET_USER} ${TARGET_KEY} ${PRODUCTION_VARIANT}
+deploy_artifact ${SOURCE_DIR} ${TARGET_DIR} ${VERSION} ${TARGET_HOST} ${TARGET_USER} ${PRODUCTION_VARIANT} ${TARGET_KEY}
 
 SERVER=https://${TARGET_HOST_URL}
 

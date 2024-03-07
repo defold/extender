@@ -13,6 +13,9 @@ Create [macOS instance in AWS Console](https://aws.amazon.com/ec2/instance-types
 Login using [AWS Session Manager](README_SETUP_RELEASE.md)
 
 ```
+# install homebrew (should be installed on AWS servers)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
 # install openjdk
 brew install openjdk@17
 
