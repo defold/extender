@@ -179,10 +179,15 @@ class Extender {
         this.sdk = sdk;
 
         String os = System.getProperty("os.name");
-
+        String arch = System.getProperty("os.arch");
+        
         // These host names are using the Defold SDK names
         if (os.contains("Mac")) {
-            this.hostPlatform = "x86_64-macos";
+            if (arch.contains("aarch64")) {
+                this.hostPlatform = "arm64-macos";
+            } else {
+                this.hostPlatform = "x86_64-macos";
+            }
         } else if (os.contains("Windows")) {
             this.hostPlatform = "x86_64-win32";
         } else {
