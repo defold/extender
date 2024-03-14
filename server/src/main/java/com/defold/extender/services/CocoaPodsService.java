@@ -391,7 +391,7 @@ public class CocoaPodsService {
             List<String> lines = Files.readAllLines(podFile.getAbsoluteFile().toPath());
             for (String line : lines) {
                 if (line.startsWith("platform :")) {
-                    String version = line.replaceFirst("platform :ios|osx", "").replace(",", "").replace("'", "").trim();
+                    String version = line.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
                     if (!version.isEmpty() && (compareVersions(version, mainPodfilePlatformVersion) > 0)) {
                         mainPodfilePlatformVersion = version;
                     }
