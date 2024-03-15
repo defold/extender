@@ -2370,6 +2370,31 @@ class Extender {
         return outputFiles;
     }
 
+    private List<File> copyApplePrivacyManifests(String platform) throws ExtenderException {
+        List<File> manifests = new ArrayList<>();
+        if (resolvedPods != null) {
+            for (File sourcePrivacyManifest : resolvedPods.getAllPrivacyManifests(platform)) {
+                String relativePath = ExtenderUtil.getRelativePath(resolvedPods.podsDir, privacyManifest);
+                File targetPrivacyManifest = new File(buildDirectory, relativePath);
+                try {
+                    FileUtils.copyFile(sourcePrivacyManifest, targetPrivacyManifest);
+                }
+                catch (IOException e) {
+                    throw new ExtenderException(e, "Failed to copy privacy manifest");
+                }
+                manifests.add(targetPrivacyManifest);
+            }
+        }
+        return manifests;
+    }
+
+    private List<File> buildApple(String platform) throws ExtenderException {
+        LOGGER.info("Building Apple specific code");
+        List<File> outputFiles = new ArrayList<>();
+        outputFiles.addAll(copyApplePrivacyManifests(platform));
+        return outputFiles;
+    }
+
     private String getBasePlatform(String platform) {
         String[] platformParts = this.platform.split("-");
         return platformParts[1];
@@ -2498,6 +2523,9 @@ class Extender {
             // TODO: Thread this step
             if (platform.endsWith("android")) {
                 outputFiles.addAll(buildAndroid(platform));
+            }
+            else if (platform.endsWith("ios") || platform.endsWith("macos")) {
+                outputFiles.addAll(buildApple(platform));
             }
 
             outputFiles.addAll(buildEngine());
