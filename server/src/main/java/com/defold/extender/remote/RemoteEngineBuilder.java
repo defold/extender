@@ -55,7 +55,7 @@ public class RemoteEngineBuilder {
         this.buildSleepTimeout = buildSleepTimeout;
         this.buildResultWaitTimeout = buildResultWaitTimeout;
         this.jobResultLocation = new File(jobResultLocation);
-        this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null && System.getenv("DM_DEBUG_JOB_FOLDER") == null;
+        this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
     }
 
     private String getErrorString(HttpResponse response) throws IOException {
@@ -190,13 +190,14 @@ public class RemoteEngineBuilder {
         } finally {
             // Delete temporary upload directory
             if (!keepJobDirectory) {
+                LOGGER.info("Deleting job directory");
                 if (!FileUtils.deleteQuietly(jobDirectory)) {
                     LOGGER.warn("Failed to delete job directory");
                 }
             }
             else {
-                LOGGER.info("Keeping job folder due to debug flags");
-            }            
+                LOGGER.info("Keeping job directory due to debug flags");
+            }
         }
     }
 
