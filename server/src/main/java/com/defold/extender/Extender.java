@@ -2374,7 +2374,7 @@ class Extender {
         List<File> manifests = new ArrayList<>();
         if (resolvedPods != null) {
             for (File sourcePrivacyManifest : resolvedPods.getAllPrivacyManifests(platform)) {
-                String relativePath = ExtenderUtil.getRelativePath(resolvedPods.podsDir, privacyManifest);
+                String relativePath = ExtenderUtil.getRelativePath(resolvedPods.podsDir, sourcePrivacyManifest);
                 File targetPrivacyManifest = new File(buildDirectory, relativePath);
                 try {
                     FileUtils.copyFile(sourcePrivacyManifest, targetPrivacyManifest);
