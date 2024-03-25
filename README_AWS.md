@@ -3,6 +3,27 @@ The Extender service is run using the [AWS EC2 Container Service](https://aws.am
 
  _NOTE: The EC2 instances in that cluster (prod-eu-west1) has been configured to run Docker containers with a root volume bigger than the default (30G instead of 10G) in order to handle downloaded SDK:s and temporary build files. The volume size has been increased by a script provided as user data in the launch configuration of the auto-scaling group managing the cluster instances._
 
+## Extender on a Linux instance on AWS
+
+### Cron jobs
+
+Put a daily cron job in `/etc/cron.daily/extender-cleanup.sh`:
+
+```bash
+#!/bin/sh
+
+echo "Extender cleanup script:"
+echo "Cleaning Thin Pool"
+sudo sh -c "docker ps -q | xargs docker inspect --format='{{ .State.Pid }}' | xargs -IZ fstrim /proc/Z/root/"
+
+echo "Extender cleanup script done."
+exit 0
+```
+
+Change the permissions to:
+
+    $ sudo chmod 700 /etc/cron.daily/extender-cleanup.sh
+
 
 ## Extender on a macOS instance on AWS
 
@@ -12,7 +33,7 @@ Create [macOS instance in AWS Console](https://aws.amazon.com/ec2/instance-types
 ### Install software
 Login using [AWS Session Manager](README_SETUP_RELEASE.md)
 
-```
+```bash
 # install homebrew (should be installed on AWS servers)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
@@ -40,7 +61,7 @@ sudo cp -r -P /Applications/Xcode-15.0.1.app/Contents/SharedFrameworks/llbuild.f
 
 #### Create the folders
 
-```
+```bash
 sudo mkdir /usr/local/extender-stage
 sudo mkdir /usr/local/extender-production
 chown ec2-user /usr/local/extender-stage
@@ -97,6 +118,7 @@ Or, using another editor:
 
 Add a line like so, and adding an interval (here we set once a week):
 
-    0 0 * * 0 cd /usr/local && ./extender-cron.sh /tmp/extender-cron.stdout.log 2>/tmp//extender-cron.stderr.log
-
+```bash
+0 0 * * 0 cd /usr/local && ./extender-cron.sh /tmp/extender-cron.stdout.log 2>/tmp//extender-cron.stderr.log
+```
 
