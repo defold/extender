@@ -2370,24 +2370,6 @@ class Extender {
         return outputFiles;
     }
 
-    private List<File> copyApplePrivacyManifests(String platform) throws ExtenderException {
-        List<File> manifests = new ArrayList<>();
-        if (resolvedPods != null) {
-            for (File sourcePrivacyManifest : resolvedPods.getAllPrivacyManifests(platform)) {
-                String relativePath = ExtenderUtil.getRelativePath(resolvedPods.podsDir, sourcePrivacyManifest);
-                File targetPrivacyManifest = new File(buildDirectory, relativePath);
-                try {
-                    FileUtils.copyFile(sourcePrivacyManifest, targetPrivacyManifest);
-                }
-                catch (IOException e) {
-                    throw new ExtenderException(e, "Failed to copy privacy manifest");
-                }
-                manifests.add(targetPrivacyManifest);
-            }
-        }
-        return manifests;
-    }
-
     private List<File> buildApple(String platform) throws ExtenderException {
         LOGGER.info("Building Apple specific code");
         List<File> outputFiles = new ArrayList<>();

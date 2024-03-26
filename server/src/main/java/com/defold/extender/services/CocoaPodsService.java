@@ -119,11 +119,6 @@ public class CocoaPodsService {
             }
             return new ArrayList<String>(weakFrameworks);
         }
-
-        public List<File> getAllPrivacyManifests(String platform) {
-            List<File> manifests = ExtenderUtil.listFilesMatchingRecursive(podsDir, "PrivacyInfo.xcprivacy");
-            return manifests;
-        }
     }
 
     public class LanguageSet {
