@@ -36,12 +36,12 @@ class PlistMergeException extends Exception {
 public class InfoPlistMerger {
     private static Logger logger;
 
-    InfoPlistMerger(Logger logger) {
+    public InfoPlistMerger(Logger logger) {
         InfoPlistMerger.logger = logger;
     }
 
     // Merges the lib onto base, using the merging rules from https://developer.android.com/studio/build/manifest-merge.html
-    private static void mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib, Map<String, String> mergeMarkers) throws PlistMergeException {
+    private void mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib, Map<String, String> mergeMarkers) throws PlistMergeException {
 
 
         @SuppressWarnings("unchecked")
@@ -129,7 +129,7 @@ public class InfoPlistMerger {
         }
     }
 
-    private static XMLPropertyListConfiguration loadPlist(File file) {
+    private XMLPropertyListConfiguration loadPlist(File file) {
         try {
             XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
             plist.read(new FileReader(file));
@@ -170,7 +170,7 @@ public class InfoPlistMerger {
     }
 
 
-    private static Map<String, String> parseMergeNodeMarkers(File file) {
+    private Map<String, String> parseMergeNodeMarkers(File file) {
         Map<String, String> markers = new HashMap<>();
         try {
             // parse the file and get the first <dict> tag
@@ -197,7 +197,7 @@ public class InfoPlistMerger {
         return markers;
     }
 
-    public static void merge(File main, File[] libraries, File out) throws RuntimeException {
+    public void merge(File main, File[] libraries, File out) throws RuntimeException {
 
         Map<String, String> markers = parseMergeNodeMarkers(main);
 
