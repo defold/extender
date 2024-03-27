@@ -9,19 +9,12 @@ java -cp ./manifestmergetool.jar com.defold.manifestmergetool.ManifestMergeTool 
 
 package com.defold.manifestmergetool;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.ArrayList;
 import java.util.List;
-
-import java.nio.file.Files;
-import java.nio.charset.StandardCharsets;
-
-import com.android.manifmerger.ManifestMerger2;
-import com.android.manifmerger.MergingReport;
-import com.android.manifmerger.XmlDocument;
-import com.android.utils.ILogger;
 
 public class ManifestMergeTool {
 
@@ -29,27 +22,7 @@ public class ManifestMergeTool {
         ANDROID, IOS, OSX, WEB, UNKNOWN
     }
 
-    private static class ILoggerWrapper implements ILogger {
-        private Logger logger;
-        public ILoggerWrapper(Logger logger) {
-            this.logger = logger;
-        }
-        public void error(Throwable t, String msgFormat, Object... args) {
-            ManifestMergeTool.logger.log(Level.SEVERE, msgFormat, args);
-        }
-        public void warning(String msgFormat, Object... args) {
-            ManifestMergeTool.logger.log(Level.WARNING, msgFormat, args);
-        }
-        public void info(String msgFormat, Object... args) {
-            ManifestMergeTool.logger.log(Level.INFO, msgFormat, args);
-        }
-        public void verbose(String msgFormat, Object... args) {
-            ManifestMergeTool.logger.log(Level.FINE, msgFormat, args);
-        }
-    }
-
     private static Logger logger = Logger.getLogger(ManifestMergeTool.class.getName());
-    private static ILoggerWrapper androidLogger = new ILoggerWrapper(logger);
 
     public void usage() {
         logger.log(Level.INFO, "Usage:");
@@ -59,42 +32,24 @@ public class ManifestMergeTool {
     }
 
     private static void mergeAndroid(File main, File[] libraries, File out) throws RuntimeException {
-        // Good explanation of merge rules: https://android.googlesource.com/platform/tools/base/+/jb-mr2-dev/manifest-merger/src/main/java/com/android/manifmerger/ManifestMerger.java
-        // https://github.com/pixnet/android-platform-tools-base/blob/master/build-system/manifest-merger/src/main/java/com/android/manifmerger/ManifestMerger2.java
-        // https://android.googlesource.com/platform/tools/base/+/master/build-system/manifest-merger/src/main/java/com/android/manifmerger/Merger.java
-        logger.log(Level.FINE, "Merging manifests for Android");
-
-        ManifestMerger2.Invoker invoker = ManifestMerger2.newMerger(main, ManifestMergeTool.androidLogger, ManifestMerger2.MergeType.APPLICATION);
-        invoker.addLibraryManifests(libraries);
-        invoker.withFeatures(ManifestMerger2.Invoker.Feature.REMOVE_TOOLS_DECLARATIONS);
-
-        try {
-            MergingReport report = invoker.merge();
-            if (report.getResult().isSuccess()) {
-                String xml = report.getMergedDocument(MergingReport.MergedManifestKind.MERGED);
-                if (out != null) {
-                    try {
-                        try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(out), StandardCharsets.UTF_8)) {
-                            writer.write(xml);
-                        }
-                    } catch (IOException e) {
-                        throw new RuntimeException("Failed to write xml to " + out.getAbsolutePath(), e);
-                    }
-                } else {
-                    System.out.println(xml);
-                }
-            } else {
-                report.log(ManifestMergeTool.androidLogger);
-                throw new RuntimeException("Failed to merge manifests: " + report.toString());
-            }
-        } catch (ManifestMerger2.MergeFailureException e) {
-            throw new RuntimeException("Exception while merging manifests: " + e.toString());
-        }
+        AndroidManifestMerger merger = new AndroidManifestMerger(logger);
+        merger.merge(main, libraries, out);
     }
 
     private static void mergePlist(File main, File[] libraries, File out) throws RuntimeException {
         InfoPlistMerger merger = new InfoPlistMerger(logger);
         merger.merge(main, libraries, out);
+    }
+
+    private static void mergeApple(File main, File[] libraries, File out) throws RuntimeException {
+        if (main.getName().endsWith(".xcprivacy")) {
+            PrivacyManifestMerger merger = new PrivacyManifestMerger(logger);
+            merger.merge(main, libraries, out);
+        }
+        else {
+            InfoPlistMerger merger = new InfoPlistMerger(logger);
+            merger.merge(main, libraries, out);
+        }
     }
 
     private static void mergeHtml(File main, File[] libraries, File out) throws RuntimeException, IOException {
@@ -128,8 +83,8 @@ public class ManifestMergeTool {
         switch (platform) {
             case ANDROID:  mergeAndroid(main, libraries.toArray(new File[0]), output); break;
             case IOS:
-            case OSX:      mergePlist(main, libraries.toArray(new File[0]), output); break;
-            case WEB:    mergeHtml(main, libraries.toArray(new File[0]), output); break;
+            case OSX:      mergeApple(main, libraries.toArray(new File[0]), output); break;
+            case WEB:      mergeHtml(main, libraries.toArray(new File[0]), output); break;
             default:
                 throw new RuntimeException(String.format("Unsupported platform: %s", platform.toString()));
         };
@@ -184,8 +139,4 @@ public class ManifestMergeTool {
             System.exit(1);
         }
     }
-
-
-
-
 }

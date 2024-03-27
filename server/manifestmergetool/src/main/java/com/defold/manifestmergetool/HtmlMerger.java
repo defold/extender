@@ -24,20 +24,20 @@ public class HtmlMerger {
         KEEP, MERGE
     }
 
-    HtmlMerger(Logger logger) {
+    public HtmlMerger(Logger logger) {
         HtmlMerger.logger = logger;
     }
 
     class HtmlMergeException extends RuntimeException {
     };
 
-    private static MergePolicy getMergePolicy(Element e) {
+    private MergePolicy getMergePolicy(Element e) {
         String attr = e.attr("merge");
         if (attr.equals("keep")) return MergePolicy.KEEP;
         return MergePolicy.MERGE;
     }
 
-    public static Element findElement(Element e, String tag, String id) {
+    public Element findElement(Element e, String tag, String id) {
         for(Element child : e.children()) {
             if (child.tagName().equals(tag) && child.id().equals(id))
                 return child;
@@ -45,7 +45,7 @@ public class HtmlMerger {
         return null;
     }
 
-    public static void mergeNode(Element elementa, Element elementb) {
+    public void mergeNode(Element elementa, Element elementb) {
         for (Attribute attr : elementb.attributes()) {
             elementa.attr(attr.getKey(), attr.getValue());
         }
@@ -55,7 +55,7 @@ public class HtmlMerger {
         }
     }
 
-    public static void mergeElement(Element elementa, Element elementb) {
+    public void mergeElement(Element elementa, Element elementb) {
         MergePolicy mergePolicyA = getMergePolicy(elementa);
         MergePolicy mergePolicyB = getMergePolicy(elementb);
 
@@ -92,12 +92,12 @@ public class HtmlMerger {
         }
     }
 
-    public static void mergeDocuments(Document a, Document b) {
+    public void mergeDocuments(Document a, Document b) {
         mergeElement(a.head(), b.head());
         mergeElement(a.body(), b.body());
     }
 
-    public static void writeDocument(Document doc, File out) {
+    public void writeDocument(Document doc, File out) {
         if (out != null) {
             try {
                 try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(out), StandardCharsets.UTF_8)) {
@@ -110,11 +110,11 @@ public class HtmlMerger {
         }
     }
 
-    private static Document loadDocument(File file) throws IOException {
+    private Document loadDocument(File file) throws IOException {
         return Jsoup.parse(file, "UTF-8");
     }
 
-    public static void merge(File main, File[] libraries, File out) throws RuntimeException, IOException {
+    public void merge(File main, File[] libraries, File out) throws RuntimeException, IOException {
         Document baseDocument = loadDocument(main);
 
         // For error reporting/troubleshooting
@@ -130,6 +130,6 @@ public class HtmlMerger {
             }
         }
 
-        HtmlMerger.writeDocument(baseDocument, out);
+        writeDocument(baseDocument, out);
     }
 }
