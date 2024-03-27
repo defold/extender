@@ -29,11 +29,11 @@ public class ManifestMergeToolTest {
     private File target;
     List<File> libraries;
 
-    private String createFile(String root, String name, String content) throws IOException {
+    private File createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
         file.deleteOnExit();
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
-        return file.getAbsolutePath();
+        return file;
     }
 
     protected void createDefaultFiles() throws IOException {
@@ -483,7 +483,7 @@ public class ManifestMergeToolTest {
 
     @Test
     public void testMergeNestedDictionaries() throws IOException {
-                if (platform != Platform.IOS) {
+        if (platform != Platform.IOS) {
             return;
         }
         createDefaultFiles();
@@ -620,6 +620,156 @@ public class ManifestMergeToolTest {
         ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
 
         String merged = readFile(this.target);
+        assertEquals(expected, merged);
+    }
+
+
+    @Test
+    public void testMergePrivacyManifest() throws IOException {
+        if (platform != Platform.IOS && platform != Platform.OSX) {
+            return;
+        }
+        createDefaultFiles();
+
+        String main = ""
+            + "<?xml version=\"1.0\"?>\n"
+            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<plist version=\"1.0\">\n"
+            + "    <dict>\n"
+            + "        <key>NSPrivacyTracking</key>\n"
+            + "        <false/>\n"
+            + "\n"
+            + "        <key>NSPrivacyTrackingDomains</key>\n"
+            + "        <array>\n"
+            + "        </array>\n"
+            + "\n"
+            + "        <key>NSPrivacyCollectedDataTypes</key>\n"
+            + "        <array>\n"
+            + "          <dict>\n"
+            + "              <key>FooKey</key>\n"
+            + "              <string>FooString</string>\n"
+            + "          </dict>\n"
+            + "        </array>\n"
+            + "\n"
+            + "        <key>NSPrivacyAccessedAPITypes</key>\n"
+            + "        <array>\n"
+            + "          <dict>\n"
+            + "              <key>NSPrivacyAccessedAPIType</key>\n"
+            + "              <string>Foo</string>\n"
+            + "\n"
+            + "              <key>NSPrivacyAccessedAPITypeReasons</key>\n"
+            + "              <array>\n"
+            + "                  <string>A</string>\n"
+            + "              </array>\n"
+            + "          </dict>\n"
+            + "        </array>\n"
+            + "    </dict>\n"
+            + "</plist>\n";
+
+        String lib = ""
+            + "<?xml version=\"1.0\"?>\n"
+            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<plist version=\"1.0\">\n"
+            + "    <dict>\n"
+            + "        <key>NSPrivacyTracking</key>\n"
+            + "        <false/>\n"
+            + "\n"
+            + "        <key>NSPrivacyTrackingDomains</key>\n"
+            + "        <array>\n"
+            + "        </array>\n"
+            + "\n"
+            + "        <key>NSPrivacyCollectedDataTypes</key>\n"
+            + "        <array>\n"
+            + "            <dict>\n"
+            + "                <key>BarKey</key>\n"
+            + "                <string>BarString</string>\n"
+            + "            </dict>\n"
+            + "        </array>\n"
+            + "\n"
+            + "        <key>NSPrivacyAccessedAPITypes</key>\n"
+            + "        <array>\n"
+            + "            <dict>\n"
+            + "                <key>NSPrivacyAccessedAPIType</key>\n"
+            + "                <string>Foo</string>\n"
+            + "\n"
+            + "                <key>NSPrivacyAccessedAPITypeReasons</key>\n"
+            + "                <array>\n"
+            + "                    <string>B</string>\n"
+            + "                </array>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>NSPrivacyAccessedAPIType</key>\n"
+            + "                <string>Bar</string>\n"
+            + "\n"
+            + "                <key>NSPrivacyAccessedAPITypeReasons</key>\n"
+            + "                <array>\n"
+            + "                    <string>A</string>\n"
+            + "                </array>\n"
+            + "            </dict>\n"
+            + "        </array>\n"
+            + "    </dict>\n"
+            + "</plist>\n";
+
+        String expected = ""
+            + "<?xml version=\"1.0\"?>\n"
+            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<plist version=\"1.0\">\n"
+            + "    <dict>\n"
+            + "        <key>NSPrivacyTracking</key>\n"
+            + "        <false/>\n"
+            + "\n"
+            + "        <key>NSPrivacyTrackingDomains</key>\n"
+            + "        <array>\n"
+            + "        </array>\n"
+            + "\n"
+            + "        <key>NSPrivacyCollectedDataTypes</key>\n"
+            + "        <array>\n"
+            + "            <dict>\n"
+            + "                <key>FooKey</key>\n"
+            + "                <string>FooString</string>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>BarKey</key>\n"
+            + "                <string>BarString</string>\n"
+            + "            </dict>\n"
+            + "        </array>\n"
+            + "\n"
+            + "        <key>NSPrivacyAccessedAPITypes</key>\n"
+            + "        <array>\n"
+            + "            <dict>\n"
+            + "                <key>NSPrivacyAccessedAPIType</key>\n"
+            + "                <string>Foo</string>\n"
+            + "\n"
+            + "                <key>NSPrivacyAccessedAPITypeReasons</key>\n"
+            + "                <array>\n"
+            + "                    <string>A</string>\n"
+            + "                    <string>B</string>\n"
+            + "                </array>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>NSPrivacyAccessedAPIType</key>\n"
+            + "                <string>Bar</string>\n"
+            + "\n"
+            + "                <key>NSPrivacyAccessedAPITypeReasons</key>\n"
+            + "                <array>\n"
+            + "                    <string>A</string>\n"
+            + "                </array>\n"
+            + "            </dict>\n"
+            + "        </array>\n"
+            + "    </dict>\n"
+            + "</plist>\n";
+
+        File mainFile = createFile(contentRoot, "builtins/manifests/ios/PrivacyInfo.xcprivacy", main);
+        File libFile = createFile(contentRoot, "builtins/manifests/ios/PrivacyInfoLib.xcprivacy", lib);
+        File targetFile = new File(contentRoot, "builtins/manifests/ios/PrivacyInfoMerged.plist");
+
+        List<File> libraries = new ArrayList<>();
+        libraries.add(libFile);
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, mainFile, targetFile, libraries);
+
+        String merged = readFile(targetFile);
+        System.out.println("expected: " + expected);
+        System.out.println("merged: " + merged);
         assertEquals(expected, merged);
     }
 
