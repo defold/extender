@@ -2370,6 +2370,48 @@ class Extender {
         return outputFiles;
     }
 
+    private List<File> buildApple(String platform) throws ExtenderException {
+        LOGGER.info("Building Apple specific code");
+        List<File> outputFiles = new ArrayList<>();
+
+        List<File> privacyManifests = new ArrayList<>();
+        privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(uploadDirectory, "PrivacyInfo.xcprivacy"));
+        privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
+        
+        // do nothing if there are no privacy manifests
+        if (privacyManifests.isEmpty()) {
+            return outputFiles;
+        }
+        // use the first privacy manifests as-is if it is the only one
+        if (privacyManifests.size() == 1) {
+            outputFiles.add(privacyManifests.get(0));
+            return outputFiles;
+        }
+
+        // use the first privacy manifest as the base and merge the rest into
+        // it (and save it as a new final 'PrivacyInfo.xcprivacy' file)
+        File mainManifest = privacyManifests.remove(0);
+        File targetManifest = new File(buildDirectory, "PrivacyInfo.xcprivacy");
+        outputFiles.add(targetManifest);
+
+        // Merge the files
+        Map<String, Object> context = createContext(mergedAppContext);
+        context.put("mainManifest", mainManifest.getAbsolutePath());
+        context.put("target", targetManifest.getAbsolutePath());
+        context.put("platform", getBasePlatform(platform));
+        context.put("libraries", privacyManifests);
+
+        try {
+            String command = templateExecutor.execute(platformConfig.manifestMergeCmd, context);
+            processExecutor.execute(command);
+        }
+        catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return outputFiles;
+    }
+
     private String getBasePlatform(String platform) {
         String[] platformParts = this.platform.split("-");
         return platformParts[1];
@@ -2498,6 +2540,9 @@ class Extender {
             // TODO: Thread this step
             if (platform.endsWith("android")) {
                 outputFiles.addAll(buildAndroid(platform));
+            }
+            else if (platform.endsWith("ios") || platform.endsWith("macos")) {
+                outputFiles.addAll(buildApple(platform));
             }
 
             outputFiles.addAll(buildEngine());
