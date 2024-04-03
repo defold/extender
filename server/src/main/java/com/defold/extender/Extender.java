@@ -2376,7 +2376,9 @@ class Extender {
 
         List<File> privacyManifests = new ArrayList<>();
         privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(uploadDirectory, "PrivacyInfo.xcprivacy"));
-        privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
+        if (resolvedPods != null) {
+            privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
+        }
         
         // do nothing if there are no privacy manifests
         if (privacyManifests.isEmpty()) {
