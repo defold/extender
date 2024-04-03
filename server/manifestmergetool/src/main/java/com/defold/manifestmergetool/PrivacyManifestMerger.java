@@ -24,12 +24,18 @@ public class PrivacyManifestMerger {
     }
 
     private ArrayList<XMLPropertyListConfiguration> getArrayList(XMLPropertyListConfiguration config, String key) {
+        if (!config.containsKey(key)) {
+            config.addProperty(key, new ArrayList<XMLPropertyListConfiguration>());
+        }
         @SuppressWarnings("unchecked")
         ArrayList<XMLPropertyListConfiguration> a = (ArrayList<XMLPropertyListConfiguration>)config.getProperty(key);
         return a;
     }
 
     private ArrayList<String> getStringArrayList(XMLPropertyListConfiguration config, String key) {
+        if (!config.containsKey(key)) {
+            config.addProperty(key, new ArrayList<String>());
+        }
         @SuppressWarnings("unchecked")
         ArrayList<String> a = (ArrayList<String>)config.getProperty(key);
         return a;
