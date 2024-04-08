@@ -11,13 +11,33 @@ import java.util.logging.Logger;
 
 // https://cayenne.apache.org/docs/2.0/api/org/apache/cayenne/conf/FileConfiguration.html
 import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.configuration2.io.FileLocator.FileLocatorBuilder;
-import org.apache.commons.configuration2.io.FileLocatorUtils;
-import org.apache.commons.configuration2.io.FileLocator;
+import org.apache.commons.configuration2.io.FileHandler;
 import org.apache.commons.configuration2.plist.XMLPropertyListConfiguration;
 
 public class PrivacyManifestMerger {
     private static Logger logger;
+
+    // The XMLPropertyListConfiguration writes the file with a different DOCTYPE
+    // than Apple expects. We solve this by wrapping the FileWriter and changing
+    // the DOCTYPE on the fly
+    private static class ModifyingFileWriter extends FileWriter {
+
+        private static final String TARGET_DOCTYPE = "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">";
+        private static final String REPLACEMENT_DOCTYPE = "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">";
+
+        public ModifyingFileWriter(File f) throws IOException {
+            super(f);
+        }
+
+        @Override
+        public void write(String str, int off, int len) throws IOException {
+            if (str.startsWith("<!DOCTYPE")) {
+                str = str.replace(TARGET_DOCTYPE, REPLACEMENT_DOCTYPE);
+                len = str.length();
+            }
+            super.write(str, off, len);
+        }
+    }
 
     PrivacyManifestMerger(Logger logger) {
         PrivacyManifestMerger.logger = logger;
@@ -138,16 +158,11 @@ public class PrivacyManifestMerger {
         }
 
         try {
-            FileWriter writer = new FileWriter(out);
-            FileLocatorBuilder builder = FileLocatorUtils.fileLocator();
-            FileLocator locator = new FileLocator(builder);
-            basePlist.initFileLocator(locator);
-            basePlist.write(writer);
-            writer.close();
-        } catch (ConfigurationException e) {
-            throw new RuntimeException("Failed to parse plist: " + e.toString());
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to parse plist: " + e.toString());
+            FileHandler handler = new FileHandler(basePlist);
+            ModifyingFileWriter writer = new ModifyingFileWriter(out);
+            handler.save(writer);
+        } catch (ConfigurationException | IOException e) {
+            throw new RuntimeException("Failed to write plist: " + e.toString());
         }
     }
 }
