@@ -1249,8 +1249,10 @@ class Extender {
         Map<String, Object> mainContext = createContext(linkContext);
 
         extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols") );
-        mainContext.put("symbols", ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols")));
-        mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
+
+        List<String> cppSymbols = ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols"));
+        mainContext.put("symbols", ExtenderUtil.makeUnique(cppSymbols));
+        mainContext.put("ext", ImmutableMap.of("symbols", ExtenderUtil.makeUnique(extSymbols)));
 
         String main = templateExecutor.execute(config.main, mainContext);
         FileUtils.writeStringToFile(maincpp, main);
