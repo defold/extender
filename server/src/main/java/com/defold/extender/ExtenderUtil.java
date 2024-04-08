@@ -114,6 +114,10 @@ public class ExtenderUtil
         return base.toURI().relativize(path.toURI()).getPath();
     }
 
+    public static List<String> makeUnique(List<String> items) {
+        return items.stream().distinct().collect(Collectors.toList());
+    }
+
     static void debugPrintIndent(int indent) {
         for (int i = 0; i < indent; ++i) {
             System.out.print("  ");
