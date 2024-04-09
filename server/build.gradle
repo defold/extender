@@ -161,6 +161,7 @@ task dockerStageDir {
 task buildDocker(type: DockerBuildImage) {
     dependsOn 'build', ':manifestmergetool:mainJar', 'dockerStageDir'
     inputDir = dockerBuildDir
+    buildArgs = ['platform': 'linux/amd64']
     imageId = bootJar.archiveBaseName
     dockerFile = new File(dockerBuildDir, 'Dockerfile')
     images.add("extender/extender:latest")

@@ -27,6 +27,6 @@ if [ "${DM_EXTENDER_PASSWORD}" != "" ]; then
 	unset DM_EXTENDER_PASSWORD
 fi
 
-docker build -t extender-base ${ENV} ${DIR}/../docker-base
+docker build --platform linux/amd64 -t extender-base ${ENV} ${DIR}/../docker-base
 
 ${DIR}/../../gradlew clean buildDocker --info $@
