@@ -127,6 +127,9 @@ public class IntegrationTest {
                 // 2023-11-03 https://github.com/defold/defold/releases/tag/1.6.1
                 new DefoldVersion("a90c50928623cf23b3687a7eec05972d11427202", new Version(1, 6, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
+                // 2024-03-11 https://github.com/defold/defold/releases/tag/1.7.0
+                new DefoldVersion("bf4dc66ab5fbbafd4294d32c2797c08b630c0be5", new Version(1, 7, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
                 //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),
