@@ -129,6 +129,26 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_2_0_11} && \
   chown -R extender: ${EMSCRIPTEN_CACHE_2_0_11}/wasm/cache.lock
 
+ENV EMSCRIPTEN_SDK_3_1_55 ${PLATFORMSDK_DIR}/emsdk-3.1.55
+ENV EMSCRIPTEN_HOME_3_1_55 ${EMSCRIPTEN_SDK_3_1_55}
+ENV EMSCRIPTEN_CACHE_3_1_55 /var/extender/emcache_3_1_55
+ENV EMSCRIPTEN_CONFIG_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}/.emscripten
+ENV EMSCRIPTEN_PYTHON_3_1_55 /usr/bin/python3.9
+ENV EMSCRIPTEN_BIN_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}/upstream/emscripten
+ENV EMSCRIPTEN_PATH_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}:${EMSCRIPTEN_HOME_3_1_55}/upstream/bin:${EMSCRIPTEN_HOME_3_1_55}/node/16.20.0_64bit/bin:${EMSCRIPTEN_BIN_3_1_55}
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK_3_1_55} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-3.1.55-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_3_1_55} --strip-components=1
+
+RUN \
+  ${EMSCRIPTEN_HOME_3_1_55}/emsdk activate sdk-3.1.55-64bit && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_3_1_55 EM_CACHE=${EMSCRIPTEN_CACHE_3_1_55} python3 ${EMSCRIPTEN_BIN_3_1_55}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_3_1_55} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_3_1_55}
+  # && \
+  # chown -R extender: ${EMSCRIPTEN_CACHE_3_1_55}/wasm/cache.lock
+
 
 # We use the same temp directory for both versions.
 ENV EMSCRIPTEN_TEMP_DIR /var/extender/ems_temp
@@ -137,10 +157,9 @@ RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
 RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_2_0_11} && \
-  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_2_0_11}
-  #  && \
-  # sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_39_16} && \
-  # echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_39_16}
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_2_0_11} && \
+  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_3_1_55} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_3_1_55}
 
 RUN \
   update-alternatives --set python3 /usr/bin/python3.8
