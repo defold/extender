@@ -599,6 +599,9 @@ COPY template.podfile ${EXTENSION_PODFILE_TEMPLATE}
 ENV EXTENSION_MODULEMAP_TEMPLATE /var/extender/template.modulemap
 COPY template.modulemap ${EXTENSION_MODULEMAP_TEMPLATE}
 
+ENV EXTENSION_UMBRELLAHEADER_TEMPLATE /var/extender/template.umbrella.h
+COPY template.umbrella.h ${EXTENSION_UMBRELLAHEADER_TEMPLATE}
+
 #
 # ZIG
 #
