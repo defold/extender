@@ -16,6 +16,7 @@ RUN \
     build-essential \
     uuid-dev \
     libxi-dev \
+    libx11-xcb-dev \
     libopenal-dev \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
