@@ -140,7 +140,7 @@ ENV EMSCRIPTEN_PATH_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}:${EMSCRIPTEN_HOME_3_1_55}/u
 
 RUN \
   mkdir ${EMSCRIPTEN_SDK_3_1_55} && \
-  wget -q -O - ${DM_PACKAGES_URL}/emsdk-3.1.55-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_3_1_55} --strip-components=1
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-3.1.55-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_3_1_55} --strip-components=1
 
 RUN \
   ${EMSCRIPTEN_HOME_3_1_55}/emsdk activate sdk-3.1.55-64bit && \
