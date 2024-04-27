@@ -398,7 +398,7 @@ RUN \
 # check that dx installed properly
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_33}/d8 && \
     which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
-    which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
+    which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++
 # check that aapt installed correctly
 # We specify ANDROID_SDK_BUILD_TOOLS_PATH_* in build_input.yml by setting it the first in PATH
 # We can't check aapt in initial setup anymore
