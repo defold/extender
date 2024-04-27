@@ -554,7 +554,7 @@ COPY template.umbrella.h ${EXTENSION_UMBRELLAHEADER_TEMPLATE}
 
 ENV ZIG_VERSION=0.11.0
 ENV ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
-ENV ZIG_URL=https://ziglang.org/builds/zig-linux-x86_64-${ZIG_VERSION}-dev.3886+0c1bfe271.tar.xz
+ENV ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz
 ENV PATH ${PATH}:${ZIG_PATH_0_11}
 
 RUN \
