@@ -352,29 +352,6 @@ ENV ANDROID_LIBRARYJAR_33 ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSIO
 # We specify it in build_input.yml by setting it the first in PATH
 # ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_33}
 
-
-
-# We must keep two NDKs alive for now, since migrating to the latest (i.e 25b) will break
-# for users that try to build with an older build.yml.
-
-#
-# Old NDK20:
-#
-
-ENV ANDROID_NDK20_VERSION        20
-ENV ANDROID_NDK20_API_VERSION    16
-ENV ANDROID_64_NDK20_API_VERSION 21
-
-# These paths are the same for both the 32 and 64 bit toolchains
-ENV ANDROID_NDK20_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}
-ENV ANDROID_NDK20_BIN_PATH   ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
-ENV ANDROID_NDK20_SYSROOT    ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-ENV ANDROID_NDK20_STL_LIB    ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
-ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
-ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.tar.gz
-
-ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
-
 #
 # New NDK25b (Defold 1.4.3):
 #
@@ -406,28 +383,11 @@ ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 RUN \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
-    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME_33} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
     rm -rf ${ANDROID_HOME}/extras && \
-
-    rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
-    rm -rf ${ANDROID_NDK20_PATH}/shader-tools && \
-    rm -rf ${ANDROID_NDK20_PATH}/sources/third_party && \
-    rm -rf ${ANDROID_NDK20_PATH}/sources/cxx-stl && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/renderscript && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/arm-linux-androideabi-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/aarch64-linux-android-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86_64-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
 
     rm -rf ${ANDROID_NDK25_PATH}/prebuilt && \
     rm -rf ${ANDROID_NDK25_PATH}/simpleperf && \
@@ -448,12 +408,9 @@ RUN \
 # fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
 # check that dx installed properly
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
-    which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
-    which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
     which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
     which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
 # check that aapt installed correctly
