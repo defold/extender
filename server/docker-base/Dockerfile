@@ -371,7 +371,6 @@ RUN \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME_33} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
     rm -rf ${ANDROID_HOME}/extras && \
@@ -397,7 +396,7 @@ RUN \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
 # check that dx installed properly
-    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_33}/d8 && \
     which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
     which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
 # check that aapt installed correctly
