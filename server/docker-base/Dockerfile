@@ -374,7 +374,6 @@ RUN \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME_33} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
     rm -rf ${ANDROID_HOME}/extras && \
-
     rm -rf ${ANDROID_NDK25_PATH}/prebuilt && \
     rm -rf ${ANDROID_NDK25_PATH}/simpleperf && \
     rm -rf ${ANDROID_NDK25_PATH}/shader-tools && \
