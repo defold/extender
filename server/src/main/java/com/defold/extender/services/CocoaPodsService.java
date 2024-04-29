@@ -4,6 +4,7 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
+import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -483,15 +484,27 @@ public class CocoaPodsService {
         }
     }
 
-    private void stripBitcode(File file) throws ExtenderException {
-        String command = String.format("bitcode_strip %s -r -o %s", file.getAbsolutePath(), file.getAbsolutePath());
+    private void stripBitcode(File file, PlatformConfig config) throws ExtenderException {
+        String command = null;
+
+        if (config.bitcodeStripCmd != null) {
+            Map<String, Object> context = new HashMap<>(config.context);
+            context.put("source", file.getAbsolutePath());
+            context.put("target", file.getAbsolutePath());
+
+            command = templateExecutor.execute(config.bitcodeStripCmd, context);
+        }
+        else {
+            command = String.format("bitcode_strip %s -r -o %s", file.getAbsolutePath(), file.getAbsolutePath());
+        }
+
         String log = execCommand(command);
         LOGGER.info("\n" + log);
     }
 
     // helper function to copy the frameworks, static libs and headers from a
     // platform architecture folder (inside an .xcframework)
-    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir) throws IOException, ExtenderException {
+    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir, PlatformConfig config) throws IOException, ExtenderException {
         File[] files = architectureDir.listFiles();
         for (File file : files) {
             String filename = file.getName();
@@ -499,7 +512,7 @@ public class CocoaPodsService {
                 String frameworkName = filename.replace(".framework", "");
                 File lib = new File(file, frameworkName);
                 if (lib.exists()) {
-                    stripBitcode(lib);
+                    stripBitcode(lib, config);
                 }
                 File from = file;
                 File to = new File(destFrameworkDir, filename);
@@ -525,8 +538,9 @@ public class CocoaPodsService {
      * and x86 .framworks for use later when building extensions using the pods
      * @param pods The pods to process
      * @param frameworksDir Directory where to copy frameworks and framework libs
+     * @param config Platform config
      */
-    private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir) throws IOException, ExtenderException {
+    private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir, PlatformConfig config) throws IOException, ExtenderException {
         LOGGER.info("Copying pod frameworks");
         File libDir = new File(frameworksDir, "lib");
         File armLibDir = new File(libDir, "arm64-ios");
@@ -548,19 +562,19 @@ public class CocoaPodsService {
                 File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
                 File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
                 if (arm64_armv7FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armLibDir, armHeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armLibDir, armHeaderDir, config);
                 }
                 else if (arm64FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armLibDir, armHeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armLibDir, armHeaderDir, config);
                 }
                 
                 File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
                 File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
                 if (arm64_i386_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86LibDir, x86HeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86LibDir, x86HeaderDir, config);
                 }
                 else if (arm64_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86LibDir, x86HeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86LibDir, x86HeaderDir, config);
                 }
             }
         }
@@ -1239,16 +1253,17 @@ public class CocoaPodsService {
 
     /**
      * Entry point for Cocoapod dependency resolution.
+     * @param config Platform config 
      * @param jobDir Root directory of the job to resolve
      * @param platform Which platform to resolve pods for
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(Map<String, Object> env, File jobDir, String platform) throws IOException, ExtenderException {
+    public ResolvedPods resolveDependencies(PlatformConfig config, File jobDir, String platform) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
 
-        Map<String, Object> jobEnvContext = createJobEnvContext(env);
+        Map<String, Object> jobEnvContext = createJobEnvContext(config.context);
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for
@@ -1280,7 +1295,7 @@ public class CocoaPodsService {
 
         String platformMinVersion = createMainPodFile(platformPodFiles, jobDir, workingDir, platform, jobEnvContext);
         List<PodSpec> pods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
-        copyPodFrameworks(pods, frameworksDir);
+        copyPodFrameworks(pods, frameworksDir, config);
 
         dumpDir(jobDir, 0);
 
