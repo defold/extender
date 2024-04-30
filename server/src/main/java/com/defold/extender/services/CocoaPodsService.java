@@ -487,6 +487,7 @@ public class CocoaPodsService {
     private void stripBitcode(File file, PlatformConfig config) throws ExtenderException {
         String command = null;
 
+        // bitcodeStripCmd added in 1.8.1
         if (config.bitcodeStripCmd != null) {
             Map<String, Object> context = new HashMap<>(config.context);
             context.put("source", file.getAbsolutePath());
