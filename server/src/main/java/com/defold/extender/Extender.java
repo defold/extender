@@ -2488,7 +2488,7 @@ class Extender {
 
     void resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
         try {
-            resolvedPods = cocoaPodsService.resolveDependencies(this.platformConfig.context, jobDirectory, platform);
+            resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, jobDirectory, platform);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());
