@@ -115,9 +115,6 @@ public class IntegrationTest {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // 2023-01-30 https://github.com/defold/defold/releases/tag/1.4.2
-                new DefoldVersion("8cd3a634b13f4db51a37607bf32bf3a3b362c8e6", new Version(1, 4, 2), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
                 // 2023-02-27 https://github.com/defold/defold/releases/tag/1.4.3
                 new DefoldVersion("8eaab6b1281ce492163428e0e7b2e0fa247a0a93", new Version(1, 4, 3), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
