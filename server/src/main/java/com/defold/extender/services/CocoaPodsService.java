@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
+import org.apache.commons.text.StringEscapeUtils;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -605,6 +606,14 @@ public class CocoaPodsService {
         return a;
     }
 
+    private List<String> unescapeStrings(List<String> strings) {
+        List<String> unescapedStrings = new ArrayList<>();
+        for (String s : strings) {
+            unescapedStrings.add(StringEscapeUtils.unescapeJava(s));
+        }
+        return unescapedStrings;
+    }
+
     // get a string value from a JSON object and split it into a list using space character as delimiter
     // will return an empty list if the value does not exist
     private List<String> getAsSplitString(JSONObject o, String key) {
@@ -653,7 +662,7 @@ public class CocoaPodsService {
         // https://pewpewthespells.com/blog/buildsettings.html
         // defines
         if (hasString(config, "GCC_PREPROCESSOR_DEFINITIONS")) {
-            defines.addAll(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS"));
+            defines.addAll(unescapeStrings(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS")));
         }
         // linker flags
         // https://xcodebuildsettings.com/#other_ldflags
