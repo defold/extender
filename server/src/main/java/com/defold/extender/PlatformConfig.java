@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class PlatformConfig {
+public class PlatformConfig {
 
     public Map<String, String> env = new HashMap<>();
     public Map<String, Object> context = new HashMap<>();
@@ -28,6 +28,7 @@ class PlatformConfig {
     public String rjavaCmd;
     public String manifestName;
     public String manifestMergeCmd;
+    public String bitcodeStripCmd;
     public String proGuardSourceRe;
     public String proGuardCmd = new String();
     public String windresCmd = new String();

@@ -4,6 +4,7 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
+import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -230,6 +231,8 @@ public class CocoaPodsService {
         public String osxversion = "";
         public String iosModuleMap = null;
         public String osxModuleMap = null;
+        public String iosUmbrellaHeader = null;
+        public String osxUmbrellaHeader = null;
         // Set to true if this Pod contains at least one .xcframework
         public Boolean containsFramework = false;
         // The Swift source file header (ModuleName-Swift.h)
@@ -300,11 +303,13 @@ public class CocoaPodsService {
 
     private static final String PODFILE_TEMPLATE_PATH = System.getenv("EXTENSION_PODFILE_TEMPLATE");
     private static final String MODULEMAP_TEMPLATE_PATH = System.getenv("EXTENSION_MODULEMAP_TEMPLATE");
+    private static final String UMBRELLAHEADER_TEMPLATE_PATH = System.getenv("EXTENSION_UMBRELLAHEADER_TEMPLATE");
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     private final String podfileTemplateContents;
     private final String modulemapTemplateContents;
+    private final String umbrellaHeaderTemplateContents;
 
     private final MeterRegistry meterRegistry;
 
@@ -322,6 +327,7 @@ public class CocoaPodsService {
         this.meterRegistry = meterRegistry;
         this.podfileTemplateContents = readFile(PODFILE_TEMPLATE_PATH);
         this.modulemapTemplateContents = readFile(MODULEMAP_TEMPLATE_PATH);
+        this.umbrellaHeaderTemplateContents = readFile(UMBRELLAHEADER_TEMPLATE_PATH);
 
         LOGGER.info("CocoaPodsService service");
     }
@@ -478,15 +484,28 @@ public class CocoaPodsService {
         }
     }
 
-    private void stripBitcode(File file) throws ExtenderException {
-        String command = String.format("bitcode_strip %s -r -o %s", file.getAbsolutePath(), file.getAbsolutePath());
+    private void stripBitcode(File file, PlatformConfig config) throws ExtenderException {
+        String command = null;
+
+        // bitcodeStripCmd added in 1.8.1
+        if (config.bitcodeStripCmd != null) {
+            Map<String, Object> context = new HashMap<>(config.context);
+            context.put("source", file.getAbsolutePath());
+            context.put("target", file.getAbsolutePath());
+
+            command = templateExecutor.execute(config.bitcodeStripCmd, context);
+        }
+        else {
+            command = String.format("bitcode_strip %s -r -o %s", file.getAbsolutePath(), file.getAbsolutePath());
+        }
+
         String log = execCommand(command);
         LOGGER.info("\n" + log);
     }
 
     // helper function to copy the frameworks, static libs and headers from a
     // platform architecture folder (inside an .xcframework)
-    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir) throws IOException, ExtenderException {
+    private void copyPodFrameworksFromArchitectureDir(File architectureDir, File destFrameworkDir, File destHeaderDir, PlatformConfig config) throws IOException, ExtenderException {
         File[] files = architectureDir.listFiles();
         for (File file : files) {
             String filename = file.getName();
@@ -494,7 +513,7 @@ public class CocoaPodsService {
                 String frameworkName = filename.replace(".framework", "");
                 File lib = new File(file, frameworkName);
                 if (lib.exists()) {
-                    stripBitcode(lib);
+                    stripBitcode(lib, config);
                 }
                 File from = file;
                 File to = new File(destFrameworkDir, filename);
@@ -520,8 +539,9 @@ public class CocoaPodsService {
      * and x86 .framworks for use later when building extensions using the pods
      * @param pods The pods to process
      * @param frameworksDir Directory where to copy frameworks and framework libs
+     * @param config Platform config
      */
-    private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir) throws IOException, ExtenderException {
+    private void copyPodFrameworks(List<PodSpec> pods, File frameworksDir, PlatformConfig config) throws IOException, ExtenderException {
         LOGGER.info("Copying pod frameworks");
         File libDir = new File(frameworksDir, "lib");
         File armLibDir = new File(libDir, "arm64-ios");
@@ -543,19 +563,19 @@ public class CocoaPodsService {
                 File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
                 File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
                 if (arm64_armv7FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armLibDir, armHeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armLibDir, armHeaderDir, config);
                 }
                 else if (arm64FrameworkDir.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armLibDir, armHeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armLibDir, armHeaderDir, config);
                 }
                 
                 File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
                 File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
                 if (arm64_i386_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86LibDir, x86HeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86LibDir, x86HeaderDir, config);
                 }
                 else if (arm64_x86Framework.exists()) {
-                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86LibDir, x86HeaderDir);
+                    copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86LibDir, x86HeaderDir, config);
                 }
             }
         }
@@ -756,13 +776,47 @@ public class CocoaPodsService {
         return files;
     }
 
+    private void createUmbrellaHeader(PodSpec pod, Set<String> headerPatterns, File umbrellaHeaderFile, File jobDir) throws ExtenderException {
+        LOGGER.info("createUmbrellaHeader() " + pod.moduleName +  " from header patterns: " + headerPatterns + " " + umbrellaHeaderFile);
+
+        List<String> headers = new ArrayList<>();
+        for (String headerPattern : headerPatterns) {
+            String absoluteHeaderPatternPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
+            List<File> headerFiles = listFilesGlob(pod.dir, absoluteHeaderPatternPath);
+            for (File headerFile : headerFiles) {
+                headers.add(headerFile.getAbsolutePath());
+            }
+        }
+
+        HashMap<String, Object> envContext = new HashMap<>();
+        envContext.put("MODULE_ID", pod.moduleName);
+        envContext.put("HEADERS", headers);
+        
+        String umbrellaHeader = templateExecutor.execute(umbrellaHeaderTemplateContents, envContext);
+        try {
+            Files.writeString(umbrellaHeaderFile.toPath(), umbrellaHeader);
+        }
+        catch (IOException e) {
+            throw new ExtenderException(e, "Unable to create umbrella header for " + pod.moduleName);
+        }
+    }
+
+    private String createIosUmbrellaHeader(PodSpec pod, File jobDir) throws ExtenderException {
+        File umbrellaHeaderFile = new File(pod.generatedDir, pod.moduleName + "-umbrella.h");
+        createUmbrellaHeader(pod, pod.publicHeaders.ios, umbrellaHeaderFile, jobDir);
+        return umbrellaHeaderFile.getAbsolutePath();
+    }
+    private String createOsxUmbrellaHeader(PodSpec pod, File jobDir) throws ExtenderException {
+        File umbrellaHeaderFile = new File(pod.generatedDir, pod.moduleName + "-umbrella.h");
+        createUmbrellaHeader(pod, pod.publicHeaders.osx, umbrellaHeaderFile, jobDir);
+        return umbrellaHeaderFile.getAbsolutePath();
+    }
+
     // https://clang.llvm.org/docs/Modules.html#module-declaration
-    private void createModuleMap(PodSpec pod, Set<String> headerPatterns, File moduleMapFile, File jobDir) throws ExtenderException {
+    private void createModuleMap(PodSpec pod, Set<String> headerPatterns, String umbrellaHeader, File moduleMapFile, File jobDir) throws ExtenderException {
         LOGGER.info("createModuleMap() " + pod.moduleName +  " from header patterns: " + headerPatterns + " " + moduleMapFile);
 
         List<String> headers = new ArrayList<>();
-        List<String> umbrellaHeaders = new ArrayList<>();
-        List<String> umbrellaDirectories = new ArrayList<>();
 
         // swift source file header
         // generated by the swift compiler if -emit-objc-header flag is set
@@ -770,30 +824,6 @@ public class CocoaPodsService {
             File swiftModuleHeader = new File(pod.generatedDir, pod.moduleName + "-Swift.h");
             pod.swiftModuleHeader = swiftModuleHeader;
             headers.add(swiftModuleHeader.getAbsolutePath());
-        }
-
-        // umbrella headers
-        for (String headerPattern : headerPatterns) {
-            String absoluteHeaderPatternPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
-            List<File> headerFiles = listFilesGlob(pod.dir, absoluteHeaderPatternPath);
-            for (File headerFile : headerFiles) {
-                if (headerFile.getName().equals(pod.moduleName + ".h")) {
-                    umbrellaHeaders.add(headerFile.getAbsolutePath());
-                }
-            }
-        }
-
-        // umbrella directory
-        if (umbrellaHeaders.isEmpty()) {
-            for (String headerPattern : headerPatterns) {
-                headerPattern = headerPattern.replace("/*.h", "");
-                headerPattern = headerPattern.replace("/**", "");
-                if (headerPattern.lastIndexOf("/") != -1) {
-                    headerPattern = headerPattern.substring(0, headerPattern.lastIndexOf("/"));
-                }
-                String headerPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
-                umbrellaDirectories.add(headerPath);
-            }
         }
 
         // module name, including parent spec module name
@@ -804,8 +834,7 @@ public class CocoaPodsService {
         envContext.put("FRAMEWORKOPT", pod.containsFramework ? "framework" : "");
         envContext.put("MODULE_ID", fullModuleName);
         envContext.put("HEADERS", headers);
-        envContext.put("UMBRELLA_HEADERS", umbrellaHeaders);
-        envContext.put("UMBRELLA_DIRECTORIES", umbrellaDirectories);
+        envContext.put("UMBRELLA_HEADER", umbrellaHeader);
         envContext.put("SUBMODULE", pod.containsFramework ? "module * { export * }" : "");
         
         String moduleMap = templateExecutor.execute(modulemapTemplateContents, envContext);
@@ -819,12 +848,12 @@ public class CocoaPodsService {
 
     private String createIosModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
         File moduleMapFile = new File(pod.generatedDir, "module.modulemap");
-        createModuleMap(pod, pod.publicHeaders.ios, moduleMapFile, jobDir);
+        createModuleMap(pod, pod.publicHeaders.ios, pod.iosUmbrellaHeader, moduleMapFile, jobDir);
         return moduleMapFile.getAbsolutePath();
     }
     private String createOsxModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
         File moduleMapFile = new File(pod.generatedDir, "module.modulemap");
-        createModuleMap(pod, pod.publicHeaders.osx, moduleMapFile, jobDir);
+        createModuleMap(pod, pod.publicHeaders.osx, pod.osxUmbrellaHeader, moduleMapFile, jobDir);
         return moduleMapFile.getAbsolutePath();
     }
 
@@ -1033,6 +1062,12 @@ public class CocoaPodsService {
         if (ios != null) spec.publicHeaders.ios.addAll(getAsJSONArray(ios, "public_header_files"));
         if (osx != null) spec.publicHeaders.osx.addAll(getAsJSONArray(osx, "public_header_files"));
 
+        // generate umbrella header
+        if (spec.installed) {
+            spec.iosUmbrellaHeader = createIosUmbrellaHeader(spec, jobDir);
+            spec.osxUmbrellaHeader = createOsxUmbrellaHeader(spec, jobDir);
+        }
+
         // module map
         // https://guides.cocoapods.org/syntax/podspec.html#module_map
         spec.iosModuleMap = (String)specJson.get("module_map");
@@ -1219,16 +1254,17 @@ public class CocoaPodsService {
 
     /**
      * Entry point for Cocoapod dependency resolution.
+     * @param config Platform config 
      * @param jobDir Root directory of the job to resolve
      * @param platform Which platform to resolve pods for
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(Map<String, Object> env, File jobDir, String platform) throws IOException, ExtenderException {
+    public ResolvedPods resolveDependencies(PlatformConfig config, File jobDir, String platform) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
 
-        Map<String, Object> jobEnvContext = createJobEnvContext(env);
+        Map<String, Object> jobEnvContext = createJobEnvContext(config.context);
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for
@@ -1260,8 +1296,8 @@ public class CocoaPodsService {
 
         String platformMinVersion = createMainPodFile(platformPodFiles, jobDir, workingDir, platform, jobEnvContext);
         List<PodSpec> pods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
-        copyPodFrameworks(pods, frameworksDir);
-        
+        copyPodFrameworks(pods, frameworksDir, config);
+
         dumpDir(jobDir, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
