@@ -18,7 +18,7 @@ public class ProcessExecutor {
     private int commandCounter = 0;
 
     public int execute(String command) throws IOException, InterruptedException {
-        output.append(command).append("\n");
+        putLog(command + "\n");
 
         int commandId = commandCounter++;
         long startTime = System.currentTimeMillis();
@@ -45,13 +45,11 @@ public class ProcessExecutor {
         byte[] buf = new byte[16 * 1024];
         InputStream is = p.getInputStream();
 
-        StringBuilder sb = new StringBuilder();
-
         int n;
         do {
             n = is.read(buf);
             if (n > 0) {
-                sb.append(new String(buf, 0, n));
+                putLog(new String(buf, 0, n));
             }
         }
         while (n > 0);
@@ -71,10 +69,8 @@ public class ProcessExecutor {
             System.out.printf("CMD %d took %f %s\n", commandId, t, unit);
         }
 
-        output.append(sb.toString()).append("\n");
-
         if (exitValue > 0) {
-            throw new IOException(sb.toString());
+            throw new IOException(output.toString());
         }
 
         return exitValue;
@@ -107,7 +103,16 @@ public class ProcessExecutor {
     }
 
     public void putLog(String msg) {
-        output.append(msg);
+        // OOM can happen when running tests with org.gradle.logging.level=debug
+        try {
+            output.append(msg);
+        }
+        catch (OutOfMemoryError e) {
+            int l = output.length();
+            output.delete(0, l / 2);
+            output.insert(0, "(truncated)\n");
+            output.append(msg);
+        }
     }
 
     public static void executeCommands(ProcessExecutor processExecutor, List<String> commands) throws IOException, InterruptedException, ExtenderException {
