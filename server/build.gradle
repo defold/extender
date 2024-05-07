@@ -16,7 +16,7 @@ plugins {
     id 'idea'
     id 'eclipse'
     id 'org.springframework.boot' version '2.6.6'
-    id 'com.bmuschko.docker-remote-api' version '7.2.0'
+    id 'com.bmuschko.docker-remote-api' version '9.4.0'
 }
 
 apply plugin: 'com.bmuschko.docker-remote-api'
