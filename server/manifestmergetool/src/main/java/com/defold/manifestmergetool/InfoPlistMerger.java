@@ -46,7 +46,7 @@ public class InfoPlistMerger {
         InfoPlistMerger.logger = logger;
     }
 
-    // Merges the lib onto base, using the merging rules from https://developer.android.com/studio/build/manifest-merge.html
+    // Merges the lib onto base
     private void mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib, Map<String, MergePolicy> baseMergeMarkers, Map<String, MergePolicy> libMergeMarkers) throws PlistMergeException {
         @SuppressWarnings("unchecked")
         Iterator<String> it = lib.getKeys();
