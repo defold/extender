@@ -339,6 +339,8 @@ public class ManifestMergeToolTest {
                 + "    <data>SEVMTE8gV09STEQ=</data>\n"
                 + "    <key>INT</key>\n"
                 + "    <integer>8</integer>\n"
+                + "    <key>STRING</key>\n"
+                + "    <string>Hello world</string>\n"
                 + "</dict>\n"
                 + "</plist>\n";
         createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
@@ -352,6 +354,8 @@ public class ManifestMergeToolTest {
                 + "    <data>foobar</data>\n"
                 + "    <key>INT</key>\n"
                 + "    <integer>42</integer>\n"
+                + "    <key merge='replace'>STRING</key>\n"
+                + "    <string>Foobar</string>\n"
                 + "</dict>\n"
                 + "</plist>\n";
         createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
@@ -366,6 +370,9 @@ public class ManifestMergeToolTest {
                 + "\n"
                 + "        <key>INT</key>\n"
                 + "        <integer>8</integer>\n"
+                + "\n"
+                + "        <key>STRING</key>\n"
+                + "        <string>Foobar</string>\n"
                 + "\n"
                 + "        <key>INT</key>\n"
                 + "        <integer>42</integer>\n"
@@ -393,10 +400,6 @@ public class ManifestMergeToolTest {
                 + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\" [ <!ATTLIST key merge (keep) #IMPLIED> ]>  \n"
                 + "<plist version=\"1.0\">\n"
                 + "<dict>\n"
-                + "    <key merge='keep'>BASE64</key>\n"
-                + "    <data>SEVMTE8gV09STEQ=</data>\n"
-                + "    <key>INT</key>\n"
-                + "    <integer>8</integer>\n"
                 + "    <key>CFBundleSupportedPlatforms</key>\n"
                 + "    <array>\n"
                 + "        <string>iPhoneOS</string>\n"
@@ -411,10 +414,6 @@ public class ManifestMergeToolTest {
                 + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
                 + "<plist version=\"1.0\">\n"
                 + "<dict>\n"
-                + "    <key>BASE64</key>\n"
-                + "    <data>foobar</data>\n"
-                + "    <key>INT</key>\n"
-                + "    <integer>42</integer>\n"
                 + "    <key>CFBundleSupportedPlatforms</key>\n"
                 + "    <array>\n"
                 + "        <string>iPhoneOS</string>\n"
@@ -428,20 +427,11 @@ public class ManifestMergeToolTest {
                 + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
                 + "<plist version=\"1.0\">\n"
                 + "    <dict>\n"
-                + "        <key>BASE64</key>\n"
-                + "        <data>SEVMTE8gV09STEQ=</data>\n"
-                + "\n"
-                + "        <key>INT</key>\n"
-                + "        <integer>8</integer>\n"
-                + "\n"
                 + "        <key>CFBundleSupportedPlatforms</key>\n"
                 + "        <array>\n"
                 + "            <string>iPhoneOS</string>\n"
                 + "            <string>iPhoneSimulator</string>\n"
                 + "        </array>\n"
-                + "\n"
-                + "        <key>INT</key>\n"
-                + "        <integer>42</integer>\n"
                 + "    </dict>\n"
                 + "</plist>\n";
 
@@ -460,6 +450,17 @@ public class ManifestMergeToolTest {
         }
 
         createDefaultFiles();
+
+        String builtinsManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\" [ <!ATTLIST key merge (keep) #IMPLIED> ]>  \n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "    <key>INT</key>\n"
+                + "    <integer>8</integer>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
 
         String libManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -623,6 +624,90 @@ public class ManifestMergeToolTest {
         assertEquals(expected, merged);
     }
 
+    @Test
+    public void testMergeArrays() throws IOException {
+        if (platform != Platform.IOS && platform != Platform.OSX) {
+            return;
+        }
+        createDefaultFiles();
+
+        String main = ""
+            + "<?xml version=\"1.0\"?>\n"
+            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<plist version=\"1.0\">\n"
+            + "    <dict>\n"
+            + "        <key merge='keep'>SKAdNetworkItems</key>\n"
+            + "        <array>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>ECPZ2SRF59.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>7UG5ZH24HU.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "        </array>\n"
+            + "    </dict>\n"
+            + "</plist>\n";
+
+        String lib = ""
+            + "<?xml version=\"1.0\"?>\n"
+            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<plist version=\"1.0\">\n"
+            + "    <dict>\n"
+            + "        <key>SKAdNetworkItems</key>\n"
+            + "        <array>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>su67r6k2v3.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>7ug5zh24hu.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "        </array>\n"
+            + "    </dict>\n"
+            + "</plist>\n";
+
+
+        String expected = ""
+            + "<?xml version=\"1.0\"?>\n"
+            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<plist version=\"1.0\">\n"
+            + "    <dict>\n"
+            + "        <key>SKAdNetworkItems</key>\n"
+            + "        <array>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>ECPZ2SRF59.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>7UG5ZH24HU.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>su67r6k2v3.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "            <dict>\n"
+            + "                <key>SKAdNetworkIdentifier</key>\n"
+            + "                <string>7ug5zh24hu.skadnetwork</string>\n"
+            + "            </dict>\n"
+            + "        </array>\n"
+            + "    </dict>\n"
+            + "</plist>\n";
+
+        File mainFile = createFile(contentRoot, "builtins/manifests/ios/Main-Info.plist", main);
+        File libFile = createFile(contentRoot, "builtins/manifests/ios/Lib-Info.plist", lib);
+        File targetFile = new File(contentRoot, "builtins/manifests/ios/Merged.plist");
+
+        List<File> libraries = new ArrayList<>();
+        libraries.add(libFile);
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, mainFile, targetFile, libraries);
+
+        String merged = readFile(targetFile);
+        assertEquals(expected, merged);
+    }
 
     @Test
     public void testMergePrivacyManifest() throws IOException {
@@ -766,8 +851,6 @@ public class ManifestMergeToolTest {
         ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, mainFile, targetFile, libraries);
 
         String merged = readFile(targetFile);
-        System.out.println("expected: " + expected);
-        System.out.println("merged: " + merged);
         assertEquals(expected, merged);
     }
 
