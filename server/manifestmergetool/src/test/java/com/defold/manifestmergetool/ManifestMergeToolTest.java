@@ -22,6 +22,11 @@ import com.defold.manifestmergetool.ManifestMergeTool.Platform;
 
 @RunWith(Parameterized.class)
 public class ManifestMergeToolTest {
+
+    private static final String LIB_MANIFEST_PATH = "builtins/manifests/ios/InfoLib.plist";
+    private static final String MAIN_MANIFEST_PATH = "builtins/manifests/ios/Info.plist";
+    private static final String MERGED_MANIFEST_PATH = "builtins/manifests/ios/InfoMerged.plist";
+
     private String contentRoot;
     private Platform platform;
     private File root;
@@ -63,7 +68,7 @@ public class ManifestMergeToolTest {
                 + "</dict>\n"
                 + "</plist>\n";
 
-        createFile(contentRoot, "builtins/manifests/ios/Info.plist", iosManifest);
+        createFile(contentRoot, MAIN_MANIFEST_PATH, iosManifest);
 
         String androidManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -109,10 +114,10 @@ public class ManifestMergeToolTest {
             this.libraries = new ArrayList<File>();
             this.libraries.add(new File(contentRoot, "builtins/manifests/android/AndroidManifestLib.xml"));
         } else if (platform == Platform.IOS) {
-            this.target = new File(contentRoot, "builtins/manifests/ios/InfoMerged.plist");
-            this.main = new File(contentRoot, "builtins/manifests/ios/Info.plist");
+            this.target = new File(contentRoot, MERGED_MANIFEST_PATH);
+            this.main = new File(contentRoot, MAIN_MANIFEST_PATH);
             this.libraries = new ArrayList<File>();
-            this.libraries.add(new File(contentRoot, "builtins/manifests/ios/InfoLib.plist"));
+            this.libraries.add(new File(contentRoot, LIB_MANIFEST_PATH));
         } else if (platform == Platform.WEB) {
             this.target = new File(contentRoot, "builtins/manifests/web/engine_template_merged.html");
             this.main = new File(contentRoot, "builtins/manifests/web/engine_template.html");
@@ -270,7 +275,7 @@ public class ManifestMergeToolTest {
                 + "</dict>\n"
                 + "</plist>\n";
 
-        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+        createFile(contentRoot, LIB_MANIFEST_PATH, libManifest);
 
         String expected = ""
                 + "<?xml version=\"1.0\"?>\n"
@@ -343,7 +348,7 @@ public class ManifestMergeToolTest {
                 + "    <string>Hello world</string>\n"
                 + "</dict>\n"
                 + "</plist>\n";
-        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
+        createFile(contentRoot, MAIN_MANIFEST_PATH, builtinsManifest);
 
         String libManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -358,7 +363,7 @@ public class ManifestMergeToolTest {
                 + "    <string>Foobar</string>\n"
                 + "</dict>\n"
                 + "</plist>\n";
-        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+        createFile(contentRoot, LIB_MANIFEST_PATH, libManifest);
 
         String expected = ""
                 + "<?xml version=\"1.0\"?>\n"
@@ -407,7 +412,7 @@ public class ManifestMergeToolTest {
                 + "    </array>\n"
                 + "</dict>\n"
                 + "</plist>\n";
-        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
+        createFile(contentRoot, MAIN_MANIFEST_PATH, builtinsManifest);
 
         String libManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -420,7 +425,7 @@ public class ManifestMergeToolTest {
                 + "    </array>\n"
                 + "</dict>\n"
                 + "</plist>\n";
-        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+        createFile(contentRoot, LIB_MANIFEST_PATH, libManifest);
 
         String expected = ""
                 + "<?xml version=\"1.0\"?>\n"
@@ -460,7 +465,7 @@ public class ManifestMergeToolTest {
                 + "    <integer>8</integer>\n"
                 + "</dict>\n"
                 + "</plist>\n";
-        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
+        createFile(contentRoot, MAIN_MANIFEST_PATH, builtinsManifest);
 
         String libManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -472,7 +477,7 @@ public class ManifestMergeToolTest {
                 + "</dict>\n"
                 + "</plist>\n";
 
-        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+        createFile(contentRoot, LIB_MANIFEST_PATH, libManifest);
 
         try {
             ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
@@ -521,7 +526,7 @@ public class ManifestMergeToolTest {
                 + "<true/>\n"
                 + "</dict>\n"
                 + "</plist>\n";
-        createFile(contentRoot, "builtins/manifests/ios/Info.plist", builtinsManifest);
+        createFile(contentRoot, MAIN_MANIFEST_PATH, builtinsManifest);
 
         String libManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -558,7 +563,7 @@ public class ManifestMergeToolTest {
                 + "</array>\n"
                 + "</dict>\n"
                 + "</plist>\n";
-        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+        createFile(contentRoot, LIB_MANIFEST_PATH, libManifest);
 
         String expected = ""
                 + "<?xml version=\"1.0\"?>\n"
@@ -631,7 +636,7 @@ public class ManifestMergeToolTest {
         }
         createDefaultFiles();
 
-        String main = ""
+        String builtinsManifest = ""
             + "<?xml version=\"1.0\"?>\n"
             + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
             + "<plist version=\"1.0\">\n"
@@ -649,8 +654,9 @@ public class ManifestMergeToolTest {
             + "        </array>\n"
             + "    </dict>\n"
             + "</plist>\n";
+        createFile(contentRoot, MAIN_MANIFEST_PATH, builtinsManifest);
 
-        String lib = ""
+        String libManifest = ""
             + "<?xml version=\"1.0\"?>\n"
             + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
             + "<plist version=\"1.0\">\n"
@@ -668,7 +674,7 @@ public class ManifestMergeToolTest {
             + "        </array>\n"
             + "    </dict>\n"
             + "</plist>\n";
-
+        createFile(contentRoot, LIB_MANIFEST_PATH, libManifest);
 
         String expected = ""
             + "<?xml version=\"1.0\"?>\n"
@@ -696,16 +702,11 @@ public class ManifestMergeToolTest {
             + "        </array>\n"
             + "    </dict>\n"
             + "</plist>\n";
+        createFile(contentRoot, "builtins/manifests/ios/InfoExpected.plist", expected);
 
-        File mainFile = createFile(contentRoot, "builtins/manifests/ios/Main-Info.plist", main);
-        File libFile = createFile(contentRoot, "builtins/manifests/ios/Lib-Info.plist", lib);
-        File targetFile = new File(contentRoot, "builtins/manifests/ios/Merged.plist");
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
 
-        List<File> libraries = new ArrayList<>();
-        libraries.add(libFile);
-        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, mainFile, targetFile, libraries);
-
-        String merged = readFile(targetFile);
+        String merged = readFile(this.target);
         assertEquals(expected, merged);
     }
 
@@ -714,7 +715,6 @@ public class ManifestMergeToolTest {
         if (platform != Platform.IOS && platform != Platform.OSX) {
             return;
         }
-        createDefaultFiles();
 
         String main = ""
             + "<?xml version=\"1.0\"?>\n"
