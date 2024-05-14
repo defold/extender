@@ -1,4 +1,3 @@
-
 package com.defold.manifestmergetool;
 
 import java.io.File;
@@ -20,10 +19,6 @@ import org.jsoup.nodes.Element;
 public class HtmlMerger {
     private static Logger logger;
 
-    public enum MergePolicy {
-        KEEP, MERGE
-    }
-
     public HtmlMerger(Logger logger) {
         HtmlMerger.logger = logger;
     }
@@ -33,8 +28,7 @@ public class HtmlMerger {
 
     private MergePolicy getMergePolicy(Element e) {
         String attr = e.attr("merge");
-        if (attr.equals("keep")) return MergePolicy.KEEP;
-        return MergePolicy.MERGE;
+        return MergePolicy.fromString(attr);
     }
 
     public Element findElement(Element e, String tag, String id) {
