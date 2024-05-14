@@ -69,7 +69,7 @@ public class InfoPlistMerger {
 
             MergePolicy baseMergePolicy = baseMergeMarkers.getOrDefault(key, MergePolicy.MERGE);
             MergePolicy libMergePolicy = libMergeMarkers.getOrDefault(key, MergePolicy.MERGE);
-            // check that base and lib doesn't hav conflicting merge policies
+            // check that base and lib doesn't have conflicting merge policies
             if (baseMergePolicy == MergePolicy.KEEP && libMergePolicy == MergePolicy.REPLACE) {
                 throw new PlistMergeException(String.format("Plist contains conflicting merge policies for key '%s': %s vs %s", key, baseMergePolicy, libMergePolicy));
             }
@@ -95,7 +95,7 @@ public class InfoPlistMerger {
                 // if the base policy is to keep the values in the array then we
                 // add the new values (ignoring duplicates) instead of trying to
                 // merge them
-                if (baseMergePolicy == MergePolicy.KEEP) {
+                if (baseMergePolicy == MergePolicy.KEEP || libMergePolicy == MergePolicy.KEEP) {
                     for (Object libArrayValue : libArray) {
                         if (!baseArray.contains(libArrayValue)) {
                             baseArray.add(libArrayValue);
