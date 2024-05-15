@@ -707,6 +707,7 @@ public class ManifestMergeToolTest {
         ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
 
         String merged = readFile(this.target);
+        System.out.println(merged);
         assertEquals(expected, merged);
     }
 

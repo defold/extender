@@ -38,7 +38,7 @@ jobs:
             DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
 
     - name: Test the Docker image
-      run: ./gradlew test
+      run: ./gradlew test -i
       env:
             DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
 
