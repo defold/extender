@@ -638,7 +638,7 @@ public class ManifestMergeToolTest {
 
         String builtinsManifest = ""
             + "<?xml version=\"1.0\"?>\n"
-            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
             + "<plist version=\"1.0\">\n"
             + "    <dict>\n"
             + "        <key>SKAdNetworkItems</key>\n"
@@ -658,7 +658,7 @@ public class ManifestMergeToolTest {
 
         String libManifest = ""
             + "<?xml version=\"1.0\"?>\n"
-            + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+            + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
             + "<plist version=\"1.0\">\n"
             + "    <dict>\n"
             + "        <key merge='keep'>SKAdNetworkItems</key>\n"
