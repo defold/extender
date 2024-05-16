@@ -16,7 +16,7 @@ plugins {
     id 'idea'
     id 'eclipse'
     id 'org.springframework.boot' version '2.6.6'
-    id 'com.bmuschko.docker-remote-api' version '7.2.0'
+    id 'com.bmuschko.docker-remote-api' version '9.4.0'
 }
 
 apply plugin: 'com.bmuschko.docker-remote-api'
@@ -60,10 +60,11 @@ dependencies {
     implementation('com.samskivert:jmustache:1.15')
     implementation('commons-chain:commons-chain:1.2')
     implementation('commons-fileupload:commons-fileupload:1.3.3')
-    implementation('commons-io:commons-io:2.11.0')
+    implementation('commons-io:commons-io:2.12.0')
     implementation('io.micrometer:micrometer-core:1.8.1')
-    implementation('org.apache.commons:commons-compress:1.21')
-    implementation('org.apache.commons:commons-lang3:3.8.1')
+    implementation('org.apache.commons:commons-text:1.12.+')
+    implementation('org.apache.commons:commons-compress:1.26.+')
+    implementation('org.apache.commons:commons-lang3:3.14.0')
     implementation('org.apache.httpcomponents:httpclient:4.5.13')
     implementation('org.apache.httpcomponents:httpmime:4.5.13')
     implementation('org.influxdb:influxdb-java:2.10')
@@ -161,6 +162,7 @@ task dockerStageDir {
 task buildDocker(type: DockerBuildImage) {
     dependsOn 'build', ':manifestmergetool:mainJar', 'dockerStageDir'
     inputDir = dockerBuildDir
+    buildArgs = ['platform': 'linux/amd64']
     imageId = bootJar.archiveBaseName
     dockerFile = new File(dockerBuildDir, 'Dockerfile')
     images.add("extender/extender:latest")

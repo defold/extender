@@ -16,6 +16,7 @@ RUN \
     build-essential \
     uuid-dev \
     libxi-dev \
+    libx11-xcb-dev \
     libopenal-dev \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
@@ -129,6 +130,26 @@ RUN \
   chown -R extender: ${EMSCRIPTEN_CACHE_2_0_11} && \
   chown -R extender: ${EMSCRIPTEN_CACHE_2_0_11}/wasm/cache.lock
 
+ENV EMSCRIPTEN_SDK_3_1_55 ${PLATFORMSDK_DIR}/emsdk-3.1.55
+ENV EMSCRIPTEN_HOME_3_1_55 ${EMSCRIPTEN_SDK_3_1_55}
+ENV EMSCRIPTEN_CACHE_3_1_55 /var/extender/emcache_3_1_55
+ENV EMSCRIPTEN_CONFIG_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}/.emscripten
+ENV EMSCRIPTEN_PYTHON_3_1_55 /usr/bin/python3.9
+ENV EMSCRIPTEN_BIN_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}/upstream/emscripten
+ENV EMSCRIPTEN_PATH_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}:${EMSCRIPTEN_HOME_3_1_55}/upstream/bin:${EMSCRIPTEN_HOME_3_1_55}/node/16.20.0_64bit/bin:${EMSCRIPTEN_BIN_3_1_55}
+
+RUN \
+  mkdir ${EMSCRIPTEN_SDK_3_1_55} && \
+  wget -q -O - ${DM_PACKAGES_URL}/emsdk-3.1.55-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_3_1_55} --strip-components=1
+
+RUN \
+  ${EMSCRIPTEN_HOME_3_1_55}/emsdk activate sdk-3.1.55-64bit && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_3_1_55 EM_CACHE=${EMSCRIPTEN_CACHE_3_1_55} python3 ${EMSCRIPTEN_BIN_3_1_55}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_3_1_55} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_3_1_55}
+  # && \
+  # chown -R extender: ${EMSCRIPTEN_CACHE_3_1_55}/wasm/cache.lock
+
 
 # We use the same temp directory for both versions.
 ENV EMSCRIPTEN_TEMP_DIR /var/extender/ems_temp
@@ -137,10 +158,9 @@ RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
 RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_2_0_11} && \
-  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_2_0_11}
-  #  && \
-  # sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_1_39_16} && \
-  # echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_1_39_16}
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_2_0_11} && \
+  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_3_1_55} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_3_1_55}
 
 RUN \
   update-alternatives --set python3 /usr/bin/python3.8
@@ -306,20 +326,7 @@ ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
 ENV ANDROID_SDK_HOME ${ANDROID_ROOT}/.android
 
 #
-# Old SDK 32:
-#
-
-ENV ANDROID_BUILD_TOOLS_VERSION 32.0.0
-ENV ANDROID_SDK_VERSION 31
-ENV ANDROID_SDK_FILENAME android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
-
-ENV ANDROID_SDK_BUILD_TOOLS_PATH ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
-ENV ANDROID_LIBRARYJAR ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
-
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}
-
-#
-# New SDK 33 (Defold 1.4.3):
+# SDK 33 (Defold 1.4.3):
 #
 
 ENV ANDROID_BUILD_TOOLS_VERSION_33 33.0.1
@@ -329,34 +336,14 @@ ENV ANDROID_SDK_FILENAME_33 android-sdk-linux-android-${ANDROID_SDK_VERSION_33}-
 ENV ANDROID_SDK_BUILD_TOOLS_PATH_33 ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_33}
 ENV ANDROID_LIBRARYJAR_33 ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_33}/android.jar
 
-# We specify it in build_input.yml by setting it the first in PATH
-# ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_33}
-
-
-
-# We must keep two NDKs alive for now, since migrating to the latest (i.e 25b) will break
-# for users that try to build with an older build.yml.
+# We specify it in build_input.yml by setting it the first in PATH for new SDK
+# But at least one SDK should be specified by default in Dockerfile
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_33}
+# ANDROID_SDK_VERSION used in Java code, default should be specified in Dockerfile as well:
+ENV ANDROID_SDK_VERSION ${ANDROID_SDK_VERSION_33}
 
 #
-# Old NDK20:
-#
-
-ENV ANDROID_NDK20_VERSION        20
-ENV ANDROID_NDK20_API_VERSION    16
-ENV ANDROID_64_NDK20_API_VERSION 21
-
-# These paths are the same for both the 32 and 64 bit toolchains
-ENV ANDROID_NDK20_PATH       ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION}
-ENV ANDROID_NDK20_BIN_PATH   ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
-ENV ANDROID_NDK20_SYSROOT    ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-ENV ANDROID_NDK20_STL_LIB    ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/armeabi-v7a
-ENV ANDROID_64_NDK20_STL_LIB ${ANDROID_NDK20_PATH}/sources/cxx-stl/llvm-libc++/libs/arm64-v8a
-ENV ANDROID_NDK20_FILENAME   android-ndk-r${ANDROID_NDK20_VERSION}-linux-x86_64.tar.gz
-
-ENV PATH ${PATH}:${ANDROID_NDK20_BIN_PATH}
-
-#
-# New NDK25b (Defold 1.4.3):
+# NDK25b (Defold 1.4.3):
 #
 
 ENV ANDROID_NDK25_VERSION        25b
@@ -386,29 +373,10 @@ ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 RUN \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
-    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK20_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
-    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME_33} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
     rm -rf ${ANDROID_HOME}/extras && \
-
-    rm -rf ${ANDROID_NDK20_PATH}/simpleperf && \
-    rm -rf ${ANDROID_NDK20_PATH}/shader-tools && \
-    rm -rf ${ANDROID_NDK20_PATH}/sources/third_party && \
-    rm -rf ${ANDROID_NDK20_PATH}/sources/cxx-stl && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/renderscript && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/arm-linux-androideabi-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/aarch64-linux-android-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/x86_64-4.9 && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK20_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
-
     rm -rf ${ANDROID_NDK25_PATH}/prebuilt && \
     rm -rf ${ANDROID_NDK25_PATH}/simpleperf && \
     rm -rf ${ANDROID_NDK25_PATH}/shader-tools && \
@@ -428,16 +396,14 @@ RUN \
 # fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK20_VERSION} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
 # check that dx installed properly
-    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
-    which armv7a-linux-androideabi${ANDROID_NDK20_API_VERSION}-clang++ && \
-    which aarch64-linux-android${ANDROID_64_NDK20_API_VERSION}-clang++ && \
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_33}/d8 && \
     which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
     which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
 # check that aapt installed correctly
-    aapt v
+    aapt v  && \
+    aapt2 version
 
 #
 # Switch SDK
@@ -474,19 +440,30 @@ RUN \
   wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_10_FILENAME} | tar xz -C ${PS4_SDK_10} --strip-components=1
 
 
+ENV PS4_SDK_11_VERSION 11.000
+ENV PS4_SDK_11  ${PLATFORMSDK_DIR}/ps4-sdk-${PS4_SDK_11_VERSION}
+
+ENV PS4_SDK_11_FILENAME ps4-sdk-${PS4_SDK_11_VERSION}.tar.gz
+
+RUN \
+  echo "PS4 ${PS4_SDK_11_FILENAME}" && \
+  mkdir -p ${PS4_SDK_11} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS4_SDK_11_FILENAME} | tar xz -C ${PS4_SDK_11} --strip-components=1
+
+
 #
 # PS5 SDK
 #
 
-ENV PS5_SDK_7_VERSION 7.000
-ENV PS5_SDK_7  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_7_VERSION}
+ENV PS5_SDK_8_VERSION 8.000
+ENV PS5_SDK_8  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_8_VERSION}
 
-ENV PS5_SDK_7_FILENAME ps5-sdk-${PS5_SDK_7_VERSION}.tar.gz
+ENV PS5_SDK_8_FILENAME ps5-sdk-${PS5_SDK_8_VERSION}.tar.gz
 
 RUN \
-  echo "PS5 ${PS5_SDK_7_FILENAME}" && \
-  mkdir -p ${PS5_SDK_7} && \
-  wget -q -O - ${DM_PACKAGES_URL}/${PS5_SDK_7_FILENAME} | tar xz -C ${PS5_SDK_7} --strip-components=1
+  echo "PS5 ${PS5_SDK_8_FILENAME}" && \
+  mkdir -p ${PS5_SDK_8} && \
+  wget -q -O - ${DM_PACKAGES_URL}/${PS5_SDK_8_FILENAME} | tar xz -C ${PS5_SDK_8} --strip-components=1
 
 
 #
@@ -570,6 +547,9 @@ COPY template.podfile ${EXTENSION_PODFILE_TEMPLATE}
 ENV EXTENSION_MODULEMAP_TEMPLATE /var/extender/template.modulemap
 COPY template.modulemap ${EXTENSION_MODULEMAP_TEMPLATE}
 
+ENV EXTENSION_UMBRELLAHEADER_TEMPLATE /var/extender/template.umbrella.h
+COPY template.umbrella.h ${EXTENSION_UMBRELLAHEADER_TEMPLATE}
+
 #
 # ZIG
 #
@@ -577,7 +557,7 @@ COPY template.modulemap ${EXTENSION_MODULEMAP_TEMPLATE}
 
 ENV ZIG_VERSION=0.11.0
 ENV ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
-ENV ZIG_URL=https://ziglang.org/builds/zig-linux-x86_64-${ZIG_VERSION}-dev.3886+0c1bfe271.tar.xz
+ENV ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz
 ENV PATH ${PATH}:${ZIG_PATH_0_11}
 
 RUN \

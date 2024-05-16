@@ -53,6 +53,7 @@ export EXTENSION_LOCAL_PROPERTIES_TEMPLATE=${EXTENDER_DIR}/current/template.loca
 
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
 export EXTENSION_MODULEMAP_TEMPLATE=${EXTENDER_DIR}/current/template.modulemap
+export EXTENSION_UMBRELLAHEADER_TEMPLATE=${EXTENDER_DIR}/current/template.umbrella.h
 
 # We need access to the toolchain binary path from within the application
 export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_15_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}

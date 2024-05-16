@@ -39,7 +39,7 @@ function check_server() {
 check_server
 
 
-docker build ${BUILD_ENV} -t extender-base ${DIR}/../docker-base
+docker build ${BUILD_ENV} --platform linux/amd64 -t extender-base ${DIR}/../docker-base
 
 ${DIR}/../../gradlew buildDocker -x test
 

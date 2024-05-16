@@ -1,14 +1,13 @@
 {{FRAMEWORKOPT}} module {{MODULE_ID}} {
+  umbrella header "{{UMBRELLA_HEADER}}"
+  export *
+  {{SUBMODULE}}
+}
+
+module {{MODULE_ID}}.Swift {
   {{#HEADERS}}
   header "{{{.}}}"
   {{/HEADERS}}
-  {{#UMBRELLA_HEADERS}}
-  umbrella header "{{{.}}}"
-  {{/UMBRELLA_HEADERS}}
-  {{#UMBRELLA_DIRECTORIES}}
-  umbrella "{{{.}}}"
-  {{/UMBRELLA_DIRECTORIES}}
   export *
   requires objc
-  {{SUBMODULE}}
 }

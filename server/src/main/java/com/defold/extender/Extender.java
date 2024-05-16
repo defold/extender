@@ -179,10 +179,15 @@ class Extender {
         this.sdk = sdk;
 
         String os = System.getProperty("os.name");
-
+        String arch = System.getProperty("os.arch");
+        
         // These host names are using the Defold SDK names
         if (os.contains("Mac")) {
-            this.hostPlatform = "x86_64-macos";
+            if (arch.contains("aarch64")) {
+                this.hostPlatform = "arm64-macos";
+            } else {
+                this.hostPlatform = "x86_64-macos";
+            }
         } else if (os.contains("Windows")) {
             this.hostPlatform = "x86_64-win32";
         } else {
@@ -309,6 +314,19 @@ class Extender {
 
     private File uniqueTmpFile(String pattern) {
         return createBuildFile(String.format(pattern, getNameUUID()));
+    }
+
+    private String executeCommand(String template, Map<String, Object> context) throws ExtenderException {
+        String command = templateExecutor.execute(template, context);
+        try {
+            if (processExecutor.execute(command) != 0) {
+                throw new ExtenderException(processExecutor.getOutput());
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new ExtenderException(e, processExecutor.getOutput());
+        }
+
+        return processExecutor.getOutput();
     }
 
     private static int countLines(String str) {
@@ -560,7 +578,7 @@ class Extender {
         context.put("swiftVersion", "5");
 
         String command = templateExecutor.execute(this.platformConfig.emitSwiftHeaderCmd, context);
-        // LOGGER.info("swiftc command to emot header: " + command);
+        // LOGGER.info("swiftc command to emit header: " + command);
         commands.add(command);
     }
 
@@ -663,8 +681,7 @@ class Extender {
         context.put("src", objs);
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, output));
 
-        String command = templateExecutor.execute(cmd, context);
-        processExecutor.execute(command);
+        executeCommand(cmd, context);
 
         return output;
     }
@@ -676,8 +693,7 @@ class Extender {
         context.put("extension_name_upper", "ENGINE_MAIN");
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, maincpp));
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
-        String command = templateExecutor.execute(platformConfig.compileCmd, context);
-        processExecutor.execute(command);
+        executeCommand(platformConfig.compileCmd, context);
         return o;
     }
 
@@ -715,8 +731,7 @@ class Extender {
             context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
             context.put("ext", ImmutableMap.of("includes", includes));
             context.put("out_dir", extBuildDir);
-            String command = templateExecutor.execute(platformConfig.protoEngineCxxCmd, context);
-            processExecutor.execute(command);
+            executeCommand(platformConfig.protoEngineCxxCmd, context);
 
             LOGGER.info("Generated {}", tgtCpp);
 
@@ -759,8 +774,7 @@ class Extender {
             // Adding the source folderpath, so the output relative path gets stripped and the output becomes "extBuildDir/proto_file_name.pb.cc"
             context.put("proto_path", ExtenderUtil.getRelativePath(jobDirectory, protoFile.getParentFile()));
 
-            String command = templateExecutor.execute(platformConfig.protoPipelineCmd, context);
-            processExecutor.execute(command);
+            executeCommand(platformConfig.protoPipelineCmd, context);
 
             LOGGER.info("Generated {}", tgtFile);
 
@@ -924,8 +938,7 @@ class Extender {
                 Map<String, Object> context = createContext(manifestContext);
                 context.put("tgt", lib);
                 context.put("objs", objs);
-                String command = templateExecutor.execute(platformConfig.libCmd, context);
-                processExecutor.execute(command);
+                executeCommand(platformConfig.libCmd, context);
             }
         }
 
@@ -1017,8 +1030,7 @@ class Extender {
         Map<String, Object> context = createContext(manifestContext);
         context.put("tgt", lib);
         context.put("objs", objs);
-        String command = templateExecutor.execute(platformConfig.libCmd, context);
-        processExecutor.execute(command);
+        executeCommand(platformConfig.libCmd, context);
 
         return outputFiles;
     }
@@ -1126,8 +1138,7 @@ class Extender {
                     context.put("classesDir", classesDir.getAbsolutePath());
                     context.put("classPath", classPath);
                     context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-                    String command = templateExecutor.execute(platformConfig.javacCmd, context);
-                    processExecutor.execute(command);
+                    executeCommand(platformConfig.javacCmd, context);
                 }
 
                 // Collect all classes into a Jar file
@@ -1136,8 +1147,7 @@ class Extender {
 
                 context.put("outputJar", outputJar.getAbsolutePath());
                 context.put("classesDir", classesDir.getAbsolutePath());
-                String command = templateExecutor.execute(platformConfig.jarCmd, context);
-                processExecutor.execute(command);
+                executeCommand(platformConfig.jarCmd, context);
 
                 outputFiles.add(outputJar);
             }
@@ -1244,8 +1254,10 @@ class Extender {
         Map<String, Object> mainContext = createContext(linkContext);
 
         extSymbols = ExtenderUtil.pruneItems( extSymbols, ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols") );
-        mainContext.put("symbols", ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols")));
-        mainContext.put("ext", ImmutableMap.of("symbols", extSymbols));
+
+        List<String> cppSymbols = ExtenderUtil.pruneItems( ExtenderUtil.getStringList(mainContext, "symbols"), ExtenderUtil.getStringList(mainContext, "includeSymbols"), ExtenderUtil.getStringList(mainContext, "excludeSymbols"));
+        mainContext.put("symbols", ExtenderUtil.makeUnique(cppSymbols));
+        mainContext.put("ext", ImmutableMap.of("symbols", ExtenderUtil.makeUnique(extSymbols)));
 
         String main = templateExecutor.execute(config.main, mainContext);
         FileUtils.writeStringToFile(maincpp, main);
@@ -1298,8 +1310,7 @@ class Extender {
                 Map<String, Object> symbolContext = createContext(linkContext);
                 symbolContext.put("src", ExtenderUtil.getRelativePath(jobDirectory, exe));
 
-                symbolCmd = templateExecutor.execute(symbolCmd, symbolContext);
-                processExecutor.execute(symbolCmd);
+                executeCommand(symbolCmd, symbolContext);
             }
         }
         else {
@@ -1428,14 +1439,12 @@ class Extender {
                     for (File resourceFile : resourceTypeDir.listFiles()) {
                         context.put("resourceFile", resourceFile.getAbsolutePath());
 
-                        String command = templateExecutor.execute(platformConfig.aapt2compileCmd, context);
-                        processExecutor.execute(command);
+                        executeCommand(platformConfig.aapt2compileCmd, context);
                     }
                 }
             }
-
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Compiling Android resources");
         }
 
         return outputDirectory;
@@ -1490,11 +1499,9 @@ class Extender {
             files.put("outApkFile", outApkFile);
             files.put("outJavaDirectory", outputJavaDirectory);
 
-            String command = templateExecutor.execute(platformConfig.aapt2linkCmd, context);
-            processExecutor.execute(command);
-        }
-        catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+            executeCommand(platformConfig.aapt2linkCmd, context);
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Linking Android resources");
         }
 
         return files;
@@ -1512,31 +1519,25 @@ class Extender {
 
         // From 1.2.165
         rJavaDir = new File(buildDirectory, "rjava");
-        try {
-            rJavaDir.mkdir();
+        rJavaDir.mkdir();
 
-            if (platformConfig.rjavaCmd == null) {
-                LOGGER.info("No rjavaCmd found. Skipping");
-                return rJavaDir;
-            }
-
-            Map<String, Object> context = createContext(mergedAppContext);
-            if (mergedAppContext.containsKey("aaptExtraPackages")) {
-                context.put("extraPackages", String.join(":", (List<String>)mergedAppContext.get("aaptExtraPackages")));
-            }
-
-            // Use the merged manifest
-            File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
-            context.put("manifestFile", manifestFile.getAbsolutePath());
-            context.put("outputDirectory", rJavaDir.getAbsolutePath());
-            context.put("resourceDirectories", resourceDirectories);
-
-            String command = templateExecutor.execute(platformConfig.rjavaCmd, context);
-            processExecutor.execute(command);
-
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+        if (platformConfig.rjavaCmd == null) {
+            LOGGER.info("No rjavaCmd found. Skipping");
+            return rJavaDir;
         }
+
+        Map<String, Object> context = createContext(mergedAppContext);
+        if (mergedAppContext.containsKey("aaptExtraPackages")) {
+            context.put("extraPackages", String.join(":", (List<String>)mergedAppContext.get("aaptExtraPackages")));
+        }
+
+        // Use the merged manifest
+        File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
+        context.put("manifestFile", manifestFile.getAbsolutePath());
+        context.put("outputDirectory", rJavaDir.getAbsolutePath());
+        context.put("resourceDirectories", resourceDirectories);
+
+        executeCommand(platformConfig.rjavaCmd, context);
 
         return rJavaDir;
     }
@@ -1576,20 +1577,18 @@ class Extender {
                 context.put("classesDir", classesDir.getAbsolutePath());
                 context.put("classPath", classesDir.getAbsolutePath());
                 context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-                String command = templateExecutor.execute(platformConfig.javacCmd, context);
-                processExecutor.execute(command);
+                executeCommand(platformConfig.javacCmd, context);
 
                 // Collect all classes into a Jar file
                 context = createContext(mergedAppContext);
                 context.put("outputJar", outputJar.getAbsolutePath());
                 context.put("classesDir", classesDir.getAbsolutePath());
-                command = templateExecutor.execute(platformConfig.jarCmd, context);
-                processExecutor.execute(command);
+                executeCommand(platformConfig.jarCmd, context);
 
                 return outputJar;
             }
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Building Android resources (R.java)");
         }
 
         return null;
@@ -1691,20 +1690,18 @@ class Extender {
 
             context.put("classPath", classPath);
             context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-            String command = templateExecutor.execute(platformConfig.javacCmd, context);
-            processExecutor.execute(command);
+            executeCommand(platformConfig.javacCmd, context);
 
             // Collect all classes into a Jar file
             context = createContext(manifestContext);
             context.put("outputJar", outputJar.getAbsolutePath());
             context.put("classesDir", classesDir.getAbsolutePath());
-            command = templateExecutor.execute(platformConfig.jarCmd, context);
-            processExecutor.execute(command);
+            executeCommand(platformConfig.jarCmd, context);
 
             return new AbstractMap.SimpleEntry<File, ProGuardContext>(outputJar, proGuardContext);
 
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Building java extension");
         }
     }
 
@@ -1864,13 +1861,7 @@ class Extender {
         context.put("tgt", targetFile.getAbsolutePath());
         context.put("mapping", mappingFile.getAbsolutePath());
 
-        String command = templateExecutor.execute(proGuardCmd, context);
-
-        try {
-            processExecutor.execute(command);
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
-        }
+        executeCommand(proGuardCmd, context);
 
         return new AbstractMap.SimpleEntry<File, File>(targetFile, mappingFile);
     }
@@ -1949,15 +1940,7 @@ class Extender {
         context.put("engineJars", empty_list);
         context.put("mainDexList", mainDexList.getAbsolutePath());
 
-        String command = platformConfig.dxCmd;
-
-        command = templateExecutor.execute(command, context);
-
-        try {
-            processExecutor.execute(command);
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
-        }
+        executeCommand(platformConfig.dxCmd, context);
 
         File[] classes = ExtenderUtil.listFilesMatching(buildDirectory, "^classes(|[0-9]+)\\.dex$");
         return classes;
@@ -2365,6 +2348,44 @@ class Extender {
         return outputFiles;
     }
 
+    private List<File> buildApple(String platform) throws ExtenderException {
+        LOGGER.info("Building Apple specific code");
+        List<File> outputFiles = new ArrayList<>();
+
+        List<File> privacyManifests = new ArrayList<>();
+        privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(uploadDirectory, "PrivacyInfo.xcprivacy"));
+        if (resolvedPods != null) {
+            privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
+        }
+        
+        // do nothing if there are no privacy manifests
+        if (privacyManifests.isEmpty()) {
+            return outputFiles;
+        }
+        // use the first privacy manifests as-is if it is the only one
+        if (privacyManifests.size() == 1) {
+            outputFiles.add(privacyManifests.get(0));
+            return outputFiles;
+        }
+
+        // use the first privacy manifest as the base and merge the rest into
+        // it (and save it as a new final 'PrivacyInfo.xcprivacy' file)
+        File mainManifest = privacyManifests.remove(0);
+        File targetManifest = new File(buildDirectory, "PrivacyInfo.xcprivacy");
+        outputFiles.add(targetManifest);
+
+        // Merge the files
+        Map<String, Object> context = createContext(mergedAppContext);
+        context.put("mainManifest", mainManifest.getAbsolutePath());
+        context.put("target", targetManifest.getAbsolutePath());
+        context.put("platform", getBasePlatform(platform));
+        context.put("libraries", privacyManifests);
+
+        executeCommand(platformConfig.manifestMergeCmd, context);
+
+        return outputFiles;
+    }
+
     private String getBasePlatform(String platform) {
         String[] platformParts = this.platform.split("-");
         return platformParts[1];
@@ -2440,12 +2461,7 @@ class Extender {
                                                  .collect(Collectors.toList());
             context.put("libraries", libraries);
 
-            try {
-                String command = templateExecutor.execute(platformConfig.manifestMergeCmd, context);
-                processExecutor.execute(command);
-            } catch (IOException | InterruptedException e) {
-                throw new ExtenderException(e, processExecutor.getOutput());
-            }
+            executeCommand(platformConfig.manifestMergeCmd, context);
         }
         return out;
     }
@@ -2472,7 +2488,7 @@ class Extender {
 
     void resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
         try {
-            resolvedPods = cocoaPodsService.resolveDependencies(this.platformConfig.context, jobDirectory, platform);
+            resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, jobDirectory, platform);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());
@@ -2493,6 +2509,9 @@ class Extender {
             // TODO: Thread this step
             if (platform.endsWith("android")) {
                 outputFiles.addAll(buildAndroid(platform));
+            }
+            else if (platform.endsWith("ios") || platform.endsWith("macos")) {
+                outputFiles.addAll(buildApple(platform));
             }
 
             outputFiles.addAll(buildEngine());
