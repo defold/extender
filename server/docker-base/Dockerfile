@@ -522,7 +522,7 @@ RUN \
 # Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
 ENV GRADLE_USER_HOME /tmp/.gradle
 ENV GRADLE_VERSION 8.4
-ENV GRADLE_PLUGIN_VERSION 8.2.1
+ENV GRADLE_PLUGIN_VERSION 8.3.2
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
