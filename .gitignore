@@ -34,3 +34,9 @@ server/test-data/sdk/*
 .bash_history
 
 Version.java
+/server/app/*
+server/bin/*
+server/manifestmergetool/app/*
+server/manifestmergetool/bin/*
+
+.vscode/*

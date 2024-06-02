@@ -6,9 +6,24 @@ repositories {
     mavenCentral()
 }
 
+ext {
+    clientVersion = findProperty('clientVersion') ?: '0.5.0'
+}
+
+publishing {
+  publications {
+    extenderClient(MavenPublication) {
+      artifact jar
+      groupId 'com.defold.extender'
+      artifactId 'client'
+      version project.ext.clientVersion
+    }
+  }
+}
+
 jar {
     archiveBaseName = 'extender-client'
-    version = '0.0.5'
+    version = project.ext.clientVersion
 }
 
 dependencies {

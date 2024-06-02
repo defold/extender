@@ -6,7 +6,6 @@ import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpMethod;
@@ -17,12 +16,13 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PreDestroy;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -40,6 +40,16 @@ public class DefoldSdkService {
         "http://d-ps4.defold.com/archive/%s/engine/defoldsdk.zip",
         "http://d-xbox.defold.com/archive/stable/%s/engine/defoldsdk.zip",
         "http://d-xbox.defold.com/archive/%s/engine/defoldsdk.zip"};
+
+    private static final String REMOTE_MAPPINGS_URL_PATTERNS[] = {
+            "http://d.defold.com/archive/stable/%s/engine/platform.sdks.json",
+            "http://d.defold.com/archive/%s/engine/platform.sdks.json",
+            "http://d-switch.defold.com/archive/stable/%s/engine/platform.sdks.json",
+            "http://d-switch.defold.com/archive/%s/engine/platform.sdks.json",
+            "http://d-ps4.defold.com/archive/stable/%s/engine/platform.sdks.json",
+            "http://d-ps4.defold.com/archive/%s/engine/platform.sdks.json",
+            "http://d-xbox.defold.com/archive/stable/%s/engine/platform.sdks.json",
+            "http://d-xbox.defold.com/archive/%s/engine/platform.sdks.json"};
     private static final String TEST_SDK_DIRECTORY = "a";
     private static final String LOCAL_VERSION = "local";
 
@@ -52,7 +62,6 @@ public class DefoldSdkService {
     // private final Counter counterSdkGet;
     // private final Counter counterSdkGetDownload;
 
-    @Autowired
     DefoldSdkService(@Value("${extender.sdk.location}") String baseSdkDirectory,
                      @Value("${extender.sdk.cache-size}") int cacheSize,
                      @Value("${extender.sdk.cache-clear-on-exit}") boolean cacheClearOnExit,
@@ -228,5 +237,35 @@ public class DefoldSdkService {
         } catch(IOException e) {
             LOGGER.warn("Failed to list SDK cache directory: " + e.getMessage());
         }
+    }
+
+    private String getLocalPlatformSdkMappings(String hash) throws IOException {
+        return new String(Files.readAllBytes(Path.of(getLocalSdk().getAbsolutePath(), "platform.sdks.json")), StandardCharsets.UTF_8);
+    }
+
+    private String getRemotePlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException {
+        for (String url_pattern : REMOTE_MAPPINGS_URL_PATTERNS) {
+            URL url = new URL(String.format(url_pattern, hash));
+
+            ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
+            ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+
+            // Connect and copy to file
+            try (ClientHttpResponse response = request.execute()) {
+                if (response.getStatusCode() != HttpStatus.OK) {
+                    LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
+                    continue;
+                }
+
+                LOGGER.info("Downloading platform sdks mappings from {} ...", url);
+                InputStream body = response.getBody();
+                return new String(body.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        }
+        throw new ExtenderException(String.format("Cannot found platform sdks mappings for hash: %s", hash));
+    }
+
+    public String getPlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException {
+        return isLocalSdk(hash) ? getLocalPlatformSdkMappings(hash) : getRemotePlatformSdkMappings(hash);
     }
 }

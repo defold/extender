@@ -6,6 +6,10 @@ buildscript {
 
 apply plugin: 'java-library'
 
+ext {
+    manifestMergetoolVersion = findProperty('manifestMergetoolVersion') ?: '0.5.0'
+}
+
 jar {
     archiveBaseName = '_manifestmergetool'
     enabled = true
@@ -18,10 +22,12 @@ configurations {
     implementation {
         canBeResolved = true
     }
+    all*.exclude group: 'com.android.tools', module: 'repository'
+    all*.exclude group: 'com.android.tools', module: 'sdklib'
 }
 
 task mainJar(type: Jar) {
-    version =  '0.1.0'
+    version =  project.ext.manifestMergetoolVersion
     archiveBaseName = 'manifestmergetool'
     manifest {
         attributes 'Main-Class': 'com.defold.manifestmergetool.ManifestMergeTool'
@@ -35,6 +41,26 @@ task mainJar(type: Jar) {
     }
     duplicatesStrategy DuplicatesStrategy.WARN
     with jar
+        doLast {
+        copy {
+            from "${project.projectDir}/build/libs/manifestmergetool-${project.ext.manifestMergetoolVersion}.jar"
+            into "app"
+            rename { String fileName ->
+                fileName.replace("-$project.ext.manifestMergetoolVersion", "")
+            }
+        }
+    }
+}
+
+publishing {
+  publications {
+    manifestMergeTool(MavenPublication) {
+      artifact mainJar
+      groupId 'com.defold.extender'
+      artifactId 'manifestmergetool'
+      version project.ext.manifestMergetoolVersion
+    }
+  }
 }
 
 repositories {
@@ -42,13 +68,12 @@ repositories {
     maven { url "https://maven.google.com" }
 }
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
-
 dependencies {
-    implementation('org.jsoup:jsoup:1.11.3')
-    implementation('com.android.tools.build:manifest-merger:27.2.0')
-    implementation('org.apache.commons:commons-configuration2:2.8.0')
+    implementation('org.jsoup:jsoup:1.15.3')
+    implementation('com.android.tools.build:manifest-merger:31.4.1')
+    implementation('com.android.tools:common:31.4.1')
+    implementation('org.apache.commons:commons-configuration2:2.10.1')
+    implementation('commons-codec:commons-codec:1.17.0')
 
     testImplementation('commons-io:commons-io:2.11.0')
     testImplementation('junit:junit:4.13')

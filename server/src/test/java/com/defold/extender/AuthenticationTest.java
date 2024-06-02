@@ -3,42 +3,28 @@ package com.defold.extender;
 import com.defold.extender.client.*;
 import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
-import org.jf.dexlib2.DexFileFactory;
-import org.jf.dexlib2.Opcodes;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
 import org.junit.*;
 import org.junit.rules.TestName;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggingSystem;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 import static org.junit.Assert.*;
 
 public class AuthenticationTest {
 
     private static final int EXTENDER_PORT = 9000;
-    private static final String SDK_VERSION = "8eaab6b1281ce492163428e0e7b2e0fa247a0a93"; // 1.4.3
+    private static final String SDK_VERSION = "e624625d90111ab8442e6b672b1335bb024b9885"; // 1.4.3
     private static final String PLATFORM_ARMV7_ANDROID = "armv7-android";
     private static final String PLATFORM_LINUX = "x86_64-linux";
-    private static final String PLATFORM_WIN32 = "x86_64-win32";
 
     private long startTime;
-
-    private static final String DM_PACKAGES_URL = System.getenv("DM_PACKAGES_URL");
 
     private static final List<ExtenderResource> SOURCE_FILES = Lists.newArrayList(
             new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -61,9 +47,8 @@ public class AuthenticationTest {
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
-        processExecutor.putEnv("DM_PACKAGES_URL", AuthenticationTest.DM_PACKAGES_URL);
-        processExecutor.putEnv("EXTENDER_AUTHENTICATION_PLATFORMS", "linux");
-        processExecutor.putEnv("EXTENDER_AUTHENTICATION_USERS", "file:users/testusers.txt");
+        processExecutor.putEnv("COMPOSE_PROFILE", "auth-test");
+        processExecutor.putEnv("APPLICATION", "extender-test-auth");
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
@@ -93,6 +78,7 @@ public class AuthenticationTest {
     @AfterClass
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
+        processExecutor.putEnv("APPLICATION", "extender-test-auth");
         processExecutor.execute("scripts/stop-test-server.sh");
         System.out.println(processExecutor.getOutput());
     }

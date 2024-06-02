@@ -1,7 +1,6 @@
 package com.defold.extender.cache.info;
 
 import com.defold.extender.cache.CacheEntry;
-import com.defold.extender.cache.info.CacheInfoWrapper;
 import com.defold.extender.TestUtils;
 import org.junit.Test;
 

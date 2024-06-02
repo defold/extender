@@ -1,0 +1,21 @@
+extender:
+    remote-builder:
+        enabled: true
+        platforms:
+            android-ndk25: http://android-ndk25:9000
+            android-latest: http://android-ndk25:9000
+            emsdk-2011: http://emsdk-2011:9000
+            emsdk-3155: http://emsdk-3155:9000
+            emsdk-latest: http://emsdk-3155:9000
+            linux-latest: http://linux:9000
+            nssdk-1532: http://nssdk-1532:9000
+            nssdk-1753: http://nssdk-1753:9000
+            nssdk-latest: http://nssdk-1753:9000
+            ps4-10500: http://ps4-10500:9000
+            ps4-11000: http://ps4-11000:9000
+            ps4-latest: http://ps4-11000:9000
+            ps5-8000: http://ps5-8000:9000
+            ps5-latest: http://ps5-8000:9000
+            winsdk-2019: http://winsdk-2019:9000
+            winsdk-2022: http://winsdk-2022:9000
+            winsdk-latest: http://winsdk-2022:9000

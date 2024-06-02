@@ -1,0 +1,9 @@
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.1.0
+
+ENV NINTENDO_SDK_ROOT_17_5=${PLATFORMSDK_DIR}/nx-17.5.3
+ENV SWITCH_SDK_17_FILENAME=nx64-sdk-17.5.3.tar.gz
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+   echo "Switch SDK 17.5.3" && \
+   mkdir -p ${NINTENDO_SDK_ROOT_17_5} && \
+   wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${SWITCH_SDK_17_FILENAME} | tar xz -C ${NINTENDO_SDK_ROOT_17_5}

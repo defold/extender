@@ -1,0 +1,271 @@
+name: extender
+
+services:
+  frontend-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
+    extends:
+      file: common-services.yml
+      service: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app"]
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+    profiles:
+      - all
+      - android
+      - web
+      - linux
+      - windows
+      - consoles
+      - nintendo
+      - playstation
+    networks:
+      default:
+        aliases:
+          - frontend
+  linux-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - linux
+    networks:
+      default:
+        aliases:
+          - linux
+  android_ndk25-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25-env:latest
+    extends:
+      file: common-services.yml
+      service: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
+    profiles:
+      - all
+      - android
+    networks:
+      default:
+        aliases:
+          - android-ndk25
+  emscripten_2011-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-2011-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - web
+    networks:
+      default:
+        aliases:
+          - emscripten-2011
+  emscripten_3155-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3155-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - web
+    networks:
+      default:
+        aliases:
+          - emscripten-3155
+  nssdk_1532-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1532-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - consoles
+      - nintendo
+    networks:
+      default:
+        aliases:
+          - nssdk-1532
+  nssdk_1753-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1753-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - consoles
+      - nintendo
+    networks:
+      default:
+        aliases:
+          - nssdk-1753
+  ps4_11000-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps4-11000-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - consoles
+      - playstation
+    networks:
+      default:
+        aliases:
+          - ps4-11000
+  ps4_10500-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps4-10500-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - consoles
+      - playstation
+    networks:
+      default:
+        aliases:
+          - ps4-10500
+  ps5_8000-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps5-8000-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - consoles
+      - playstation
+    networks:
+      default:
+        aliases:
+          - ps5-8000
+  win_2019-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2019-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - windows
+    networks:
+      default:
+        aliases:
+          - winsdk-2019
+  win_2022-dev:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - all
+      - windows
+    networks:
+      default:
+        aliases:
+          - winsdk-2022
+
+# services for integration testing
+  frontend-integration-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
+    extends:
+      file: common-services.yml
+      service: test_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app"]
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+    profiles:
+      - test
+    networks:
+      default:
+        aliases:
+          - frontend
+  linux-integration-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
+    extends:
+      file: common-services.yml
+      service: test_remote_builder
+    profiles:
+      - test
+      - auth-test
+    networks:
+      default:
+        aliases:
+          - linux
+  android_ndk25-integration-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25-env:latest
+    extends:
+      file: common-services.yml
+      service: test_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
+    profiles:
+      - test
+      - auth-test
+    networks:
+      default:
+        aliases:
+          - android-ndk25
+  emscripten_2011-integration-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-2011-env:latest
+    extends:
+      file: common-services.yml
+      service: test_remote_builder
+    profiles:
+      - test
+    networks:
+      default:
+        aliases:
+          - emsdk-2011
+  emscripten_3155-integration-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3155-env:latest
+    extends:
+      file: common-services.yml
+      service: test_remote_builder
+    profiles:
+      - test
+    networks:
+      default:
+        aliases:
+          - emsdk-3155
+  win_2019-integration-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2019-env:latest
+    extends:
+      file: common-services.yml
+      service: test_remote_builder
+    profiles:
+      - test
+    networks:
+      default:
+        aliases:
+          - winsdk-2019
+  win_2022-integration-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
+    extends:
+      file: common-services.yml
+      service: test_remote_builder
+    profiles:
+      - test
+    networks:
+      default:
+        aliases:
+          - winsdk-2022
+
+# linux service for auth testing
+  frontend-auth-test:
+    image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
+    extends:
+      file: common-services.yml
+      service: test_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt"]
+    volumes:
+      - ./../users:/etc/defold/users:ro
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+    profiles:
+      - auth-test
+    networks:
+      default:
+        aliases:
+          - frontend

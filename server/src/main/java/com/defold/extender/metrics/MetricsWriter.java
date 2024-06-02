@@ -3,7 +3,7 @@ package com.defold.extender.metrics;
 //import com.defold.extender.Timer;
 //import org.springframework.boot.actuate.metrics.GaugeService;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +90,7 @@ public class MetricsWriter {
 
     public static void metricsTimer(MeterRegistry registry, String id, long millis, String... tags) {
         Timer timer = registry.timer(id, tags);
-        timer.record(millis, TimeUnit.SECONDS);
+        timer.record(millis, TimeUnit.MILLISECONDS);
     }
 
     public static void metricsCounterIncrement(MeterRegistry registry, String id, String... tags) {

@@ -11,8 +11,8 @@ import java.nio.charset.StandardCharsets;
 
 import com.android.manifmerger.ManifestMerger2;
 import com.android.manifmerger.MergingReport;
-import com.android.manifmerger.XmlDocument;
 import com.android.utils.ILogger;
+
 
 public class AndroidManifestMerger {
 

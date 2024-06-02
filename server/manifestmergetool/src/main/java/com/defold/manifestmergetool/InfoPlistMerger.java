@@ -4,25 +4,17 @@ package com.defold.manifestmergetool;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.StringWriter;
 import java.io.IOException;
 import java.io.FileNotFoundException;
-import java.lang.Boolean;
 import java.util.Iterator;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.HashMap;
-import java.math.BigInteger;
-import java.math.BigDecimal;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 // https://cayenne.apache.org/docs/2.0/api/org/apache/cayenne/conf/FileConfiguration.html
 import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.configuration2.io.FileLocator.FileLocatorBuilder;
-import org.apache.commons.configuration2.io.FileLocatorUtils;
-import org.apache.commons.configuration2.io.FileLocator;
 import org.apache.commons.configuration2.io.FileHandler;
 import org.apache.commons.configuration2.plist.XMLPropertyListConfiguration;
 
