@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import com.defold.extender.remote.RemoteEngineBuilder;
+import com.defold.extender.remote.RemoteHostConfiguration;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
@@ -13,9 +14,9 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.io.EofException;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
@@ -37,6 +38,7 @@ import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -45,6 +47,8 @@ import java.util.regex.Pattern;
 @RestController
 public class ExtenderController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
+
+    private static final String LATEST = "latest";
 
     // Used to verify the uploaded filenames
     private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ](?:[\\w+\\-\\/ @]|(?:\\.[\\w+\\-\\/ ]*))+)$");
@@ -58,8 +62,9 @@ public class ExtenderController {
     private final AsyncBuilder asyncBuilder;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
+    private Map<String, String> remoteBuilderPlatformMappings;
     private final boolean remoteBuilderEnabled;
-    private final String[] remoteBuilderPlatforms;
+
     private static long maxPackageSize = 1024*1024*1024;
     private File jobResultLocation;
 
@@ -85,17 +90,16 @@ public class ExtenderController {
         return Long.parseLong(size) * multiplier;
     }
 
-    @Autowired
     public ExtenderController(DefoldSdkService defoldSdkService,
                               DataCacheService dataCacheService,
                               GradleService gradleService,
                               CocoaPodsService cocoaPodsService,
                               UserUpdateService userUpdateService,
                               MeterRegistry meterRegistry,
-                              RemoteEngineBuilder remoteEngineBuilder,
                               AsyncBuilder asyncBuilder,
+                              RemoteEngineBuilder remoteEngineBuilder,
+                              RemoteHostConfiguration remoteHostConfiguration,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
-                              @Value("${extender.remote-builder.platforms}") String[] remoteBuilderPlatforms,
                               @Value("${spring.servlet.multipart.max-request-size}") String maxPackageSize,
                               @Value("${extender.job-result.location}") String jobResultLocation) {
         this.defoldSdkService = defoldSdkService;
@@ -107,12 +111,12 @@ public class ExtenderController {
 
         this.remoteEngineBuilder = remoteEngineBuilder;
         this.remoteBuilderEnabled = remoteBuilderEnabled;
-        this.remoteBuilderPlatforms = remoteBuilderPlatforms;
+        this.remoteBuilderPlatformMappings = remoteHostConfiguration.getPlatforms();
         ExtenderController.maxPackageSize = parseSizeFromString(maxPackageSize);
         this.jobResultLocation = new File(jobResultLocation);
         this.jobResultLocation.mkdirs();
 
-        this.asyncBuilder = asyncBuilder;
+        this.asyncBuilder = asyncBuilder;            
     }
 
     @ExceptionHandler({ExtenderException.class})
@@ -131,15 +135,15 @@ public class ExtenderController {
         return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), headers, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    @RequestMapping("/")
+    @GetMapping("/")
     public String index() {
         return String.format("Extender<br>%s<br>%s", Version.gitVersion, Version.buildTime);
     }
 
-    @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}")
+    @PostMapping(value = "/build/{platform}")
     public void buildEngineLocal(HttpServletRequest request, HttpServletResponse response,
                                  @PathVariable("platform") String platform)
-            throws URISyntaxException, IOException, ExtenderException {
+            throws URISyntaxException, IOException, ExtenderException, ParseException {
 
         if (defoldSdkService.isLocalSdkSupported()) {
             buildEngine(request, response, platform, null);
@@ -149,12 +153,12 @@ public class ExtenderController {
         throw new ExtenderException("No SDK version specified.");
     }
 
-    @RequestMapping(method = RequestMethod.POST, value = "/build/{platform}/{sdkVersion}")
+    @PostMapping(value = "/build/{platform}/{sdkVersion}")
     public void buildEngine(HttpServletRequest _request,
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, URISyntaxException {
+            throws ExtenderException, IOException, URISyntaxException, ParseException {
 
         boolean isMultipart = ServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
@@ -198,11 +202,12 @@ public class ExtenderController {
             long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
             metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
+            String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
             // Build engine locally or on remote builder
-            if (remoteBuilderEnabled && isRemotePlatform(platform)) {
+            if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                 LOGGER.info("Building engine on remote builder");
-
-                remoteEngineBuilder.build(uploadDirectory, platform, sdkVersion, response.getOutputStream());
+                String remoteUrl = getRemoteBuilderUrl(buildEnvDescription[0], buildEnvDescription[1]);
+                this.remoteEngineBuilder.build(remoteUrl, uploadDirectory, platform, sdkVersion, response.getOutputStream());
                 metricsWriter.measureRemoteEngineBuild(platform);
             } else {
                 LOGGER.info("Building engine locally");
@@ -275,12 +280,12 @@ public class ExtenderController {
         }
     }
 
-    @RequestMapping(method = RequestMethod.POST, value = "/build_async/{platform}/{sdkVersion}")
+    @PostMapping(value = "/build_async/{platform}/{sdkVersion}")
     public void buildEngineAsync(HttpServletRequest _request,
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, URISyntaxException {
+            throws ExtenderException, IOException, URISyntaxException, ParseException {
 
         boolean isMultipart = ServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
@@ -325,10 +330,12 @@ public class ExtenderController {
             long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
             metricsWriter.measureCacheDownload(totalCacheDownloadSize);
 
+            String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
             // Build engine locally or on remote builder
-            if (remoteBuilderEnabled && isRemotePlatform(platform)) {
+            if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                 LOGGER.info("Building engine on remote builder");
-                remoteEngineBuilder.buildAsync(uploadDirectory, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
+                String remoteUrl = getRemoteBuilderUrl(buildEnvDescription[0], buildEnvDescription[1]);
+                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
                 metricsWriter.measureRemoteEngineBuild(platform);
             } else {
                 asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
@@ -373,7 +380,7 @@ public class ExtenderController {
         }
     }
 
-    @RequestMapping(method = RequestMethod.POST, value = "/query")
+    @PostMapping(value = "/query")
     public void queryFiles(HttpServletRequest request, HttpServletResponse response) throws ExtenderException {
         InputStream input;
         OutputStream output;
@@ -508,12 +515,19 @@ public class ExtenderController {
         }
     }
 
-    private boolean isRemotePlatform(final String platform) {
-        for (final String candidate : remoteBuilderPlatforms) {
-            if (platform.endsWith(candidate)) {
-                return true;
-            }
+    private boolean isRemotePlatform(final String platform, String platformVersion) {
+        return this.remoteBuilderPlatformMappings.containsKey(String.format("%s-%s", platform, platformVersion)) 
+            || this.remoteBuilderPlatformMappings.containsKey(String.format("%s-%s", platform, ExtenderController.LATEST));
+    }
+
+    private String getRemoteBuilderUrl(String platform, String platformVersion) throws ExtenderException{
+        String fullKey = String.format("%s-%s", platform, platformVersion);
+        String fallbackKey = String.format("%s-%s", platform, ExtenderController.LATEST);
+        if (this.remoteBuilderPlatformMappings.containsKey(fullKey)) {
+            return this.remoteBuilderPlatformMappings.get(fullKey);
+        } else if (this.remoteBuilderPlatformMappings.containsKey(fallbackKey)) {
+            return this.remoteBuilderPlatformMappings.get(fallbackKey);
         }
-        return false;
+        throw new ExtenderException(String.format("No suitable remote builder found for %", fullKey));
     }
 }

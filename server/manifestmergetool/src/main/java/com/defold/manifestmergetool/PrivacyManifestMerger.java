@@ -6,7 +6,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 // https://cayenne.apache.org/docs/2.0/api/org/apache/cayenne/conf/FileConfiguration.html

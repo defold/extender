@@ -33,3 +33,4 @@ server/test-data/sdk/*
 .bash_history
 
 Version.java
+/server/docker/*.jar

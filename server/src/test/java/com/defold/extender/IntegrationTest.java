@@ -159,7 +159,7 @@ public class IntegrationTest {
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("DM_PACKAGES_URL", IntegrationTest.DM_PACKAGES_URL);
-        processExecutor.execute("scripts/start-test-server.sh");
+        // processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
         long startTime = System.currentTimeMillis();

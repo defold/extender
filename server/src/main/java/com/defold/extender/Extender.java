@@ -21,7 +21,6 @@ import java.nio.file.Files;
 import java.util.Map;
 import java.util.List;
 import java.util.AbstractMap;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -32,9 +31,7 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import com.defold.extender.FrameworkUtil;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.CocoaPodsService.PodSpec;

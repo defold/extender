@@ -1,0 +1,83 @@
+FROM ubuntu:20.04
+
+ARG DM_PACKAGES_URL
+
+RUN \
+  apt-get update && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    unzip \
+    xz-utils \
+    software-properties-common \
+    # for use when debugging
+    tree \
+    silversearcher-ag \
+    less \
+    nano
+
+#
+# Java
+#
+ENV JAVA_HOME /usr/local/jdk-17.0.7+7
+ENV PATH ${JAVA_HOME}/bin:${PATH}
+
+RUN \
+  wget -q -O - https://aka.ms/download-jdk/microsoft-jdk-17.0.7-linux-x64.tar.gz | tar xz -C /usr/local && \
+  java -version && \
+  javac -version
+
+# Put all SDK's into a single folder (just as we do in the regular engine build)
+ENV PLATFORMSDK_DIR /opt/platformsdk
+RUN mkdir $PLATFORMSDK_DIR
+
+#
+# ZIG
+#
+# https://ziglang.org/download/
+
+ENV ZIG_VERSION=0.11.0
+ENV ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
+ENV ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz
+ENV PATH ${PATH}:${ZIG_PATH_0_11}
+
+RUN \
+  echo "ZIG" && \
+  mkdir -p ${ZIG_PATH_0_11} && \
+  wget -q -O - ${ZIG_URL} | tar xJ -C ${ZIG_PATH_0_11} --strip-components=1 && \
+  zig version
+
+#
+# Python
+#
+
+# NOTE: setuptools for protobuf builder
+
+RUN \
+  echo "PYTHON" && \
+  apt-get autoclean && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends python2.7 python-setuptools && \
+  ln -s /usr/bin/python2.7 /usr/local/bin/python && \
+  ln -s /usr/bin/python2.7 /usr/local/bin/python2
+
+# Final cleanup
+
+RUN \
+  apt-get remove -y apt-transport-https xvfb && \
+  apt-get clean autoclean autoremove
+
+RUN rm -rf /var/lib/apt/lists/lock
+
+# Add extender user
+RUN  useradd -r -u 2222 extender && \
+  mkdir -p /var/extender && \
+  chmod +s $(which java)
+
+ENV MANIFEST_MERGE_TOOL /opt/local/bin/manifestmergetool.jar
+
+# Extender data cache
+RUN mkdir -p /var/extender/cache/data
+
+EXPOSE 9000

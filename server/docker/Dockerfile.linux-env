@@ -1,0 +1,36 @@
+FROM defold/extender-base
+
+RUN \
+  echo "LINUX TOOLS + COMPILER" && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    locales \
+    libssl-dev \
+    openssl \
+    libtool \
+    autoconf \
+    automake \
+    build-essential \
+    uuid-dev \
+    libxi-dev \
+    libx11-xcb-dev \
+    libopenal-dev \
+    libgl1-mesa-dev \
+    libglw1-mesa-dev \
+    freeglut3-dev
+
+#
+# llvm
+#
+ENV CLANG_VERSION=17
+RUN \
+  echo "LLVM + CLANG ${CLANG_VERSION}" && \
+  wget https://apt.llvm.org/llvm.sh && \
+  chmod +x llvm.sh && \
+  ./llvm.sh ${CLANG_VERSION} && \
+  rm llvm.sh
+
+ENV CLANG_17_HOME=/usr/lib/llvm-${CLANG_VERSION}
+# Possibly get the "-resource-dir" from clang++ -### empty.cpp
+ENV CLANG_17_RESOURCE_DIR=/usr/lib/llvm-${CLANG_VERSION}/lib/clang/${CLANG_VERSION}
+ENV PATH=${CLANG_17_HOME}/bin:$PATH

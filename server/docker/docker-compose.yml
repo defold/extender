@@ -1,0 +1,93 @@
+name: extender
+
+services:
+  frontend:
+    image: defold/extender-base-app:latest
+    extends:
+      file: common-services.yml
+      service: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app"]
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+    profiles:
+      - local-dev
+  linux:
+    image: defold/extender-linux-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  android_ndk25:
+    image: defold/extender-android-ndk25-app:latest
+    extends:
+      file: common-services.yml
+      service: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
+    profiles:
+      - local-dev
+  emscripten_2011:
+    image: defold/extender-emsdk-2011-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  emscripten_3155:
+    image: defold/extender-emsdk-3155-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  nssdk_1532:
+    image: defold/extender-nssdk-1532-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  nssdk_1753:
+    image: defold/extender-nssdk-1753-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  ps4_11000:
+    image: defold/extender-ps4-11000-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  ps4_10500:
+    image: defold/extender-ps4-10500-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  ps5_8000:
+    image: defold/extender-ps5-8000-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  win_2019:
+    image: defold/extender-winsdk-2019-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev
+  win_2022:
+    image: defold/extender-winsdk-2022-app:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    profiles:
+      - local-dev

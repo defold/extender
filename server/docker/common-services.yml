@@ -1,0 +1,12 @@
+services:
+  common_builder:
+    platform: linux/amd64
+    volumes:
+      - ./../configs:/etc/defold/extender:ro
+      - /Users/yauheni/work/defold/tmp/dynamo_home:/dynamo_home:ro
+      - ./../test-data/sdk:/var/extender/sdk
+    environment:
+      - DYNAMO_HOME=/dynamo_home
+  remote_builder:
+    extends: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev"]
