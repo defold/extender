@@ -1008,7 +1008,13 @@ public class CocoaPodsService {
         // https://guides.cocoapods.org/syntax/podspec.html#libraries
         spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
         if (ios != null) spec.libraries.ios.addAll(getAsJSONArray(ios, "libraries"));
+        if (spec.libraries.ios.contains("c++")) {
+            spec.flags.ios.add("-std=c++11");
+        }
         if (osx != null) spec.libraries.osx.addAll(getAsJSONArray(osx, "libraries"));
+        if (spec.libraries.osx.contains("c++")) {
+            spec.flags.osx.add("-std=c++11");
+        }
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
