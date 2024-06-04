@@ -69,11 +69,11 @@ start_service() {
     fi
 
     if [[ -z "${EXTENDER_SDK_LOCATION}" ]]; then
-        echo "Running: java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-        java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+        echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
+        java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     else
-        echo "Running: java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-        java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+        echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
+        java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     fi
 
     
