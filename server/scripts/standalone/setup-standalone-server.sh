@@ -97,16 +97,12 @@ function download_zig() {
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
     iPhoneOS16.2.sdk
-    iPhoneOS17.2.sdk
     iPhoneOS17.5.sdk
     iPhoneSimulator16.2.sdk
-    iPhoneSimulator17.2.sdk
     iPhoneSimulator17.5.sdk
     MacOSX13.1.sdk
-    MacOSX14.2.sdk
     MacOSX14.5.sdk
     XcodeDefault14.2.xctoolchain.darwin
-    XcodeDefault15.1.xctoolchain.darwin
     XcodeDefault15.4.xctoolchain.darwin
 )
 
