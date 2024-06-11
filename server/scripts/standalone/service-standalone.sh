@@ -36,12 +36,12 @@ export SWIFT_5_5_VERSION=5.5
 export IOS_VERSION_MIN=11.0
 export MACOS_VERSION_MIN=10.13
 
-# Versions from >=1.6.2
-export XCODE_15_VERSION=15.1
+# Versions from >=1.9.0
+export XCODE_15_VERSION=15.4
 export XCODE_15_CLANG_VERSION=15.0.0
-# Versions from >=1.6.3
-export MACOS_14_VERSION=14.2
-export IOS_17_VERSION=17.2
+# Versions from >=1.9.0
+export MACOS_14_VERSION=14.5
+export IOS_17_VERSION=17.5
 
 # Added 1.4.9
 export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
