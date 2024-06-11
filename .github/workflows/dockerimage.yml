@@ -22,8 +22,8 @@ jobs:
         android: true
         dotnet: true
         haskell: true
-        large-packages: false
-        docker-images: false
+        large-packages: true
+        docker-images: true
         swap-storage: true
   
     - uses: actions/checkout@v1
@@ -33,15 +33,6 @@ jobs:
       with:
         java-version: '11.0.15'
         distribution: 'temurin'
-
-    - name: Free disk space
-      run: |
-        df -h
-        sudo swapoff -a
-        sudo rm -f /swapfile
-        sudo apt clean
-        docker rmi $(docker image ls -aq)
-        df -h
 
     - name: Build the extender-client.jar
       run: (cd client && ../gradlew build)
