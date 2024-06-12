@@ -187,6 +187,7 @@ services:
       service: test_remote_builder
     profiles:
       - test
+      - auth-test
     networks:
       default:
         aliases:
@@ -199,6 +200,7 @@ services:
     command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
     profiles:
       - test
+      - auth-test
     networks:
       default:
         aliases:
@@ -247,3 +249,37 @@ services:
       default:
         aliases:
           - win_2022
+
+# linux service for auth testing
+  frontend-auth-test:
+    image: defold/extender-base-app:latest
+    extends:
+      file: common-services.yml
+      service: test_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt"]
+    volumes:
+      - ./../users:/etc/defold/users:ro
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+    profiles:
+      - auth-test
+    networks:
+      default:
+        aliases:
+          - frontend
+  # linux-auth-test:
+  #   image: defold/extender-linux-app:latest
+  #   extends:
+  #     file: common-services.yml
+  #     service: test_remote_builder
+  #   command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt"]
+  #   volumes:
+  #     - ./../users:/etc/defold/users:ro
+  #   profiles:
+  #     - auth-test
+  #   networks:
+  #     default:
+  #       aliases:
+  #         - linux

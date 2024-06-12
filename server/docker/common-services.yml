@@ -6,9 +6,6 @@ services:
       - ./../test-data/sdk:/var/extender/sdk
     environment:
       - EXAMPLE_VAR=1
-      # - DM_DEBUG_COMMANDS=1
-      # - DM_DEBUG_KEEP_JOB_FOLDER=1
-      # - DYNAMO_HOME=/dynamo_home
   common_builder:
     platform: linux/amd64
     volumes:

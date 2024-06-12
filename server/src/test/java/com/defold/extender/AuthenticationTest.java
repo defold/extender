@@ -20,10 +20,9 @@ import static org.junit.Assert.*;
 public class AuthenticationTest {
 
     private static final int EXTENDER_PORT = 9000;
-    private static final String SDK_VERSION = "8eaab6b1281ce492163428e0e7b2e0fa247a0a93"; // 1.4.3
+    private static final String SDK_VERSION = "e624625d90111ab8442e6b672b1335bb024b9885"; // 1.4.3
     private static final String PLATFORM_ARMV7_ANDROID = "armv7-android";
     private static final String PLATFORM_LINUX = "x86_64-linux";
-    private static final String PLATFORM_WIN32 = "x86_64-win32";
 
     private long startTime;
 
@@ -51,8 +50,7 @@ public class AuthenticationTest {
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("DM_PACKAGES_URL", AuthenticationTest.DM_PACKAGES_URL);
-        processExecutor.putEnv("EXTENDER_AUTHENTICATION_PLATFORMS", "linux");
-        processExecutor.putEnv("EXTENDER_AUTHENTICATION_USERS", "file:users/testusers.txt");
+        processExecutor.putEnv("COMPOSE_PROFILE", "auth-test");
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
