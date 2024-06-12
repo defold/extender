@@ -9,7 +9,7 @@ RUN \
  openssl \
  gnupg1 \
  gpg-agent \
-#  lsb-release \
+ build-essential \
  software-properties-common \
  apt-transport-https \
  ca-certificates \

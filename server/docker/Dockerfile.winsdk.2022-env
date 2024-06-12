@@ -51,6 +51,9 @@ RUN \
 # Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
 RUN find $PLATFORMSDK_WIN32 -iname '*.h' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \;
 
+# Make lower case links of libraries as well
+RUN find ${WINDOWS_SDK_10_DIR}/Lib -iname '*.lib' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \;
+
 RUN \
   echo "WIN32 SDK - 2022 - Debug" && \
 # and the rest are manually copied (or made lower case)

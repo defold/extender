@@ -1,12 +1,26 @@
 services:
+  test_builder:
+    platform: linux/amd64
+    volumes:
+      - ./../configs:/etc/defold/extender:ro
+      - ./../test-data/sdk:/var/extender/sdk
+    environment:
+      - EXAMPLE_VAR=1
+      # - DM_DEBUG_COMMANDS=1
+      # - DM_DEBUG_KEEP_JOB_FOLDER=1
+      # - DYNAMO_HOME=/dynamo_home
   common_builder:
     platform: linux/amd64
     volumes:
       - ./../configs:/etc/defold/extender:ro
-      - /Users/yauheni/work/defold/tmp/dynamo_home:/dynamo_home:ro
-      - ./../test-data/sdk:/var/extender/sdk
     environment:
-      - DYNAMO_HOME=/dynamo_home
+      - EXAMPLE_VAR=1
+      # - DM_DEBUG_COMMANDS=1
+      # - DM_DEBUG_KEEP_JOB_FOLDER=1
+      # - DYNAMO_HOME=/dynamo_home
   remote_builder:
     extends: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev"]
+  test_remote_builder:
+    extends: test_builder
     command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev"]
