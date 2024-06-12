@@ -17,13 +17,25 @@ public class ProcessExecutor {
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
     private int commandCounter = 0;
 
-    public int execute(String command) throws IOException, InterruptedException {
+    public int execute(String command, Boolean isDebug) throws IOException, InterruptedException {
         putLog(command + "\n");
 
         int commandId = commandCounter++;
         long startTime = System.currentTimeMillis();
         if (DM_DEBUG_COMMANDS) {
-            System.out.printf("CMD %d: %s\n", commandId, command);
+            if(!isDebug) {
+                System.out.printf("CMD %d: %s\n", commandId, command);
+                String commandBase = command.split(" ")[0];
+                if (commandBase.equals("llvm-ar")) {
+                    execute(String.format("echo FULL ENV CMD %d:", commandId), true);
+                    execute("printenv", true);
+                }
+                execute(String.format("echo FULL PATH CDM %d:", commandId), true);
+                execute(String.format("whereis %s", commandBase), true);
+                execute("echo ----", true);
+            } else {
+                commandCounter--;
+            }
         }
 
         // To avoid an issue where an extra space was interpreted as an argument
@@ -66,7 +78,9 @@ public class ProcessExecutor {
                 divisor = 1000.0;
             }
             double t = duration / divisor;
-            System.out.printf("CMD %d took %f %s\n", commandId, t, unit);
+            if(!isDebug) {
+                System.out.printf("CMD %d took %f %s\n", commandId, t, unit);
+            }
         }
 
         if (exitValue > 0) {
@@ -74,6 +88,10 @@ public class ProcessExecutor {
         }
 
         return exitValue;
+    }
+
+    public int execute(String command) throws IOException, InterruptedException {
+        return execute(command, false);
     }
 
     public String getOutput() {
