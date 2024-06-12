@@ -26,7 +26,6 @@ public class ProcessExecutor {
             if(!isDebug) {
                 System.out.printf("CMD %d: %s\n", commandId, command);
                 String commandBase = command.split(" ")[0];
-                System.out.printf("command base:%s", commandBase);
                 if (commandBase.equals("llvm-ar")) {
                     execute(String.format("echo FULL ENV CMD %d:", commandId), true);
                     execute("printenv", true);
