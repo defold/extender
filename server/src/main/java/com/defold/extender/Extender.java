@@ -40,6 +40,8 @@ import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.CocoaPodsService.PodSpec;
 import com.defold.extender.services.CocoaPodsService.ResolvedPods;
 
+import com.defold.extender.builders.CSharpBuilder;
+
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final String appManifestPath;
@@ -59,6 +61,7 @@ class Extender {
     private final Boolean withSymbols;
     private final Boolean useJetifier;
     private final String buildArtifacts;
+    private Boolean needsCSLibraries = false;
 
     private Map<String, File>                   manifestFiles;
     private Map<String, Map<String, Object>>    manifestConfigs;
@@ -789,6 +792,7 @@ class Extender {
     private List<String> compileExtensionSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
+        List<String> sourceCS = new ArrayList<>();
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
 
@@ -989,6 +993,65 @@ class Extender {
         return outputFiles;
     }
 
+    private File getStaticLibraryFile(Map<String, Object> manifestContext, File libraryOut) {
+        if (libraryOut != null)
+            return libraryOut;
+        return createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
+    }
+
+    private List<File> buildExtensionInternal_Cpp(File manifest, Map<String, Object> manifestContext, List<File> srcFiles, File libraryOut) throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("buildExtensionInternal_Cpp");
+
+        File extDir = manifest.getParentFile();
+
+        // Compile extension source files
+        List<String> objs = new ArrayList<>();
+        objs.addAll(compileExtensionSourceFiles(extDir, manifestContext, srcFiles));
+
+        // Create c++ library
+        File libCpp = getStaticLibraryFile(manifestContext, libraryOut);
+
+        Map<String, Object> context = createContext(manifestContext);
+        context.put("tgt", libCpp);
+        context.put("objs", objs);
+        executeCommand(platformConfig.libCmd, context);
+
+        List<File> out = new ArrayList<>();
+        out.add(libCpp);
+        return out;
+    }
+
+    private List<File> buildExtensionInternal_CSharp(File manifest, Map<String, Object> manifestContext, List<File> srcFiles, File libraryOut) throws IOException, InterruptedException, ExtenderException {
+        LOGGER.info("buildExtensionInternal_CSharp");
+
+        List<File> out = new ArrayList<>();
+
+        if (libraryOut != null) {
+            // TODO: Allow to set the actual output artifact path or name (i.e. libCpp.getAbsolutePath())
+            throw new ExtenderException(String.format("%s:1: error: We currently don't support merging or building two library files at the same time!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest)));
+        }
+
+        // // Create static library
+        File library = getStaticLibraryFile(manifestContext, libraryOut);
+        String name = library.getName();
+        if (name.startsWith("lib"))
+            name = name.substring(3);
+        name = name.substring(0, name.lastIndexOf('.'));
+
+        File extDir = manifest.getParentFile();
+
+        Map<String, Object> context = createContext(manifestContext);
+        CSharpBuilder csBuilder = new CSharpBuilder(processExecutor, templateExecutor, context);
+        csBuilder.setSourceDirectory(extDir);
+        csBuilder.setOutputDirectory(new File(buildDirectory, "cs"));
+        csBuilder.setEngineLibraries((List<String>)context.get("engineLibs"));
+        csBuilder.setOutputFile(library);
+        csBuilder.setOutputName(name);
+        csBuilder.setPlatform(this.platform);
+        out.addAll(csBuilder.build());
+        return out;
+    }
+
     private List<File> buildExtensionInternal(File manifest, Map<String, Object> manifestContext, List<File> srcDirs, File libraryOut) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildExtensionInternal");
 
@@ -1001,10 +1064,6 @@ class Extender {
         if (platformConfig.zigSourceRe != null)
             srcFiles.addAll(ExtenderUtil.listFiles(srcDirs, platformConfig.zigSourceRe));
 
-        if (srcFiles.isEmpty()) {
-            throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
-        }
-
         // Generate C++ files first (output into the source folder)
         List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, PROTO_RE);
         List<File> generated = generateProtoCxxForEngine(extDir, manifestContext, protoFiles);
@@ -1013,25 +1072,24 @@ class Extender {
         }
         srcFiles.addAll(generated);
 
-        // Compile extension source files
-        List<String> objs = new ArrayList<>();
-        objs.addAll(compileExtensionSourceFiles(extDir, manifestContext, srcFiles));
+        // Added in 1.9.+
+        List<File> srcCSFiles = new ArrayList<>();
+        if (platformConfig.csSourceRe != null) {
+            srcCSFiles.addAll(ExtenderUtil.listFiles(srcDirs, platformConfig.csSourceRe));
+        }
 
-        // Create c++ library
-        File lib;
-        if (libraryOut != null)
-            lib = libraryOut;
-        else
-            lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
+        if (srcFiles.isEmpty() && srcCSFiles.isEmpty()) {
+            throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
+        }
 
         List<File> outputFiles = new ArrayList<>();
-        outputFiles.add(lib);
-
-        Map<String, Object> context = createContext(manifestContext);
-        context.put("tgt", lib);
-        context.put("objs", objs);
-        executeCommand(platformConfig.libCmd, context);
-
+        if (!srcFiles.isEmpty())
+            outputFiles.addAll(buildExtensionInternal_Cpp(manifest, manifestContext, srcFiles, libraryOut));
+        if (!srcCSFiles.isEmpty())
+        {
+            this.needsCSLibraries = true; // If we need to link, we need the static libraries
+            outputFiles.addAll(buildExtensionInternal_CSharp(manifest, manifestContext, srcCSFiles, libraryOut));
+        }
         return outputFiles;
     }
 
@@ -1285,6 +1343,14 @@ class Extender {
         context.put("libs", patchLibs((List<String>) context.get("libs")));
         context.put("extLibs", patchLibs((List<String>) context.get("extLibs")));
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
+
+        if (this.needsCSLibraries) {
+            List<String> linkFlags = (List<String>)context.getOrDefault("linkFlags", new ArrayList<String>());
+            for (File dependency : CSharpBuilder.getStaticDependencies(platform)) {
+                linkFlags.add(dependency.getAbsolutePath());
+            }
+            context.put("linkFlags", linkFlags);
+        }
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
 

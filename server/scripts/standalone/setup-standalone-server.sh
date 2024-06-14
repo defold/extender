@@ -94,6 +94,40 @@ function download_zig() {
 }
 
 
+function install_dotnet() {
+	# There are no static download links, they're always generated
+	# https://dotnet.microsoft.com/en-us/download/dotnet/8.0
+
+	if [ "" == "$(which dotnet)" ]; then
+		local os=$(uname)
+		if [ "Darwin" == ${os} ]; then
+			# we can use brew on macos. we pass in "yes" to accept all questions
+			yes | brew install dotnet
+
+		elif [ "Linux" == ${os} ]; then
+			echo "Linux not supported yet"
+
+		else
+			echo "Windows not supported yet"
+		fi
+
+		echo "[setup] Installed dotnet"
+	else
+		echo "[setup] Package dotnet already installed"
+	fi
+
+	export DOTNET8=$(which dotnet)
+
+	echo "[setup] Using dotnet:" ${DOTNET8} "--version" $(${DOTNET8} --version)
+
+	# verify that the build is the correct version
+	local version=$(dotnet --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
+	if [ "$version" != "8" ]; then
+		echo "[setup] dotnet version is newer:" $(dotnet --version)
+	fi
+}
+
+
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
     iPhoneOS16.2.sdk
@@ -122,6 +156,9 @@ download_packages
 
 echo "[setup] Downloading Zig"
 download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
+
+echo "[setup] Installing dotnet"
+install_dotnet
 
 chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
 
