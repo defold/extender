@@ -36,12 +36,12 @@ export SWIFT_5_5_VERSION=5.5
 export IOS_VERSION_MIN=11.0
 export MACOS_VERSION_MIN=10.13
 
-# Versions from >=1.6.2
-export XCODE_15_VERSION=15.1
+# Versions from >=1.9.0
+export XCODE_15_VERSION=15.4
 export XCODE_15_CLANG_VERSION=15.0.0
-# Versions from >=1.6.3
-export MACOS_14_VERSION=14.2
-export IOS_17_VERSION=17.2
+# Versions from >=1.9.0
+export MACOS_14_VERSION=14.5
+export IOS_17_VERSION=17.5
 
 # Added 1.4.9
 export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
@@ -74,11 +74,11 @@ start_service() {
     fi
 
     if [[ -z "${EXTENDER_SDK_LOCATION}" ]]; then
-        echo "Running: java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-        java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+        echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
+        java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     else
-        echo "Running: java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-        java -Xmx2g -XX:MaxDirectMemorySize=1g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+        echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
+        java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
     fi
 
     

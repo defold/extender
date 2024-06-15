@@ -9,6 +9,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        # this might remove tools that are actually needed,
+        # if set to "true" but frees about 6 GB
+        tool-cache: false
+        
+        # all of these default to true, but feel free to set to
+        # "false" if necessary for your workflow
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
+  
     - uses: actions/checkout@v1
 
     - name: Install Java
@@ -16,15 +33,6 @@ jobs:
       with:
         java-version: '11.0.15'
         distribution: 'temurin'
-
-    - name: Free disk space
-      run: |
-        df -h
-        sudo swapoff -a
-        sudo rm -f /swapfile
-        sudo apt clean
-        docker rmi $(docker image ls -aq)
-        df -h
 
     - name: Build the extender-client.jar
       run: (cd client && ../gradlew build)

@@ -336,11 +336,22 @@ ENV ANDROID_SDK_FILENAME_33 android-sdk-linux-android-${ANDROID_SDK_VERSION_33}-
 ENV ANDROID_SDK_BUILD_TOOLS_PATH_33 ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_33}
 ENV ANDROID_LIBRARYJAR_33 ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_33}/android.jar
 
+#
+# SDK 34 (Defold 1.9.0):
+#
+
+ENV ANDROID_BUILD_TOOLS_VERSION_34 34.0.0
+ENV ANDROID_SDK_VERSION_34 34
+ENV ANDROID_SDK_FILENAME_34 android-sdk-linux-android-${ANDROID_SDK_VERSION_34}-${ANDROID_BUILD_TOOLS_VERSION_34}.tar.gz
+
+ENV ANDROID_SDK_BUILD_TOOLS_PATH_34 ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34}
+ENV ANDROID_LIBRARYJAR_34 ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_34}/android.jar
+
 # We specify it in build_input.yml by setting it the first in PATH for new SDK
 # But at least one SDK should be specified by default in Dockerfile
 ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_33}
 # ANDROID_SDK_VERSION used in Java code, default should be specified in Dockerfile as well:
-ENV ANDROID_SDK_VERSION ${ANDROID_SDK_VERSION_33}
+ENV ANDROID_SDK_VERSION ${ANDROID_SDK_VERSION_34}
 
 #
 # NDK25b (Defold 1.4.3):
@@ -375,6 +386,7 @@ RUN \
     mkdir -p ${ANDROID_HOME} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME_33} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+    wget -q -O - ${DM_PACKAGES_URL}/${ANDROID_SDK_FILENAME_34} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
 #cleanup
     rm -rf ${ANDROID_HOME}/extras && \
     rm -rf ${ANDROID_NDK25_PATH}/prebuilt && \
@@ -399,6 +411,7 @@ RUN \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
 # check that dx installed properly
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_33}/d8 && \
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_34}/d8 && \
     which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
     which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
 # check that aapt installed correctly
@@ -523,7 +536,7 @@ RUN \
 ENV GRADLE_USER_HOME /tmp/.gradle
 ENV GRADLE_JAVA_HOME /usr/local/jdk-17.0.7+7
 ENV GRADLE_VERSION 8.4
-ENV GRADLE_PLUGIN_VERSION 8.2.1
+ENV GRADLE_PLUGIN_VERSION 8.3.2
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
