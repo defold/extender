@@ -319,7 +319,7 @@ RUN \
 # https://developer.android.com/studio/command-line/variables
 #
 ENV ANDROID_ROOT ${PLATFORMSDK_DIR}/android
-# ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
+# Note: ANDROID_SDK_ROOT is deprecated (https://developer.android.com/tools/variables)
 ENV ANDROID_HOME ${ANDROID_ROOT}/android-sdk-linux
 ENV ANDROID_SDK_ROOT ${ANDROID_HOME}
 # ANDROID_SDK_HOME is the location of the .android folder
@@ -534,6 +534,7 @@ RUN \
 # Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
 # Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
 ENV GRADLE_USER_HOME /tmp/.gradle
+ENV GRADLE_JAVA_HOME /usr/local/jdk-17.0.7+7
 ENV GRADLE_VERSION 8.4
 ENV GRADLE_PLUGIN_VERSION 8.3.2
 ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin

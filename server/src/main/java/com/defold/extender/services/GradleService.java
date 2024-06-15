@@ -48,6 +48,7 @@ public class GradleService {
     private static final String GRADLE_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_GRADLE_PROPERTIES_TEMPLATE");
     private static final String LOCAL_PROPERTIES_TEMPLATE_PATH = System.getenv("EXTENSION_LOCAL_PROPERTIES_TEMPLATE");
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
+    private static final String GRADLE_JAVA_HOME = System.getenv("GRADLE_JAVA_HOME");
     private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
@@ -101,7 +102,7 @@ public class GradleService {
 
     private Map<String, Object> createJobEnvContext(Map<String, Object> env) {
         Map<String, Object> context = new HashMap<>(env);
-        context.putIfAbsent("env.ANDROID_SDK_ROOT", System.getenv("ANDROID_SDK_ROOT"));
+        context.putIfAbsent("env.ANDROID_HOME", System.getenv("ANDROID_HOME"));
         context.putIfAbsent("env.ANDROID_SDK_VERSION", System.getenv("ANDROID_SDK_VERSION"));
         return context;
     }
@@ -118,7 +119,7 @@ public class GradleService {
 
         // create gradle.properties
         File gradlePropertiesFile = new File(cwd, "gradle.properties");
-        createGradlePropertiesFile(gradlePropertiesFile, useJetifier);
+        createGradlePropertiesFile(gradlePropertiesFile, useJetifier, jobEnvContext);
 
         // create local.properties
         File localPropertiesFile = new File(cwd, "local.properties");
@@ -128,7 +129,7 @@ public class GradleService {
     }
 
     public long getCacheSize() throws IOException {
-        Path folder = Paths.get(GRADLE_USER_HOME);
+        Path folder = Paths.get(this.gradleHome);
         return Files.walk(folder)
           .filter(p -> p.toFile().isFile())
           .mapToLong(p -> p.toFile().length())
@@ -138,16 +139,17 @@ public class GradleService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
     // Private
 
-    private void createGradlePropertiesFile(File gradlePropertiesFile, Boolean useJetifier) throws IOException {
+    private void createGradlePropertiesFile(File gradlePropertiesFile, Boolean useJetifier, Map<String, Object> jobEnvContext) throws IOException {
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("android-enable-jetifier", useJetifier.toString());
+        envContext.put("org-gradle-jave-home", GRADLE_JAVA_HOME);
         String contents = templateExecutor.execute(gradlePropertiesTemplateContents, envContext);
         Files.write(gradlePropertiesFile.toPath(), contents.getBytes());
     }
 
     private void createLocalPropertiesFile(File localPropertiesFile, Map<String, Object> jobEnvContext) throws IOException {
         HashMap<String, Object> envContext = new HashMap<>();
-        envContext.put("android-sdk-root", jobEnvContext.get("env.ANDROID_SDK_ROOT"));
+        envContext.put("sdk-dir", jobEnvContext.get("env.ANDROID_HOME"));
         String contents = templateExecutor.execute(localPropertiesTemplateContents, envContext);
         Files.write(localPropertiesFile.toPath(), contents.getBytes());
     }
