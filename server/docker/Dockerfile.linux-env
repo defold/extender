@@ -1,4 +1,4 @@
-FROM defold/extender-base
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base
 
 RUN \
   echo "LINUX TOOLS + COMPILER" && \

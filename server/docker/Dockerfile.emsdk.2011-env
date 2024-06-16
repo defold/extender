@@ -1,6 +1,5 @@
-FROM defold/extender-base
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base
 
-ARG DM_PACKAGES_URL
 #
 # EMSCRIPTEN
 #
@@ -29,9 +28,9 @@ ENV EMSCRIPTEN_PYTHON_2_0_11 /usr/bin/python3.9
 # Setup a special env variable that will be prefixed to PATH if requested version is 2.0.11
 ENV EMSCRIPTEN_PATH_2_0_11 ${EMSCRIPTEN_HOME_2_0_11}:${EMSCRIPTEN_HOME_2_0_11}/upstream/bin:${EMSCRIPTEN_HOME_2_0_11}/node/12.9.1_64bit/bin:${EMSCRIPTEN_BIN_2_0_11}
 
-RUN \
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   mkdir ${EMSCRIPTEN_SDK_2_0_11} && \
-  wget -q -O - ${DM_PACKAGES_URL}/emsdk-2.0.11-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_2_0_11} --strip-components=1
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/emsdk-2.0.11-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_2_0_11} --strip-components=1
 
 RUN \
   ${EMSCRIPTEN_HOME_2_0_11}/emsdk activate sdk-2.0.11-64bit --embedded && \

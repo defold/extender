@@ -1,6 +1,5 @@
-FROM defold/extender-base
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base
 
-ARG DM_PACKAGES_URL
 # Ubuntu still seem to use python3 3.8 as default version
 RUN \
   add-apt-repository ppa:deadsnakes/ppa && \
@@ -20,9 +19,9 @@ ENV EMSCRIPTEN_PYTHON_3_1_55 /usr/bin/python3.9
 ENV EMSCRIPTEN_BIN_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}/upstream/emscripten
 ENV EMSCRIPTEN_PATH_3_1_55 ${EMSCRIPTEN_HOME_3_1_55}:${EMSCRIPTEN_HOME_3_1_55}/upstream/bin:${EMSCRIPTEN_HOME_3_1_55}/node/16.20.0_64bit/bin:${EMSCRIPTEN_BIN_3_1_55}
 
-RUN \
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   mkdir ${EMSCRIPTEN_SDK_3_1_55} && \
-  wget -q -O - ${DM_PACKAGES_URL}/emsdk-3.1.55-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_3_1_55} --strip-components=1
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/emsdk-3.1.55-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_3_1_55} --strip-components=1
 
 RUN \
   ${EMSCRIPTEN_HOME_3_1_55}/emsdk activate sdk-3.1.55-64bit && \

@@ -1,12 +1,11 @@
-FROM defold/extender-base
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base
 
-ARG DM_PACKAGES_URL
 ENV PS5_SDK_8_VERSION 8.000
 ENV PS5_SDK_8  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_8_VERSION}
 
 ENV PS5_SDK_8_FILENAME ps5-sdk-${PS5_SDK_8_VERSION}.tar.gz
 
-RUN \
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   echo "PS5 ${PS5_SDK_8_FILENAME}" && \
   mkdir -p ${PS5_SDK_8} && \
-  wget -q -O - ${DM_PACKAGES_URL}/${PS5_SDK_8_FILENAME} | tar xz -C ${PS5_SDK_8} --strip-components=1
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${PS5_SDK_8_FILENAME} | tar xz -C ${PS5_SDK_8} --strip-components=1

@@ -1,4 +1,4 @@
-FROM defold/extender-base
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base
 
 # Installation notes: https://wiki.winehq.org/Ubuntu
 # TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
@@ -6,6 +6,7 @@ RUN \
  echo "Wine deps" && \
  apt-get update && \
  apt-get install -y --no-install-recommends \
+ python-is-python3 \
  openssl \
  gnupg1 \
  gpg-agent \

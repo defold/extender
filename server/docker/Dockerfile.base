@@ -1,7 +1,5 @@
 FROM ubuntu:20.04
 
-ARG DM_PACKAGES_URL
-
 RUN \
   apt-get update && \
   apt-get update && \
@@ -48,20 +46,6 @@ RUN \
   wget -q -O - ${ZIG_URL} | tar xJ -C ${ZIG_PATH_0_11} --strip-components=1 && \
   zig version
 
-#
-# Python
-#
-
-# NOTE: setuptools for protobuf builder
-
-RUN \
-  echo "PYTHON" && \
-  apt-get autoclean && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends python2.7 python-setuptools && \
-  ln -s /usr/bin/python2.7 /usr/local/bin/python && \
-  ln -s /usr/bin/python2.7 /usr/local/bin/python2
-
 # Final cleanup
 
 RUN \
@@ -79,5 +63,9 @@ ENV MANIFEST_MERGE_TOOL /opt/local/bin/manifestmergetool.jar
 
 # Extender data cache
 RUN mkdir -p /var/extender/cache/data
+
+RUN chown extender: /var/extender && \
+    chown extender: $(which java) && \
+    chown -R extender: /var/extender/cache
 
 EXPOSE 9000

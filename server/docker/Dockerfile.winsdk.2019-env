@@ -1,6 +1,4 @@
-FROM defold/extender-wine
-
-ARG DM_PACKAGES_URL
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-wine
 
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
@@ -33,15 +31,15 @@ RUN \
   ls -la /usr/bin/x86_64-w64-mingw32-windres && \
   ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
 
-RUN \
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   echo "WIN32 2019 SDK" && \
   mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019 && \
-  wget -q -O - ${DM_PACKAGES_URL}/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/Microsoft-Visual-Studio-2019-${WINDOWS_MSVC_2019_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2019
 
-RUN \
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   echo "WIN32 ${WINDOWS_SDK_10_18362_VERSION} SDK  " && \
   mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
-  wget -q -O - ${DM_PACKAGES_URL}/WindowsKits-${WINDOWS_SDK_10_18362_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/WindowsKits-${WINDOWS_SDK_10_18362_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
 
 RUN \
   ln -s $(which clang) $(dirname $(which clang))/x86_64-pc-win32-clang && \
