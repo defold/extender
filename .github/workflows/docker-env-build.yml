@@ -1,0 +1,89 @@
+name: Build Docker environment container
+
+on:
+  push:
+    tags:
+      - "*"
+
+env:
+  GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
+  PUBLIC_REGISTRY: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry
+  PRIVATE_REGISTRY: europe-north1-docker.pkg.dev
+  PRIVATE_PLATFORMS: "nssdk ps4 ps5"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+    - name: Process tag name
+      id: name_postprocess
+      run: |
+          PRIVATE_PLATFORM_LIST=${{ env.PRIVATE_PLATFORMS }}
+          PUBLIC_REGISTRY=${{ env.PUBLIC_REGISTRY }}
+          PRIVATE_REGISTRY=${{ env.PRIVATE_REGISTRY }}
+
+          SHORT_SHA="$(echo ${GITHUB_SHA} | cut -c1-8)"
+          TAG_NAME=${{ github.ref_name }}
+          DOCKERFILE="${TAG_NAME%%-*}"
+          PLATFORM="${DOCKERFILE%%.*}"
+          PLATFORM_VERSION=$(if [[ "$DOCKERFILE" == *"."* ]]; then echo "${DOCKERFILE#*.}"; else echo ""; fi)
+          IMAGE_VERSION="${TAG_NAME#*-}"
+          IMAGE_NAME=$(if [[ "$PLATFORM_VERSION" != "" ]]; then echo "$PLATFORM-$PLATFORM_VERSION"; else echo "$PLATFORM"; fi)
+          TARGET_REGISTRY=$(if [[ $PRIVATE_PLATFORM_LIST == *$PLATFORM* ]]; then echo $PRIVATE_REGISTRY; else echo $PUBLIC_REGISTRY; fi)
+
+          echo "TAG_NAME $TAG_NAME"
+          echo "DOCKERFILE $DOCKERFILE"
+          echo "PLATFORM $PLATFORM"
+          echo "PLATFORM_VERSION $PLATFORM_VERSION"
+          echo "IMAGE_VERSION $IMAGE_VERSION"
+          echo "IMAGE_NAME $IMAGE_NAME"
+          echo "TARGET_REGISTRY $TARGET_REGISTRY"
+
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "dockerfile=$DOCKERFILE" >> $GITHUB_OUTPUT
+          echo "platform=$PLATFORM" >> $GITHUB_OUTPUT
+          echo "platform_version=$PLATFORM_VERSION" >> $GITHUB_OUTPUT
+          echo "image_version=$IMAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "target_registry=$TARGET_REGISTRY" >> $GITHUB_OUTPUT
+    - name: Login to Google Artifact registry
+      uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
+      with:
+        registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
+        username: _json_key
+        password: ${{ secrets.GAR_JSON_KEY }}
+    - name: Login to Google Artifact registry
+      uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
+      with:
+        registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
+        username: _json_key
+        password: ${{ secrets.GAR_JSON_KEY }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb
+    - name: Build and push
+      env:
+        DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
+      uses: docker/build-push-action@c382f710d39a5bb4e430307530a720f50c2d3318
+      with:
+        file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
+        pull: true
+        push: true
+        platforms: |
+          linux/amd64
+        secret-envs: |
+          id=DM_PACKAGES_URL
+        tags: |
+          ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.image_version }}
+          ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.short_sha }}
+          ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:latest
+
+    - name: Notify if tests failed
+      uses: homoluctus/slatify@master
+      if: failure()
+      with:
+        type: ${{ job.status }}
+        job_name: 'Extender: Docker environment container'
+        channel: '#defold-alarms-build'
+        url: ${{ secrets.SLACK_WEBHOOK }}
