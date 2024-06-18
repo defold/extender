@@ -1,7 +1,5 @@
-
 server:
     port: 9000
-
     jetty:
         connection-idle-timeout: 600000
 
@@ -19,13 +17,12 @@ extender:
         file-size-threshold: 65536
     remote-builder:
         enabled: false
-        platforms: ios, osx
         build-sleep-timeout: 5000
         build-result-wait-timeout: 1200000
+                
     gradle:
+        enabled: false
         location: /tmp/.gradle
-        # megabytes
-        cache-size: 2048
     # refer to README_SECURITY.md for information on securing your server
     authentication:
         # empty string, all platforms allowed without authentication

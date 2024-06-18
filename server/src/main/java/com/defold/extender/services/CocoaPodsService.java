@@ -9,8 +9,9 @@ import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 import org.apache.commons.text.StringEscapeUtils;
@@ -22,24 +23,17 @@ import org.json.simple.parser.ParseException;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Iterator;
 import java.util.Collections;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.lang.StringBuilder;
 
 
@@ -302,9 +296,6 @@ public class CocoaPodsService {
         }
     }
 
-    private static final String PODFILE_TEMPLATE_PATH = System.getenv("EXTENSION_PODFILE_TEMPLATE");
-    private static final String MODULEMAP_TEMPLATE_PATH = System.getenv("EXTENSION_MODULEMAP_TEMPLATE");
-    private static final String UMBRELLAHEADER_TEMPLATE_PATH = System.getenv("EXTENSION_UMBRELLAHEADER_TEMPLATE");
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
@@ -314,21 +305,14 @@ public class CocoaPodsService {
 
     private final MeterRegistry meterRegistry;
 
-    private String readFile(String filePath) throws IOException {
-        if (filePath == null) {
-            return "";
-        }
-
-        return new String( Files.readAllBytes( Paths.get(filePath) ) );
-    }
-
-    @Autowired
-    CocoaPodsService(@Value("${extender.gradle.cache-size}") int cacheSize,
-                     MeterRegistry meterRegistry) throws IOException {
+    CocoaPodsService(@Value("classpath:template.podfile") Resource podfileTemplate,
+            @Value("classpath:template.modulemap") Resource modulemapTemplate,
+            @Value("classpath:template.umbrella.h") Resource umbrellaHeaderTemplate,
+            MeterRegistry meterRegistry) throws IOException {
         this.meterRegistry = meterRegistry;
-        this.podfileTemplateContents = readFile(PODFILE_TEMPLATE_PATH);
-        this.modulemapTemplateContents = readFile(MODULEMAP_TEMPLATE_PATH);
-        this.umbrellaHeaderTemplateContents = readFile(UMBRELLAHEADER_TEMPLATE_PATH);
+        this.podfileTemplateContents = ExtenderUtil.readContentFromResource(podfileTemplate);
+        this.modulemapTemplateContents = ExtenderUtil.readContentFromResource(modulemapTemplate);
+        this.umbrellaHeaderTemplateContents = ExtenderUtil.readContentFromResource(umbrellaHeaderTemplate);
 
         LOGGER.info("CocoaPodsService service");
     }

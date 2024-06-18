@@ -16,13 +16,13 @@ plugins {
     id 'idea'
     id 'eclipse'
     id 'org.springframework.boot' version '2.6.6'
-    id 'com.bmuschko.docker-remote-api' version '9.4.0'
 }
 
-apply plugin: 'com.bmuschko.docker-remote-api'
 apply plugin: 'io.spring.dependency-management'
 
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+ext {
+    extenderVersion = findProperty('extenderVersion') ?: '1.4.47'
+}
 
 configurations {
     // A configuration meant for consumers that need the API of this component
@@ -37,9 +37,6 @@ repositories {
 
 sourceCompatibility = '11'
 targetCompatibility = '11'
-
-// This affects the Docker repo name.
-group = 'extender'
 
 dependencyManagement {
     imports {
@@ -120,53 +117,26 @@ compileJava {
 // Creates the full jar file, with the extender server classes included
 bootJar {
     archiveBaseName = 'extender'
-    version =  '0.1.0'
+    version = project.ext.extenderVersion
 }
 
 // Builds the extender server base classes into a .jar file
 jar {
     archiveBaseName = 'extender-base'
-    version =  '0.1.0'
+    version = project.ext.extenderVersion
     archiveClassifier = '' // use empty string to avoid the 'plain' suffix
 }
 
-File dockerBuildDir = new File(project.buildDir, 'docker-stage');
-
-task dockerStageDir {
-    doFirst {
-        if (dockerBuildDir.exists()) {
-            dockerBuildDir.delete();
-        }
-        dockerBuildDir.mkdirs();
-        copy {
-            from(project.projectDir) {
-                include "users/**"
-            }
-            into dockerBuildDir
-        }
-        copy {
-            from bootJar
-            into dockerBuildDir
-        }
-        copy {
-            from project(':manifestmergetool').collect { it.tasks.withType(Jar) }
-            into dockerBuildDir
-        }
-        copy {
-            from 'docker'
-            into dockerBuildDir
-        }
+publishing {
+  publications {
+    extender(MavenPublication) {
+      artifact bootJar
+      groupId 'com.defold.extender'
+      artifactId 'server'
+      version project.ext.extenderVersion
+      from components.java
     }
-}
-
-task buildDocker(type: DockerBuildImage) {
-    dependsOn 'build', ':manifestmergetool:mainJar', 'dockerStageDir'
-    inputDir = dockerBuildDir
-    buildArgs = ['platform': 'linux/amd64']
-    imageId = bootJar.archiveBaseName
-    dockerFile = new File(dockerBuildDir, 'Dockerfile')
-    images.add("extender/extender:latest")
-    images.add("extender/extender:" + project.outSha)
+  }
 }
 
 task buildStandalone() {

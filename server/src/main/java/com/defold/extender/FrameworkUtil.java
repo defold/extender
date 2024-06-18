@@ -2,9 +2,6 @@ package com.defold.extender;
 
 import java.io.File;
 import java.io.IOException;
-import com.defold.extender.ProcessExecutor;
-import com.defold.extender.ExtenderException;
-
 
 public class FrameworkUtil {
     private static String execCommand(String command, File cwd) throws ExtenderException {

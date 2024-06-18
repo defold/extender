@@ -1,0 +1,179 @@
+name: Build jars
+
+on:
+  push:
+    tags:
+      - "extender-v[0-9]+.[0-9]+.[0-9]+"
+      - "client-v[0-9]+.[0-9]+.[0-9]+"
+      - "manifestmerger-v[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  client:
+    if: ${{ startsWith(github.ref_name, 'client-') }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+    - name: Generate version
+      id: version
+      run: |
+          SHORT_SHA="$(echo ${GITHUB_SHA} | cut -c1-8)"
+          TAG_NAME=${{ github.ref_name }}
+          TAG_VERSION="${TAG_NAME#*-v}"
+
+          echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+    - name: Install Java
+      uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
+      with:
+        java-version: '11.0.15'
+        distribution: 'temurin'
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
+    - name: Build the extender-client.jar
+      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:build
+    - name: Test the extender-client.jar
+      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:test
+    - name: Publish to Google artifact registry
+      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} publishExtenderClientPublicationToExtenderRepoRepository
+    - name: Prepare jar for GH release
+      run: |
+        mkdir -p ${{ github.workspace }}/gh_release
+        cp ${{ github.workspace }}/client/build/libs/extender-client-${{ steps.version.outputs.tag_version }}.jar \
+          ${{ github.workspace }}/gh_release/extender-client-${{ steps.version.outputs.tag_version }}.jar
+    - name: Publish to Github release
+      run: |
+        chmod 0444 ${{ github.workspace }}/*.jar
+          echo ${{ github.token }} | gh auth login --with-token
+          gh release create "${GITHUB_REF_NAME}"  \
+            --draft \
+            --generate-notes \
+            --target ${{ github.sha }} \
+            ${{ github.workspace }}/gh_release/*.jar
+    - name: Notify if tests failed
+      uses: homoluctus/slatify@master
+      if: failure()
+      with:
+        type: ${{ job.status }}
+        job_name: 'Extender cleint release'
+        channel: '#defold-alarms-build'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+
+  manifestmerger:
+    if: ${{ startsWith(github.ref_name, 'manifestmerger-') }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+    - name: Generate version
+      id: version
+      run: |
+          SHORT_SHA="$(echo ${GITHUB_SHA} | cut -c1-8)"
+          TAG_NAME=${{ github.ref_name }}
+          TAG_VERSION="${TAG_NAME#*-v}"
+
+          echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+    - name: Install Java
+      uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
+      with:
+        java-version: '11.0.15'
+        distribution: 'temurin'
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
+    - name: Build manifestmerger
+      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:mainJar
+    - name: Test manifestmerger
+      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:test
+    - name: Publish to Google artifact registry
+      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} publishManifestMergeToolPublicationToExtenderRepoRepository
+    - name: Prepare jar for GH release
+      run: |
+        mkdir -p ${{ github.workspace }}/gh_release
+        cp ${{ github.workspace }}/server/manifestmergetool/build/libs/manifestmergetool-${{ steps.version.outputs.tag_version }}.jar \
+          ${{ github.workspace }}/gh_release/manifestmergetool-${{ steps.version.outputs.tag_version }}.jar
+    - name: Publish to Github release
+      run: |
+        chmod 0444 ${{ github.workspace }}/*.jar
+          echo ${{ github.token }} | gh auth login --with-token
+          gh release create "${GITHUB_REF_NAME}"  \
+            --draft \
+            --generate-notes \
+            --target ${{ github.sha }} \
+            ${{ github.workspace }}/gh_release/*.jar
+    - name: Notify if tests failed
+      uses: homoluctus/slatify@master
+      if: failure()
+      with:
+        type: ${{ job.status }}
+        job_name: 'Manifest merge tool release'
+        channel: '#defold-alarms-build'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+
+  extender:
+    if: ${{ startsWith(github.ref_name, 'extender-') }}
+    env:
+      GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+    - name: Generate version
+      id: version
+      run: |
+          SHORT_SHA="$(echo ${GITHUB_SHA} | cut -c1-8)"
+          TAG_NAME=${{ github.ref_name }}
+          TAG_VERSION="${TAG_NAME#*-v}"
+
+          echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+    - name: Install Java
+      uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
+      with:
+        java-version: '11.0.15'
+        distribution: 'temurin'
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
+    - name: Build extender
+      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:booJar
+    - name: Login to Google Artifact registry (Docker)
+      uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
+      with:
+        registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
+        username: _json_key
+        password: ${{ secrets.DOCKER_REGISTRY_JSON_KEY }}
+    - name: Pull necessary docker images
+      run: |
+        # pull all containers under profile 'test'. Part of them is used in 'auth-test'
+        # if you need some new container under other profiles - need to add new statement with different profile
+        docker compose --file ./server/docker/docker-compose.yml --profile test pull
+    - name: Run extender tests
+      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:test -i
+    - name: Login to Google Artifact registry (Maven)
+      uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
+      with:
+        registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
+        username: _json_key
+        password: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
+    - name: Publish to Google artifact registry
+      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} publishExtenderPublicationToExtenderRepoRepository
+    - name: Prepare jar for GH release
+      run: |
+        mkdir -p ${{ github.workspace }}/gh_release
+        cp ${{ github.workspace }}/server/build/libs/extender-${{ steps.version.outputs.tag_version }}.jar \
+          ${{ github.workspace }}/gh_release/extender-${{ steps.version.outputs.tag_version }}.jar
+    - name: Publish to Github release
+      run: |
+        chmod 0444 ${{ github.workspace }}/*.jar
+          echo ${{ github.token }} | gh auth login --with-token
+          gh release create "${GITHUB_REF_NAME}"  \
+            --draft \
+            --generate-notes \
+            --target ${{ github.sha }} \
+            ${{ github.workspace }}/gh_release/*.jar
+    - name: Notify if tests failed
+      uses: homoluctus/slatify@master
+      if: failure()
+      with:
+        type: ${{ job.status }}
+        job_name: 'Extender release'
+        channel: '#defold-alarms-build'
+        url: ${{ secrets.SLACK_WEBHOOK }}
+
