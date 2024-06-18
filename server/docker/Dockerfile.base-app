@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base-env
 
 COPY users/ users/
 ADD extender-0.1.0.jar app.jar

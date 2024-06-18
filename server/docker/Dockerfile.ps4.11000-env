@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base-env
 
 ENV PS4_SDK_11_VERSION 11.000
 ENV PS4_SDK_11  ${PLATFORMSDK_DIR}/ps4-sdk-${PS4_SDK_11_VERSION}

@@ -1,12 +1,24 @@
-
 plugins {
     id 'com.github.ben-manes.versions' version '0.21.0'
+    id 'maven-publish'
 }
 
 subprojects {
     repositories {
         mavenCentral()
+        maven {
+            url "artifactregistry://europe-north1-maven.pkg.dev/extender-poc/extender-maven"
+        }
     }
+}
+
+publishing {
+ repositories {
+    maven {
+      name "extenderRepo"
+      url "artifactregistry://europe-north1-maven.pkg.dev/extender-poc/extender-maven/"
+    }
+  }
 }
 
 wrapper {

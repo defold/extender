@@ -2,7 +2,7 @@ name: extender
 
 services:
   frontend-dev:
-    image: defold/extender-base-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base-env:latest
     extends:
       file: common-services.yml
       service: common_builder
@@ -25,7 +25,7 @@ services:
         aliases:
           - frontend
   linux-dev:
-    image: defold/extender-linux-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-linux-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -37,7 +37,7 @@ services:
         aliases:
           - linux
   android_ndk25-dev:
-    image: defold/extender-android-ndk25-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-android-ndk25-env:latest
     extends:
       file: common-services.yml
       service: common_builder
@@ -50,7 +50,7 @@ services:
         aliases:
           - android_ndk25
   emscripten_2011-dev:
-    image: defold/extender-emsdk-2011-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-2011-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -62,7 +62,7 @@ services:
         aliases:
           - emscripten_2011
   emscripten_3155-dev:
-    image: defold/extender-emsdk-3155-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-3155-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -74,7 +74,7 @@ services:
         aliases:
           - emscripten_3155
   nssdk_1532-dev:
-    image: defold/extender-nssdk-1532-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-nssdk-1532-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -87,7 +87,7 @@ services:
         aliases:
           - nssdk_1532
   nssdk_1753-dev:
-    image: defold/extender-nssdk-1753-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-nssdk-1753-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -100,7 +100,7 @@ services:
         aliases:
           - nssdk_1753
   ps4_11000-dev:
-    image: defold/extender-ps4-11000-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-ps4-11000-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -113,7 +113,7 @@ services:
         aliases:
           - ps4_11000
   ps4_10500-dev:
-    image: defold/extender-ps4-10500-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-ps4-10500-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -126,7 +126,7 @@ services:
         aliases:
           - ps4_10500
   ps5_8000-dev:
-    image: defold/extender-ps5-8000-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-ps5-8000-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -139,7 +139,7 @@ services:
         aliases:
           - ps5_8000
   win_2019-dev:
-    image: defold/extender-winsdk-2019-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2019-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -151,7 +151,7 @@ services:
         aliases:
           - win_2019
   win_2022-dev:
-    image: defold/extender-winsdk-2022-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2022-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -165,7 +165,7 @@ services:
 
 # services for integration testing
   frontend-integration-test:
-    image: defold/extender-base-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base-env:latest
     extends:
       file: common-services.yml
       service: test_builder
@@ -181,7 +181,7 @@ services:
         aliases:
           - frontend
   linux-integration-test:
-    image: defold/extender-linux-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-linux-env:latest
     extends:
       file: common-services.yml
       service: test_remote_builder
@@ -193,7 +193,7 @@ services:
         aliases:
           - linux
   android_ndk25-integration-test:
-    image: defold/extender-android-ndk25-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-android-ndk25-env:latest
     extends:
       file: common-services.yml
       service: test_builder
@@ -206,7 +206,7 @@ services:
         aliases:
           - android_ndk25
   emscripten_2011-integration-test:
-    image: defold/extender-emsdk-2011-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-2011-env:latest
     extends:
       file: common-services.yml
       service: test_remote_builder
@@ -217,7 +217,7 @@ services:
         aliases:
           - emscripten_2011
   emscripten_3155-integration-test:
-    image: defold/extender-emsdk-3155-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-3155-env:latest
     extends:
       file: common-services.yml
       service: test_remote_builder
@@ -228,7 +228,7 @@ services:
         aliases:
           - emscripten_3155
   win_2019-integration-test:
-    image: defold/extender-winsdk-2019-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2019-env:latest
     extends:
       file: common-services.yml
       service: test_remote_builder
@@ -239,7 +239,7 @@ services:
         aliases:
           - win_2019
   win_2022-integration-test:
-    image: defold/extender-winsdk-2022-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2022-env:latest
     extends:
       file: common-services.yml
       service: test_remote_builder
@@ -252,7 +252,7 @@ services:
 
 # linux service for auth testing
   frontend-auth-test:
-    image: defold/extender-base-app:latest
+    image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base-env:latest
     extends:
       file: common-services.yml
       service: test_builder
@@ -269,17 +269,3 @@ services:
       default:
         aliases:
           - frontend
-  # linux-auth-test:
-  #   image: defold/extender-linux-app:latest
-  #   extends:
-  #     file: common-services.yml
-  #     service: test_remote_builder
-  #   command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt"]
-  #   volumes:
-  #     - ./../users:/etc/defold/users:ro
-  #   profiles:
-  #     - auth-test
-  #   networks:
-  #     default:
-  #       aliases:
-  #         - linux

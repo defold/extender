@@ -20,6 +20,10 @@ plugins {
 
 apply plugin: 'io.spring.dependency-management'
 
+ext {
+    extenderVersion = findProperty('extenderVersion') ?: '1.4.47'
+}
+
 configurations {
     // A configuration meant for consumers that need the API of this component
     implementation {
@@ -33,9 +37,6 @@ repositories {
 
 sourceCompatibility = '11'
 targetCompatibility = '11'
-
-// This affects the Docker repo name.
-group = 'extender'
 
 dependencyManagement {
     imports {
@@ -116,14 +117,26 @@ compileJava {
 // Creates the full jar file, with the extender server classes included
 bootJar {
     archiveBaseName = 'extender'
-    version =  '0.1.0'
+    version = project.ext.extenderVersion
 }
 
 // Builds the extender server base classes into a .jar file
 jar {
     archiveBaseName = 'extender-base'
-    version =  '0.1.0'
+    version = project.ext.extenderVersion
     archiveClassifier = '' // use empty string to avoid the 'plain' suffix
+}
+
+publishing {
+  publications {
+    extender(MavenPublication) {
+      artifact bootJar
+      groupId 'com.defold.extender'
+      artifactId 'server'
+      version project.ext.extenderVersion
+      from components.java
+    }
+  }
 }
 
 task buildStandalone() {

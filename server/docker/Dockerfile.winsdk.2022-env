@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-wine
+FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-wine-env
 
 ENV PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32
 
