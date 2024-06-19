@@ -53,12 +53,11 @@ dependencies {
         exclude module: 'junit'
     }
     implementation('com.amazonaws:aws-java-sdk-s3:1.12.180')
-    implementation('com.google.guava:guava:30.0-jre')
+    implementation('com.google.guava:guava:33.2.1-jre')
     implementation('com.samskivert:jmustache:1.15')
     implementation('commons-chain:commons-chain:1.2')
     implementation('commons-fileupload:commons-fileupload:1.3.3')
     implementation('commons-io:commons-io:2.12.0')
-    implementation('io.micrometer:micrometer-core:1.8.1')
     implementation('org.apache.commons:commons-text:1.12.+')
     implementation('org.apache.commons:commons-compress:1.26.+')
     implementation('org.apache.commons:commons-lang3:3.14.0')
@@ -69,10 +68,11 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
     implementation('org.springframework.security:spring-security-test')
-    implementation('io.micrometer:micrometer-core:1.8.1')
-    runtimeOnly('io.micrometer:micrometer-registry-influx:1.8.1')
-    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.8.3')
+    implementation('io.micrometer:micrometer-core:1.13.1')
+    runtimeOnly('io.micrometer:micrometer-registry-influx:1.13.1')
+    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.13.1')
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:7.0.1')
+    runtimeOnly('io.micrometer:micrometer-registry-stackdriver:1.13.1')
 
     testImplementation('junit:junit:4.12')
     testImplementation('org.springframework:spring-test')
