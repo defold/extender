@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <NativeLib>static</NativeLib>
+    <PublishTrimmed>true</PublishTrimmed>
+    <IlcDehydrate>false</IlcDehydrate>
+    <Optimize>true</Optimize>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+
+    <TargetName>$(MSBuildProjectName)</TargetName>
+    <TargetName Condition="'$(OS)' != 'Windows_NT'">lib$(TargetName)</TargetName>
+    <StackTraceSupport>true</StackTraceSupport>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <IntermediateOutputPath>{{BUILDDIR_CS}}</IntermediateOutputPath>
+    <OutputPath>{{BUILDDIR_CS}}</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="8.0.0" /> -->
+
+    {{#PINVOKE}}
+    <DirectPInvoke Include="{{{.}}}" />
+    {{/PINVOKE}}
+    <ProjectReference Include="{{DMSDK_CSPROJ}}" />
+  </ItemGroup>
+</Project>

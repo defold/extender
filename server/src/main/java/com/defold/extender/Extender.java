@@ -1040,8 +1040,14 @@ class Extender {
 
         File extDir = manifest.getParentFile();
 
+        File sdkDir = new File(sdk, "sdk");
+        File sdkCsDir = new File(sdkDir, "cs");
+        File sdkCsdmSDKDir = new File(sdkCsDir, "dmsdk");
+        File sdkProject = new File(sdkCsdmSDKDir, "dmsdk.csproj");
+
         Map<String, Object> context = createContext(manifestContext);
         CSharpBuilder csBuilder = new CSharpBuilder(processExecutor, templateExecutor, context);
+        csBuilder.setSdkProject(sdkProject);
         csBuilder.setSourceDirectory(extDir);
         csBuilder.setOutputDirectory(new File(buildDirectory, "cs"));
         csBuilder.setEngineLibraries((List<String>)context.get("engineLibs"));
