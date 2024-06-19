@@ -2,14 +2,19 @@ services:
   test_builder:
     platform: linux/amd64
     volumes:
+      - ./../app/:/app/:ro
       - ./../configs:/etc/defold/extender:ro
       - ./../test-data/sdk:/var/extender/sdk
+    entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
     environment:
       - EXAMPLE_VAR=1
   common_builder:
     platform: linux/amd64
     volumes:
+      - ./../app/:/app/:ro
+      - ./../manifestmergetool/app/:/opt/local/bin/:ro
       - ./../configs:/etc/defold/extender:ro
+    entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
     environment:
       - EXAMPLE_VAR=1
       # - DM_DEBUG_COMMANDS=1

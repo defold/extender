@@ -17,7 +17,6 @@ publishing {
       groupId 'com.defold.extender'
       artifactId 'client'
       version project.ext.clientVersion
-      from components.java
     }
   }
 }

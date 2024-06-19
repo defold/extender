@@ -35,8 +35,6 @@ public class IntegrationTest {
     private TestConfiguration configuration;
     private long startTime;
 
-    private static final String DM_PACKAGES_URL = System.getenv("DM_PACKAGES_URL");
-
     @Rule
     public TestName name = new TestName();
 
@@ -160,8 +158,8 @@ public class IntegrationTest {
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
-        processExecutor.putEnv("DM_PACKAGES_URL", IntegrationTest.DM_PACKAGES_URL);
         processExecutor.putEnv("COMPOSE_PROFILE", "test");
+        processExecutor.putEnv("APPLICATION", "extender-test");
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
@@ -193,6 +191,7 @@ public class IntegrationTest {
     @AfterClass
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
+        processExecutor.putEnv("APPLICATION", "extender-test");
         processExecutor.execute("scripts/stop-test-server.sh");
         System.out.println(processExecutor.getOutput());
     }

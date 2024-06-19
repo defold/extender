@@ -3,8 +3,6 @@
 set -e
 set -x
 
-APPLICATION=extender
-
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 PORT=9000
@@ -13,8 +11,14 @@ if [ "$COMPOSE_PROFILE" == "" ]; then
 	COMPOSE_PROFILE="test"
 fi
 
+if [ "$APPLICATION" == "" ]; then
+	APPLICATION="extender-test"
+fi
+
+
 echo "Using RUN_ENV: ${RUN_ENV}"
 echo "Using compose profile: ${COMPOSE_PROFILE}"
+echo "Start application: ${APPLICATION}"
 echo "Using PORT: ${PORT}"
 
 URL=http://localhost:${PORT}
@@ -28,8 +32,6 @@ function check_server() {
 
 # fail early
 check_server
-
-DM_PACKAGES_URL=${DM_PACKAGES_URL} ${DIR}/../build-docker.sh
 
 # For CI to be able to work with the test files
 if [ "$GITHUB_ACTION" != "" ]; then

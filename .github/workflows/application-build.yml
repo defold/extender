@@ -1,11 +1,16 @@
 name: Build jars
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "extender-v[0-9]+.[0-9]+.[0-9]+"
       - "client-v[0-9]+.[0-9]+.[0-9]+"
       - "manifestmerger-v[0-9]+.[0-9]+.[0-9]+"
+
+env:
+  GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
+  MAVEN_SERVICE_ACCOUNT: superb-chamois-registry@extender-poc.iam.gserviceaccount.com
 
 jobs:
   client:
@@ -22,6 +27,13 @@ jobs:
           TAG_VERSION="${TAG_NAME#*-v}"
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+    - name: Login to Google Artifact registry (Maven)
+      uses: google-github-actions/auth@71fee32a0bb7e97b4d33d548e7d957010649d8fa
+      with:
+        service_account: ${{ env.MAVEN_SERVICE_ACCOUNT }}
+        credentials_json: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
+        export_environment_variables: true
+        create_credentials_file: true
     - name: Install Java
       uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
       with:
@@ -30,7 +42,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
     - name: Build the extender-client.jar
-      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:build
+      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:jar
     - name: Test the extender-client.jar
       run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:test
     - name: Publish to Google artifact registry
@@ -42,7 +54,7 @@ jobs:
           ${{ github.workspace }}/gh_release/extender-client-${{ steps.version.outputs.tag_version }}.jar
     - name: Publish to Github release
       run: |
-        chmod 0444 ${{ github.workspace }}/*.jar
+        chmod 0444 ${{ github.workspace }}/gh_release/*.jar
           echo ${{ github.token }} | gh auth login --with-token
           gh release create "${GITHUB_REF_NAME}"  \
             --draft \
@@ -50,7 +62,7 @@ jobs:
             --target ${{ github.sha }} \
             ${{ github.workspace }}/gh_release/*.jar
     - name: Notify if tests failed
-      uses: homoluctus/slatify@master
+      uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
       if: failure()
       with:
         type: ${{ job.status }}
@@ -72,6 +84,13 @@ jobs:
           TAG_VERSION="${TAG_NAME#*-v}"
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+    - name: Login to Google Artifact registry (Maven)
+      uses: google-github-actions/auth@71fee32a0bb7e97b4d33d548e7d957010649d8fa
+      with:
+        service_account: ${{ env.MAVEN_SERVICE_ACCOUNT }}
+        credentials_json: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
+        export_environment_variables: true
+        create_credentials_file: true
     - name: Install Java
       uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
       with:
@@ -92,7 +111,7 @@ jobs:
           ${{ github.workspace }}/gh_release/manifestmergetool-${{ steps.version.outputs.tag_version }}.jar
     - name: Publish to Github release
       run: |
-        chmod 0444 ${{ github.workspace }}/*.jar
+        chmod 0444 ${{ github.workspace }}/gh_release/*.jar
           echo ${{ github.token }} | gh auth login --with-token
           gh release create "${GITHUB_REF_NAME}"  \
             --draft \
@@ -100,7 +119,7 @@ jobs:
             --target ${{ github.sha }} \
             ${{ github.workspace }}/gh_release/*.jar
     - name: Notify if tests failed
-      uses: homoluctus/slatify@master
+      uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
       if: failure()
       with:
         type: ${{ job.status }}
@@ -110,8 +129,6 @@ jobs:
 
   extender:
     if: ${{ startsWith(github.ref_name, 'extender-') }}
-    env:
-      GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repo
@@ -147,11 +164,12 @@ jobs:
     - name: Run extender tests
       run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:test -i
     - name: Login to Google Artifact registry (Maven)
-      uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
+      uses: google-github-actions/auth@71fee32a0bb7e97b4d33d548e7d957010649d8fa
       with:
-        registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
-        username: _json_key
-        password: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
+        service_account: ${{ env.MAVEN_SERVICE_ACCOUNT }}
+        credentials_json: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
+        export_environment_variables: true
+        create_credentials_file: true
     - name: Publish to Google artifact registry
       run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} publishExtenderPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
@@ -161,7 +179,7 @@ jobs:
           ${{ github.workspace }}/gh_release/extender-${{ steps.version.outputs.tag_version }}.jar
     - name: Publish to Github release
       run: |
-        chmod 0444 ${{ github.workspace }}/*.jar
+        chmod 0444 ${{ github.workspace }}/gh_release/*.jar
           echo ${{ github.token }} | gh auth login --with-token
           gh release create "${GITHUB_REF_NAME}"  \
             --draft \
@@ -169,7 +187,7 @@ jobs:
             --target ${{ github.sha }} \
             ${{ github.workspace }}/gh_release/*.jar
     - name: Notify if tests failed
-      uses: homoluctus/slatify@master
+      uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
       if: failure()
       with:
         type: ${{ job.status }}

@@ -1,1 +1,0 @@
-bobuser = bobpassword,ROLE_LINUX,enabled

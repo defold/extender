@@ -26,8 +26,6 @@ public class AuthenticationTest {
 
     private long startTime;
 
-    private static final String DM_PACKAGES_URL = System.getenv("DM_PACKAGES_URL");
-
     private static final List<ExtenderResource> SOURCE_FILES = Lists.newArrayList(
             new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
             new FileExtenderResource("test-data/ext_basic/ext.manifest"),
@@ -49,8 +47,8 @@ public class AuthenticationTest {
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
-        processExecutor.putEnv("DM_PACKAGES_URL", AuthenticationTest.DM_PACKAGES_URL);
         processExecutor.putEnv("COMPOSE_PROFILE", "auth-test");
+        processExecutor.putEnv("APPLICATION", "extender-test-auth");
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
@@ -80,6 +78,7 @@ public class AuthenticationTest {
     @AfterClass
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
+        processExecutor.putEnv("APPLICATION", "extender-test-auth");
         processExecutor.execute("scripts/stop-test-server.sh");
         System.out.println(processExecutor.getOutput());
     }

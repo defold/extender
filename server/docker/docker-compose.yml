@@ -48,7 +48,7 @@ services:
     networks:
       default:
         aliases:
-          - android_ndk25
+          - android-ndk25
   emscripten_2011-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-2011-env:latest
     extends:
@@ -60,7 +60,7 @@ services:
     networks:
       default:
         aliases:
-          - emscripten_2011
+          - emscripten-2011
   emscripten_3155-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-3155-env:latest
     extends:
@@ -72,7 +72,7 @@ services:
     networks:
       default:
         aliases:
-          - emscripten_3155
+          - emscripten-3155
   nssdk_1532-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-nssdk-1532-env:latest
     extends:
@@ -85,7 +85,7 @@ services:
     networks:
       default:
         aliases:
-          - nssdk_1532
+          - nssdk-1532
   nssdk_1753-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-nssdk-1753-env:latest
     extends:
@@ -98,7 +98,7 @@ services:
     networks:
       default:
         aliases:
-          - nssdk_1753
+          - nssdk-1753
   ps4_11000-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-ps4-11000-env:latest
     extends:
@@ -111,7 +111,7 @@ services:
     networks:
       default:
         aliases:
-          - ps4_11000
+          - ps4-11000
   ps4_10500-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-ps4-10500-env:latest
     extends:
@@ -124,7 +124,7 @@ services:
     networks:
       default:
         aliases:
-          - ps4_10500
+          - ps4-10500
   ps5_8000-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry/extender-ps5-8000-env:latest
     extends:
@@ -137,7 +137,7 @@ services:
     networks:
       default:
         aliases:
-          - ps5_8000
+          - ps5-8000
   win_2019-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2019-env:latest
     extends:
@@ -149,7 +149,7 @@ services:
     networks:
       default:
         aliases:
-          - win_2019
+          - winsdk-2019
   win_2022-dev:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2022-env:latest
     extends:
@@ -161,7 +161,7 @@ services:
     networks:
       default:
         aliases:
-          - win_2022
+          - winsdk-2022
 
 # services for integration testing
   frontend-integration-test:
@@ -204,7 +204,7 @@ services:
     networks:
       default:
         aliases:
-          - android_ndk25
+          - android-ndk25
   emscripten_2011-integration-test:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-2011-env:latest
     extends:
@@ -215,7 +215,7 @@ services:
     networks:
       default:
         aliases:
-          - emscripten_2011
+          - emsdk-2011
   emscripten_3155-integration-test:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-emsdk-3155-env:latest
     extends:
@@ -226,7 +226,7 @@ services:
     networks:
       default:
         aliases:
-          - emscripten_3155
+          - emsdk-3155
   win_2019-integration-test:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2019-env:latest
     extends:
@@ -237,7 +237,7 @@ services:
     networks:
       default:
         aliases:
-          - win_2019
+          - winsdk-2019
   win_2022-integration-test:
     image: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-winsdk-2022-env:latest
     extends:
@@ -248,7 +248,7 @@ services:
     networks:
       default:
         aliases:
-          - win_2022
+          - winsdk-2022
 
 # linux service for auth testing
   frontend-auth-test:

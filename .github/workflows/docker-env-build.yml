@@ -1,9 +1,20 @@
 name: Build Docker environment container
 
 on:
+  workflow_dispatch:
   push:
     tags:
-      - "*"
+      - "android*"
+      - "base*"
+      - "linux*"
+      - "emsdk*"
+      - "wine*"
+      - "winsdk*"
+      - "nssdk*"
+      - "ps4*"
+      - "ps5*"
+
+
 
 env:
   GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
@@ -19,9 +30,9 @@ jobs:
     - name: Process tag name
       id: name_postprocess
       run: |
-          PRIVATE_PLATFORM_LIST=${{ env.PRIVATE_PLATFORMS }}
-          PUBLIC_REGISTRY=${{ env.PUBLIC_REGISTRY }}
-          PRIVATE_REGISTRY=${{ env.PRIVATE_REGISTRY }}
+          PRIVATE_PLATFORM_LIST="${{ env.PRIVATE_PLATFORMS }}"
+          PUBLIC_REGISTRY="${{ env.PUBLIC_REGISTRY }}"
+          PRIVATE_REGISTRY="${{ env.PRIVATE_REGISTRY }}"
 
           SHORT_SHA="$(echo ${GITHUB_SHA} | cut -c1-8)"
           TAG_NAME=${{ github.ref_name }}
@@ -66,7 +77,7 @@ jobs:
         platforms: |
           linux/amd64
         secret-envs: |
-          id=DM_PACKAGES_URL
+          DM_PACKAGES_URL=DM_PACKAGES_URL
         tags: |
           ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.image_version }}
           ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.short_sha }}

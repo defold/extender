@@ -39,16 +39,24 @@ task mainJar(type: Jar) {
     }
     duplicatesStrategy DuplicatesStrategy.WARN
     with jar
+        doLast {
+        copy {
+            from "${project.projectDir}/build/libs/manifestmergetool-${project.ext.manifestMergetoolVersion}.jar"
+            into "app"
+            rename { String fileName ->
+                fileName.replace("-$project.ext.manifestMergetoolVersion", "")
+            }
+        }
+    }
 }
 
 publishing {
   publications {
     manifestMergeTool(MavenPublication) {
       artifact mainJar
-      groupId 'com.defold'
+      groupId 'com.defold.extender'
       artifactId 'manifestmergetool'
       version project.ext.manifestMergetoolVersion
-      from components.java
     }
   }
 }

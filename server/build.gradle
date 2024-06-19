@@ -118,6 +118,15 @@ compileJava {
 bootJar {
     archiveBaseName = 'extender'
     version = project.ext.extenderVersion
+    doLast {
+        copy {
+            from "${project.projectDir}/build/libs/extender-${project.ext.extenderVersion}.jar"
+            into "app"
+            rename { String fileName ->
+                fileName.replace("-$project.ext.extenderVersion", "")
+            }
+        }
+    }
 }
 
 // Builds the extender server base classes into a .jar file
@@ -134,7 +143,6 @@ publishing {
       groupId 'com.defold.extender'
       artifactId 'server'
       version project.ext.extenderVersion
-      from components.java
     }
   }
 }

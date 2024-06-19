@@ -3,16 +3,6 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# $SCRIPT_DIR/../gradlew build -xtest
-# $SCRIPT_DIR/../gradlew :manifestmergetool:mainJar
-
-# # copy jars
-# cp $SCRIPT_DIR/build/libs/extender-0.1.0.jar $SCRIPT_DIR/docker
-# cp $SCRIPT_DIR/manifestmergetool/build/libs/manifestmergetool-0.1.0.jar $SCRIPT_DIR/docker
-
-# # copy users
-# cp -r $SCRIPT_DIR/users $SCRIPT_DIR/docker
-
 DOCKER_REGISTRY=europe-north1-docker.pkg.dev/extender-poc/extender-public-registry
 DOCKER_PRIVATE_REGISTRY=europe-north1-docker.pkg.dev/extender-poc/extender-private-registry
 
