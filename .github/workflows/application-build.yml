@@ -165,7 +165,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
     - name: Build extender
-      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:booJar
+      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
     - name: Login to Google Artifact registry (Docker)
       uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446
       with:
