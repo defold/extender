@@ -6,7 +6,7 @@ on:
     tags:
       - "extender-v[0-9]+.[0-9]+.[0-9]+"
       - "client-v[0-9]+.[0-9]+.[0-9]+"
-      - "manifestmerger-v[0-9]+.[0-9]+.[0-9]+"
+      - "manifestmergetool-v[0-9]+.[0-9]+.[0-9]+"
 
 env:
   GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
@@ -71,7 +71,7 @@ jobs:
         url: ${{ secrets.SLACK_WEBHOOK }}
 
   manifestmerger:
-    if: ${{ startsWith(github.ref_name, 'manifestmerger-') }}
+    if: ${{ startsWith(github.ref_name, 'manifestmergetool-') }}
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repo
