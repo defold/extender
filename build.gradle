@@ -6,9 +6,6 @@ plugins {
 subprojects {
     repositories {
         mavenCentral()
-        maven {
-            url "artifactregistry://europe-north1-maven.pkg.dev/extender-poc/extender-maven"
-        }
     }
 }
 
