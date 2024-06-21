@@ -10,6 +10,10 @@
     <Optimize>true</Optimize>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 
+    <!-- Workaround for restoring iOS runtime packs for NativeAOT -->
+    <PublishAotUsingRuntimePack>true</PublishAotUsingRuntimePack>
+    <HybridGlobalization>false</HybridGlobalization>
+
     <TargetName>$(MSBuildProjectName)</TargetName>
     <TargetName Condition="'$(OS)' != 'Windows_NT'">lib$(TargetName)</TargetName>
     <StackTraceSupport>true</StackTraceSupport>

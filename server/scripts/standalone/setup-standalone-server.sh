@@ -118,7 +118,11 @@ function install_dotnet() {
 
 	export DOTNET8=$(which dotnet)
 
-	echo "[setup] Using dotnet:" ${DOTNET8} "--version" $(${DOTNET8} --version)
+	DOTNET_VERSION_FILE=${EXTENDER_DIR}/dotnet_version
+	DOTNET_VERSION=$(dotnet --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])")
+	echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
+
+	echo "[setup] Using dotnet:" ${DOTNET8} " version:" $(${DOTNET8} --version) "  sdk:" ${DOTNET_VERSION}
 
 	# verify that the build is the correct version
 	local version=$(dotnet --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
