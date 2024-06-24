@@ -22,12 +22,6 @@ ENV ANDROID_SDK_FILENAME_33 android-sdk-linux-android-${ANDROID_SDK_VERSION_33}-
 ENV ANDROID_SDK_BUILD_TOOLS_PATH_33 ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_33}
 ENV ANDROID_LIBRARYJAR_33 ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_33}/android.jar
 
-# We specify it in build_input.yml by setting it the first in PATH for new SDK
-# But at least one SDK should be specified by default in Dockerfile
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_33}
-# ANDROID_SDK_VERSION used in Java code, default should be specified in Dockerfile as well:
-ENV ANDROID_SDK_VERSION ${ANDROID_SDK_VERSION_34}
-
 #
 # SDK 34 (Defold 1.9.0):
 #
@@ -38,6 +32,12 @@ ENV ANDROID_SDK_FILENAME_34 android-sdk-linux-android-${ANDROID_SDK_VERSION_34}-
 
 ENV ANDROID_SDK_BUILD_TOOLS_PATH_34 ${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34}
 ENV ANDROID_LIBRARYJAR_34 ${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_34}/android.jar
+
+# We specify it in build_input.yml by setting it the first in PATH for new SDK
+# But at least one SDK should be specified by default in Dockerfile
+ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_33}
+# ANDROID_SDK_VERSION used in Java code, default should be specified in Dockerfile as well:
+ENV ANDROID_SDK_VERSION ${ANDROID_SDK_VERSION_34}
 
 #
 # NDK25b (Defold 1.4.3):
