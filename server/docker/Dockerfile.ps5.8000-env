@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.0.0
 
 ENV PS5_SDK_8_VERSION 8.000
 ENV PS5_SDK_8  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_8_VERSION}
