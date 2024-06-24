@@ -8,9 +8,9 @@ import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.UserUpdateService;
-import org.apache.commons.fileupload.FileUploadException;
-import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.fileupload2.core.FileUploadException;
+import org.apache.commons.fileupload2.jakarta.JakartaServletFileUpload;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.io.EofException;
@@ -27,8 +27,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.micrometer.core.instrument.MeterRegistry;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -38,7 +38,6 @@ import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -160,7 +159,7 @@ public class ExtenderController {
                             @PathVariable("sdkVersion") String sdkVersionString)
             throws ExtenderException, IOException, URISyntaxException, ParseException {
 
-        boolean isMultipart = ServletFileUpload.isMultipartContent(_request);
+        boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
             throw new ExtenderException("The request must be a multi part request");
         }
@@ -287,7 +286,7 @@ public class ExtenderController {
                             @PathVariable("sdkVersion") String sdkVersionString)
             throws ExtenderException, IOException, URISyntaxException, ParseException {
 
-        boolean isMultipart = ServletFileUpload.isMultipartContent(_request);
+        boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
             throw new ExtenderException("The request must be a multi part request");
         }

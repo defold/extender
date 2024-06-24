@@ -7,6 +7,7 @@ import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
@@ -340,7 +341,7 @@ class Extender {
         }
 
         try {
-            return new Yaml(new ExtenderYamlSafeConstructor()).loadAs(yaml, type);
+            return new Yaml(new ExtenderYamlSafeConstructor(new LoaderOptions())).loadAs(yaml, type);
         } catch(YAMLException e) {
             throw new ExtenderException(String.format("%s:1: error: %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
         }

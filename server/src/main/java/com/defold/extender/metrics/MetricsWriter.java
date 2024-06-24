@@ -3,7 +3,7 @@ package com.defold.extender.metrics;
 //import com.defold.extender.Timer;
 //import org.springframework.boot.actuate.metrics.GaugeService;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.util.List;
 import java.util.Map;

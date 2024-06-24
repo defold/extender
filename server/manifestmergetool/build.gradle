@@ -66,13 +66,11 @@ repositories {
     maven { url "https://maven.google.com" }
 }
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
-
 dependencies {
-    implementation('org.jsoup:jsoup:1.11.3')
-    implementation('com.android.tools.build:manifest-merger:27.2.0')
-    implementation('org.apache.commons:commons-configuration2:2.8.0')
+    implementation('org.jsoup:jsoup:1.15.3')
+    implementation('com.android.tools.build:manifest-merger:31.4.1')
+    implementation('com.android.tools:common:31.4.1')
+    implementation('org.apache.commons:commons-configuration2:2.10.1')
 
     testImplementation('commons-io:commons-io:2.11.0')
     testImplementation('junit:junit:4.13')
