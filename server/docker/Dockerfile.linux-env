@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base-env
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env
 
 RUN \
   echo "LINUX TOOLS + COMPILER" && \

@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-poc/extender-public-registry/extender-base-env
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env
 
 ENV NINTENDO_SDK_ROOT_17_5 ${PLATFORMSDK_DIR}/nx-17.5.3
 ENV SWITCH_SDK_17_FILENAME nx64-sdk-17.5.3.tar.gz

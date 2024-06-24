@@ -18,8 +18,8 @@ on:
 
 env:
   GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
-  PUBLIC_REGISTRY: europe-north1-docker.pkg.dev/extender-poc/extender-public-registry
-  PRIVATE_REGISTRY: europe-north1-docker.pkg.dev/extender-poc/extender-private-registry
+  PUBLIC_REGISTRY: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry
+  PRIVATE_REGISTRY: europe-north1-docker.pkg.dev/extender-426409/extender-private-registry
   PRIVATE_PLATFORMS: "nssdk ps4 ps5"
 
 jobs:

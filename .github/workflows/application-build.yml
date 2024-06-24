@@ -10,7 +10,7 @@ on:
 
 env:
   GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
-  MAVEN_SERVICE_ACCOUNT: superb-chamois-registry@extender-poc.iam.gserviceaccount.com
+  MAVEN_SERVICE_ACCOUNT: hip-terrier-registry@extender-426409.iam.gserviceaccount.com
 
 jobs:
   client:
