@@ -13,6 +13,7 @@ import com.android.manifmerger.ManifestMerger2;
 import com.android.manifmerger.MergingReport;
 import com.android.utils.ILogger;
 
+
 public class AndroidManifestMerger {
 
     private static Logger logger;

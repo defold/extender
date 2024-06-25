@@ -1,6 +1,6 @@
 package com.defold.extender;
 
-import org.apache.commons.fileupload.FileUploadException;
+import org.apache.commons.fileupload2.core.FileUploadException;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;

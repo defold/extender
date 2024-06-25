@@ -64,13 +64,7 @@ management:
             path: /
             threshold: 1073741824 #1024mb
 
-    endpoint:
-        influx:
-            enabled: false
-
-    metrics:
-        export:
-            stackdriver:
-                enabled: false
-            influx:
+    stackdriver:
+        metrics:
+            export:
                 enabled: false
