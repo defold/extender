@@ -5,6 +5,7 @@ RUN \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     wget \
+    locales \
     ca-certificates \
     unzip \
     xz-utils \
@@ -18,8 +19,13 @@ RUN \
 #
 # Java
 #
-ENV JAVA_HOME /usr/local/jdk-17.0.7+7
-ENV PATH ${JAVA_HOME}/bin:${PATH}
+ENV JAVA_HOME=/usr/local/jdk-17.0.7+7
+ENV PATH=${JAVA_HOME}/bin:${PATH}
+
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
 
 RUN \
   wget -q -O - https://aka.ms/download-jdk/microsoft-jdk-17.0.7-linux-x64.tar.gz | tar xz -C /usr/local && \
@@ -27,7 +33,7 @@ RUN \
   javac -version
 
 # Put all SDK's into a single folder (just as we do in the regular engine build)
-ENV PLATFORMSDK_DIR /opt/platformsdk
+ENV PLATFORMSDK_DIR=/opt/platformsdk
 RUN mkdir $PLATFORMSDK_DIR
 
 #
@@ -38,7 +44,7 @@ RUN mkdir $PLATFORMSDK_DIR
 ENV ZIG_VERSION=0.11.0
 ENV ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
 ENV ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz
-ENV PATH ${PATH}:${ZIG_PATH_0_11}
+ENV PATH=${PATH}:${ZIG_PATH_0_11}
 
 RUN \
   echo "ZIG" && \
@@ -59,7 +65,7 @@ RUN  useradd -r -u 2222 extender && \
   mkdir -p /var/extender && \
   chmod +s $(which java)
 
-ENV MANIFEST_MERGE_TOOL /opt/local/bin/manifestmergetool.jar
+ENV MANIFEST_MERGE_TOOL=/etc/extender/apps/manifestmergetool.jar
 
 # Extender data cache
 RUN mkdir -p /var/extender/cache/data

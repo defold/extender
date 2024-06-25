@@ -1,8 +1,8 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.0.0
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.1.0
 
 # Added in version 1.4.4
-ENV NINTENDO_SDK_ROOT_15_3_2 ${PLATFORMSDK_DIR}/nx-15.3.2
-ENV SWITCH_SDK_15_FILENAME nx64-sdk-15.3.2.tar.gz
+ENV NINTENDO_SDK_ROOT_15_3_2=${PLATFORMSDK_DIR}/nx-15.3.2
+ENV SWITCH_SDK_15_FILENAME=nx64-sdk-15.3.2.tar.gz
 
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   echo "Switch SDK 15.3.2" && \

@@ -1,8 +1,8 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.0.0
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.1.0
 
-ENV PS4_SDK_10  ${PLATFORMSDK_DIR}/ps4-sdk-10.500
+ENV PS4_SDK_10=${PLATFORMSDK_DIR}/ps4-sdk-10.500
 
-ENV PS4_SDK_10_FILENAME ps4-sdk-10.500.tar.gz
+ENV PS4_SDK_10_FILENAME=ps4-sdk-10.500.tar.gz
 
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   echo "PS4 ${PS4_SDK_10_FILENAME}" && \

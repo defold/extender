@@ -1,10 +1,9 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.0.0
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.1.0
 
 RUN \
   echo "LINUX TOOLS + COMPILER" && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-    locales \
     libssl-dev \
     openssl \
     libtool \

@@ -12,7 +12,6 @@ services:
     platform: linux/amd64
     volumes:
       - ./../app/:/app/:ro
-      - ./../manifestmergetool/app/:/opt/local/bin/:ro
       - ./../configs:/etc/defold/extender:ro
     entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
     environment:

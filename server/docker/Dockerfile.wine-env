@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.0.0
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.1.0
 
 # Installation notes: https://wiki.winehq.org/Ubuntu
 # TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
@@ -34,12 +34,12 @@ RUN wget -nv -O- https://dl.winehq.org/wine-builds/winehq.key | APT_KEY_DONT_WAR
 RUN wget -nv -O /usr/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
     && chmod +x /usr/bin/winetricks
 
-ENV PATH ${PATH}:/opt/wine-stable/bin
+ENV PATH=${PATH}:/opt/wine-stable/bin
 
 # Disable all debug messages
-ENV WINEDEBUG "-all"
+ENV WINEDEBUG="-all"
 
-ENV WINEPREFIX "/var/extender/.wine"
+ENV WINEPREFIX="/var/extender/.wine"
 
 RUN \
   echo "Wine Init" && \

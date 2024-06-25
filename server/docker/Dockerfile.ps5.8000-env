@@ -1,9 +1,9 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.0.0
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.1.0
 
-ENV PS5_SDK_8_VERSION 8.000
-ENV PS5_SDK_8  ${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_8_VERSION}
+ENV PS5_SDK_8_VERSION=8.000
+ENV PS5_SDK_8=${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_8_VERSION}
 
-ENV PS5_SDK_8_FILENAME ps5-sdk-${PS5_SDK_8_VERSION}.tar.gz
+ENV PS5_SDK_8_FILENAME=ps5-sdk-${PS5_SDK_8_VERSION}.tar.gz
 
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   echo "PS5 ${PS5_SDK_8_FILENAME}" && \

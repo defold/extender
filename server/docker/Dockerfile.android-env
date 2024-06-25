@@ -1,14 +1,14 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.0.0
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.1.0
 
 # Technically part of the Android build, but also required by the GradleService.java
 # until it can be disabled (e.g. by looking for the existance of GRADLE_USER_HOME)
 
 # Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
 # Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
-ENV GRADLE_USER_HOME /tmp/.gradle
-ENV GRADLE_VERSION 8.4
-ENV GRADLE_PLUGIN_VERSION 8.3.2
-ENV PATH ${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
+ENV GRADLE_USER_HOME=/tmp/.gradle
+ENV GRADLE_VERSION=8.4
+ENV GRADLE_PLUGIN_VERSION=8.3.2
+ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
   wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \

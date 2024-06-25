@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.0.0
+FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.1.0
 
 ENV \
   PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32 \
@@ -46,7 +46,7 @@ RUN \
   ln -s $(which llvm-ar) $(dirname $(which llvm-ar))/x86_64-pc-win32-clang-ar
 
 # Legacy. Deprecated from 1.6.2
-ENV WINDOWS_SDK_10_VERSION ${WINDOWS_SDK_10_18362_VERSION}
+ENV WINDOWS_SDK_10_VERSION=${WINDOWS_SDK_10_18362_VERSION}
 
 # Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
 # so we solve the bulk by making the suffixes lowercase. (e.g. MyLib.Lib -> MyLib.lib)
