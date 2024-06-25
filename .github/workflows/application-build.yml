@@ -37,7 +37,7 @@ jobs:
     - name: Install Java
       uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
       with:
-        java-version: '11.0.15'
+        java-version: '17'
         distribution: 'temurin'
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
@@ -94,7 +94,7 @@ jobs:
     - name: Install Java
       uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
       with:
-        java-version: '11.0.15'
+        java-version: '17'
         distribution: 'temurin'
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
@@ -160,7 +160,7 @@ jobs:
     - name: Install Java
       uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9
       with:
-        java-version: '11.0.15'
+        java-version: '17'
         distribution: 'temurin'
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@31ae3562f68c96d481c31bc1a8a55cc1be162f83
