@@ -182,22 +182,24 @@ public class CSharpBuilder {
             out.add(Paths.get(aotBase.toString(), "libbootstrapperdll.o").toFile());
             out.add(Paths.get(aotBase.toString(), "libRuntime.WorkstationGC.a").toFile());
             out.add(Paths.get(aotBase.toString(), "libeventpipe-enabled.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libstandalonegc-enabled.a").toFile());
             out.add(Paths.get(aotBase.toString(), "libSystem.Native.a").toFile());
             out.add(Paths.get(aotBase.toString(), "libSystem.IO.Compression.Native.a").toFile());
             out.add(Paths.get(aotBase.toString(), "libSystem.Globalization.Native.a").toFile());
         }
         else if (platform.equals("arm64-ios") || platform.equals("x86_64-ios"))
         {
-            // microsoft.netcore.app.runtime.nativeaot.ios-arm64/8.0.6/runtimes/ios-arm64/native
             out.add(Paths.get(aotBase.toString(), "libbootstrapperdll.o").toFile());
             out.add(Paths.get(aotBase.toString(), "libRuntime.WorkstationGC.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libeventpipe-enabled.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libeventpipe-disabled.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libstandalonegc-disabled.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libstdc++compat.a").toFile());
             out.add(Paths.get(aotBase.toString(), "libSystem.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.IO.Compression.Native.a").toFile());
             out.add(Paths.get(aotBase.toString(), "libSystem.Globalization.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libicui18n.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libicudata.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libicuuc.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libSystem.IO.Compression.Native.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libSystem.Net.Security.Native.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libSystem.Security.Cryptography.Native.Apple.a").toFile());
+            out.add(Paths.get(aotBase.toString(), "libicucore.a").toFile());
         }
 
         return out;

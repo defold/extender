@@ -96,19 +96,19 @@ function download_zig() {
 
 function install_dotnet() {
 	# There are no static download links, they're always generated
-	# https://dotnet.microsoft.com/en-us/download/dotnet/8.0
+	# https://dotnet.microsoft.com/en-us/download/dotnet/9.0
 
 	if [ "" == "$(which dotnet)" ]; then
 		local os=$(uname)
 		if [ "Darwin" == ${os} ]; then
 			# we can use brew on macos. we pass in "yes" to accept all questions
-			yes | brew install dotnet
+			yes | brew install dotnet-sdk@preview
 
 		elif [ "Linux" == ${os} ]; then
-			echo "Linux not supported yet"
+			echo "Linux not supported standalone yet"
 
 		else
-			echo "Windows not supported yet"
+			echo "Windows not supported standalone yet"
 		fi
 
 		echo "[setup] Installed dotnet"
@@ -116,13 +116,13 @@ function install_dotnet() {
 		echo "[setup] Package dotnet already installed"
 	fi
 
-	export DOTNET8=$(which dotnet)
+	export DOTNET9=$(which dotnet)
 
 	DOTNET_VERSION_FILE=${EXTENDER_DIR}/dotnet_version
 	DOTNET_VERSION=$(dotnet --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])")
 	echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
 
-	echo "[setup] Using dotnet:" ${DOTNET8} " version:" $(${DOTNET8} --version) "  sdk:" ${DOTNET_VERSION}
+	echo "[setup] Using dotnet:" ${DOTNET9} " version:" $(${DOTNET9} --version) "  sdk:" ${DOTNET_VERSION}
 
 	# verify that the build is the correct version
 	local version=$(dotnet --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
