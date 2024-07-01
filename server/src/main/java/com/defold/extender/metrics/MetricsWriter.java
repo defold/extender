@@ -90,7 +90,7 @@ public class MetricsWriter {
 
     public static void metricsTimer(MeterRegistry registry, String id, long millis, String... tags) {
         Timer timer = registry.timer(id, tags);
-        timer.record(millis, TimeUnit.SECONDS);
+        timer.record(millis, TimeUnit.MILLISECONDS);
     }
 
     public static void metricsCounterIncrement(MeterRegistry registry, String id, String... tags) {
