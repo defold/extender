@@ -45,7 +45,14 @@ TMP_DOWNLOAD_DIR=/tmp/_extender_download
 function check_url() {
 	local url=$1
 	echo "[check url]" ${url}
-	curl -sSf ${url} > /dev/null
+	STATUS_CODE=$(curl --head --write-out "%{http_code}" --silent --output /dev/null ${url})
+	if (( STATUS_CODE == 200 ))
+	then
+		echo "${STATUS_CODE}"
+	else
+		echo -e "\033[0;31mError: Url returned status code ${STATUS_CODE}: ${url} \033[m"
+		exit 1
+	fi
 }
 
 function download_package() {
@@ -57,7 +64,7 @@ function download_package() {
 		out_package_name=$(sed "s/.darwin//g" <<< ${package_name})
 	fi
 
-	# it it has grown old, we want to know as soon as possible
+	# if it has grown old, we want to know as soon as possible
 	check_url ${url}
 
 	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
@@ -89,7 +96,7 @@ function download_zig() {
 	local folder=$3
 	local full_url=${url}/${package_name}
 
-	# it it has grown old, we want to know as soon as possible
+	# if it has grown old, we want to know as soon as possible
 	check_url ${full_url}
 
 	if [[ ! -e ${folder} ]]; then
