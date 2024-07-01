@@ -107,8 +107,16 @@ function install_dotnet() {
 		elif [ "Linux" == ${os} ]; then
 			echo "Linux not supported standalone yet"
 
+			# https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+		  	# wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+		  	# chmod +x ./dotnet-install.sh
+			# ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_CLI_HOME} && \
+
 		else
 			echo "Windows not supported standalone yet"
+
+			# https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+
 		fi
 
 		echo "[setup] Installed dotnet"
