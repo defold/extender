@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 if [[ "$#" -lt 4 ]]; then
     printf "Usage: $(basename "$0") <version> <target directory> <service script> [packages url] [extender profile]\n\n";
     exit 1;
@@ -40,19 +42,36 @@ fi
 CURL_CMD=/usr/bin/curl
 TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
+function check_url() {
+	local url=$1
+	echo "[check url]" ${url}
+	STATUS_CODE=$(curl --head --write-out "%{http_code}" --silent --output /dev/null ${url})
+	if (( STATUS_CODE == 200 ))
+	then
+		echo "${STATUS_CODE}"
+	else
+		echo -e "\033[0;31mError: Url returned status code ${STATUS_CODE}: ${url} \033[m"
+		exit 1
+	fi
+}
+
 function download_package() {
 	local package_name=$1
 	local out_package_name=$package_name
+	local url=${DM_PACKAGES_URL}/${package_name}.tar.gz
 
 	if [[ "$package_name" == *darwin ]]; then
 		out_package_name=$(sed "s/.darwin//g" <<< ${package_name})
 	fi
 
+	# if it has grown old, we want to know as soon as possible
+	check_url ${url}
+
 	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
 		mkdir -p ${TMP_DOWNLOAD_DIR}
 
-		echo "[setup] Downloading" ${DM_PACKAGES_URL}/${package_name}.tar.gz "to" ${TMP_DOWNLOAD_DIR}
-		${CURL_CMD} ${DM_PACKAGES_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
+		echo "[setup] Downloading" ${url} "to" ${TMP_DOWNLOAD_DIR}
+		${CURL_CMD} ${url} | tar xz -C ${TMP_DOWNLOAD_DIR}
 
 		# The folder inside the package is something like "iPhoneOS.sdk"
 		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
@@ -75,14 +94,19 @@ function download_zig() {
 	local url=$1
 	local package_name=$2
 	local folder=$3
+	local full_url=${url}/${package_name}
+
+	# if it has grown old, we want to know as soon as possible
+	check_url ${full_url}
 
 	if [[ ! -e ${folder} ]]; then
 		mkdir -p ${TMP_DOWNLOAD_DIR}/zig-tmp
 
+
 		echo "[setup] Downloading" ${url}/${package_name} "to" ${TMP_DOWNLOAD_DIR}/zig-tmp
 		${CURL_CMD} ${url}/${package_name} | tar xJ --strip-components=1 -C ${TMP_DOWNLOAD_DIR}/zig-tmp
 
-		echo "[setup] Rename folder" ${folder}
+		echo "[setup] Rename folder to" ${folder}
 
 		mv ${TMP_DOWNLOAD_DIR}/zig-tmp ${folder}
 		rm -rf ${TMP_DOWNLOAD_DIR}
@@ -154,8 +178,8 @@ PACKAGES=(
 
 ZIG_VERSION=0.11.0
 ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
-ZIG_PACKAGE_NAME=zig-macos-x86_64-${ZIG_VERSION}-dev.3937+78eb3c561.tar.xz
-ZIG_URL=https://ziglang.org/builds
+ZIG_PACKAGE_NAME=zig-macos-x86_64-${ZIG_VERSION}.tar.xz
+ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}
 
 function download_packages() {
     for package_name in ${PACKAGES[@]}; do
