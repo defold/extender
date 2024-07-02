@@ -596,8 +596,10 @@ ENV DOTNET_EnableWriteXorExecute=0
 RUN \
   mkdir -p ${DOTNET_CLI_HOME} && \
   mkdir -p ${NUGET_PACKAGES} && \
-  wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh && \
-  chmod +x ./dotnet-install.sh && \
+  wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh && \
+  chmod +x ./dotnet-install.sh
+
+RUN \
   ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_CLI_HOME} && \
   rm ./dotnet-install.sh
 
