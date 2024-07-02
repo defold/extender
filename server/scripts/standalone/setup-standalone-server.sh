@@ -118,6 +118,52 @@ function download_zig() {
 }
 
 
+function install_dotnet() {
+	# There are no static download links, they're always generated
+	# https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+
+	if [ "" == "$(which dotnet)" ]; then
+		local os=$(uname)
+		if [ "Darwin" == ${os} ]; then
+			# we can use brew on macos. we pass in "yes" to accept all questions
+			yes | brew install dotnet-sdk@preview
+
+		elif [ "Linux" == ${os} ]; then
+			echo "Linux not supported standalone yet"
+
+			# https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+		  	# wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+		  	# chmod +x ./dotnet-install.sh
+			# ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_CLI_HOME} && \
+
+		else
+			echo "Windows not supported standalone yet"
+
+			# https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+
+		fi
+
+		echo "[setup] Installed dotnet"
+	else
+		echo "[setup] Package dotnet already installed"
+	fi
+
+	export DOTNET9=$(which dotnet)
+
+	DOTNET_VERSION_FILE=${EXTENDER_DIR}/dotnet_version
+	DOTNET_VERSION=$(dotnet --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])")
+	echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
+
+	echo "[setup] Using dotnet:" ${DOTNET9} " version:" $(${DOTNET9} --version) "  sdk:" ${DOTNET_VERSION}
+
+	# verify that the build is the correct version
+	local version=$(dotnet --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
+	if [ "$version" != "8" ]; then
+		echo "[setup] dotnet version is newer:" $(dotnet --version)
+	fi
+}
+
+
 # Keep Apple's naming convention to avoid bugs
 PACKAGES=(
     iPhoneOS16.2.sdk
@@ -146,6 +192,9 @@ download_packages
 
 echo "[setup] Downloading Zig"
 download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
+
+echo "[setup] Installing dotnet"
+install_dotnet
 
 chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
 

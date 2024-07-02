@@ -7,11 +7,14 @@ if [[ -z ${TARGET_DIR} ]]; then
 fi
 
 # realpath: brew install coreutils
+if [ ! -d "${TARGET_DIR}" ]; then
+	mkdir -p ${TARGET_DIR}
+fi
+
 export TARGET_DIR=$(realpath ${TARGET_DIR})
 
 echo "Rebuilding and running standalone local extender from ${TARGET_DIR}"
 
-mkdir -p ${TARGET_DIR}
 if [ -f "${TARGET_DIR}/current/service.sh" ]; then
 	echo "Stopping server"
 	${TARGET_DIR}/current/service.sh stop ${TARGET_DIR}

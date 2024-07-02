@@ -61,6 +61,9 @@ public class PlatformConfig {
     public String emitSwiftModuleCmd;
     public String compileSwiftCmd;
 
+    // C#
+    public String csSourceRe;
+
     // Deprecated
     public String mtCmd;    // Deprecated, use windres instead (Deprecated at 1.2.135)
 }
