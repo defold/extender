@@ -60,7 +60,7 @@ services:
     networks:
       default:
         aliases:
-          - emscripten-2011
+          - emsdk-2011
   emscripten_3155-dev:
     image: europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3155-env:latest
     extends:
@@ -72,7 +72,7 @@ services:
     networks:
       default:
         aliases:
-          - emscripten-3155
+          - emsdk-3155
   nssdk_1532-dev:
     image: europe-north1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1532-env:latest
     extends:
