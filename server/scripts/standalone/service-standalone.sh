@@ -47,8 +47,9 @@ export IOS_17_VERSION=17.5
 export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
 
 # Added 1.9.1
+export DOTNET_ROOT=${EXTENDER_DIR}/dotnet
+export DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
 export NUGET_PACKAGES=${EXTENDER_DIR}/.nuget
-export DOTNET_VERSION_FILE=${EXTENDER_DIR}/dotnet_version
 
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
 export EXTENSION_MODULEMAP_TEMPLATE=${EXTENDER_DIR}/current/template.modulemap

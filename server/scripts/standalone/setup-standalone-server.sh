@@ -14,153 +14,160 @@ export DM_PACKAGES_URL=$4
 EXTENDER_PROFILE=$5
 
 if [[ -z ${DM_PACKAGES_URL} ]]; then
-	echo "[setup] Missing DM_PACKAGES_URL environment variable"
-	exit 1
+    echo "[setup] Missing DM_PACKAGES_URL environment variable"
+    exit 1
 fi
 
 EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/${VERSION}
 
 if [[ ! -e ${EXTENDER_DIR} ]]; then
-	echo "[setup] Error! Extender home directory ${EXTENDER_DIR} not setup, exiting.\n\n"
-	exit 2
+    echo "[setup] Error! Extender home directory ${EXTENDER_DIR} not setup, exiting.\n\n"
+    exit 2
 fi
 
 # Platform SDKs
 PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 if [[ ! -e ${PLATFORMSDK_DIR} ]]; then
-	mkdir -p ${PLATFORMSDK_DIR}
-	echo "[setup] Created SDK directory at ${PLATFORMSDK_DIR}."
+    mkdir -p ${PLATFORMSDK_DIR}
+    echo "[setup] Created SDK directory at ${PLATFORMSDK_DIR}."
 fi
 
 # Logs
 LOGS_DIR=${EXTENDER_DIR}/logs
 if [[ ! -e ${LOGS_DIR} ]]; then
-	mkdir -p ${LOGS_DIR}
-	echo "[setup] Created logs directory at ${LOGS_DIR}."
+    mkdir -p ${LOGS_DIR}
+    echo "[setup] Created logs directory at ${LOGS_DIR}."
 fi
 
 CURL_CMD=/usr/bin/curl
 TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
 function check_url() {
-	local url=$1
-	echo "[check url]" ${url}
-	STATUS_CODE=$(curl --head --write-out "%{http_code}" --silent --output /dev/null ${url})
-	if (( STATUS_CODE == 200 ))
-	then
-		echo "${STATUS_CODE}"
-	else
-		echo -e "\033[0;31mError: Url returned status code ${STATUS_CODE}: ${url} \033[m"
-		exit 1
-	fi
+    local url=$1
+    echo "[check url]" ${url}
+    STATUS_CODE=$(curl --head --write-out "%{http_code}" --silent --output /dev/null ${url})
+    if (( STATUS_CODE == 200 ))
+    then
+        echo "${STATUS_CODE}"
+    else
+        echo -e "\033[0;31mError: Url returned status code ${STATUS_CODE}: ${url} \033[m"
+        exit 1
+    fi
 }
 
 function download_package() {
-	local package_name=$1
-	local out_package_name=$package_name
-	local url=${DM_PACKAGES_URL}/${package_name}.tar.gz
+    local package_name=$1
+    local out_package_name=$package_name
+    local url=${DM_PACKAGES_URL}/${package_name}.tar.gz
 
-	if [[ "$package_name" == *darwin ]]; then
-		out_package_name=$(sed "s/.darwin//g" <<< ${package_name})
-	fi
+    if [[ "$package_name" == *darwin ]]; then
+        out_package_name=$(sed "s/.darwin//g" <<< ${package_name})
+    fi
 
-	# if it has grown old, we want to know as soon as possible
-	check_url ${url}
+    # if it has grown old, we want to know as soon as possible
+    check_url ${url}
 
-	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
-		mkdir -p ${TMP_DOWNLOAD_DIR}
+    if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
+        mkdir -p ${TMP_DOWNLOAD_DIR}
 
-		echo "[setup] Downloading" ${url} "to" ${TMP_DOWNLOAD_DIR}
-		${CURL_CMD} ${url} | tar xz -C ${TMP_DOWNLOAD_DIR}
+        echo "[setup] Downloading" ${url} "to" ${TMP_DOWNLOAD_DIR}
+        ${CURL_CMD} ${url} | tar xz -C ${TMP_DOWNLOAD_DIR}
 
-		# The folder inside the package is something like "iPhoneOS.sdk"
-		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
-		echo "[setup] Found folder" ${folder}
+        # The folder inside the package is something like "iPhoneOS.sdk"
+        local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
+        echo "[setup] Found folder" ${folder}
 
-		if [[ -n ${folder} ]]; then
-			mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
-			echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
-		else
-			echo "[setup] Failed to install" ${package_name}
-		fi
+        if [[ -n ${folder} ]]; then
+            mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
+            echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
+        else
+            echo "[setup] Failed to install" ${package_name}
+        fi
 
-		rm -rf ${TMP_DOWNLOAD_DIR}
-	else
-		echo "[setup] Package" ${PLATFORMSDK_DIR}/${package_name} "already installed"
-	fi
+        rm -rf ${TMP_DOWNLOAD_DIR}
+    else
+        echo "[setup] Package" ${PLATFORMSDK_DIR}/${package_name} "already installed"
+    fi
 }
 
 function download_zig() {
-	local url=$1
-	local package_name=$2
-	local folder=$3
-	local full_url=${url}/${package_name}
+    local url=$1
+    local package_name=$2
+    local folder=$3
+    local full_url=${url}/${package_name}
 
-	# if it has grown old, we want to know as soon as possible
-	check_url ${full_url}
+    # if it has grown old, we want to know as soon as possible
+    check_url ${full_url}
 
-	if [[ ! -e ${folder} ]]; then
-		mkdir -p ${TMP_DOWNLOAD_DIR}/zig-tmp
+    if [[ ! -e ${folder} ]]; then
+        mkdir -p ${TMP_DOWNLOAD_DIR}/zig-tmp
 
 
-		echo "[setup] Downloading" ${url}/${package_name} "to" ${TMP_DOWNLOAD_DIR}/zig-tmp
-		${CURL_CMD} ${url}/${package_name} | tar xJ --strip-components=1 -C ${TMP_DOWNLOAD_DIR}/zig-tmp
+        echo "[setup] Downloading" ${url}/${package_name} "to" ${TMP_DOWNLOAD_DIR}/zig-tmp
+        ${CURL_CMD} ${url}/${package_name} | tar xJ --strip-components=1 -C ${TMP_DOWNLOAD_DIR}/zig-tmp
 
-		echo "[setup] Rename folder to" ${folder}
+        echo "[setup] Rename folder to" ${folder}
 
-		mv ${TMP_DOWNLOAD_DIR}/zig-tmp ${folder}
-		rm -rf ${TMP_DOWNLOAD_DIR}
+        mv ${TMP_DOWNLOAD_DIR}/zig-tmp ${folder}
+        rm -rf ${TMP_DOWNLOAD_DIR}
 
-		echo "[setup] Installed" ${folder}
-	else
-		echo "[setup] Package" ${folder} "already installed"
-	fi
+        echo "[setup] Installed" ${folder}
+    else
+        echo "[setup] Package" ${folder} "already installed"
+    fi
 }
 
+# See service-standalone.sh (these must match)
+DOTNET_ROOT=${EXTENDER_DIR}/dotnet
+DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
+NUGET_PACKAGES=${EXTENDER_DIR}/.nuget
 
 function install_dotnet() {
-	# There are no static download links, they're always generated
-	# https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+    # There are no static download links, they're always generated
+    # https://dotnet.microsoft.com/en-us/download/dotnet/9.0
 
-	if [ "" == "$(which dotnet)" ]; then
-		local os=$(uname)
-		if [ "Darwin" == ${os} ]; then
-			# we can use brew on macos. we pass in "yes" to accept all questions
-			yes | brew install dotnet-sdk@preview
+    if [ -d "${DOTNET_ROOT}" ]; then
+        echo "[setup] Removing installed version of dotnet" ${DOTNET_ROOT}
+        rm -rf ${DOTNET_ROOT}
+    fi
 
-		elif [ "Linux" == ${os} ]; then
-			echo "Linux not supported standalone yet"
+    mkdir -p ${DOTNET_ROOT}
 
-			# https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
-		  	# wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
-		  	# chmod +x ./dotnet-install.sh
-			# ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_CLI_HOME} && \
+    local os=$(uname)
+    if [ "Darwin" == "${os}" ] || [ "Linux" == "${os}" ]; then
 
-		else
-			echo "Windows not supported standalone yet"
+        wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh && \
+        chmod +x ./dotnet-install.sh
 
-			# https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+        ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_ROOT}
 
-		fi
+        rm ./dotnet-install.sh
 
-		echo "[setup] Installed dotnet"
-	else
-		echo "[setup] Package dotnet already installed"
-	fi
+    else
+        echo "Windows not supported standalone yet"
 
-	export DOTNET9=$(which dotnet)
+        # https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+    fi
 
-	DOTNET_VERSION_FILE=${EXTENDER_DIR}/dotnet_version
-	DOTNET_VERSION=$(dotnet --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])")
-	echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
+    echo "[setup] Installed dotnet"
 
-	echo "[setup] Using dotnet:" ${DOTNET9} " version:" $(${DOTNET9} --version) "  sdk:" ${DOTNET_VERSION}
+    local DOTNET=${DOTNET_ROOT}/dotnet
 
-	# verify that the build is the correct version
-	local version=$(dotnet --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
-	if [ "$version" != "8" ]; then
-		echo "[setup] dotnet version is newer:" $(dotnet --version)
-	fi
+    DOTNET_VERSION=$(${DOTNET} --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])")
+    echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
+
+    echo "[setup] Using dotnet:" ${DOTNET} " version:" $(${DOTNET} --version) "  sdk:" ${DOTNET_VERSION}
+
+    # verify that the build is the correct version
+    local version=$(${DOTNET} --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
+    if [ "$version" != "8" ]; then
+        echo "[setup] dotnet version is newer:" $(dotnet --version)
+    fi
+
+    NUGET_PACKAGES=$(${DOTNET} nuget locals global-packages -l | awk '{print $2}')
+
+    echo "[setup] Using NUGET_PACKAGES=${NUGET_PACKAGES}"
+
 }
 
 
