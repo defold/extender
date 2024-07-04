@@ -585,8 +585,8 @@ RUN \
 
 
 ENV NUGET_PACKAGES /tmp/.nuget
-ENV DOTNET_CLI_HOME=/opt/dotnet
-ENV DOTNET_VERSION_FILE=${DOTNET_CLI_HOME}/dotnet_version
+ENV DOTNET_ROOT=/opt/dotnet
+ENV DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 # Workaround for issue when running amd64 on Rosetta: https://github.com/dotnet/runtime/issues/94909
@@ -594,28 +594,25 @@ ENV DOTNET_EnableWriteXorExecute=0
 
 # Added 1.9.1
 RUN \
-  mkdir -p ${DOTNET_CLI_HOME} && \
+  mkdir -p ${DOTNET_ROOT} && \
   mkdir -p ${NUGET_PACKAGES} && \
   wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh && \
   chmod +x ./dotnet-install.sh
 
 RUN \
-  ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_CLI_HOME} && \
+  ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_ROOT} && \
   rm ./dotnet-install.sh
 
 RUN \
-  find ${DOTNET_CLI_HOME} -iname "dotnet" && \
-  file ${DOTNET_CLI_HOME}/dotnet && \
-  ${DOTNET_CLI_HOME}/dotnet --info
-
-
-ENV PATH=${DOTNET_CLI_HOME}:$PATH
+  find ${DOTNET_ROOT} -iname "dotnet" && \
+  file ${DOTNET_ROOT}/dotnet && \
+  ${DOTNET_ROOT}/dotnet --info
 
 RUN \
   export DOTNET_VERSION=$(dotnet --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])") && \
   echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE} && \
   chown -R extender: ${NUGET_PACKAGES} && \
-  chown -R extender: ${DOTNET_CLI_HOME}
+  chown -R extender: ${DOTNET_ROOT}
 
 ENV EXTENSION_CSPROJ_TEMPLATE /var/extender/template.csproj
 COPY template.csproj ${EXTENSION_CSPROJ_TEMPLATE}

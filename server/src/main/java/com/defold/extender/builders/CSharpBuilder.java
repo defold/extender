@@ -31,6 +31,7 @@ import com.defold.extender.TemplateExecutor;
 public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);
 
+    private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
     private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
     private static final String CSPROJ_TEMPLATE_PATH = System.getenv("EXTENSION_CSPROJ_TEMPLATE");
@@ -62,6 +63,7 @@ public class CSharpBuilder {
         this.template = readFile(CSPROJ_TEMPLATE_PATH);
         this.context = context;
 
+        LOGGER.info(String.format("DOTNET_ROOT: %s", DOTNET_ROOT));
         LOGGER.info(String.format("NUGET_PACKAGES: %s", NUGET_PACKAGES));
     }
 
@@ -137,7 +139,7 @@ public class CSharpBuilder {
     private File runDotnet(File project, String platform) throws IOException, InterruptedException, ExtenderException {
 
         String csplatform = convertPlatform(this.platform);
-        String cmd = "dotnet publish --nologo -c Release " + String.format("-r %s ", csplatform);
+        String cmd = String.format("%s/dotnet publish --nologo -c Release -r %s ", DOTNET_ROOT, csplatform);
         cmd += project.getAbsolutePath();
 
         List<String> commands = new ArrayList<>();
