@@ -20,7 +20,7 @@ import static org.junit.Assert.*;
 public class AuthenticationTest {
 
     private static final int EXTENDER_PORT = 9000;
-    private static final String SDK_VERSION = "e624625d90111ab8442e6b672b1335bb024b9885"; // 1.4.3
+    private static final String SDK_VERSION = "d6882f432beca85d460ec42497888157c356d058"; // 1.9.0
     private static final String PLATFORM_ARMV7_ANDROID = "armv7-android";
     private static final String PLATFORM_LINUX = "x86_64-linux";
 
