@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 if [[ "$#" -lt 4 ]]; then
     printf "Usage: $(basename "$0") <version> <target directory> <service script> [packages url] [extender profile]\n\n";
     exit 1;
@@ -12,85 +14,160 @@ export DM_PACKAGES_URL=$4
 EXTENDER_PROFILE=$5
 
 if [[ -z ${DM_PACKAGES_URL} ]]; then
-	echo "[setup] Missing DM_PACKAGES_URL environment variable"
-	exit 1
+    echo "[setup] Missing DM_PACKAGES_URL environment variable"
+    exit 1
 fi
 
 EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/${VERSION}
 
 if [[ ! -e ${EXTENDER_DIR} ]]; then
-	echo "[setup] Error! Extender home directory ${EXTENDER_DIR} not setup, exiting.\n\n"
-	exit 2
+    echo "[setup] Error! Extender home directory ${EXTENDER_DIR} not setup, exiting.\n\n"
+    exit 2
 fi
 
 # Platform SDKs
 PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 if [[ ! -e ${PLATFORMSDK_DIR} ]]; then
-	mkdir -p ${PLATFORMSDK_DIR}
-	echo "[setup] Created SDK directory at ${PLATFORMSDK_DIR}."
+    mkdir -p ${PLATFORMSDK_DIR}
+    echo "[setup] Created SDK directory at ${PLATFORMSDK_DIR}."
 fi
 
 # Logs
 LOGS_DIR=${EXTENDER_DIR}/logs
 if [[ ! -e ${LOGS_DIR} ]]; then
-	mkdir -p ${LOGS_DIR}
-	echo "[setup] Created logs directory at ${LOGS_DIR}."
+    mkdir -p ${LOGS_DIR}
+    echo "[setup] Created logs directory at ${LOGS_DIR}."
 fi
 
 CURL_CMD=/usr/bin/curl
 TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
+function check_url() {
+    local url=$1
+    echo "[check url]" ${url}
+    STATUS_CODE=$(curl --head --write-out "%{http_code}" --silent --output /dev/null ${url})
+    if (( STATUS_CODE == 200 ))
+    then
+        echo "${STATUS_CODE}"
+    else
+        echo -e "\033[0;31mError: Url returned status code ${STATUS_CODE}: ${url} \033[m"
+        exit 1
+    fi
+}
+
 function download_package() {
-	local package_name=$1
-	local out_package_name=$package_name
+    local package_name=$1
+    local out_package_name=$package_name
+    local url=${DM_PACKAGES_URL}/${package_name}.tar.gz
 
-	if [[ "$package_name" == *darwin ]]; then
-		out_package_name=$(sed "s/.darwin//g" <<< ${package_name})
-	fi
+    if [[ "$package_name" == *darwin ]]; then
+        out_package_name=$(sed "s/.darwin//g" <<< ${package_name})
+    fi
 
-	if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
-		mkdir -p ${TMP_DOWNLOAD_DIR}
+    # if it has grown old, we want to know as soon as possible
+    check_url ${url}
 
-		echo "[setup] Downloading" ${DM_PACKAGES_URL}/${package_name}.tar.gz "to" ${TMP_DOWNLOAD_DIR}
-		${CURL_CMD} ${DM_PACKAGES_URL}/${package_name}.tar.gz | tar xz -C ${TMP_DOWNLOAD_DIR}
+    if [[ ! -e ${PLATFORMSDK_DIR}/${out_package_name} ]]; then
+        mkdir -p ${TMP_DOWNLOAD_DIR}
 
-		# The folder inside the package is something like "iPhoneOS.sdk"
-		local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
-		echo "[setup] Found folder" ${folder}
+        echo "[setup] Downloading" ${url} "to" ${TMP_DOWNLOAD_DIR}
+        ${CURL_CMD} ${url} | tar xz -C ${TMP_DOWNLOAD_DIR}
 
-		if [[ -n ${folder} ]]; then
-			mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
-			echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
-		else
-			echo "[setup] Failed to install" ${package_name}
-		fi
+        # The folder inside the package is something like "iPhoneOS.sdk"
+        local folder=`(cd ${TMP_DOWNLOAD_DIR} && ls)`
+        echo "[setup] Found folder" ${folder}
 
-		rm -rf ${TMP_DOWNLOAD_DIR}
-	else
-		echo "[setup] Package" ${PLATFORMSDK_DIR}/${package_name} "already installed"
-	fi
+        if [[ -n ${folder} ]]; then
+            mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
+            echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
+        else
+            echo "[setup] Failed to install" ${package_name}
+        fi
+
+        rm -rf ${TMP_DOWNLOAD_DIR}
+    else
+        echo "[setup] Package" ${PLATFORMSDK_DIR}/${package_name} "already installed"
+    fi
 }
 
 function download_zig() {
-	local url=$1
-	local package_name=$2
-	local folder=$3
+    local url=$1
+    local package_name=$2
+    local folder=$3
+    local full_url=${url}/${package_name}
 
-	if [[ ! -e ${folder} ]]; then
-		mkdir -p ${TMP_DOWNLOAD_DIR}/zig-tmp
+    # if it has grown old, we want to know as soon as possible
+    check_url ${full_url}
 
-		echo "[setup] Downloading" ${url}/${package_name} "to" ${TMP_DOWNLOAD_DIR}/zig-tmp
-		${CURL_CMD} ${url}/${package_name} | tar xJ --strip-components=1 -C ${TMP_DOWNLOAD_DIR}/zig-tmp
+    if [[ ! -e ${folder} ]]; then
+        mkdir -p ${TMP_DOWNLOAD_DIR}/zig-tmp
 
-		echo "[setup] Rename folder" ${folder}
 
-		mv ${TMP_DOWNLOAD_DIR}/zig-tmp ${folder}
-		rm -rf ${TMP_DOWNLOAD_DIR}
+        echo "[setup] Downloading" ${url}/${package_name} "to" ${TMP_DOWNLOAD_DIR}/zig-tmp
+        ${CURL_CMD} ${url}/${package_name} | tar xJ --strip-components=1 -C ${TMP_DOWNLOAD_DIR}/zig-tmp
 
-		echo "[setup] Installed" ${folder}
-	else
-		echo "[setup] Package" ${folder} "already installed"
-	fi
+        echo "[setup] Rename folder to" ${folder}
+
+        mv ${TMP_DOWNLOAD_DIR}/zig-tmp ${folder}
+        rm -rf ${TMP_DOWNLOAD_DIR}
+
+        echo "[setup] Installed" ${folder}
+    else
+        echo "[setup] Package" ${folder} "already installed"
+    fi
+}
+
+# See service-standalone.sh (these must match)
+DOTNET_ROOT=${EXTENDER_DIR}/dotnet
+DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
+NUGET_PACKAGES=${EXTENDER_DIR}/.nuget
+
+function install_dotnet() {
+    # There are no static download links, they're always generated
+    # https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+
+    if [ -d "${DOTNET_ROOT}" ]; then
+        echo "[setup] Removing installed version of dotnet" ${DOTNET_ROOT}
+        rm -rf ${DOTNET_ROOT}
+    fi
+
+    mkdir -p ${DOTNET_ROOT}
+
+    local os=$(uname)
+    if [ "Darwin" == "${os}" ] || [ "Linux" == "${os}" ]; then
+
+        wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh && \
+        chmod +x ./dotnet-install.sh
+
+        ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_ROOT}
+
+        rm ./dotnet-install.sh
+
+    else
+        echo "Windows not supported standalone yet"
+
+        # https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+    fi
+
+    echo "[setup] Installed dotnet"
+
+    local DOTNET=${DOTNET_ROOT}/dotnet
+
+    DOTNET_VERSION=$(${DOTNET} --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])")
+    echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
+
+    echo "[setup] Using dotnet:" ${DOTNET} " version:" $(${DOTNET} --version) "  sdk:" ${DOTNET_VERSION}
+
+    # verify that the build is the correct version
+    local version=$(${DOTNET} --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
+    if [ "$version" != "8" ]; then
+        echo "[setup] dotnet version is newer:" $(dotnet --version)
+    fi
+
+    NUGET_PACKAGES=$(${DOTNET} nuget locals global-packages -l | awk '{print $2}')
+
+    echo "[setup] Using NUGET_PACKAGES=${NUGET_PACKAGES}"
+
 }
 
 
@@ -108,8 +185,8 @@ PACKAGES=(
 
 ZIG_VERSION=0.11.0
 ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
-ZIG_PACKAGE_NAME=zig-macos-x86_64-${ZIG_VERSION}-dev.3937+78eb3c561.tar.xz
-ZIG_URL=https://ziglang.org/builds
+ZIG_PACKAGE_NAME=zig-macos-x86_64-${ZIG_VERSION}.tar.xz
+ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}
 
 function download_packages() {
     for package_name in ${PACKAGES[@]}; do
@@ -122,6 +199,9 @@ download_packages
 
 echo "[setup] Downloading Zig"
 download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
+
+echo "[setup] Installing dotnet"
+install_dotnet
 
 chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
 

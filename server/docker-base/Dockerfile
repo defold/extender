@@ -579,6 +579,45 @@ RUN \
   wget -q -O - ${ZIG_URL} | tar xJ -C ${ZIG_PATH_0_11} --strip-components=1 && \
   zig version
 
+#
+# DOTNET
+#
+# https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
+
+
+ENV NUGET_PACKAGES /tmp/.nuget
+ENV DOTNET_ROOT=/opt/dotnet
+ENV DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+
+# Workaround for issue when running amd64 on Rosetta: https://github.com/dotnet/runtime/issues/94909
+ENV DOTNET_EnableWriteXorExecute=0
+
+# Added 1.9.1
+RUN \
+  mkdir -p ${DOTNET_ROOT} && \
+  mkdir -p ${NUGET_PACKAGES} && \
+  wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh && \
+  chmod +x ./dotnet-install.sh
+
+RUN \
+  ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_ROOT} && \
+  rm ./dotnet-install.sh
+
+RUN \
+  find ${DOTNET_ROOT} -iname "dotnet" && \
+  file ${DOTNET_ROOT}/dotnet && \
+  ${DOTNET_ROOT}/dotnet --info
+
+RUN \
+  export DOTNET_VERSION=$(dotnet --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])") && \
+  echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE} && \
+  chown -R extender: ${NUGET_PACKAGES} && \
+  chown -R extender: ${DOTNET_ROOT}
+
+ENV EXTENSION_CSPROJ_TEMPLATE /var/extender/template.csproj
+COPY template.csproj ${EXTENSION_CSPROJ_TEMPLATE}
+
 
 # Final cleanup
 
