@@ -51,6 +51,11 @@ export DOTNET_ROOT=${EXTENDER_DIR}/dotnet
 export DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
 export NUGET_PACKAGES=${EXTENDER_DIR}/.nuget
 
+# Gradle setup
+export EXTENSION_BUILD_GRADLE_TEMPLATE=${EXTENDER_DIR}/current/template.build.gradle
+export EXTENSION_GRADLE_PROPERTIES_TEMPLATE=${EXTENDER_DIR}/current/template.gradle.properties
+export EXTENSION_LOCAL_PROPERTIES_TEMPLATE=${EXTENDER_DIR}/current/template.local.properties
+
 export EXTENSION_PODFILE_TEMPLATE=${EXTENDER_DIR}/current/template.podfile
 export EXTENSION_MODULEMAP_TEMPLATE=${EXTENDER_DIR}/current/template.modulemap
 export EXTENSION_UMBRELLAHEADER_TEMPLATE=${EXTENDER_DIR}/current/template.umbrella.h
