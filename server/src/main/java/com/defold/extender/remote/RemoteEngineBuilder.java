@@ -3,6 +3,10 @@ package com.defold.extender.remote;
 import com.amazonaws.util.IOUtils;
 import com.defold.extender.BuilderConstants;
 import com.defold.extender.ExtenderException;
+import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.Timer;
+
+import io.micrometer.core.instrument.MeterRegistry;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpEntity;
@@ -104,7 +108,7 @@ public class RemoteEngineBuilder {
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
-                        File jobDirectory, File uploadDirectory, File buildDirectory) throws FileNotFoundException, IOException {
+                        File jobDirectory, File uploadDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
 
         LOGGER.info("Building engine remotely at {}", remoteBuilderUrl);
         String jobName = jobDirectory.getName();
@@ -113,6 +117,8 @@ public class RemoteEngineBuilder {
         resultDir.mkdir();
 
         final HttpEntity httpEntity;
+        Timer buildTimer = new Timer();
+        buildTimer.start();
 
         try {
             httpEntity = buildHttpEntity(projectDirectory);
@@ -178,6 +184,7 @@ public class RemoteEngineBuilder {
                 writer.write(errorLog);
                 writer.close();        
             }
+            metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
         } catch (Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             PrintWriter writer = new PrintWriter(errorFile);
@@ -185,6 +192,7 @@ public class RemoteEngineBuilder {
             e.printStackTrace(writer);
             writer.close();
         } finally {
+            metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
             // Delete temporary upload directory
             if (!keepJobDirectory) {
                 LOGGER.info("Deleting job directory");

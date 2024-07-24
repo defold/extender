@@ -1299,7 +1299,7 @@ public class CocoaPodsService {
 
         dumpDir(jobDir, 0);
 
-        MetricsWriter.metricsTimer(meterRegistry, "gauge.service.cocoapods.get", System.currentTimeMillis() - methodStart);
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
         ResolvedPods resolvedPods = new ResolvedPods();
         resolvedPods.pods = pods;

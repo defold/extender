@@ -4,6 +4,7 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
+import com.defold.extender.Timer;
 import com.defold.extender.ZipUtils;
 import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.Resource;
 
 import io.micrometer.core.instrument.MeterRegistry;
+
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -243,6 +245,8 @@ public class RealGradleService implements GradleServiceInterface {
 
     private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir, Boolean useJetifier) throws IOException, ExtenderException {
         List<File> resolvedDependencies = new ArrayList<>();
+        Timer timer = new Timer();
+        timer.start();
         for (String newName : dependencies.keySet()) {
             String dependency = dependencies.get(newName);
 
@@ -250,13 +254,17 @@ public class RealGradleService implements GradleServiceInterface {
             if (!file.exists()) {
                 throw new IOException("File does not exist: %s" + dependency);
             }
-            if (dependency.endsWith(".aar"))
+            if (dependency.endsWith(".aar")) {
                 resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir, useJetifier));
-            else if (dependency.endsWith(".jar"))
+            } else if (dependency.endsWith(".jar")) {
                 resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir, useJetifier));
-            else
+            } else {
                 resolvedDependencies.add(file);
+            }
         }
+        long duration = timer.start();
+        MetricsWriter.metricsGauge(meterRegistry, "extender.service.gradle.unpack.duration", duration, "jetifier", useJetifier.toString());
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.unpack", duration, "jetifier", useJetifier.toString());
         return resolvedDependencies;
     }
 
@@ -273,7 +281,7 @@ public class RealGradleService implements GradleServiceInterface {
 
         List<File> unpackedDependencies = unpackDependencies(dependencies, cwd, useJetifier);
 
-        MetricsWriter.metricsTimer(meterRegistry, "gauge.service.gradle.get", System.currentTimeMillis() - methodStart);
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;
     }
 
