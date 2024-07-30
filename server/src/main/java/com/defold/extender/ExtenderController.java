@@ -221,7 +221,7 @@ public class ExtenderController {
                 // Resolve Gradle dependencies
                 if (platform.contains("android")) {
                     extender.resolve(gradleService);
-                    metricsWriter.measureGradleDownload(gradleService.getCacheSize());
+                    metricsWriter.measureGradleDownload();
                 }
 
                 // Resolve CocoaPods dependencies

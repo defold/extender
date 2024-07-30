@@ -197,7 +197,6 @@ public class DefoldSdkService {
         LOGGER.info("Using Defold SDK version {}", hash);
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.sdk.get.duration", System.currentTimeMillis() - methodStart, "sdk", hash);
-        MetricsWriter.metricsCounterIncrement(meterRegistry, "extender.service.sdk.get", "sdk", hash);
 
         return new File(sdkDirectory, "defoldsdk");
     }

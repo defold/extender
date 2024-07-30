@@ -4,8 +4,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import io.micrometer.core.instrument.binder.BaseUnits;
 
 public class MetricsWriter {
 
@@ -17,6 +19,12 @@ public class MetricsWriter {
         this.timer = timer;
 
         this.timer.start();
+
+        // preregister and configure summary metrics
+        DistributionSummary.builder("extender.job.requestSize").baseUnit(BaseUnits.BYTES).register(registry);
+        DistributionSummary.builder("extender.job.zipSize").baseUnit(BaseUnits.BYTES).register(registry);
+        DistributionSummary.builder("extender.job.cache.uploadSize").baseUnit(BaseUnits.BYTES).register(registry);
+        DistributionSummary.builder("extender.job.cache.downloadSize").baseUnit(BaseUnits.BYTES).register(registry);
     }
 
     public MetricsWriter(final MeterRegistry registry) {
@@ -25,7 +33,7 @@ public class MetricsWriter {
 
     public void measureReceivedRequest(final HttpServletRequest request) {
         metricsTimer(this.registry, "extender.job.receive", timer.start());
-        metricsGauge(this.registry, "extender.job.requestSize", request.getContentLengthLong());
+        metricsSummary(this.registry, "extender.job.requestSize", request.getContentLengthLong());
     }
 
     public void measureSdkDownload(String sdk) {
@@ -33,9 +41,8 @@ public class MetricsWriter {
         metricsCounterIncrement(registry, "extender.job.sdk", "job_sdk", sdk);
     }
 
-    public void measureGradleDownload(long cacheSize) {
+    public void measureGradleDownload() {
         metricsTimer(this.registry, "extender.job.gradle.download", timer.start());
-        metricsGauge(this.registry, "extender.job.gradle.cacheSize", cacheSize);
     }
 
     public void measureCocoaPodsInstallation() {
@@ -56,7 +63,7 @@ public class MetricsWriter {
 
     public void measureZipFiles(final File zipFile) {
         metricsTimer(this.registry, "extender.job.zip", timer.start());
-        metricsGauge(this.registry, "extender.job.zipSize", zipFile.length());
+        metricsSummary(this.registry, "extender.job.zipSize", zipFile.length());
     }
 
     public void measureSentResponse() {
@@ -65,12 +72,12 @@ public class MetricsWriter {
 
     public void measureCacheUpload(long uploadSize) {
         metricsTimer(this.registry, "extender.job.cache.upload", timer.start());
-        metricsGauge(this.registry, "extender.job.cache.uploadSize", uploadSize);
+        metricsSummary(this.registry, "extender.job.cache.uploadSize", uploadSize);
     }
 
     public void measureCacheDownload(long downloadSize) {
         metricsTimer(this.registry, "extender.job.cache.download", timer.start());
-        metricsGauge(this.registry, "extender.job.cache.downloadSize", downloadSize);
+        metricsSummary(this.registry, "extender.job.cache.downloadSize", downloadSize);
     }
 
     public void measureCounterBuild(String platform, String sdk, String buildType, Boolean isSuccessfull) {
@@ -81,8 +88,8 @@ public class MetricsWriter {
         metricsCounterIncrement(this.registry, "extender.build.task", tags);
     }
 
-    public static void metricsGauge(MeterRegistry registry, String id, long value, String... tags) {
-        registry.gauge(id, Tags.of(tags), value);
+    public static void metricsSummary(MeterRegistry registry, String id, long value, String... tags) {
+        registry.summary(id, tags).record(value);
     }
 
     public static void metricsTimer(MeterRegistry registry, String id, long millis, String... tags) {

@@ -9,12 +9,18 @@ import org.springframework.stereotype.Service;
 
 import com.defold.extender.ExtenderException;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.BaseUnits;
+
 @Service
 public class GradleService {
     private final GradleServiceInterface gradleService;
 
-    public GradleService(GradleServiceInterface service) {
+    public GradleService(GradleServiceInterface service,
+                        MeterRegistry registry) {
         gradleService = service;
+        Gauge.builder("extender.job.gradle.cacheSize", this, GradleService::getCacheSize).baseUnit(BaseUnits.BYTES).register(registry);
     }
 
     public List<File> resolveDependencies(Map<String, Object> env, File cwd, Boolean useJetifier)
@@ -22,7 +28,11 @@ public class GradleService {
         return gradleService.resolveDependencies(env, cwd, useJetifier);
     }
 
-    public long getCacheSize() throws IOException {
-        return gradleService.getCacheSize();
+    public long getCacheSize() {
+        try {
+            return gradleService.getCacheSize();
+        } catch (IOException exc) {
+            return 0;
+        }
     }
 }
