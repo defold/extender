@@ -180,6 +180,7 @@ public class ExtenderController {
         }
 
         Thread.currentThread().setName(jobDirectory.getName());
+        Boolean isSuccessfull = true;
 
 
         LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
@@ -220,7 +221,7 @@ public class ExtenderController {
                 // Resolve Gradle dependencies
                 if (platform.contains("android")) {
                     extender.resolve(gradleService);
-                    metricsWriter.measureGradleDownload(gradleService.getCacheSize());
+                    metricsWriter.measureGradleDownload();
                 }
 
                 // Resolve CocoaPods dependencies
@@ -247,16 +248,20 @@ public class ExtenderController {
             metricsWriter.measureSentResponse();
 
         } catch(EofException e) {
+            isSuccessfull = false;
             throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
+            isSuccessfull = false;
             throw new ExtenderException(e, "Bad request: " + e.getMessage());
         } catch(Exception e) {
-            LOGGER.error("Exception while building or sending response - SDK: " + sdkVersion + " , metrics: " + metricsWriter);
+            isSuccessfull = false;
+            LOGGER.error("Exception while building or sending response - SDK: " + sdkVersion);
             throw e;
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
             long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(totalUploadSize);
+            metricsWriter.measureCounterBuild(platform, sdkVersionString, "sync", isSuccessfull);
 
             boolean deleteDirectory = true;
             if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
@@ -334,8 +339,7 @@ public class ExtenderController {
             if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                 LOGGER.info("Building engine on remote builder");
                 String remoteUrl = getRemoteBuilderUrl(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
-                metricsWriter.measureRemoteEngineBuild(platform);
+                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory, metricsWriter);
             } else {
                 asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
             }
@@ -350,7 +354,7 @@ public class ExtenderController {
         } catch(FileUploadException e) {
             throw new ExtenderException(e, "Bad request: " + e.getMessage());
         } catch(Exception e) {
-            LOGGER.error(String.format("Exception while building or sending response - SDK: %s, metrics: %s", sdkVersion, metricsWriter));
+            LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion));
             throw e;
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files

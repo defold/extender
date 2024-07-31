@@ -64,7 +64,7 @@ management:
             path: /
             threshold: 1073741824 #1024mb
 
-    stackdriver:
+    influx:
         metrics:
             export:
                 enabled: false

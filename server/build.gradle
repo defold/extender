@@ -69,9 +69,8 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-security')
     implementation('org.springframework.security:spring-security-test')
     implementation('io.micrometer:micrometer-core:1.13.1')
-    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.13.1')
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:7.0.1')
-    runtimeOnly('io.micrometer:micrometer-registry-stackdriver:1.13.1')
+    runtimeOnly('io.micrometer:micrometer-registry-influx:1.13.2')
 
     testImplementation('junit:junit:4.12')
     testImplementation('org.springframework:spring-test')

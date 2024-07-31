@@ -90,6 +90,7 @@ public class AsyncBuilder {
         File resultDir = new File(jobResultLocation.getAbsolutePath(), jobName);
         resultDir.mkdir();
         Extender extender = null;
+        Boolean isSuccefull = true;
         try {
             LOGGER.info("Building engine locally");
 
@@ -102,7 +103,7 @@ public class AsyncBuilder {
             // Resolve Gradle dependencies
             if (platform.contains("android")) {
                 extender.resolve(gradleService);
-                metricsWriter.measureGradleDownload(gradleService.getCacheSize());
+                metricsWriter.measureGradleDownload();
             }
 
             // Resolve CocoaPods dependencies
@@ -130,15 +131,18 @@ public class AsyncBuilder {
             writeExtenderLogsToFile(extender, errorFile);
             writeExceptionToFile(e, errorFile);
             LOGGER.error("Client closed connection prematurely, build aborted", e);
+            isSuccefull = false;
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             writeExtenderLogsToFile(extender, errorFile);
             writeExceptionToFile(e, errorFile);
-            LOGGER.error(String.format("Exception while building or sending response - SDK: %s , metrics: %s", sdkVersion, metricsWriter), e);
+            LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion), e);
+            isSuccefull = false;
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
             long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(totalUploadSize);
+            metricsWriter.measureCounterBuild(platform, sdkVersion, "async", isSuccefull);
 
             // Delete temporary upload directory
             if (!keepJobDirectory) {
