@@ -68,3 +68,7 @@ management:
         metrics:
             export:
                 enabled: false
+
+spring.cloud.gcp:
+    core.enabled: false
+    storage.enabled: false

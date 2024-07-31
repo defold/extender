@@ -6,6 +6,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.Scheduled;
+
 import java.util.Properties;
 import java.util.Arrays;
 import java.util.List;
@@ -105,5 +107,11 @@ public class UserUpdateService {
         lastUpdateTimestamp = now;
 
         updateUsers(loadUsers());
+    }
+
+    @Scheduled(fixedDelayString="${extender.authentication.update-interval:900000}")
+    public void schedulesUpdate() {
+        LOGGER.info("Schedule user credentials update");
+        update();
     }
 }
