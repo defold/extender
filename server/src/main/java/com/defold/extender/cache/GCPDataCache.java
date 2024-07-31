@@ -15,21 +15,23 @@ public class GCPDataCache implements DataCache {
 
     private Storage storage;
     private String bucketName;
+    private String prefix;
 
-    public GCPDataCache(final String bucketName) {
+    public GCPDataCache(final String bucketName, final String prefix) {
         this.storage = StorageOptions.getDefaultInstance().getService();
         this.bucketName = bucketName;
+        this.prefix = prefix;
     }
 
     @Override
     public InputStream get(String key) {
-        Blob blob = storage.get(this.bucketName, key);
+        Blob blob = storage.get(this.bucketName, getBlobKey(key));
         return Channels.newInputStream(blob.reader());
     }
 
     @Override
     public boolean exists(String key) {
-        Blob blob = storage.get(this.bucketName, key);
+        Blob blob = storage.get(this.bucketName, getBlobKey(key));
         return blob != null;
     }
 
@@ -40,14 +42,15 @@ public class GCPDataCache implements DataCache {
 
     @Override
     public void put(String key, File file) throws IOException {
-        BlobId blobId = BlobId.of(this.bucketName, key);
+        String blobKey = getBlobKey(key);
+        BlobId blobId = BlobId.of(this.bucketName, blobKey);
         BlobInfo blobInfo = BlobInfo.newBuilder(blobId).build();
     
         // Optional: set a generation-match precondition to avoid potential race
         // conditions and data corruptions. The request returns a 412 error if the
         // preconditions are not met.
         Storage.BlobWriteOption precondition;
-        if (this.storage.get(this.bucketName, key) == null) {
+        if (this.storage.get(this.bucketName, blobKey) == null) {
           // For a target object that does not yet exist, set the DoesNotExist precondition.
           // This will cause the request to fail if the object is created before the request runs.
           precondition = Storage.BlobWriteOption.doesNotExist();
@@ -57,9 +60,16 @@ public class GCPDataCache implements DataCache {
           // changes before the request runs.
           precondition =
               Storage.BlobWriteOption.generationMatch(
-                  this.storage.get(this.bucketName, key).getGeneration());
+                  this.storage.get(this.bucketName, blobKey).getGeneration());
         }
         this.storage.createFrom(blobInfo, new FileInputStream(file), precondition);
     }
     
+    private String getBlobKey(final String key) {
+        if (prefix == null || prefix.isEmpty()) {
+            return key;
+        } else {
+            return String.format("%s/%s", prefix, key);
+        }
+    }
 }

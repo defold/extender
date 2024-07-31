@@ -41,7 +41,6 @@ targetCompatibility = '17'
 
 dependencyManagement {
     imports {
-        mavenBom 'com.google.cloud:libraries-bom:26.42.0'
         mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.5.0'
     }
 }
