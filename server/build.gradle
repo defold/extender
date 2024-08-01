@@ -41,7 +41,6 @@ targetCompatibility = '17'
 
 dependencyManagement {
     imports {
-        mavenBom 'com.amazonaws:aws-java-sdk-bom:1.12.748'
         mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.5.0'
     }
 }
@@ -54,7 +53,7 @@ dependencies {
     implementation('com.googlecode.json-simple:json-simple:1.1.1') {
         exclude module: 'junit'
     }
-    implementation('com.amazonaws:aws-java-sdk-s3:1.12.748')
+
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.guava:guava:33.2.1-jre')
     implementation('com.samskivert:jmustache:1.15')

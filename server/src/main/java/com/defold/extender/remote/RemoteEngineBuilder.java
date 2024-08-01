@@ -1,6 +1,5 @@
 package com.defold.extender.remote;
 
-import com.amazonaws.util.IOUtils;
 import com.defold.extender.BuilderConstants;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
@@ -9,6 +8,7 @@ import com.defold.extender.Timer;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
