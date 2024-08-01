@@ -6,7 +6,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--management.metrics.tags.instance=frontend-local"]
     expose:
       - "9000"
     ports:
@@ -29,6 +29,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=linux-local"]
     profiles:
       - all
       - linux
@@ -41,7 +42,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android", "--management.metrics.tags.instance=android_ndk25-local"]
     profiles:
       - all
       - android
@@ -54,6 +55,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=emsdk-2011-local"]
     profiles:
       - all
       - web
@@ -66,6 +68,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=emsdk-3155-local"]
     profiles:
       - all
       - web
@@ -78,6 +81,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=nssdk-1532-local"]
     profiles:
       - all
       - consoles
@@ -91,6 +95,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=nssdk-1753-local"]
     profiles:
       - all
       - consoles
@@ -104,6 +109,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=ps4-11000-local"]
     profiles:
       - all
       - consoles
@@ -117,6 +123,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=ps4-10500-local"]
     profiles:
       - all
       - consoles
@@ -130,6 +137,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=ps5-8000-local"]
     profiles:
       - all
       - consoles
@@ -143,6 +151,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=winsdk-2019-local"]
     profiles:
       - all
       - windows
@@ -155,6 +164,7 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
+    command: ["--management.metrics.tags.instance=winsdk-2022-local"]
     profiles:
       - all
       - windows
@@ -269,3 +279,31 @@ services:
       default:
         aliases:
           - frontend
+# metrics
+  grafana:
+    image: grafana/grafana
+    ports:
+      - 3000:3000/tcp
+    expose:
+      - 3000
+    volumes:
+      - ./grafana-data:/var/lib/grafana
+    profiles:
+      - metrics
+    networks:
+      default:
+        aliases:
+          - grafana
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics
+    ports:
+      - 8428:8428
+    volumes:
+      - ./victoria-metrics-data:/victoria-metrics-data
+    profiles:
+      - metrics
+    networks:
+      default:
+        aliases:
+          - victoriametrics

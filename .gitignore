@@ -40,3 +40,5 @@ server/manifestmergetool/app/*
 server/manifestmergetool/bin/*
 
 .vscode/*
+/server/docker/victoria-metrics-data/*
+/server/docker/grafana-data/*

@@ -76,6 +76,7 @@ where *profile* can be:
 * **consoles** - runs frontend instance + remote instances to build Nintendo Switch/PS4/PS5 versions
 * **nintendo** - runs frontend instance + remote instances to build Nintendo Switch version
 * **playstation** - runs frontend instance + remote instances to build PS4/PS5 versions
+* **metrics** - runs VictoriaMetrics + Grafana as metrics backend and tool for visualization
 
 Several profiles can be passed to command line. For example:
 ```sh
