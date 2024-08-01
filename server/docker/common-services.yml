@@ -1,0 +1,28 @@
+services:
+  test_builder:
+    platform: linux/amd64
+    volumes:
+      - ./../app/:/app/:ro
+      - ./../configs:/etc/defold/extender:ro
+      - ./../test-data/sdk:/var/extender/sdk
+    entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
+    environment:
+      - EXAMPLE_VAR=1
+  common_builder:
+    platform: linux/amd64
+    volumes:
+      - ./../app/:/app/:ro
+      - ./../manifestmergetool/app/manifestmergetool.jar:/etc/extender/apps/manifestmergetool.jar:ro
+      - ./../configs:/etc/defold/extender:ro
+    entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
+    environment:
+      - EXAMPLE_VAR=1
+      # - DM_DEBUG_COMMANDS=1
+      # - DM_DEBUG_KEEP_JOB_FOLDER=1
+      # - DYNAMO_HOME=/dynamo_home
+  remote_builder:
+    extends: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev"]
+  test_remote_builder:
+    extends: test_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev"]

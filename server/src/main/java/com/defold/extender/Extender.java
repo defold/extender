@@ -7,6 +7,7 @@ import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
@@ -21,7 +22,6 @@ import java.nio.file.Files;
 import java.util.Map;
 import java.util.List;
 import java.util.AbstractMap;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -32,9 +32,7 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import com.defold.extender.FrameworkUtil;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.CocoaPodsService.PodSpec;
@@ -346,7 +344,7 @@ class Extender {
         }
 
         try {
-            return new Yaml(new ExtenderYamlSafeConstructor()).loadAs(yaml, type);
+            return new Yaml(new ExtenderYamlSafeConstructor(new LoaderOptions())).loadAs(yaml, type);
         } catch(YAMLException e) {
             throw new ExtenderException(String.format("%s:1: error: %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
         }

@@ -153,7 +153,7 @@ function install_dotnet() {
 
     local DOTNET=${DOTNET_ROOT}/dotnet
 
-    DOTNET_VERSION=$(${DOTNET} --info | python -c "import sys; lns = sys.stdin.readlines(); i = lns.index('Host:\n'); print(lns[i+1].strip().split()[1])")
+    DOTNET_VERSION=$(${DOTNET} --info | grep -A 1 'Host' | grep 'Version' | awk '{print $NF}')
     echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
 
     echo "[setup] Using dotnet:" ${DOTNET} " version:" $(${DOTNET} --version) "  sdk:" ${DOTNET_VERSION}

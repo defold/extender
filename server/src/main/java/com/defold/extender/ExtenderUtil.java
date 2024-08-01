@@ -2,6 +2,8 @@ package com.defold.extender;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,18 +14,21 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
-
 import java.lang.reflect.Field;
 
 import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import org.springframework.core.io.Resource;
 
 public class ExtenderUtil
 {
@@ -746,4 +751,16 @@ public class ExtenderUtil
         return null;
     }
 
+    public static String readContentFromResource(Resource inputSource) throws IOException {
+        InputStream resource = inputSource.getInputStream();
+        return new String(resource.readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    // return a list of two string: platform name like "emsdk" and platform version like "3155"
+    @SuppressWarnings("unchecked")
+    public static String[] getSdksForPlatform(String platform, String mappings) throws ParseException {
+        JSONParser parser = new JSONParser();
+        JSONObject obj = (JSONObject) parser.parse(mappings);
+        return ((List<String>) obj.get(platform)).toArray(new String[2]);
+    }
 }

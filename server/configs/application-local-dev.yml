@@ -1,0 +1,10 @@
+extender:
+    # sdk.location: /usr/local/extender/sdk
+    cache:
+        enabled: true
+        local.basedir: /var/extender/cache/data
+        type: LOCAL
+
+    job-result:
+        location: /var/extender/results
+        cleanup-period: 20000
