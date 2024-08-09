@@ -106,7 +106,7 @@ public class RemoteEngineBuilder {
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
-                        File jobDirectory, File uploadDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
+                        File jobDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
 
         LOGGER.info("Building engine remotely at {}", remoteBuilderUrl);
         String jobName = jobDirectory.getName();
@@ -191,16 +191,6 @@ public class RemoteEngineBuilder {
             writer.close();
         } finally {
             metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
-            // Delete temporary upload directory
-            if (!keepJobDirectory) {
-                LOGGER.info("Deleting job directory");
-                if (!FileUtils.deleteQuietly(jobDirectory)) {
-                    LOGGER.warn("Failed to delete job directory");
-                }
-            }
-            else {
-                LOGGER.info("Keeping job directory due to debug flags");
-            }
         }
     }
 

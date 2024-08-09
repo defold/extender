@@ -345,7 +345,7 @@ public class ExtenderController {
             if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                 LOGGER.info("Building engine on remote builder");
                 String remoteUrl = getRemoteBuilderUrl(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory, metricsWriter);
+                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
             } else {
                 asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
             }
