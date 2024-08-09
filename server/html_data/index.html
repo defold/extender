@@ -89,8 +89,8 @@
     }
     function handleResponse(response, rootId) {
         var totalFullyOperatedPlatforms, totalUnreachablePlatforms = 0;
-        var parent_block_1 = $("rootId").find("#list-1");
-        var parent_block_2 = $("rootId").find("#list-2");
+        var parent_block_1 = $(rootId).find("#list-1");
+        var parent_block_2 = $(rootId).find("#list-2");
         var idx = 0;
         for (var key in response) {
             addBlock(key, response[key], idx % 2 == 0 ? parent_block_1 : parent_block_2);
@@ -102,14 +102,14 @@
             idx++;
         }
         if (totalUnreachablePlatforms == idx) {
-            $("rootId").find("#statusPanel").addClass("panel-danger");
-            $("rootId").find("#statusTitle").text(UnreachableStatus);
+            $(rootId).find("#statusPanel").addClass("panel-danger");
+            $(rootId).find("#statusTitle").text(UnreachableStatus);
         } else if (totalFullyOperatedPlatforms == idx) {
-            $("rootId").find("#statusPanel").addClass("panel-success");
-            $("rootId").find("#statusTitle").text(OperationalStatus);
+            $(rootId).find("#statusPanel").addClass("panel-success");
+            $(rootId).find("#statusTitle").text(OperationalStatus);
         } else {
-            $("rootId").find("#statusPanel").addClass("panel-warning");
-            $("rootId").find("#statusTitle").text(NotFullyOperationalStatus);
+            $(rootId).find("#statusPanel").addClass("panel-warning");
+            $(rootId).find("#statusTitle").text(NotFullyOperationalStatus);
         }
     }
     function handleError(err, rootId) {
@@ -120,7 +120,7 @@
     var r = new XMLHttpRequest();
     r.open("GET", "https://build-stage.defold.com/health_report");
     r.onload = function(response) {
-        handleResponse(response, "#stage");
+        handleResponse(JSON.parse(response.target.responseText), "#stage");
     }
     r.onerror = function(err) {
         handleError(err, "#stage");
@@ -130,7 +130,7 @@
     var r = new XMLHttpRequest();
     r.open("GET", "https://build.defold.com/health_report");
     r.onload = function(response) {
-        handleResponse(response, "#prod");
+        handleResponse(JSON.parse(response.target.responseText), "#prod");
     }
     r.onerror = function(err) {
         handleError(err, "#prod");
