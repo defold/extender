@@ -447,6 +447,7 @@ public class ExtenderController {
 
     @GetMapping(path= "/health_report", produces="application/json")
     @ResponseBody
+    @CrossOrigin
     public String getHealthReport() {
         return healthReporter.collectHealthReport(remoteBuilderEnabled, remoteBuilderPlatformMappings);
     }
