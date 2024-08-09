@@ -106,7 +106,7 @@ public class RemoteEngineBuilder {
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
-                        File jobDirectory, File uploadDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
+                        File jobDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
 
         LOGGER.info("Building engine remotely at {}", remoteBuilderUrl);
         String jobName = jobDirectory.getName();
