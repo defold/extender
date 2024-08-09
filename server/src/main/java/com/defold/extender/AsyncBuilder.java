@@ -139,22 +139,7 @@ public class AsyncBuilder {
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion), e);
             isSuccefull = false;
         } finally {
-            // Regardless of success/fail status, we want to cache the uploaded files
-            long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
-            metricsWriter.measureCacheUpload(totalUploadSize);
             metricsWriter.measureCounterBuild(platform, sdkVersion, "async", isSuccefull);
-
-            // Delete temporary upload directory
-            if (!keepJobDirectory) {
-                LOGGER.info("Deleting job directory");
-                if (!FileUtils.deleteQuietly(jobDirectory)) {
-                    LOGGER.warn("Failed to delete job directory");
-                }
-            }
-            else {
-                LOGGER.info("Keeping job directory due to debug flags");
-            }
-
             LOGGER.info("Job done");
         }
     }
