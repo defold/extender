@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+</head>
+<link href="https://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+<script src="https://code.jquery.com/jquery.min.js"></script>
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>Extender Status Page</h1>
+        </div>
+    </div>
+    <div class="row clearfix">
+        <div id="stage" class="col-md-12 column">
+            <h2 class="panel-title">Stage server</h2> 
+            <div id="statusPanel" class="panel">
+                <div class="panel-heading">
+                    <h3 id="statusTitle" class="panel-title">
+                        <!-- Not All Systems Operational -->
+                    </h3>
+                </div>
+            </div>
+            <div class="row clearfix">
+                <div class="col-md-6 column">
+                    <div id="list-1" class="list-group"></div>
+                </div>
+                <div class="col-md-6 column">
+                    <div id="list-2" class="list-group"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="prod" class="col-md-12 column">
+            <h2 class="panel-title">Production server</h2> 
+            <div id="statusPanel" class="panel">
+                <div class="panel-heading">
+                    <h3 id="statusTitle" class="panel-title">
+                        <!-- Not All Systems Operational -->
+                    </h3>
+                </div>
+            </div>
+            <div class="row clearfix">
+                <div class="col-md-6 column">
+                    <div id="list-1" class="list-group"></div>
+                </div>
+                <div class="col-md-6 column">
+                    <div id="list-2" class="list-group"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+<script type="text/javascript">
+    const OperationalStatus = "Operational";
+    const UnreachableStatus = "Unreachable";
+    const NotFullyOperationalStatus = "NotFullyOperational";
+    function addBlock(id, status, parent_block) {
+        var top_block = $("<div/>");
+        top_block.addClass("list-group-item");
+        
+        var heading = $("<h4/>");
+        heading.addClass("list-group-item-heading");
+        heading.text(id);
+        heading.appendTo(top_block);
+        
+        var status_block = $("<p/>");
+        status_block.addClass("list-group-item-text");
+        
+        var inner_span = $("<span/>");
+        inner_span.addClass("label");
+        if (status == OperationalStatus) {
+            inner_span.addClass("label-success");
+        } else if (status == UnreachableStatus) {
+            inner_span.addClass("label-danger");
+        } else {
+            inner_span.addClass("label-warning");
+        }
+        inner_span.text(status);
+        
+        inner_span.appendTo(top_block);
+        
+        top_block.appendTo(parent_block);
+    }
+    function handleResponse(response, rootId) {
+        var totalFullyOperatedPlatforms, totalUnreachablePlatforms = 0;
+        var parent_block_1 = $("rootId").find("#list-1");
+        var parent_block_2 = $("rootId").find("#list-2");
+        var idx = 0;
+        for (var key in response) {
+            addBlock(key, response[key], idx % 2 == 0 ? parent_block_1 : parent_block_2);
+            if (response[key] == OperationalStatus) {
+                totalFullyOperatedPlatforms++;
+            } else if (response[key] == UnreachableStatus) {
+                totalUnreachablePlatforms++;
+            }
+            idx++;
+        }
+        if (totalUnreachablePlatforms == idx) {
+            $("rootId").find("#statusPanel").addClass("panel-danger");
+            $("rootId").find("#statusTitle").text(UnreachableStatus);
+        } else if (totalFullyOperatedPlatforms == idx) {
+            $("rootId").find("#statusPanel").addClass("panel-success");
+            $("rootId").find("#statusTitle").text(OperationalStatus);
+        } else {
+            $("rootId").find("#statusPanel").addClass("panel-warning");
+            $("rootId").find("#statusTitle").text(NotFullyOperationalStatus);
+        }
+    }
+    function handleError(err, rootId) {
+        $(rootId).find("#statusPanel").addClass("panel-danger");
+        $(rootId).find("#statusTitle").text(UnreachableStatus);
+    }
+
+    var r = new XMLHttpRequest();
+    r.open("GET", "https://build-stage.defold.com/health_report");
+    r.onload = function(response) {
+        handleResponse(response, "#stage");
+    }
+    r.onerror = function(err) {
+        handleError(err, "#stage");
+    }
+    r.send(null);
+
+    var r = new XMLHttpRequest();
+    r.open("GET", "https://build.defold.com/health_report");
+    r.onload = function(response) {
+        handleResponse(response, "#prod");
+    }
+    r.onerror = function(err) {
+        handleError(err, "#prod");
+    }
+    r.send(null);
+</script>
+</html>
