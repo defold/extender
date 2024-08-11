@@ -6,8 +6,10 @@ import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.HealthReporterService;
 import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.UserUpdateService;
+
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.fileupload2.core.FileUploadException;
 import org.apache.commons.fileupload2.jakarta.JakartaServletFileUpload;
@@ -43,6 +45,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
 @RestController
 public class ExtenderController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
@@ -59,6 +62,7 @@ public class ExtenderController {
     private final MeterRegistry meterRegistry;
     private final UserUpdateService userUpdateService;
     private final AsyncBuilder asyncBuilder;
+    private final HealthReporterService healthReporter;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
     private Map<String, String> remoteBuilderPlatformMappings;
@@ -98,6 +102,7 @@ public class ExtenderController {
                               AsyncBuilder asyncBuilder,
                               RemoteEngineBuilder remoteEngineBuilder,
                               RemoteHostConfiguration remoteHostConfiguration,
+                              HealthReporterService healthReporter,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${spring.servlet.multipart.max-request-size}") String maxPackageSize,
                               @Value("${extender.job-result.location}") String jobResultLocation) {
@@ -107,6 +112,7 @@ public class ExtenderController {
         this.cocoaPodsService = cocoaPodsService;
         this.meterRegistry = meterRegistry;
         this.userUpdateService = userUpdateService;
+        this.healthReporter = healthReporter;
 
         this.remoteEngineBuilder = remoteEngineBuilder;
         this.remoteBuilderEnabled = remoteBuilderEnabled;
@@ -339,7 +345,7 @@ public class ExtenderController {
             if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                 LOGGER.info("Building engine on remote builder");
                 String remoteUrl = getRemoteBuilderUrl(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory, metricsWriter);
+                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
             } else {
                 asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
             }
@@ -437,6 +443,13 @@ public class ExtenderController {
             }
         }
         return null;
+    }
+
+    @GetMapping(path= "/health_report", produces="application/json")
+    @ResponseBody
+    @CrossOrigin
+    public String getHealthReport() {
+        return healthReporter.collectHealthReport(remoteBuilderEnabled, remoteBuilderPlatformMappings);
     }
 
     static private boolean isRelativePath(File parent, File file) throws IOException {

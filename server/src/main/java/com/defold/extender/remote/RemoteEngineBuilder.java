@@ -5,8 +5,6 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.Timer;
 
-import io.micrometer.core.instrument.MeterRegistry;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
@@ -108,7 +106,7 @@ public class RemoteEngineBuilder {
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
-                        File jobDirectory, File uploadDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
+                        File jobDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
 
         LOGGER.info("Building engine remotely at {}", remoteBuilderUrl);
         String jobName = jobDirectory.getName();
