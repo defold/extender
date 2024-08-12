@@ -6,15 +6,19 @@ import java.util.Map;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class HealthReporterService {
+
+    @Value("${extender.health-reporter.connection-timeout:1500}") int connectionTimeout;
     public enum OperationalStatus {
         Unreachable,
         NotFullyOperational,
@@ -31,7 +35,11 @@ public class HealthReporterService {
             Map<String, OperationalStatus> platformOperationalStatus = new HashMap<>();
             JSONObject result = new JSONObject();
             JSONParser parser = new JSONParser();
-            final HttpClient client  = HttpClientBuilder.create().build();
+            RequestConfig config = RequestConfig.custom()
+                .setConnectTimeout(connectionTimeout)
+                .setConnectionRequestTimeout(connectionTimeout)
+                .setSocketTimeout(connectionTimeout).build();
+            final HttpClient client  = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
             for (Map.Entry<String, String> entry : remoteBuilderPlatformMappings.entrySet()) {
                 final String healthUrl = String.format("%s/health_report", entry.getValue());
                 final HttpGet request = new HttpGet(healthUrl);
