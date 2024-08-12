@@ -19,8 +19,10 @@ if [ "$USE_ANDROID" = true ] ; then
 	#
 	export ANDROID_BUILD_TOOLS_VERSION=32.0.0
 	export ANDROID_BUILD_TOOLS_VERSION_33=33.0.1
+	export ANDROID_BUILD_TOOLS_VERSION_34=34.0.0
 	export ANDROID_SDK_VERSION=31
 	export ANDROID_SDK_VERSION_33=33
+	export ANDROID_SDK_VERSION_34=34
 
 	# ANDROID_HOME = Sets the path to the SDK installation directory
 	export ANDROID_HOME=${ANDROID_ROOT}/sdk
@@ -29,16 +31,16 @@ if [ "$USE_ANDROID" = true ] ; then
 	export ANDROID_USER_HOME=${HOME}/.android
 	export ANDROID_SDK_BUILD_TOOLS_PATH=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 	export ANDROID_SDK_BUILD_TOOLS_PATH_33=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_33}
+	export ANDROID_SDK_BUILD_TOOLS_PATH_34=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34}
 	export ANDROID_LIBRARYJAR_33=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_33}/android.jar
+	export ANDROID_LIBRARYJAR_34=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_34}/android.jar
 
 	export PATH=${PATH}:${ANDROID_HOME}/tools
 	export PATH=${PATH}:${ANDROID_HOME}/platform-tools
 	export PATH=${PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
 	# There seems to be an issue on macOS when trying to modify the PATH from a ProcessBuilder
 	# Anything added to the path seems to be completely ignored. We rely on this to work since
-	# we add ANDROID_SDK_BUILD_TOOLS_PATH_33 to beginning of the path in build.yml so that we
 	# can override the ANDROID_SDK_BUILD_TOOLS_PATH set above.
-	export PATH=${ANDROID_SDK_BUILD_TOOLS_PATH_33}:${PATH}
 
 	#
 	# NDK SETUP
