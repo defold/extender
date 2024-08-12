@@ -1,4 +1,4 @@
-FROM europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.2.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.2.0
 
 # Installation notes: https://wiki.winehq.org/Ubuntu
 # TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu

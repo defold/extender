@@ -9,7 +9,7 @@ on:
       - "manifestmergetool-v[0-9]+.[0-9]+.[0-9]+"
 
 env:
-  GOOGLE_ARTIFACT_REGISTRY: europe-north1-docker.pkg.dev
+  GOOGLE_ARTIFACT_REGISTRY: europe-west1-docker.pkg.dev
   MAVEN_SERVICE_ACCOUNT: hip-terrier-registry@extender-426409.iam.gserviceaccount.com
 
 jobs:

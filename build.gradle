@@ -13,7 +13,7 @@ publishing {
  repositories {
     maven {
       name "extenderRepo"
-      url "artifactregistry://europe-north1-maven.pkg.dev/extender-426409/extender-maven/"
+      url "artifactregistry://europe-west1-maven.pkg.dev/extender-426409/extender-maven/"
     }
   }
 }

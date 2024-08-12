@@ -14,7 +14,7 @@ services:
       - ./../app/:/app/:ro
       - ./../manifestmergetool/app/manifestmergetool.jar:/etc/extender/apps/manifestmergetool.jar:ro
       - ./../configs:/etc/defold/extender:ro
-    entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
+    entrypoint: ["java","-Xdebug","-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
     environment:
       - EXAMPLE_VAR=1
       # - DM_DEBUG_COMMANDS=1

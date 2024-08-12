@@ -3,8 +3,8 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-DOCKER_REGISTRY=europe-north1-docker.pkg.dev/extender-426409/extender-public-registry
-DOCKER_PRIVATE_REGISTRY=europe-north1-docker.pkg.dev/extender-426409/extender-private-registry
+DOCKER_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-public-registry
+DOCKER_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-private-registry
 
 # base images
 echo "Base image"

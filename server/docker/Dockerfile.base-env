@@ -85,7 +85,7 @@ RUN \
 
 
 RUN \
-  export DOTNET_VERSION=$(dotnet --info | grep -A 1 'Host' | grep 'Version' | awk '{print $NF}') && \
+  export DOTNET_VERSION=$(${DOTNET_ROOT}/dotnet --info | grep -A 1 'Host' | grep 'Version' | awk '{print $NF}') && \
   echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
 
 # Final cleanup

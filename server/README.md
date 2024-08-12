@@ -19,11 +19,11 @@ Extender instance should run in preconfigured environment (where necessary SDKs,
    ```
 3. Configure Docker to use Artifact registries
    ```sh
-   gcloud auth configure-docker europe-north1-docker.pkg.dev
+   gcloud auth configure-docker europe-west1-docker.pkg.dev
    ```
 4. Check that everything set up correctly by pulling base image. Run
    ```sh
-   docker pull europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
+   docker pull europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
    ```
 
 ## How to build docker images locally
@@ -43,9 +43,9 @@ By default all built images tagged with `latest` version.
 ## How to add new Docker image with new environment
 1. Place new Dockerfile in `server/docker` folder. Docker file should have name in format `Dockerfile.<platform>[.<version>]-env` (version can be optional if Dockerfile contains some common stuff for other images).
 2. Depends on plaform choose right base image (for `FROM` instruction):
-   1. `europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env` for any **Android-based** images
-   2. `europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env` for any **Windows-based** images
-   3. `europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env` for the rest of cases
+   1. `europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env` for any **Android-based** images
+   2. `europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env` for any **Windows-based** images
+   3. `europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env` for the rest of cases
 3. Set exact version of base image in `FROM` instruction.
 4. Add appropriate command to `server/build-docker.sh` script.
 5. Run `server/build-docker.sh` and check that everything is built correctly.
@@ -142,7 +142,7 @@ As an example show stepp on Android NDK25 Docker image.
    ```
    or single docker build command 
    ```sh
-   DM_PACKAGES_URL=<URL_TO_PACKAGES> docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t europe-north1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:latest -f ./server/docker/Dockerfile.android-env ./server/docker
+   DM_PACKAGES_URL=<URL_TO_PACKAGES> docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:latest -f ./server/docker/Dockerfile.android-env ./server/docker
    ```
 3. Create new git tag according to name convention:
    `<platform>[.<sdk_version>]-<version>`
