@@ -40,7 +40,9 @@ if [ "$USE_ANDROID" = true ] ; then
 	export PATH=${PATH}:${ANDROID_SDK_BUILD_TOOLS_PATH}
 	# There seems to be an issue on macOS when trying to modify the PATH from a ProcessBuilder
 	# Anything added to the path seems to be completely ignored. We rely on this to work since
+	# we add ANDROID_SDK_BUILD_TOOLS_PATH_34 to beginning of the path in build.yml so that we
 	# can override the ANDROID_SDK_BUILD_TOOLS_PATH set above.
+	export PATH=${ANDROID_SDK_BUILD_TOOLS_PATH_34}:${PATH}
 
 	#
 	# NDK SETUP
