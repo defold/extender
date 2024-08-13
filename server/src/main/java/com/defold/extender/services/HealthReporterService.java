@@ -15,6 +15,8 @@ import org.json.simple.parser.JSONParser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.defold.extender.remote.RemoteInstanceConfig;
+
 @Service
 public class HealthReporterService {
 
@@ -29,7 +31,7 @@ public class HealthReporterService {
     }
 
     @SuppressWarnings("unchecked")
-    public String collectHealthReport(boolean isRemoteBuildEnabled, Map<String, String> remoteBuilderPlatformMappings) {
+    public String collectHealthReport(boolean isRemoteBuildEnabled, Map<String, RemoteInstanceConfig> remoteBuilderPlatformMappings) {
         if (isRemoteBuildEnabled) {
             // we collect information by platform. If one of the builder is unreachable - set
             Map<String, OperationalStatus> platformOperationalStatus = new HashMap<>();
@@ -40,8 +42,8 @@ public class HealthReporterService {
                 .setConnectionRequestTimeout(connectionTimeout)
                 .setSocketTimeout(connectionTimeout).build();
             final HttpClient client  = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
-            for (Map.Entry<String, String> entry : remoteBuilderPlatformMappings.entrySet()) {
-                final String healthUrl = String.format("%s/health_report", entry.getValue());
+            for (Map.Entry<String, RemoteInstanceConfig> entry : remoteBuilderPlatformMappings.entrySet()) {
+                final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
                 final HttpGet request = new HttpGet(healthUrl);
                 String platform = getPlatform(entry.getKey());
                 try {
