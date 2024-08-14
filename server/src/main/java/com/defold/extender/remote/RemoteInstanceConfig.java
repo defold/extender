@@ -2,26 +2,24 @@ package com.defold.extender.remote;
 
 public class RemoteInstanceConfig {
     private String url;
-    private String instance;
+    private String instanceId;
+    private boolean alwaysOn;
 
-    public RemoteInstanceConfig(String id, String url) {
-        this.instance = id;
+    public RemoteInstanceConfig(String url, String instanceId, boolean alwaysOn) {
         this.url = url;
+        this.instanceId = instanceId;
+        this.alwaysOn = alwaysOn;
     }
 
     public String getUrl() {
         return url;
     }
 
-    public String getInstance() {
-        return instance;
+    public String getInstanceId() {
+        return instanceId;
     }
 
-    public void setInstance(String instance) {
-        this.instance = instance;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
+    public boolean getAlwaysOn() {
+        return alwaysOn;
     }
 }

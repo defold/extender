@@ -1,7 +1,6 @@
 package com.defold.extender.remote;
 
 import com.defold.extender.ExtenderException;
-import com.defold.extender.services.GCPInstanceService;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
@@ -26,7 +25,7 @@ import static org.mockito.Mockito.spy;
 public class RemoteEngineBuilderTest {
 
     private RemoteEngineBuilder remoteEngineBuilder;
-    final RemoteInstanceConfig remoteBuilderConfig = new RemoteInstanceConfig("osx-latest", "https://test.darwin-build.defold.com");
+    final RemoteInstanceConfig remoteBuilderConfig = new RemoteInstanceConfig("https://test.darwin-build.defold.com", "osx-latest", true);
 
     @Before
     public void setUp() throws IOException {

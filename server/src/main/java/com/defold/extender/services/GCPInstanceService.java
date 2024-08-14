@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import com.google.cloud.compute.v1.InstancesClient;
 import com.google.cloud.compute.v1.Operation;
 import com.defold.extender.remote.RemoteHostConfiguration;
+import com.defold.extender.remote.RemoteInstanceConfig;
 import com.defold.extender.services.data.GCPInstanceState;
 import com.google.cloud.compute.v1.Instance.Status;
 
@@ -29,7 +30,7 @@ public class GCPInstanceService {
     private InstancesClient instancesClient = null;
     @Value("${extender.gcp.controller.project_id}") private String projectId;
     @Value("${extender.gcp.controller.zone}") private String computeZone;
-    @Value("${extender.gcp.controller.wait-timeout:30000}") private long operationWaitTimeout;
+    @Value("${extender.gcp.controller.wait-timeout:45000}") private long operationWaitTimeout;
     @Value("${extender.gcp.controller.retry-attempts:3}") private int retryAttempts;
     @Value("${extender.gcp.controller.retry-timeout:10000}") private long retryTimeout;
     @Value("${extender.gcp.controller.time-before-suspend:1800000}") private long timeBeforeSuspend;
@@ -39,6 +40,11 @@ public class GCPInstanceService {
 
     public GCPInstanceService(RemoteHostConfiguration remoteHostConfiguration) throws IOException{
         instancesClient = InstancesClient.create();
+        for (Map.Entry<String, RemoteInstanceConfig> entry : remoteHostConfiguration.getPlatforms().entrySet()) {
+            if (!entry.getValue().getAlwaysOn()) {
+                instanceState.put(entry.getValue().getInstanceId(), new GCPInstanceState());
+            }
+        }
     }
 
     private void suspendInstance(final String instanceId) throws InterruptedException, ExecutionException, TimeoutException {
@@ -84,6 +90,10 @@ public class GCPInstanceService {
     }
 
     public void touchInstance(String instanceId) throws InterruptedException, ExecutionException, TimeoutException {
+        // if we instance was marked as alwaysOn we skip adding it during initialization
+        if (!instanceState.containsKey(instanceId)) {
+            return;
+        }
         // update last touched time to prevent suspending
         instanceState.get(instanceId).lastTimeTouched = System.currentTimeMillis();
         String instanceStatus = getInstanceStatus(instanceId);

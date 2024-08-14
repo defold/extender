@@ -85,10 +85,10 @@ public class RemoteEngineBuilder {
 
 
         try {
-            touchInstance(remoteInstanceConfig.getInstance());
+            touchInstance(remoteInstanceConfig.getInstanceId());
             final HttpResponse response = sendRequest(remoteInstanceConfig.getUrl(), platform, sdkVersion, httpEntity);
 
-            touchInstance(remoteInstanceConfig.getInstance());
+            touchInstance(remoteInstanceConfig.getInstanceId());
             LOGGER.info("Remote builder response status: {}", response.getStatusLine());
 
             if (isClientError(response)) {
@@ -137,7 +137,7 @@ public class RemoteEngineBuilder {
     
             final HttpClient client  = HttpClientBuilder.create().build();
     
-            touchInstance(remoteInstanceConfig.getInstance());
+            touchInstance(remoteInstanceConfig.getInstanceId());
             HttpResponse response = client.execute(request);
             // copied from ExtenderClient. Think about code deduplication.
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
@@ -147,7 +147,7 @@ public class RemoteEngineBuilder {
                 Integer jobStatus = 0;
                 Thread.sleep(buildSleepTimeout);
                 while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
-                    touchInstance(remoteInstanceConfig.getInstance());
+                    touchInstance(remoteInstanceConfig.getInstanceId());
                     HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
                     response = client.execute(statusRequest);
                     jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
@@ -163,7 +163,7 @@ public class RemoteEngineBuilder {
                     writer.write(String.format("Job %s result cannot be defined during %d", jobId, buildResultWaitTimeout));
                     writer.close();
                 }
-                touchInstance(remoteInstanceConfig.getInstance());
+                touchInstance(remoteInstanceConfig.getInstanceId());
                 HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
                 response = client.execute(resultRequest);
                 LOGGER.info(String.format("Job %s result got.", jobId));
@@ -256,7 +256,7 @@ public class RemoteEngineBuilder {
             try {
                 instanceService.touchInstance(instanceId);
             } catch(Exception exc) {
-
+                LOGGER.error(String.format("Exception during touch instance '%s'", instanceId), exc);
             }
         }
     }
