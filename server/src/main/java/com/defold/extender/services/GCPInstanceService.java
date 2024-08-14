@@ -48,6 +48,7 @@ public class GCPInstanceService {
     }
 
     private void suspendInstance(final String instanceId) throws InterruptedException, ExecutionException, TimeoutException {
+        LOGGER.info(String.format("Try suspend VM '%s'", instanceId));
         int attemptCount = 0;
         while (true) {
             Operation response = instancesClient.suspendAsync(projectId, computeZone, instanceId).get(operationWaitTimeout, TimeUnit.MILLISECONDS);
@@ -65,7 +66,8 @@ public class GCPInstanceService {
         }
     }
 
-    public void resumeInstance(String instanceId) throws InterruptedException, ExecutionException, TimeoutException {
+    private void resumeInstance(String instanceId) throws InterruptedException, ExecutionException, TimeoutException {
+        LOGGER.info(String.format("Try resume VM '%s'", instanceId));
         int attemptCount = 0;
         while (true) {
             Operation response = instancesClient.resumeAsync(projectId, computeZone, instanceId).get(operationWaitTimeout, TimeUnit.MILLISECONDS);
@@ -119,7 +121,6 @@ public class GCPInstanceService {
                     } catch(ExecutionException exc) {
                         LOGGER.error(String.format("Suspend '%s' failed.", entry.getKey()), exc);
                     }
-
             }
         }
     }
