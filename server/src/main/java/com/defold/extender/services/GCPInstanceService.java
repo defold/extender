@@ -13,15 +13,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.google.cloud.compute.v1.InstancesClient;
+import com.google.cloud.compute.v1.InstancesSettings;
 import com.google.cloud.compute.v1.Operation;
 import com.defold.extender.remote.RemoteHostConfiguration;
 import com.defold.extender.remote.RemoteInstanceConfig;
 import com.defold.extender.services.data.GCPInstanceState;
+import com.google.api.gax.core.InstantiatingExecutorProvider;
 import com.google.cloud.compute.v1.Instance.Status;
 
 @Service
+@RestController
 @ConditionalOnProperty(prefix = "extender", name = "gcp.controller.enabled", havingValue = "true")
 public class GCPInstanceService {
 
@@ -35,11 +40,20 @@ public class GCPInstanceService {
     @Value("${extender.gcp.controller.retry-timeout:10000}") private long retryTimeout;
     @Value("${extender.gcp.controller.time-before-suspend:1800000}") private long timeBeforeSuspend;
     @Value("${extender.gcp.controller.wait-startup-time:10000}") private long waitStartupTime;
+    @Value("${extender.gcp.controller.gax-max-thread-count:10}") private int gaxMaxThreadCount;
 
     private Map<String, GCPInstanceState> instanceState = new HashMap<>();
 
     public GCPInstanceService(RemoteHostConfiguration remoteHostConfiguration) throws IOException{
-        instancesClient = InstancesClient.create();
+        // we need limit thread count because by default gax can create up to 200 thread
+        // see more details here https://github.com/googleapis/sdk-platform-java/blob/7c32859f82f7c6ebe95b9a3461e96d8653c79a0b/gax-java/gax/src/main/java/com/google/api/gax/core/InstantiatingExecutorProvider.java
+        InstantiatingExecutorProvider executor = InstantiatingExecutorProvider.newBuilder()
+            .setExecutorThreadCount(gaxMaxThreadCount)
+            .build();
+        InstancesSettings settings = InstancesSettings.newBuilder()
+            .setExecutorProvider(executor)
+            .build();
+        instancesClient = InstancesClient.create(settings);
         for (Map.Entry<String, RemoteInstanceConfig> entry : remoteHostConfiguration.getPlatforms().entrySet()) {
             if (!entry.getValue().getAlwaysOn()) {
                 instanceState.put(entry.getValue().getInstanceId(), new GCPInstanceState());
@@ -121,6 +135,21 @@ public class GCPInstanceService {
                     } catch(ExecutionException exc) {
                         LOGGER.error(String.format("Suspend '%s' failed.", entry.getKey()), exc);
                     }
+            }
+        }
+    }
+
+
+    // inner endpoint used to make necessary changes before starting instance update
+    @ConditionalOnProperty(prefix = "extender", name = "gcp.controller.enabled", havingValue = "true")
+    @PostMapping("/maintance_mode")
+    public void postMethodName() {
+        LOGGER.info("Set maintance mode");
+        for (Map.Entry<String, GCPInstanceState> entry : instanceState.entrySet()) {
+            try {
+                touchInstance(entry.getKey());
+            } catch (Exception exc) {
+                LOGGER.error(String.format("Exception during touch instance '%s'", entry.getKey()), exc);
             }
         }
     }
