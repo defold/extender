@@ -141,10 +141,9 @@ public class GCPInstanceService {
 
 
     // inner endpoint used to make necessary changes before starting instance update
-    @ConditionalOnProperty(prefix = "extender", name = "gcp.controller.enabled", havingValue = "true")
-    @PostMapping("/maintance_mode")
-    public void postMethodName() {
-        LOGGER.info("Set maintance mode");
+    @PostMapping("/maintenance_mode")
+    public void maintenanceMode() {
+        LOGGER.info("Set maintenance mode");
         for (Map.Entry<String, GCPInstanceState> entry : instanceState.entrySet()) {
             try {
                 touchInstance(entry.getKey());
