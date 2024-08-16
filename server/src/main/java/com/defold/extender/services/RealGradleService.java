@@ -103,7 +103,7 @@ public class RealGradleService implements GradleServiceInterface {
         File localPropertiesFile = new File(cwd, "local.properties");
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
-        return downloadDependencies(cwd, useJetifier);
+        return downloadDependencies(cwd);
     }
 
     @Override
@@ -206,27 +206,20 @@ public class RealGradleService implements GradleServiceInterface {
         return dependencies;
     }
 
-    private File resolveDependencyAAR(File dependency, String name, File jobDir, Boolean useJetifier) throws IOException, ExtenderException {
+    private File resolveDependencyAAR(File dependency, String name, File jobDir) throws IOException {
         File unpackedTarget = new File(baseDirectory, name);
         if (unpackedTarget.exists()) {
             return unpackedTarget;
         }
 
         // use job folder as tmp location
-        File unpackSource = null;
-        if (useJetifier){
-            unpackSource = new File(jobDir, dependency.getName() + ".jetifier.tmp");
-            runJetifier(dependency, unpackSource);
-        } else {
-            unpackSource = dependency;
-        }
         File unpackedTmp = new File(jobDir, dependency.getName() + ".tmp");
-        ZipUtils.unzip(new FileInputStream(unpackSource), unpackedTmp.toPath());
+        ZipUtils.unzip(new FileInputStream(dependency), unpackedTmp.toPath());
         Move(unpackedTmp.toPath(), unpackedTarget.toPath());
         return unpackedTarget;
     }
 
-    private File resolveDependencyJAR(File dependency, String name, File jobDir, Boolean useJetifier) throws IOException, ExtenderException {
+    private File resolveDependencyJAR(File dependency, String name, File jobDir) throws IOException {
         File targetFile = new File(baseDirectory, name);
         if (targetFile.exists()) {
             return targetFile;
@@ -234,16 +227,12 @@ public class RealGradleService implements GradleServiceInterface {
 
         // use job folder as tmp location
         File tmpFile = new File(jobDir, dependency.getName() + ".tmp");
-        if (useJetifier) {
-            runJetifier(dependency, tmpFile);
-        } else {
-            FileUtils.copyFile(dependency, tmpFile);
-        }
+        FileUtils.copyFile(dependency, tmpFile);
         Move(tmpFile.toPath(), targetFile.toPath());
         return targetFile;
     }
 
-    private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir, Boolean useJetifier) throws IOException, ExtenderException {
+    private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir) throws IOException {
         List<File> resolvedDependencies = new ArrayList<>();
         Timer timer = new Timer();
         timer.start();
@@ -255,19 +244,19 @@ public class RealGradleService implements GradleServiceInterface {
                 throw new IOException("File does not exist: %s" + dependency);
             }
             if (dependency.endsWith(".aar")) {
-                resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir, useJetifier));
+                resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir));
             } else if (dependency.endsWith(".jar")) {
-                resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir, useJetifier));
+                resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir));
             } else {
                 resolvedDependencies.add(file);
             }
         }
         long duration = timer.start();
-        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.unpack", duration, "jetifier", useJetifier.toString());
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.unpack", duration, "jetifier");
         return resolvedDependencies;
     }
 
-    private List<File> downloadDependencies(File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+    private List<File> downloadDependencies(File cwd) throws IOException, ExtenderException {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving dependencies");
 
@@ -278,16 +267,10 @@ public class RealGradleService implements GradleServiceInterface {
 
         Map<String, String> dependencies = parseDependencies(log);
 
-        List<File> unpackedDependencies = unpackDependencies(dependencies, cwd, useJetifier);
+        List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;
     }
 
-    private void runJetifier(File source, File target) throws ExtenderException {
-        String log = execCommand(String.format("jetifier-standalone -i %s -o %s", source.getAbsolutePath(), target.getAbsolutePath()), null);
-
-        // Put it in the log for the end user to see
-        LOGGER.info("\n" + log);
-    }
 }

@@ -8,7 +8,7 @@ FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extend
 ENV GRADLE_USER_HOME=/tmp/.gradle
 ENV GRADLE_VERSION=8.4
 ENV GRADLE_PLUGIN_VERSION=8.3.2
-ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin:/opt/jetifier-standalone/bin
+ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
   wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \
@@ -17,12 +17,3 @@ RUN \
   rm gradle-${GRADLE_VERSION}-bin.zip && \
   which gradle && \
   chown -R extender: /opt/gradle
-
-# https://developer.android.com/tools/jetifier
-ENV JETIFIER_VERSION=1.0.0-beta10
-
-RUN \
-  wget -q https://dl.google.com/dl/android/studio/jetifier-zips/${JETIFIER_VERSION}/jetifier-standalone.zip && \
-  unzip -q -d /opt/ jetifier-standalone.zip && \
-  rm jetifier-standalone.zip && \
-  chown -R extender: /opt/jetifier-standalone
