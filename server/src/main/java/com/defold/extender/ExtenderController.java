@@ -206,8 +206,8 @@ public class ExtenderController {
             metricsWriter.measureReceivedRequest(request);
 
             // Get cached files from the cache service
-            long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
-            metricsWriter.measureCacheDownload(totalCacheDownloadSize);
+            DataCacheService.DataCacheServiceInfo totalCacheDownloadInfo = dataCacheService.getCachedFiles(uploadDirectory);
+            metricsWriter.measureCacheDownload(totalCacheDownloadInfo.cachedFileSize.longValue(), totalCacheDownloadInfo.cachedFileCount.intValue());
 
             String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
             // Build engine locally or on remote builder
@@ -266,8 +266,8 @@ public class ExtenderController {
             throw e;
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
-            long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
-            metricsWriter.measureCacheUpload(totalUploadSize);
+            DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
+            metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
             metricsWriter.measureCounterBuild(platform, sdkVersionString, "sync", isSuccessfull);
 
             boolean deleteDirectory = true;
@@ -338,8 +338,8 @@ public class ExtenderController {
             metricsWriter.measureReceivedRequest(request);
 
             // Get cached files from the cache service
-            long totalCacheDownloadSize = dataCacheService.getCachedFiles(uploadDirectory);
-            metricsWriter.measureCacheDownload(totalCacheDownloadSize);
+            DataCacheService.DataCacheServiceInfo totalCacheDownloadInfo = dataCacheService.getCachedFiles(uploadDirectory);
+            metricsWriter.measureCacheDownload(totalCacheDownloadInfo.cachedFileSize.longValue(), totalCacheDownloadInfo.cachedFileCount.intValue());
 
             String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
             // Build engine locally or on remote builder
@@ -365,8 +365,8 @@ public class ExtenderController {
             throw e;
         } finally {
             // Regardless of success/fail status, we want to cache the uploaded files
-            long totalUploadSize = dataCacheService.cacheFiles(uploadDirectory);
-            metricsWriter.measureCacheUpload(totalUploadSize);
+            DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
+            metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
 
             boolean deleteDirectory = true;
             if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
