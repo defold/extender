@@ -252,7 +252,7 @@ public class RealGradleService implements GradleServiceInterface {
             }
         }
         long duration = timer.start();
-        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.unpack", duration, "jetifier");
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.unpack", duration);
         return resolvedDependencies;
     }
 
