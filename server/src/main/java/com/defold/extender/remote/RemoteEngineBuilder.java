@@ -3,6 +3,7 @@ package com.defold.extender.remote;
 import com.defold.extender.BuilderConstants;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.services.GCPInstanceService;
 import com.defold.extender.Timer;
 
 import org.apache.commons.io.FileUtils;
@@ -34,6 +35,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.Optional;
 import java.nio.charset.StandardCharsets;
 
 @Service
@@ -41,14 +43,17 @@ public class RemoteEngineBuilder {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteEngineBuilder.class);
 
+    private GCPInstanceService instanceService;
     private File jobResultLocation;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
     private boolean keepJobDirectory = false;
 
-    public RemoteEngineBuilder(@Value("${extender.job-result.location}") String jobResultLocation,
+    public RemoteEngineBuilder(Optional<GCPInstanceService> instanceService,
+                            @Value("${extender.job-result.location}") String jobResultLocation,
                             @Value("${extender.remote-builder.build-sleep-timeout:5000}") long buildSleepTimeout,
                             @Value("${extender.remote-builder.build-result-wait-timeout:1200000}") long buildResultWaitTimeout) {
+        instanceService.ifPresent(val -> { LOGGER.info("Instance client is initialized"); this.instanceService = val; });
         this.buildSleepTimeout = buildSleepTimeout;
         this.buildResultWaitTimeout = buildResultWaitTimeout;
         this.jobResultLocation = new File(jobResultLocation);
@@ -56,20 +61,19 @@ public class RemoteEngineBuilder {
     }
 
     private String getErrorString(HttpResponse response) throws IOException {
-
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         response.getEntity().writeTo(bos);
         final byte[] bytes = bos.toByteArray();
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
-    public void build(final String remoteBuilderUrl,
+    public void build(final RemoteInstanceConfig remoteInstanceConfig,
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
                         final OutputStream out) throws ExtenderException {
 
-        LOGGER.info("Building engine remotely at {}", remoteBuilderUrl);
+        LOGGER.info("Building engine remotely at {}", remoteInstanceConfig.getUrl());
 
         final HttpEntity httpEntity;
 
@@ -81,8 +85,10 @@ public class RemoteEngineBuilder {
 
 
         try {
-            final HttpResponse response = sendRequest(remoteBuilderUrl, platform, sdkVersion, httpEntity);
+            touchInstance(remoteInstanceConfig.getInstanceId());
+            final HttpResponse response = sendRequest(remoteInstanceConfig.getUrl(), platform, sdkVersion, httpEntity);
 
+            touchInstance(remoteInstanceConfig.getInstanceId());
             LOGGER.info("Remote builder response status: {}", response.getStatusLine());
 
             if (isClientError(response)) {
@@ -102,13 +108,13 @@ public class RemoteEngineBuilder {
     }
 
     @Async
-    public void buildAsync(final String remoteBuilderUrl,
+    public void buildAsync(final RemoteInstanceConfig remoteInstanceConfig,
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
                         File jobDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
 
-        LOGGER.info("Building engine remotely at {}", remoteBuilderUrl);
+        LOGGER.info("Building engine remotely at {}", remoteInstanceConfig.getUrl());
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation.getAbsolutePath(), jobName);
@@ -125,12 +131,13 @@ public class RemoteEngineBuilder {
         }
 
         try {
-            final String serverUrl = String.format("%s/build_async/%s/%s", remoteBuilderUrl, platform, sdkVersion);
+            final String serverUrl = String.format("%s/build_async/%s/%s", remoteInstanceConfig.getUrl(), platform, sdkVersion);
             final HttpPost request = new HttpPost(serverUrl);
             request.setEntity(httpEntity);
     
             final HttpClient client  = HttpClientBuilder.create().build();
     
+            touchInstance(remoteInstanceConfig.getInstanceId());
             HttpResponse response = client.execute(request);
             // copied from ExtenderClient. Think about code deduplication.
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
@@ -140,7 +147,8 @@ public class RemoteEngineBuilder {
                 Integer jobStatus = 0;
                 Thread.sleep(buildSleepTimeout);
                 while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
-                    HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", remoteBuilderUrl, jobId));
+                    touchInstance(remoteInstanceConfig.getInstanceId());
+                    HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
                     response = client.execute(statusRequest);
                     jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
                     if (jobStatus != 0) {
@@ -155,7 +163,8 @@ public class RemoteEngineBuilder {
                     writer.write(String.format("Job %s result cannot be defined during %d", jobId, buildResultWaitTimeout));
                     writer.close();
                 }
-                HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteBuilderUrl, jobId));
+                touchInstance(remoteInstanceConfig.getInstanceId());
+                HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
                 response = client.execute(resultRequest);
                 LOGGER.info(String.format("Job %s result got.", jobId));
                 if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
@@ -240,5 +249,15 @@ public class RemoteEngineBuilder {
 
     private String getStatusReason(final HttpResponse response) {
         return response.getStatusLine().getReasonPhrase();
+    }
+
+    private void touchInstance(String instanceId) {
+        if (instanceService != null) {
+            try {
+                instanceService.touchInstance(instanceId);
+            } catch(Exception exc) {
+                LOGGER.error(String.format("Exception during touch instance '%s'", instanceId), exc);
+            }
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import com.defold.extender.remote.RemoteEngineBuilder;
 import com.defold.extender.remote.RemoteHostConfiguration;
+import com.defold.extender.remote.RemoteInstanceConfig;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
@@ -65,7 +66,7 @@ public class ExtenderController {
     private final HealthReporterService healthReporter;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
-    private Map<String, String> remoteBuilderPlatformMappings;
+    private Map<String, RemoteInstanceConfig> remoteBuilderPlatformMappings;
     private final boolean remoteBuilderEnabled;
 
     private static long maxPackageSize = 1024*1024*1024;
@@ -212,8 +213,8 @@ public class ExtenderController {
             // Build engine locally or on remote builder
             if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                 LOGGER.info("Building engine on remote builder");
-                String remoteUrl = getRemoteBuilderUrl(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.build(remoteUrl, uploadDirectory, platform, sdkVersion, response.getOutputStream());
+                RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
+                this.remoteEngineBuilder.build(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, response.getOutputStream());
                 metricsWriter.measureRemoteEngineBuild(platform);
             } else {
                 LOGGER.info("Building engine locally");
@@ -344,8 +345,8 @@ public class ExtenderController {
             // Build engine locally or on remote builder
             if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                 LOGGER.info("Building engine on remote builder");
-                String remoteUrl = getRemoteBuilderUrl(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.buildAsync(remoteUrl, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
+                RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
+                this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
             } else {
                 asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
             }
@@ -536,7 +537,7 @@ public class ExtenderController {
             || this.remoteBuilderPlatformMappings.containsKey(String.format("%s-%s", platform, ExtenderController.LATEST));
     }
 
-    private String getRemoteBuilderUrl(String platform, String platformVersion) throws ExtenderException{
+    private RemoteInstanceConfig getRemoteBuilderConfig(String platform, String platformVersion) throws ExtenderException{
         String fullKey = String.format("%s-%s", platform, platformVersion);
         String fallbackKey = String.format("%s-%s", platform, ExtenderController.LATEST);
         if (this.remoteBuilderPlatformMappings.containsKey(fullKey)) {

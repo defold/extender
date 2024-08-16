@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "extender.remote-builder")
 public class RemoteHostConfiguration {
-    private Map<String, String> platforms = new HashMap<>();
+    private Map<String, RemoteInstanceConfig> platforms = new HashMap<>();
 
-    public Map<String, String> getPlatforms() {
+    public Map<String, RemoteInstanceConfig> getPlatforms() {
         return platforms;
     }
 }

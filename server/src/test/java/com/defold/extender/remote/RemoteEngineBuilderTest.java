@@ -1,6 +1,7 @@
 package com.defold.extender.remote;
 
 import com.defold.extender.ExtenderException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ByteArrayEntity;
@@ -11,6 +12,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Optional;
 import java.io.ByteArrayOutputStream;
 
 import static org.junit.Assert.*;
@@ -23,13 +25,13 @@ import static org.mockito.Mockito.spy;
 public class RemoteEngineBuilderTest {
 
     private RemoteEngineBuilder remoteEngineBuilder;
-    final String remoteBuilderBaseUrl = "https://test.darwin-build.defold.com";
+    final RemoteInstanceConfig remoteBuilderConfig = new RemoteInstanceConfig("https://test.darwin-build.defold.com", "osx-latest", true);
 
     @Before
     public void setUp() throws IOException {
         final HttpEntity httpEntity = mock(HttpEntity.class);
 
-        remoteEngineBuilder = spy(new RemoteEngineBuilder("/var/tmp/results", 5000, 240000));
+        remoteEngineBuilder = spy(new RemoteEngineBuilder(Optional.empty(), "/var/tmp/results", 5000, 240000));
         doReturn(httpEntity).when(remoteEngineBuilder).buildHttpEntity(any(File.class));
     }
 
@@ -52,7 +54,7 @@ public class RemoteEngineBuilderTest {
                 .sendRequest(anyString(), anyString(), anyString(), any(HttpEntity.class));
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        remoteEngineBuilder.build(remoteBuilderBaseUrl, directory, "armv7-ios", "a6876bc5s", baos);
+        remoteEngineBuilder.build(remoteBuilderConfig, directory, "armv7-ios", "a6876bc5s", baos);
 
         byte[] bytes = baos.toByteArray();
         assertEquals(content, new String(bytes));
@@ -77,6 +79,6 @@ public class RemoteEngineBuilderTest {
                 .sendRequest(anyString(), anyString(), anyString(), any(HttpEntity.class));
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        remoteEngineBuilder.build(remoteBuilderBaseUrl, directory, "armv7-ios", "a6876bc5s", baos);
+        remoteEngineBuilder.build(remoteBuilderConfig, directory, "armv7-ios", "a6876bc5s", baos);
     }
 }
