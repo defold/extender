@@ -104,6 +104,20 @@ services:
       default:
         aliases:
           - nssdk-1753
+  nssdk_1832-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1832-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    command: ["--management.metrics.tags.instance=nssdk-1832-local"]
+    profiles:
+      - all
+      - consoles
+      - nintendo
+    networks:
+      default:
+        aliases:
+          - nssdk-1832
   ps4_11000-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps4-11000-env:latest
     extends:
@@ -146,6 +160,20 @@ services:
       default:
         aliases:
           - ps5-8000
+  ps5_9000-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps5-9000-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    command: ["--management.metrics.tags.instance=ps5-9000-local"]
+    profiles:
+      - all
+      - consoles
+      - playstation
+    networks:
+      default:
+        aliases:
+          - ps5-9000
   win_2019-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2019-env:latest
     extends:
