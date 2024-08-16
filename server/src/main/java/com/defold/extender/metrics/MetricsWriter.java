@@ -24,7 +24,9 @@ public class MetricsWriter {
         DistributionSummary.builder("extender.job.requestSize").baseUnit(BaseUnits.BYTES).register(registry);
         DistributionSummary.builder("extender.job.zipSize").baseUnit(BaseUnits.BYTES).register(registry);
         DistributionSummary.builder("extender.job.cache.uploadSize").baseUnit(BaseUnits.BYTES).register(registry);
+        DistributionSummary.builder("extender.job.cache.uploadCount").baseUnit(BaseUnits.FILES).register(registry);
         DistributionSummary.builder("extender.job.cache.downloadSize").baseUnit(BaseUnits.BYTES).register(registry);
+        DistributionSummary.builder("extender.job.cache.downloadCount").baseUnit(BaseUnits.FILES).register(registry);
     }
 
     public MetricsWriter(final MeterRegistry registry) {
@@ -70,14 +72,16 @@ public class MetricsWriter {
         metricsTimer(this.registry, "extender.job.write", timer.start());
     }
 
-    public void measureCacheUpload(long uploadSize) {
+    public void measureCacheUpload(long uploadSize, int uploadCount) {
         metricsTimer(this.registry, "extender.job.cache.upload", timer.start());
         metricsSummary(this.registry, "extender.job.cache.uploadSize", uploadSize);
+        metricsSummary(this.registry, "extender.job.cache.uploadCount", uploadCount);
     }
 
-    public void measureCacheDownload(long downloadSize) {
+    public void measureCacheDownload(long downloadSize, int downloadCount) {
         metricsTimer(this.registry, "extender.job.cache.download", timer.start());
         metricsSummary(this.registry, "extender.job.cache.downloadSize", downloadSize);
+        metricsSummary(this.registry, "extender.job.cache.downloadCount", downloadCount);
     }
 
     public void measureCounterBuild(String platform, String sdk, String buildType, Boolean isSuccessfull) {
