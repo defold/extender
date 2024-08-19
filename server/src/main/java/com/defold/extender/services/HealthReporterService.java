@@ -3,6 +3,7 @@ package com.defold.extender.services;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -27,8 +28,12 @@ public class HealthReporterService {
         Operational
     }
 
-    public HealthReporterService() {
+    private GCPInstanceService instanceService = null;
+
+    public HealthReporterService(Optional<GCPInstanceService> instanceService) {
+        instanceService.ifPresent(val -> { this.instanceService = val; });
     }
+
 
     @SuppressWarnings("unchecked")
     public String collectHealthReport(boolean isRemoteBuildEnabled, Map<String, RemoteInstanceConfig> remoteBuilderPlatformMappings) {
@@ -43,9 +48,15 @@ public class HealthReporterService {
                 .setSocketTimeout(connectionTimeout).build();
             final HttpClient client  = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
             for (Map.Entry<String, RemoteInstanceConfig> entry : remoteBuilderPlatformMappings.entrySet()) {
+                String platform = getPlatform(entry.getKey());
+                String instanceId = entry.getValue().getInstanceId();
+                // if instance controlled by instanceService and is currently suspended - mark it as 'operational'
+                if (instanceService != null && instanceService.isInstanceControlled(instanceId) && instanceService.isInstanceSuspended(instanceId)) {
+                    updateOperationalStatus(platformOperationalStatus, platform, true);
+                    continue;
+                }
                 final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
                 final HttpGet request = new HttpGet(healthUrl);
-                String platform = getPlatform(entry.getKey());
                 try {
                     HttpResponse response = client.execute(request);
                     if (response.getStatusLine().getStatusCode() == org.apache.http.HttpStatus.SC_OK) {
