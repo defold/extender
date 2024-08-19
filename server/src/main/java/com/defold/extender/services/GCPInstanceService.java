@@ -66,7 +66,7 @@ public class GCPInstanceService {
         int attemptCount = 0;
         while (true) {
             Operation response = instancesClient.suspendAsync(projectId, computeZone, instanceId).get(operationWaitTimeout, TimeUnit.MILLISECONDS);
-            if (response.hasError() || !getInstanceStatus(instanceId).equalsIgnoreCase(Status.SUSPENDED.toString())) {
+            if (response.hasError() || !isInstanceSuspended(instanceId)) {
                 attemptCount++;
                 if (attemptCount >= retryAttempts) {
                     throw new TimeoutException("Run out of attempt count. VM not suspended.");
@@ -85,7 +85,7 @@ public class GCPInstanceService {
         int attemptCount = 0;
         while (true) {
             Operation response = instancesClient.resumeAsync(projectId, computeZone, instanceId).get(operationWaitTimeout, TimeUnit.MILLISECONDS);
-            if (response.hasError() || !getInstanceStatus(instanceId).equalsIgnoreCase(Status.RUNNING.toString())) {
+            if (response.hasError() || !isInstanceRunning(instanceId)) {
                 attemptCount++;
                 if (attemptCount >= retryAttempts) {
                     throw new TimeoutException("Run out of attempt count. VM not resumed.");
@@ -105,6 +105,19 @@ public class GCPInstanceService {
         return instancesClient.get(projectId, computeZone, instanceId).getStatus();
     }
 
+    public boolean isInstanceSuspended(final String instanceId) {
+        return getInstanceStatus(instanceId).equalsIgnoreCase(Status.SUSPENDED.toString());
+    }
+
+    public boolean isInstanceRunning(final String instanceId) {
+        return getInstanceStatus(instanceId).equalsIgnoreCase(Status.RUNNING.toString());
+    }
+
+    // check if instance with 'instanceId' is controlled by the service
+    public boolean isInstanceControlled(final String instanceId) {
+        return instanceState.containsKey(instanceId);
+    }
+
     public void touchInstance(String instanceId) throws InterruptedException, ExecutionException, TimeoutException {
         // if we instance was marked as alwaysOn we skip adding it during initialization
         if (!instanceState.containsKey(instanceId)) {
@@ -118,7 +131,6 @@ public class GCPInstanceService {
         if (instanceStatus.equalsIgnoreCase(Status.SUSPENDED.toString())) {
             resumeInstance(instanceId);
         }
-        //  Status.SUSPENDING
     }
 
     @Scheduled(initialDelayString="${extender.gcp.controller.check-period:60000}", fixedDelayString="${extender.gcp.controller.check-period:60000}")
