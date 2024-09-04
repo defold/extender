@@ -5,13 +5,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileInputStream;
 import java.nio.channels.Channels;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.BlobId;
+import com.defold.extender.AsyncBuilder;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobInfo;
 
 public class GCPDataCache implements DataCache {
+
+private static final Logger LOGGER = LoggerFactory.getLogger(GCPDataCache.class);
 
     private Storage storage;
     private String bucketName;
@@ -62,7 +70,13 @@ public class GCPDataCache implements DataCache {
               Storage.BlobWriteOption.generationMatch(
                   this.storage.get(this.bucketName, blobKey).getGeneration());
         }
-        this.storage.createFrom(blobInfo, new FileInputStream(file), precondition);
+        try {
+            this.storage.createFrom(blobInfo, new FileInputStream(file), precondition);
+        } catch (StorageException storageExc) {
+            // in case if some concurrent requests uploads the same thing at the same time precondition can fail
+            // we can catch exception and continue working without any issue because file was uploaded by another job
+            LOGGER.info(String.format("Failed upload cache object with key %s", blobKey), storageExc);
+        }
     }
     
     private String getBlobKey(final String key) {
