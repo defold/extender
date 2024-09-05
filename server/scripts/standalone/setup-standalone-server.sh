@@ -136,9 +136,12 @@ function install_dotnet() {
     local os=$(uname)
     if [ "Darwin" == "${os}" ] || [ "Linux" == "${os}" ]; then
 
-        wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh && \
+        echo "Downloading dotnet-install.sh ..."
+
+        ${CURL_CMD} -L https://dot.net/v1/dotnet-install.sh --output ./dotnet-install.sh
         chmod +x ./dotnet-install.sh
 
+        echo "Installing dotnet ..."
         ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_ROOT}
 
         rm ./dotnet-install.sh
@@ -153,7 +156,7 @@ function install_dotnet() {
 
     local DOTNET=${DOTNET_ROOT}/dotnet
 
-    DOTNET_VERSION=$(${DOTNET} --info | grep -A 1 'Host' | grep 'Version' | awk '{print $NF}')
+    DOTNET_VERSION=$(${DOTNET} --info | grep -e "Host:" -A 1 | grep -e "Version:" | awk '{print $2}')
     echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
 
     echo "[setup] Using dotnet:" ${DOTNET} " version:" $(${DOTNET} --version) "  sdk:" ${DOTNET_VERSION}
