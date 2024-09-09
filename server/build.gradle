@@ -77,7 +77,7 @@ dependencies {
     testImplementation('junit:junit:4.12')
     testImplementation('org.springframework:spring-test')
     testImplementation('org.springframework.boot:spring-boot-starter-test')
-    testImplementation('org.smali:dexlib2:2.2.5')
+    testImplementation('org.smali:dexlib2:2.5.2')
     testImplementation project(':client')
 }
 
