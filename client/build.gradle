@@ -33,6 +33,6 @@ dependencies {
         exclude module: 'junit'
     }
     testImplementation('commons-io:commons-io:2.11.0')
-    testImplementation("org.mockito:mockito-core:3.+")
+    testImplementation("org.mockito:mockito-core:5.+")
     testImplementation group: 'junit', name: 'junit', version: '4.13'
 }
