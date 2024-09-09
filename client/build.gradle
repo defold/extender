@@ -34,5 +34,5 @@ dependencies {
     }
     testImplementation('commons-io:commons-io:2.11.0')
     testImplementation("org.mockito:mockito-core:3.+")
-    testImplementation group: 'junit', name: 'junit', version: '4.13'
+    testImplementation group: 'junit', name: 'junit', version: '4.13.2'
 }
