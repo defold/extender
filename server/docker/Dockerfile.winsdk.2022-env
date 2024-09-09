@@ -1,0 +1,89 @@
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.2.0
+
+ENV PLATFORMSDK_WIN32=$PLATFORMSDK_DIR/Win32
+
+ENV \
+  WINDOWS_SDK_10_DIR=${PLATFORMSDK_WIN32}/WindowsKits/10 \
+  WINDOWS_SDK_10_20348_VERSION=10.0.20348.0 \
+  WINDOWS_MSVC_2022_VERSION=14.37.32822
+
+ENV \
+  VCINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/VC" \
+  VSINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022" \
+  WINDOWS_MSVC_DIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/VC/Tools/MSVC/${WINDOWS_MSVC_2022_VERSION}" \
+  VS160COMNTOOLS_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/Common7/Tools" \
+  WINDOWS_VCINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/VC/Tools/MSVC/${WINDOWS_MSVC_2022_VERSION}" \
+  WINDOWS_VSINSTALLDIR_2022="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022"
+
+# windres: Allows for generating .res files that can be used during linking
+RUN \
+  echo "Win32 SDK - WINDRES" && \
+  apt-get update && \
+  apt-get install -y binutils-mingw-w64-x86-64 && \
+  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
+  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+  echo "WIN32 2022 SDK  " && \
+  mkdir -p ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022 && \
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/Microsoft-Visual-Studio-2022-${WINDOWS_MSVC_2022_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+  echo "WIN32 ${WINDOWS_SDK_10_20348_VERSION} SDK  " && \
+  mkdir -p ${PLATFORMSDK_WIN32}/WindowsKits && \
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/WindowsKits-${WINDOWS_SDK_10_20348_VERSION}.tar.gz | tar xz -C ${PLATFORMSDK_WIN32}/WindowsKits
+
+RUN \
+  ln -s $(which clang) $(dirname $(which clang))/x86_64-pc-win32-clang && \
+  ln -s $(which llvm-ar) $(dirname $(which llvm-ar))/x86_64-pc-win32-clang-ar
+
+# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
+# so we solve the bulk by making the suffixes lowercase. (e.g. MyLib.Lib -> MyLib.lib)
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -type f -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && [ ! -f "$a" ] && ln -s "$0" "$a" ' {} \;
+
+COPY winsdk_rename_files.py ${PLATFORMSDK_WIN32}
+RUN \
+  echo "Renaming header files" && \
+  python ${PLATFORMSDK_WIN32}/winsdk_rename_files.py > ${PLATFORMSDK_WIN32}/rename.txt
+
+# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
+RUN find $PLATFORMSDK_WIN32 -iname '*.h' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \;
+
+# Make lower case links of libraries as well
+RUN find ${WINDOWS_SDK_10_DIR}/Lib -iname '*.lib' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \;
+
+RUN \
+  echo "WIN32 SDK - 2022 - Debug" && \
+# and the rest are manually copied (or made lower case)
+  echo ${WINDOWS_MSVC_DIR_2022}
+
+
+RUN \
+  echo "WIN32 SDK - 2022 - Cleanup" && \
+# and the rest are manually copied (or made lower case)
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp oldnames.lib OLDNAMES.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp libcmt.lib LIBCMT.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp libcmt.lib LIBCMT.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x64 && cp delayimp.lib Delayimp.lib) && \
+  (cd ${WINDOWS_MSVC_DIR_2022}/lib/x86 && cp delayimp.lib Delayimp.lib)
+
+# Some headers are named by the wrong name in the windows sdk's...
+# We need to make certain names lowercase because some users
+# have put "pragma lib" comments in some libraries :(
+# and/or misspelled header files
+RUN \
+  echo "WIN32 WindowsKits ${WINDOWS_SDK_10_20348_VERSION} - Cleanup" && \
+  (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_20348_VERSION}/shared && cp driverspecs.h DriverSpecs.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_20348_VERSION}/shared && cp specstrings.h SpecStrings.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_20348_VERSION}/shared && cp concurrencysal.h ConcurrencySal.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_20348_VERSION}/shared && cp wlantypes.h WlanTypes.h) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_20348_VERSION}/um/x64 && cp psapi.lib Psapi.lib) && \
+  (cd ${WINDOWS_SDK_10_DIR}/Lib/${WINDOWS_SDK_10_20348_VERSION}/um/x86 && cp psapi.lib Psapi.lib)
+
+# Also, the OpenGL headers in the windows SDK is in a folder with lower case letters, which doesn't match the includes
+RUN \
+  echo "WIN32 WindowsKits ${WINDOWS_SDK_10_20348_VERSION} - OpenGL Cleanup" && \
+  cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_20348_VERSION}/um && \
+  mkdir ./GL && \
+  cp -v ./gl/*.* ./GL/

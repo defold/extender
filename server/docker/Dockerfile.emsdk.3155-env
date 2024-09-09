@@ -1,0 +1,43 @@
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.2.0
+
+# Ubuntu still seem to use python3 3.8 as default version
+RUN \
+  add-apt-repository ppa:deadsnakes/ppa && \
+  apt-get autoclean && \
+  apt-get update && \
+  apt-get clean autoclean autoremove && \
+  apt-get install -y --no-install-recommends python3.9 && \
+  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
+  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 2 && \
+  python3 --version
+
+ENV EMSCRIPTEN_SDK_3_1_55=${PLATFORMSDK_DIR}/emsdk-3.1.55
+ENV EMSCRIPTEN_HOME_3_1_55=${EMSCRIPTEN_SDK_3_1_55}
+ENV EMSCRIPTEN_CACHE_3_1_55=/var/extender/emcache_3_1_55
+ENV EMSCRIPTEN_CONFIG_3_1_55=${EMSCRIPTEN_HOME_3_1_55}/.emscripten
+ENV EMSCRIPTEN_PYTHON_3_1_55=/usr/bin/python3.9
+ENV EMSCRIPTEN_BIN_3_1_55=${EMSCRIPTEN_HOME_3_1_55}/upstream/emscripten
+ENV EMSCRIPTEN_PATH_3_1_55=${EMSCRIPTEN_HOME_3_1_55}:${EMSCRIPTEN_HOME_3_1_55}/upstream/bin:${EMSCRIPTEN_HOME_3_1_55}/node/16.20.0_64bit/bin:${EMSCRIPTEN_BIN_3_1_55}
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+  mkdir ${EMSCRIPTEN_SDK_3_1_55} && \
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/emsdk-3.1.55-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_SDK_3_1_55} --strip-components=1
+
+RUN \
+  ${EMSCRIPTEN_HOME_3_1_55}/emsdk activate sdk-3.1.55-64bit && \
+  EM_CONFIG=$EMSCRIPTEN_CONFIG_3_1_55 EM_CACHE=${EMSCRIPTEN_CACHE_3_1_55} python3 ${EMSCRIPTEN_BIN_3_1_55}/embuilder.py build SYSTEM MINIMAL && \
+  chmod -R 755 ${EMSCRIPTEN_HOME_3_1_55} && \
+  chown -R extender: ${EMSCRIPTEN_CACHE_3_1_55}
+
+
+# We use the same temp directory for both versions.
+ENV EMSCRIPTEN_TEMP_DIR=/var/extender/ems_temp
+RUN mkdir -p ${EMSCRIPTEN_TEMP_DIR}
+RUN chmod -R 755 ${EMSCRIPTEN_TEMP_DIR} && chown extender: ${EMSCRIPTEN_TEMP_DIR}
+# The "sed" command below removes the /TEMP_DIR line from the generated configs
+# We replace it with a folder of our own
+RUN sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG_3_1_55} && \
+  echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG_3_1_55}
+
+RUN \
+  update-alternatives --set python3 /usr/bin/python3.8

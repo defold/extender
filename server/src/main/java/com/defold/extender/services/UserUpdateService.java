@@ -1,15 +1,13 @@
 package com.defold.extender.services;
 
 import org.springframework.stereotype.Service;
-import org.springframework.security.provisioning.UserDetailsManager;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.User.UserBuilder;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.Scheduled;
+
 import java.util.Properties;
 import java.util.Arrays;
 import java.util.List;
@@ -30,7 +28,6 @@ public class UserUpdateService {
 
     private long lastUpdateTimestamp = 0;
 
-    @Autowired
     public UserUpdateService(
         @Value("${extender.authentication.users}") Resource usersResource,
         @Value("${extender.authentication.update-interval}") long updateInterval,
@@ -110,5 +107,11 @@ public class UserUpdateService {
         lastUpdateTimestamp = now;
 
         updateUsers(loadUsers());
+    }
+
+    @Scheduled(fixedDelayString="${extender.authentication.update-interval:900000}")
+    public void schedulesUpdate() {
+        LOGGER.info("Schedule user credentials update");
+        update();
     }
 }

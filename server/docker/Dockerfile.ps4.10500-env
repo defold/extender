@@ -1,0 +1,10 @@
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.2.0
+
+ENV PS4_SDK_10=${PLATFORMSDK_DIR}/ps4-sdk-10.500
+
+ENV PS4_SDK_10_FILENAME=ps4-sdk-10.500.tar.gz
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+  echo "PS4 ${PS4_SDK_10_FILENAME}" && \
+  mkdir -p ${PS4_SDK_10} && \
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${PS4_SDK_10_FILENAME} | tar xz -C ${PS4_SDK_10} --strip-components=1

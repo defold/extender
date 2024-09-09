@@ -1,13 +1,11 @@
 package com.defold.extender.cache.info;
 
-import com.defold.extender.cache.CacheEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 
 @Service
 public class CacheInfoFileParser {

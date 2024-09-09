@@ -33,7 +33,7 @@ def parse_header(path):
     if not ext in HEADER_EXTS:
         return set(), set()
 
-    with open(path) as f:
+    with open(path, errors='ignore') as f:
         lines = f.readlines()
 
     includes = set()

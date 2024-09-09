@@ -11,7 +11,6 @@ import com.defold.extender.cache.DataCache;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +21,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
@@ -41,7 +41,11 @@ public class DataCacheService {
 
     private DataCache dataCache;
 
-    @Autowired
+    public class DataCacheServiceInfo {
+        public AtomicInteger cachedFileCount = new AtomicInteger();
+        public AtomicLong cachedFileSize = new AtomicLong();
+    }
+
     DataCacheService(final CacheKeyGenerator cacheKeyGenerator,
                      final CacheInfoFileParser cacheInfoFileParser,
                      final CacheInfoFileWriter cacheInfoFileWriter,
@@ -62,30 +66,29 @@ public class DataCacheService {
         return dataCache.exists(key);
     }
 
-    public long cacheFiles(final File directory) throws IOException {
+    public DataCacheServiceInfo cacheFiles(final File directory) throws IOException {
+        DataCacheServiceInfo result = new DataCacheServiceInfo();
         if (! cacheIsEnabled) {
-            return 0;
+            return result;
         }
 
         LOGGER.debug(String.format("Caching files in directory %s", directory.getPath()));
 
-        final AtomicLong totalbytesCached = new AtomicLong();
-        final AtomicLong totalFilesCached = new AtomicLong();
         Files.walk(directory.toPath())
                 .filter(Files::isRegularFile)
                 .filter(path -> ! FILE_CACHE_INFO_FILE.equals(path.getFileName().toString()))
                 .forEach(path -> {
                     try {
                         long fileSize = upload(path.toFile());
-                        totalbytesCached.addAndGet(fileSize);
-                        totalFilesCached.addAndGet(fileSize >= fileSizeThreshold ? 1 : 0);
+                        result.cachedFileSize.addAndGet(fileSize);
+                        result.cachedFileCount.addAndGet(fileSize >= fileSizeThreshold ? 1 : 0);
                     } catch (IOException e) {
                         LOGGER.error("Could not cache file " + path.toString(), e);
                     }
                 });
 
-        LOGGER.info(String.format("Cached %d bytes in %d files", totalbytesCached.longValue(), totalFilesCached.longValue()));
-        return totalbytesCached.longValue();
+        LOGGER.info(String.format("Cached %d bytes in %d files", result.cachedFileSize.longValue(), result.cachedFileCount.intValue()));
+        return result;
     }
 
     private long upload(File file) throws IOException {
@@ -104,9 +107,10 @@ public class DataCacheService {
     }
 
     // Step through the entries in the json and download them from the key-value server
-    public int getCachedFiles(File directory) throws IOException, ExtenderException {
+    public DataCacheServiceInfo getCachedFiles(File directory) throws IOException, ExtenderException {
+        DataCacheServiceInfo result = new DataCacheServiceInfo();
         if (! cacheIsEnabled) {
-            return 0;
+            return result;
         }
 
         File cacheInfoFile = new File(directory, FILE_CACHE_INFO_FILE);
@@ -114,22 +118,21 @@ public class DataCacheService {
         // Support older editors that don't supply a cache info file
         if (!cacheInfoFile.exists()) {
             LOGGER.info("No cache info file found, skipping cache");
-            return 0;
+            return result;
         }
         LOGGER.info("Downloading cached files");
 
         final CacheInfoWrapper wrapper = cacheInfoFileParser.parse(cacheInfoFile);
         if (wrapper == null) {
             LOGGER.info("Couldn't parse the cache info file. Ignoring");
-            return 0;
+            return result;
         }
 
         List<CacheEntry> cacheEntries = wrapper.getEntries();
         // we can face null pointer in cacheEntries if client, who requestd a build, don't have access to /query endpoint
         if (cacheEntries == null) {
-            return 0;
+            return result;
         }
-        int numCachedFiles = 0;
 
         for (CacheEntry entry : cacheEntries) {
             // Check if entry is cached
@@ -141,7 +144,7 @@ public class DataCacheService {
 
             File destination = new File(directory, entry.getPath());
             makeParentDirectories(destination);
-            downloadFile(entry, destination);
+            result.cachedFileSize.addAndGet(downloadFile(entry, destination));
 
             if (! destination.exists()) {
                 throw new ExtenderException(String.format("Failed downloading '%s' (%s) from cache",
@@ -149,12 +152,12 @@ public class DataCacheService {
             }
 
             verifyCacheKey(destination, entry.getKey());
-            numCachedFiles++;
+            result.cachedFileCount.addAndGet(1);
         }
 
-        LOGGER.info(String.format("Downloaded %d cached files", numCachedFiles));
+        LOGGER.info(String.format("Downloaded %d bytes in %d cached files", result.cachedFileSize.longValue(), result.cachedFileCount.intValue()));
 
-        return numCachedFiles;
+        return result;
     }
 
     private void verifyCacheEntry(CacheEntry entry) throws ExtenderException {
@@ -177,13 +180,13 @@ public class DataCacheService {
         return file.getParentFile().exists() || file.getParentFile().mkdirs();
     }
 
-    private void downloadFile(CacheEntry entry, File destination) throws ExtenderException, IOException {
+    private long downloadFile(CacheEntry entry, File destination) throws ExtenderException, IOException {
         try (InputStream inputStream = dataCache.get(entry.getKey())) {
             if (inputStream == null) {
                 throw new ExtenderException(String.format("Cache object %s (%s) was not found", entry.getPath(), entry.getKey()));
             }
 
-            Files.copy(
+            return Files.copy(
                     inputStream,
                     destination.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);

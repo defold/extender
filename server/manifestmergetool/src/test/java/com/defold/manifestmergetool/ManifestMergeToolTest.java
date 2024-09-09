@@ -72,7 +72,7 @@ public class ManifestMergeToolTest {
 
         String androidManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-                + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\""
+                + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\""
                 + "        package=\"com.defold.testmerge\""
                 + "        android:versionCode=\"14\""
                 + "        android:versionName=\"1.0\""
@@ -82,7 +82,7 @@ public class ManifestMergeToolTest {
                 + "    <application android:label=\"Test Project\" android:hasCode=\"true\">"
                 + "    </application>"
                 + "    <uses-permission android:name=\"android.permission.VIBRATE\" />"
-                + "    <uses-permission android:name=\"android.permission.CAMERA\" />"
+                + "    <uses-permission android:name=\"android.permission.CAMERA\" tools:node=\"remove\"/>"
                 + "</manifest>";
 
         createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", androidManifest);
@@ -159,7 +159,7 @@ public class ManifestMergeToolTest {
 
         String manifest = ""
                 + "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-                + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\" package=\"com.defold.testmerge\">"
+                + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.defold.testmerge\">"
                 + "    <uses-feature android:required=\"true\" android:glEsVersion=\"0x00030000\" />"
                 + "    <application>"
                 + "        <meta-data android:name=\"com.facebook.sdk.ApplicationName\""
@@ -169,7 +169,7 @@ public class ManifestMergeToolTest {
                 + "          android:configChanges=\"keyboard|keyboardHidden|screenLayout|screenSize|orientation\""
                 + "          android:label=\"Test Project\" />"
                 + "    </application>"
-                + "    <uses-permission android:name=\"android.permission.CAMERA\" tools:node=\"remove\"/>"
+                + "    <uses-permission android:name=\"android.permission.CAMERA\"/>"
                 + "</manifest>";
         createFile(contentRoot, "builtins/manifests/android/AndroidManifestLib.xml", manifest);
 
@@ -878,9 +878,9 @@ public class ManifestMergeToolTest {
             + "<!doctype html>\n"
             + "<html>\n"
             + " <head></head>\n"
-            + " <body> \n"
-            + "  <script id=\"engine-loader\" type=\"text/javascript\" src=\"mydmloader.js\"></script> \n"
-            + "  <script id=\"engine-setup\" type=\"text/javascript\"> function load_engine() {     var engineJS = document.createElement('script');     engineJS.type = 'text/javascript';     engineJS.src = '{{exe-name}}_wasm.js';     document.head.appendChild(engineJS); } </script> \n"
+            + " <body>\n"
+            + "  <script id=\"engine-loader\" type=\"text/javascript\" src=\"mydmloader.js\"></script>\n"
+            + "  <script id=\"engine-setup\" type=\"text/javascript\"> function load_engine() {     var engineJS = document.createElement('script');     engineJS.type = 'text/javascript';     engineJS.src = '{{exe-name}}_wasm.js';     document.head.appendChild(engineJS); } </script>\n"
             + "  <script id=\"engine-start\" type=\"text/javascript\" merge=\"keep\">     my_load_engine(); </script>\n"
             + " </body>\n"
             + "</html>\n";

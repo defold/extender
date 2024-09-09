@@ -6,8 +6,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'io.spring.gradle:dependency-management-plugin:1.0.11.RELEASE'
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:2.6.6'
+        classpath 'io.spring.gradle:dependency-management-plugin:1.1.5'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.3.1'
     }
 }
 
@@ -15,35 +15,33 @@ plugins {
     id 'java'
     id 'idea'
     id 'eclipse'
-    id 'org.springframework.boot' version '2.6.6'
-    id 'com.bmuschko.docker-remote-api' version '9.4.0'
+    id 'org.springframework.boot' version '3.3.1'
 }
 
-apply plugin: 'com.bmuschko.docker-remote-api'
 apply plugin: 'io.spring.dependency-management'
 
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+ext {
+    extenderVersion = findProperty('extenderVersion') ?: '1.4.47'
+}
 
 configurations {
     // A configuration meant for consumers that need the API of this component
     implementation {
         canBeResolved = true
     }
+    all*.exclude group: 'commons-logging', module: 'commons-logging'
 }
 
 repositories {
     mavenCentral()
 }
 
-sourceCompatibility = '11'
-targetCompatibility = '11'
-
-// This affects the Docker repo name.
-group = 'extender'
+sourceCompatibility = '17'
+targetCompatibility = '17'
 
 dependencyManagement {
     imports {
-        mavenBom 'com.amazonaws:aws-java-sdk-bom:1.12.129'
+        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.5.0'
     }
 }
 
@@ -55,27 +53,26 @@ dependencies {
     implementation('com.googlecode.json-simple:json-simple:1.1.1') {
         exclude module: 'junit'
     }
-    implementation('com.amazonaws:aws-java-sdk-s3:1.12.180')
-    implementation('com.google.guava:guava:30.0-jre')
+
+    implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
+    implementation('com.google.cloud:google-cloud-compute:1.57.0')
+    implementation('com.google.guava:guava:33.2.1-jre')
     implementation('com.samskivert:jmustache:1.15')
     implementation('commons-chain:commons-chain:1.2')
-    implementation('commons-fileupload:commons-fileupload:1.3.3')
+    implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
     implementation('commons-io:commons-io:2.12.0')
-    implementation('io.micrometer:micrometer-core:1.8.1')
     implementation('org.apache.commons:commons-text:1.12.+')
     implementation('org.apache.commons:commons-compress:1.26.+')
     implementation('org.apache.commons:commons-lang3:3.14.0')
     implementation('org.apache.httpcomponents:httpclient:4.5.13')
     implementation('org.apache.httpcomponents:httpmime:4.5.13')
-    implementation('org.influxdb:influxdb-java:2.10')
     implementation('org.springframework.boot:spring-boot-starter-actuator')
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
     implementation('org.springframework.security:spring-security-test')
-    implementation('io.micrometer:micrometer-core:1.8.1')
-    runtimeOnly('io.micrometer:micrometer-registry-influx:1.8.1')
-    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.8.3')
+    implementation('io.micrometer:micrometer-core:1.13.1')
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:7.0.1')
+    runtimeOnly('io.micrometer:micrometer-registry-influx:1.13.2')
 
     testImplementation('junit:junit:4.12')
     testImplementation('org.springframework:spring-test')
@@ -120,53 +117,34 @@ compileJava {
 // Creates the full jar file, with the extender server classes included
 bootJar {
     archiveBaseName = 'extender'
-    version =  '0.1.0'
+    version = project.ext.extenderVersion
+    doLast {
+        copy {
+            from "${project.projectDir}/build/libs/extender-${project.ext.extenderVersion}.jar"
+            into "app"
+            rename { String fileName ->
+                fileName.replace("-$project.ext.extenderVersion", "")
+            }
+        }
+    }
 }
 
 // Builds the extender server base classes into a .jar file
 jar {
     archiveBaseName = 'extender-base'
-    version =  '0.1.0'
+    version = project.ext.extenderVersion
     archiveClassifier = '' // use empty string to avoid the 'plain' suffix
 }
 
-File dockerBuildDir = new File(project.buildDir, 'docker-stage');
-
-task dockerStageDir {
-    doFirst {
-        if (dockerBuildDir.exists()) {
-            dockerBuildDir.delete();
-        }
-        dockerBuildDir.mkdirs();
-        copy {
-            from(project.projectDir) {
-                include "users/**"
-            }
-            into dockerBuildDir
-        }
-        copy {
-            from bootJar
-            into dockerBuildDir
-        }
-        copy {
-            from project(':manifestmergetool').collect { it.tasks.withType(Jar) }
-            into dockerBuildDir
-        }
-        copy {
-            from 'docker'
-            into dockerBuildDir
-        }
+publishing {
+  publications {
+    extender(MavenPublication) {
+      artifact bootJar
+      groupId 'com.defold.extender'
+      artifactId 'server'
+      version project.ext.extenderVersion
     }
-}
-
-task buildDocker(type: DockerBuildImage) {
-    dependsOn 'build', ':manifestmergetool:mainJar', 'dockerStageDir'
-    inputDir = dockerBuildDir
-    buildArgs = ['platform': 'linux/amd64']
-    imageId = bootJar.archiveBaseName
-    dockerFile = new File(dockerBuildDir, 'Dockerfile')
-    images.add("extender/extender:latest")
-    images.add("extender/extender:" + project.outSha)
+  }
 }
 
 task buildStandalone() {

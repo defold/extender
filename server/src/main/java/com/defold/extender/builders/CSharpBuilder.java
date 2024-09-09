@@ -1,22 +1,15 @@
 package com.defold.extender.builders;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.error.YAMLException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,6 +18,7 @@ import java.util.List;
 import java.util.ArrayList;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
 
@@ -34,7 +28,6 @@ public class CSharpBuilder {
     private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
     private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
-    private static final String CSPROJ_TEMPLATE_PATH = System.getenv("EXTENSION_CSPROJ_TEMPLATE");
 
     private List<String>        engineLibs;
     private File                sourceDir;
@@ -60,7 +53,8 @@ public class CSharpBuilder {
                         Map<String, Object> context) throws IOException {
         this.processExecutor = processExecutor;
         this.templateExecutor = templateExecutor;
-        this.template = readFile(CSPROJ_TEMPLATE_PATH);
+        Resource csProjectResource = new ClassPathResource("template.csproj");
+        this.template = ExtenderUtil.readContentFromResource(csProjectResource);
         this.context = context;
 
         LOGGER.info(String.format("DOTNET_ROOT: %s", DOTNET_ROOT));
