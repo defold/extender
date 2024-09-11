@@ -76,6 +76,19 @@ services:
       default:
         aliases:
           - emsdk-3155
+  emscripten_3165-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3165-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    command: ["--management.metrics.tags.instance=emsdk-3165-local"]
+    profiles:
+      - all
+      - web
+    networks:
+      default:
+        aliases:
+          - emsdk-3165
   nssdk_1532-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1532-env:latest
     extends:
