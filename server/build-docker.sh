@@ -23,6 +23,8 @@ echo "Emsdk 2.0.11"
 DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-emsdk-2011-env:latest -f $SCRIPT_DIR/docker/Dockerfile.emsdk.2011-env $SCRIPT_DIR/docker
 echo "Emsdk 3.1.55"
 DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-emsdk-3155-env:latest -f $SCRIPT_DIR/docker/Dockerfile.emsdk.3155-env $SCRIPT_DIR/docker
+echo "Emsdk 3.1.65"
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-emsdk-3165-env:latest -f $SCRIPT_DIR/docker/Dockerfile.emsdk.3165-env $SCRIPT_DIR/docker
 echo "Android ndk 25"
 DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-android-ndk25-env:latest -f $SCRIPT_DIR/docker/Dockerfile.android.ndk25-env $SCRIPT_DIR/docker
 
