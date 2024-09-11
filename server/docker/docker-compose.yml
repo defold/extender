@@ -346,3 +346,4 @@ services:
       default:
         aliases:
           - victoriametrics
+
