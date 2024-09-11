@@ -12,6 +12,9 @@ extender:
             emsdk-3155:
                 url: http://emsdk-3155:9000
                 instanceId: emsdk-3155
+            emsdk-3165:
+                url: http://emsdk-3165:9000
+                instanceId: emsdk-3165
             linux-latest:
                 url: http://linux:9000
                 instanceId: linux

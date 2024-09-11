@@ -265,6 +265,17 @@ services:
       default:
         aliases:
           - emsdk-3155
+  emscripten_3165-integration-test:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3165-env:latest
+    extends:
+      file: common-services.yml
+      service: test_remote_builder
+    profiles:
+      - test
+    networks:
+      default:
+        aliases:
+          - emsdk-3165
   win_2019-integration-test:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2019-env:latest
     extends:
