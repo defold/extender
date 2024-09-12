@@ -42,3 +42,5 @@ server/manifestmergetool/bin/*
 .vscode/*
 /server/docker/victoria-metrics-data/*
 /server/docker/grafana-data/*
+/dynamo_home/
+/dynamo_home/**

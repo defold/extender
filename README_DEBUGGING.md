@@ -12,7 +12,26 @@ There is a debug script that you can run to download a specific SDK version, or 
 
     $ ./server/scripts/debug_defoldsdk.py [<sha1>]
 
-This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`. It also sets the environment variable `DYNAMO_HOME` and then starts the extender server.
+This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`; creates link from `defoldsdk/<sha1>/defoldsdk` to `./dynamo_home`; sets the environment variable `DYNAMO_HOME` and then starts the extender server wiht profile `all`. If you want to run docker compose with other profiles - it can be done via COMPOSE_PROFILES variable. For example
+
+```sh
+    COMPOSE_PROFILES=web,windows python ./server/scripts/debug_defoldsdk.py
+```
+
+# Environment variables
+
+* **DM_DEBUG_COMMANDS** - Prints the command line and result  for each command in a build
+* **DM_DEBUG_DISABLE_PROGUARD** - Disables building with ProGuard (Android only)
+* **DM_DEBUG_JOB_FOLDER** - The uploaded job (and build) will always end up in this folder
+* **DM_DEBUG_KEEP_JOB_FOLDER** - Always keep the job folders
+* **DM_DEBUG_JOB_UPLOAD** - Output the file names in the received payload
+* **DYNAMO_HOME** - If set, used as the actual SDK for the builds
+
+That variables can be pass to `python ./server/scripts/debug_defoldsdk.py` or to `docker compose` command. For example
+
+```sh
+    DM_DEBUG_COMMANDS=1 DM_DEBUG_JOB_UPLOAD=1 docker compose -f ./server/docker/docker-compose.yml --profile linux up
+```
 
 ## Building .proto files
 
@@ -25,29 +44,16 @@ It is needed for building the proto files, and you can install it from a previou
 
     $ unzip -j defoldsdk.zip defoldsdk/lib/x86_64-linux/libdlib_shared.so -d ${DYNAMO_HOME}/lib/x86_64-linux
 
-# Environment variables
-
-* **DM_DEBUG_COMMANDS** - Prints the command line and result  for each command in a build
-* **DM_DEBUG_DISABLE_PROGUARD** - Disables building with ProGuard (Android only)
-* **DM_DEBUG_JOB_FOLDER** - The uploaded job (and build) will always end up in this folder
-* **DM_DEBUG_KEEP_JOB_FOLDER** - Always keep the job folders
-* **DM_DEBUG_JOB_UPLOAD** - Output the file names in the received payload
-* **DYNAMO_HOME** - If set, used as the actual SDK for the builds
-
-Note: if you wish to add more of these, remember to also add them to `server/scripts/run-local.sh` and `server\scripts\run-local.bat`
-
 # Debug the Docker container
 
-Run the following command when the container is running:
-
-Bash:
-```
-$ ./server/scripts/debug-local.sh
+List all running containers:
+```sh
+docker ps -f name=extender --format "table {{.ID}}\t{{.Names}}"
 ```
 
-Command Prompt:
-```
-> server\scripts\debug-local.bat
+Find container id you need and run following command
+```sh
+docker exec -uextender -it <container_id> /bin/bash
 ```
 
 The command will connect to the container using the `extender` user, and executes bash.
@@ -56,43 +62,23 @@ The command will connect to the container using the `extender` user, and execute
 
 ## Preparation
 
-* For locally built SDK's (in DYNAMO_HOME), it's good to map the same folder path locally as is in the Docker container
-
-        $ ln -s $DYNAMO_HOME /dynamo_home
-
-* Set the `DM_DEBUG_JOB_FOLDER` to a static folder, which both your computer and the Docker container can reach.
+* For locally built SDK's (in DYNAMO_HOME), it's good to map the same folder path locally as is in the Docker container. Create a symlink to ./dynamo_home folder:
+```sh
+    ln -sf $DYNAMO_HOME ./dynamo_home
+```
+* Run docker compose with following environment variables:
+```sh
+    DM_DEBUG_JOB_FOLDER=/dynamo_home/job123456 DM_DEBUG_COMMANDS=1 docker compose -f ./server/docker/docker-compose.yml --profile linux up
+```
+Set the `DM_DEBUG_JOB_FOLDER` to a static folder, which both your computer and the Docker container can reach.
     E.g. `DM_DEBUG_JOB_FOLDER=/dynamo_home/job123456`
     This will help when you debug the generated engine executable, since the debugger will find the object files on your local drive.
-
-* Build the container (if it wasn't already built):
-
-        $ ./server/scripts/build.sh -xtest
-
-* Run the server
-
-        $ DM_DEBUG_JOB_FOLDER=/dynamo_home/job123456 DM_DEBUG_COMMANDS=1 ./server/scripts/run-local.sh
 
 * After building, you'll find the output in the `$DM_DEBUG_JOB_FOLDER/build` folder
 
 * Set up the debugger to point to the executable
 
 * Set the working dir to the project directory
-
-## Login
-
-After building your Docker container, you can login in using the script:
-
-    $ ./server/scripts/debug-local.sh
-
-or
-
-    > server\scripts\debug-local.bat
-
-Make sure you are `extender` by typing
-
-    $ whoami
-    extender
-
 
 ## Win32
 
