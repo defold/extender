@@ -109,6 +109,11 @@ class ExtensionManifestValidator {
                 case "aaptExtraPackages":
                 case "objectFiles":
                 case "jetifier":
+                case "stackSize":
+                case "initialMemory":
+                case "minFirefoxVersion":
+                case "minSafariVersion":
+                case "minChromeVersion":
                 case "use-clang": // deprecated
                     continue; // no need to whitelist
 
