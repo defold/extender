@@ -12,7 +12,7 @@ There is a debug script that you can run to download a specific SDK version, or 
 
     $ ./server/scripts/debug_defoldsdk.py [<sha1>]
 
-This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`; creates link from `defoldsdk/<sha1>/defoldsdk` to `./dynamo_home`; sets the environment variable `DYNAMO_HOME` and then starts the extender server wiht profile `all`. If you want to run docker compose with other profiles - it can be done via COMPOSE_PROFILES variable. For example
+This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`; creates link from `defoldsdk/<sha1>/defoldsdk` to `./dynamo_home`; sets the environment variable `DYNAMO_HOME` and then starts the extender server with profile `all`. If you want to run docker compose with other profiles - it can be done via COMPOSE_PROFILES variable. For example
 
 ```sh
     COMPOSE_PROFILES=web,windows python ./server/scripts/debug_defoldsdk.py
