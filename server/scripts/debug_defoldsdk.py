@@ -2,14 +2,14 @@
 
 import os
 import sys
-import urllib
+import urllib, urllib.request
 import json
 import shutil
 import argparse
 
 def get_latest_version():
     url = "http://d.defold.com/stable/info.json"
-    response = urllib.urlopen(url)
+    response = urllib.request.urlopen(url)
     if response.getcode() == 200:
         return json.loads(response.read())
     return {}
@@ -17,9 +17,9 @@ def get_latest_version():
 def download_file(url):
 	print("Downloading %s" % url)
 	tmpfile = '_dl.zip'
-	cmd="wget -O %s %s" % (tmpfile, url)
-	result = os.system(cmd)
-	if result:
+	try:
+		urllib.request.urlretrieve(url, tmpfile)
+	except:
 		return None
 	return tmpfile
 
@@ -68,6 +68,7 @@ def unpack_file(path):
 
 def Usage():
 	print("Usage: ./debug_defoldsdk [<engine sha1>]")
+	print("Docker compose profiles can be passed by variable COMPOSE_PROFILES")
 
 
 if __name__ == '__main__':
@@ -90,11 +91,10 @@ if __name__ == '__main__':
 	unpack_path = unpack_file(path)
 	sdk_path = os.path.abspath(os.path.join(unpack_path, 'defoldsdk'))
 
-	os.environ['DYNAMO_HOME'] = sdk_path
-	print("export DYNAMO_HOME=%s" % sdk_path)
+	if not 'COMPOSE_PROFILES' in os.environ:
+		os.environ['COMPOSE_PROFILES'] = 'all'
+	os.environ['DYNAMO_HOME'] = '/dynamo_home'
+	print('Create symlink from {} to ./dynamo_home'.format(sdk_path))
+	os.system('ln -sf {} ./dynamo_home'.format(sdk_path))
 
-	print("Starting server")
-	os.system("./server/scripts/run-local.sh")
-
-
-
+	os.system("docker compose --file ./server/docker/docker-compose.yml up")

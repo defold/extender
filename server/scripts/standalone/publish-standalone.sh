@@ -26,7 +26,6 @@ build_artifact() {
     mkdir -p ${ARTIFACT_DIR}
     cp ${SERVER_DIR}/build/standalone/extender-0.1.0.jar ${ARTIFACT_DIR}/extender.jar
     cp ${SERVER_DIR}/build/standalone/manifestmergetool-0.1.0.jar ${ARTIFACT_DIR}/manifestmergetool.jar
-    cp ${SERVER_DIR}/docker-base/template.* ${ARTIFACT_DIR}/
     cp ${SERVER_DIR}/scripts/standalone/setup-standalone-server.sh ${ARTIFACT_DIR}/setup.sh
     cp ${SERVER_DIR}/scripts/standalone/service-standalone.sh ${ARTIFACT_DIR}/service.sh
     chmod a+x ${ARTIFACT_DIR}/setup.sh ${ARTIFACT_DIR}/service.sh ${ARTIFACT_DIR}/manifestmergetool.jar
