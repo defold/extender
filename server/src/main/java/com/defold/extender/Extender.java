@@ -813,7 +813,7 @@ class Extender {
     }
 
     // compile the source files of a pod and return a list of object files
-    private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext, Map<File, String> sourceToObjectLookup) throws IOException, InterruptedException, ExtenderException {
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
@@ -882,32 +882,42 @@ class Extender {
             // compile swift source files one by one
             List<String> compileSwiftCommands = new ArrayList<>();
             for (File src : pod.swiftSourceFiles) {
-                final int i = getAndIncreaseNameCount();
-                objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+                String objPath = sourceToObjectLookup.get(src);
+                if (objPath == null) {
+                    final int i = getAndIncreaseNameCount();
                     File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForSwift, compileSwiftCommands);
+                    objPath = ExtenderUtil.getRelativePath(jobDirectory, o);
+                    objs.add(objPath);
+                    sourceToObjectLookup.put(src, objPath);
+                }
             }
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
         }
 
         List<String> commands = new ArrayList<>();
         for (File src : pod.sourceFiles) {
-            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
-            final int i = getAndIncreaseNameCount();
-            File o = null;
-            // use the correct context depending on the source file language
-            if (extension.equals("c")) {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
+            String objPath = sourceToObjectLookup.get(src);
+            if (objPath == null) {
+                String extension = FilenameUtils.getExtension(src.getAbsolutePath());
+                final int i = getAndIncreaseNameCount();
+                File o = null;
+                // use the correct context depending on the source file language
+                if (extension.equals("c")) {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
+                }
+                else if (extension.equals("m")) {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
+                }
+                else if (extension.equals("mm")) {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
+                }
+                else {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
+                }
+                objPath = ExtenderUtil.getRelativePath(jobDirectory, o);
+                objs.add(objPath);
+                sourceToObjectLookup.put(src, objPath);
             }
-            else if (extension.equals("m")) {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
-            }
-            else if (extension.equals("mm")) {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
-            }
-            else {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
-            }
-            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
@@ -923,6 +933,7 @@ class Extender {
         }
 
         LOGGER.info("buildPods");
+        Map<File, String> sourceToObjectLookup = new HashMap<>();
         for (PodSpec pod : resolvedPods.pods) {
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
@@ -936,7 +947,7 @@ class Extender {
             manifestContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
 
             // Compile pod source files
-            List<String> objs = compilePodSourceFiles(pod, manifestContext);
+            List<String> objs = compilePodSourceFiles(pod, manifestContext, sourceToObjectLookup);
             if (!objs.isEmpty()) {
                 // Create c++ library
                 File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
