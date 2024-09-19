@@ -1072,7 +1072,6 @@ public class CocoaPodsService {
 
         // find source and header files
         // https://guides.cocoapods.org/syntax/podspec.html#source_files
-        List<String> sourceFilePatterns = new ArrayList<>();
         JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
         if (sourceFiles != null) {
             Iterator<String> it = sourceFiles.iterator();
