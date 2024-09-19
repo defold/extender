@@ -925,13 +925,6 @@ public class CocoaPodsService {
         spec.dir = (parent == null) ? new File(podsDir, spec.name) : parent.dir;
         spec.parentSpec = parent;
 
-        if (parent == null) {
-            spec.installed = spec.dir.exists();
-        }
-        else {
-            spec.installed = (new File(new File(spec.dir, spec.parentSpec.name), spec.name)).exists();
-        }
-
         // generated files relating to the pod
         // modulemap, swift header etc
         spec.generatedDir = new File(generatedDir, spec.name);
@@ -1102,6 +1095,7 @@ public class CocoaPodsService {
                 }
             }
         }
+        spec.installed = spec.containsFramework || !spec.sourceFiles.isEmpty() || !spec.swiftSourceFiles.isEmpty();
 
         // add swift libs to the runtime search path
         if (!spec.swiftSourceFiles.isEmpty()) {
