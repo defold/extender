@@ -58,6 +58,11 @@ public class CocoaPodsService {
         }
     }
 
+    private class InstalledPods {
+        public Map<String, PodSpec> podsMap = new HashMap<>();
+        public List<PodSpec> pods = new ArrayList<>();
+    }
+
     public class ResolvedPods {
         public List<PodSpec> pods = new ArrayList<>();
         public File podsDir;
@@ -1207,10 +1212,12 @@ public class CocoaPodsService {
      * @param jobDir Directory of entire build job
      * @param workingDir Directory where to install pods. The directory must contain a valid Podfile
      * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
-     * @return A list of PodSpec instances for the installed pods
+     * @return An InstalledPods object with installed pods
      */
-    private List<PodSpec> installPods(File jobDir, File workingDir, File generatedDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+    private InstalledPods installPods(File jobDir, File workingDir, File generatedDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
+        InstalledPods installedPods = new InstalledPods();
+
         File podFile = new File(workingDir, "Podfile");
         if (!podFile.exists()) {
             throw new ExtenderException("Unable to find Podfile " + podFile);
@@ -1252,7 +1259,6 @@ public class CocoaPodsService {
 
         // get all the pod specs and store them in a map, keyed on pod name
         File podsDir = new File(workingDir, "Pods");
-        Map<String, PodSpec> specsMap = new HashMap<>();
         for (String podname : podnames) {
             // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
             String podnameparts[] = splitPodname(podname);
@@ -1260,7 +1266,7 @@ public class CocoaPodsService {
             String mainpodname = podnameparts[0];
             // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
             String podversion = podname.replaceFirst(".*\\(", "").replace(")", "");
-            if (!specsMap.containsKey(mainpodname)) {
+            if (!installedPods.podsMap.containsKey(mainpodname)) {
                 String cmd = "pod spec cat --regex ^" + mainpodname + "$ --version=" + podversion;
                 String specJson = execCommand(cmd).replace(cmd, "");
                 // find first occurence of { because in some cases pod command
@@ -1273,17 +1279,16 @@ public class CocoaPodsService {
                 //     "dependencies": {
                 //     "GoogleAppMeasurement": [
                 specJson = specJson.substring(specJson.indexOf("{", 0), specJson.length());
-
-                specsMap.put(mainpodname, createPodSpec(specJson, podsDir, generatedDir, jobDir, jobEnvContext));
+                installedPods.podsMap.put(mainpodname, createPodSpec(specJson, podsDir, generatedDir, jobDir, jobEnvContext));
             }
         }
 
         // build list of specs and their dependencies (dependencies first)
         List<String> reversePodnames = new ArrayList<>(podnames);
         Collections.reverse(reversePodnames);
-        List<PodSpec> specs = new ArrayList<PodSpec>(getSpecsAndDependencies(specsMap, reversePodnames));
+        installedPods.pods.addAll(getSpecsAndDependencies(installedPods.podsMap, reversePodnames));
         LOGGER.info("Installed pods");
-        return specs;
+        return installedPods;
     }
 
     private Map<String, Object> createJobEnvContext(Map<String, Object> env) {
@@ -1335,8 +1340,11 @@ public class CocoaPodsService {
         workingDir.mkdirs();
         generatedDir.mkdirs();
 
-        List<PodSpec> pods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
         MainPodfile mainPodfile = createMainPodfile(platformPodfiles, jobDir, workingDir, platform, jobEnvContext);
+        InstalledPods installedPods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
+        List<PodSpec> allPods = installedPods.pods;
+        List<PodSpec> pods = new ArrayList<>();
+        pods = allPods;
         copyPodFrameworks(pods, frameworksDir, config);
 
         dumpDir(jobDir, 0);
