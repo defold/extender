@@ -176,6 +176,13 @@ public class CocoaPodsService {
             objcpp.addAll(set.objcpp);
         }
 
+        public void remove(String value) {
+            c.remove(value);
+            cpp.remove(value);
+            objc.remove(value);
+            objcpp.remove(value);
+        }
+
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
@@ -200,6 +207,11 @@ public class CocoaPodsService {
                 ios.add(v);
                 osx.add(v);
             }
+        }
+
+        public void remove(String value) {
+            ios.remove(value);
+            osx.remove(value);
         }
 
         @Override
