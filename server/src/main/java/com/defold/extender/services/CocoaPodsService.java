@@ -40,6 +40,24 @@ import java.lang.StringBuilder;
 @Service
 public class CocoaPodsService {
 
+    private class MainPodfile {
+        public List<String> podnames = new ArrayList<>();
+        public String platformMinVersion;
+        public String platform;
+        public File file;
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("file: " + file);
+            sb.append("pod count: " + podnames.size() + "\n");
+            sb.append("pod names: " + podnames + "\n");
+            sb.append("platform: " + platform + "\n");
+            sb.append("min version: " + platformMinVersion + "\n");
+            return sb.toString();
+        }
+    }
+
     public class ResolvedPods {
         public List<PodSpec> pods = new ArrayList<>();
         public File podsDir;
@@ -367,18 +385,20 @@ public class CocoaPodsService {
      * @param jobDirectory The job directory from where to search for Podfiles
      * @param workingDir The working directory where pods should be resolved
      * @param platform For which platform to resolve pods
-     * @return Minimum platform version
+     * @return Main pod file structure
      */
-    private String createMainPodFile(List<File> podFiles, File jobDirectory, File workingDir, String platform, Map<String, Object> jobEnvContext) throws IOException {
-        File mainPodFile = new File(workingDir, "Podfile");
+    private MainPodfile createMainPodfile(List<File> podFiles, File jobDirectory, File workingDir, String platform, Map<String, Object> jobEnvContext) throws IOException {
+        MainPodfile mainPodfile = new MainPodfile();
+
+        mainPodfile.file = new File(workingDir, "Podfile");
 
         // This file might exist when testing and debugging the extender using a debug job folder
-        podFiles.remove(mainPodFile);
+        podFiles.remove(mainPodfile.file);
 
-        String mainPodfilePlatformVersion = (platform.contains("ios") ? 
+        mainPodfile.platformMinVersion = (platform.contains("ios") ? 
             jobEnvContext.get("env.IOS_VERSION_MIN").toString(): 
             jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
-        String mainPodfilePlatform = (platform.contains("ios") ? "ios" : "osx");
+        mainPodfile.platform = (platform.contains("ios") ? "ios" : "osx");
 
         // Load all Podfiles
         List<String> pods = new ArrayList<>();
@@ -394,27 +414,33 @@ public class CocoaPodsService {
             for (String line : lines) {
                 if (line.startsWith("platform :")) {
                     String version = line.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
-                    if (!version.isEmpty() && (compareVersions(version, mainPodfilePlatformVersion) > 0)) {
-                        mainPodfilePlatformVersion = version;
+                    if (!version.isEmpty() && (compareVersions(version, mainPodfile.platformMinVersion) > 0)) {
+                        mainPodfile.platformMinVersion = version;
                     }
                 }
                 else {
                     pods.add(line);
+
+                    // get the pod name from the line
+                    // example: pod 'KSCrash', '1.17.4' -> KSCrash
+                    String[] parts = line.split("'");
+                    String podname = parts[1];
+                    mainPodfile.podnames.add(podname);
                 }
             }
         }
 
         // Create main Podfile contents
         HashMap<String, Object> envContext = new HashMap<>();
-        envContext.put("PLATFORM", mainPodfilePlatform);
-        envContext.put("PLATFORM_VERSION", mainPodfilePlatformVersion);
+        envContext.put("PLATFORM", mainPodfile.platform);
+        envContext.put("PLATFORM_VERSION", mainPodfile.platformMinVersion);
         envContext.put("PODS", pods);
-        String mainPodFileContents = templateExecutor.execute(podfileTemplateContents, envContext);
-        LOGGER.info("Created main Podfile:\n{}", mainPodFileContents);
+        String mainPodfileContents = templateExecutor.execute(podfileTemplateContents, envContext);
+        LOGGER.info("Created main Podfile:\n{}", mainPodfileContents);
 
-        Files.write(mainPodFile.toPath(), mainPodFileContents.getBytes());
+        Files.write(mainPodfile.file.toPath(), mainPodfileContents.getBytes());
 
-        return mainPodfilePlatformVersion;
+        return mainPodfile;
     }
 
     private boolean isHeaderFile(String filename) {
@@ -1309,8 +1335,8 @@ public class CocoaPodsService {
         workingDir.mkdirs();
         generatedDir.mkdirs();
 
-        String platformMinVersion = createMainPodFile(platformPodFiles, jobDir, workingDir, platform, jobEnvContext);
         List<PodSpec> pods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
+        MainPodfile mainPodfile = createMainPodfile(platformPodfiles, jobDir, workingDir, platform, jobEnvContext);
         copyPodFrameworks(pods, frameworksDir, config);
 
         dumpDir(jobDir, 0);
@@ -1319,7 +1345,7 @@ public class CocoaPodsService {
 
         ResolvedPods resolvedPods = new ResolvedPods();
         resolvedPods.pods = pods;
-        resolvedPods.platformMinVersion = platformMinVersion;
+        resolvedPods.platformMinVersion = mainPodfile.platformMinVersion;
         resolvedPods.podsDir = new File(workingDir, "Pods");
         resolvedPods.frameworksDir = frameworksDir;
         resolvedPods.generatedDir = generatedDir;
