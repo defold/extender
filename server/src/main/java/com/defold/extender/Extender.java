@@ -871,11 +871,13 @@ class Extender {
         if (!pod.swiftSourceFiles.isEmpty()) {
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
+            LOGGER.info("emit swift header");
             emitSwiftHeader(pod, mergedContextWithPodsForSwift, emitSwiftHeaderCommands);
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
             List<String> emitSwiftModuleCommands = new ArrayList<>();
+            LOGGER.info("emit swift module");
             emitSwiftModule(pod, mergedContextWithPodsForSwift, emitSwiftModuleCommands);
             ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
 
@@ -891,6 +893,7 @@ class Extender {
                     sourceToObjectLookup.put(src, objPath);
                 }
             }
+            LOGGER.info("compiling {} swift files", compileSwiftCommands.size());
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
         }
 
@@ -919,6 +922,7 @@ class Extender {
                 sourceToObjectLookup.put(src, objPath);
             }
         }
+        LOGGER.info("compiling {} source files", commands.size());
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
         return objs;
@@ -935,6 +939,7 @@ class Extender {
         LOGGER.info("buildPods");
         Map<File, String> sourceToObjectLookup = new HashMap<>();
         for (PodSpec pod : resolvedPods.pods) {
+            LOGGER.info("building {}", pod.name);
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
             // manifest context for each pod
@@ -954,6 +959,7 @@ class Extender {
                 Map<String, Object> context = createContext(manifestContext);
                 context.put("tgt", lib);
                 context.put("objs", objs);
+                LOGGER.info("creating library {} from {} objects", lib.getName(), objs.size());
                 executeCommand(platformConfig.libCmd, context);
             }
         }
