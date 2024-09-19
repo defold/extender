@@ -297,7 +297,7 @@ public class CocoaPodsService {
                     return spec;
                 }
             }
-            return  null;
+            return null;
         }
 
         @Override
