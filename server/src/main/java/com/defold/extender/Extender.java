@@ -2213,6 +2213,7 @@ class Extender {
                 podAppContext.put("libs", resolvedPods.getAllPodLibs(platform));
                 podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags(platform));
                 podAppContext.put("osMinVersion", resolvedPods.platformMinVersion);
+                podAppContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
             }
             Map mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
