@@ -862,7 +862,9 @@ class Extender {
         mergedContextWithPodsForObjC.put("systemIncludes", new ArrayList<String>());
         mergedContextWithPodsForObjCpp.put("systemIncludes", new ArrayList<String>());
         mergedContextWithPodsForSwift.put("systemIncludes", new ArrayList<String>());
-
+        // also clearing systemIncludes for c
+        // see https://github.com/defold/extender/issues/389
+        mergedContextWithPodsForC.put("systemIncludes", new ArrayList<String>());
 
         List<String> objs = new ArrayList<>();
 
