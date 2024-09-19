@@ -933,6 +933,7 @@ class Extender {
             manifestContext.put("extension_name", pod.name);
             manifestContext.put("extension_name_upper", pod.name.toUpperCase());
             manifestContext.put("osMinVersion", resolvedPods.platformMinVersion);
+            manifestContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
 
             // Compile pod source files
             List<String> objs = compilePodSourceFiles(pod, manifestContext);
