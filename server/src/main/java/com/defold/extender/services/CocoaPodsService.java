@@ -115,6 +115,17 @@ public class CocoaPodsService {
             }
             return new ArrayList<String>(weakFrameworks);
         }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("pod count: " + pods.size() + "\n");
+            sb.append("pods dir: " + podsDir + "\n");
+            sb.append("frameworks Dir: " + frameworksDir + "\n");
+            sb.append("generated dir: " + generatedDir + "\n");
+            sb.append("platform min version: " + platformMinVersion);
+            return sb.toString();
+        }
     }
 
     public class LanguageSet {
