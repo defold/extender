@@ -561,7 +561,7 @@ class Extender {
     // swiftc: https://gist.github.com/enomoto/7f11d57e4add7e702f9f84f34d3a0f8c
     // swift-frontend: https://gist.github.com/palaniraja/b4de1e64e874b68bda9e5236829cd8a6
 
-    private void emitSwiftHeaders(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private void emitSwiftHeader(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
 
         List<String> frameworks = new ArrayList<>();
@@ -871,7 +871,7 @@ class Extender {
         if (!pod.swiftSourceFiles.isEmpty()) {
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
-            emitSwiftHeaders(pod, mergedContextWithPodsForSwift, emitSwiftHeaderCommands);
+            emitSwiftHeader(pod, mergedContextWithPodsForSwift, emitSwiftHeaderCommands);
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
