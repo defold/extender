@@ -1291,6 +1291,9 @@ public class CocoaPodsService {
         Collections.reverse(reversePodnames);
         installedPods.pods.addAll(getSpecsAndDependencies(installedPods.podsMap, reversePodnames));
         LOGGER.info("Installed pods");
+        for (PodSpec pod : installedPods.pods) {
+            LOGGER.info("  " + pod.name);
+        }
         return installedPods;
     }
 
