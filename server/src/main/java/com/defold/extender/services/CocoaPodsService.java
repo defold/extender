@@ -1314,19 +1314,19 @@ public class CocoaPodsService {
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for
-        List<File> allPodFiles = ExtenderUtil.listFilesMatchingRecursive(jobDir, "Podfile");
-        List<File> platformPodFiles = new ArrayList<>();
-        for (File podFile : allPodFiles) {
+        List<File> allPodfiles = ExtenderUtil.listFilesMatchingRecursive(jobDir, "Podfile");
+        List<File> platformPodfiles = new ArrayList<>();
+        for (File podFile : allPodfiles) {
             String parentFolder = podFile.getParentFile().getName();
             if ((platform.contains("ios") && parentFolder.contains("ios")) ||
                 (platform.contains("osx") && parentFolder.contains("osx"))) {
-                platformPodFiles.add(podFile);
+                platformPodfiles.add(podFile);
             }
             else {
                 LOGGER.warn("Unexpected Podfile found in " + podFile);
             }
         }
-        if (platformPodFiles.isEmpty()) {
+        if (platformPodfiles.isEmpty()) {
             LOGGER.info("Project has no Cocoapod dependencies");
             return null;
         }
