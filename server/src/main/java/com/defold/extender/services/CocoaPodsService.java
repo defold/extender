@@ -985,6 +985,8 @@ public class CocoaPodsService {
         spec.flags.osx.objcpp.add("--language=objective-c++");
         // CocoaPods sets CLANG_ENABLE_MODULES when creating an XCode project
         // https://xcodebuildsettings.com/#clang_enable_modules
+        spec.flags.ios.c.add("-fmodules");
+        spec.flags.osx.c.add("-fmodules");
         spec.flags.ios.objc.add("-fmodules");
         spec.flags.osx.objc.add("-fmodules");
         spec.flags.ios.objcpp.add("-fcxx-modules");
