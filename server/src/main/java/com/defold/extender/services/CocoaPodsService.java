@@ -417,6 +417,10 @@ public class CocoaPodsService {
         return mainPodfilePlatformVersion;
     }
 
+    private boolean isHeaderFile(String filename) {
+        return filename.endsWith(".h") || filename.endsWith(".def");
+    }
+
     /**
      * Add source files matching a pattern to a pod
      * @param pod
@@ -431,7 +435,7 @@ public class CocoaPodsService {
                 pod.swiftSourceFiles.add(podSrcFile);
                 pod.swiftSourceFilePaths.add(podSrcFile.getAbsolutePath());
             }
-            else if (!filename.endsWith(".h")) {
+            else if (!isHeaderFile(filename)) {
                 pod.sourceFiles.add(podSrcFile);
             }
         }
@@ -446,7 +450,8 @@ public class CocoaPodsService {
         String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
         List<File> podSrcFiles = listFilesGlob(pod.dir, absolutePatternPath);
         for (File podSrcFile : podSrcFiles) {
-            if (podSrcFile.getName().endsWith(".h")) {
+            final String filename = podSrcFile.getName();
+            if (isHeaderFile(filename)) {
                 File podIncludeDir = podSrcFile.getParentFile();
                 if (podIncludeDir != null) {
                     pod.includePaths.add(podIncludeDir);
