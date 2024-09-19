@@ -871,20 +871,20 @@ class Extender {
         if (!pod.swiftSourceFiles.isEmpty()) {
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
-            emitSwiftHeaders(pod, mergedContextWithPodsForC, emitSwiftHeaderCommands);
+            emitSwiftHeaders(pod, mergedContextWithPodsForSwift, emitSwiftHeaderCommands);
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
             List<String> emitSwiftModuleCommands = new ArrayList<>();
-            emitSwiftModule(pod, mergedContextWithPodsForC, emitSwiftModuleCommands);
+            emitSwiftModule(pod, mergedContextWithPodsForSwift, emitSwiftModuleCommands);
             ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
 
             // compile swift source files one by one
             List<String> compileSwiftCommands = new ArrayList<>();
             for (File src : pod.swiftSourceFiles) {
                 final int i = getAndIncreaseNameCount();
-                File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForC, compileSwiftCommands);
                 objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+                    File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForSwift, compileSwiftCommands);
             }
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
         }
