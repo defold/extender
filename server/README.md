@@ -156,6 +156,8 @@ As an example show stepp on Android NDK25 Docker image.
    ```
 Tag push triggres Github workflow that build and push to private Docker registry new Docker image. For more details, see [docker workflow](../.github/workflows/docker-env-build.yml).
 
+In case if new version of base image will be release do not forget to update tag version in `.server/build-socker.sh`.
+
 # Deployment notes
 
 ## How to configure remote hosts
