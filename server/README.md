@@ -1,7 +1,7 @@
 # Server part
 Server part consists of set of Docker containers and standalone instances. The most common setup is:
 * **frontend instance** that runs in empty environment. Handle all incoming requests and redirects it to remote instances according to platfrom.sdks.json mappings that instance download for engine version. Also handle all access checks.
-* **remote instances**. One instance per platfrom per platform sdk version. Instance has necessary environment and produce engine builds.
+* **remote instances**. One instance per platform and platform sdk version. Instance has necessary environment and produce engine builds.
 * **standalone instances**. It also can be any builder for any platform. Recommended for osx/ios builder instances because there are no ready-to-use environment to run on MacOS host. So you need to setup all environment manually and deploy extender's jars to host and run it.
 
 Extender consists of two parts:
