@@ -90,7 +90,7 @@ services:
         aliases:
           - emsdk-3165
   nssdk_1532-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1532-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-1532-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -104,7 +104,7 @@ services:
         aliases:
           - nssdk-1532
   nssdk_1753-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1753-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-1753-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -118,7 +118,7 @@ services:
         aliases:
           - nssdk-1753
   nssdk_1832-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-nssdk-1832-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-1832-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -132,7 +132,7 @@ services:
         aliases:
           - nssdk-1832
   ps4_11000-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps4-11000-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-11000-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -146,7 +146,7 @@ services:
         aliases:
           - ps4-11000
   ps4_10500-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps4-10500-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-10500-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -160,7 +160,7 @@ services:
         aliases:
           - ps4-10500
   ps5_8000-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps5-8000-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-8000-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
@@ -174,7 +174,7 @@ services:
         aliases:
           - ps5-8000
   ps5_9000-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-ps5-9000-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-9000-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
