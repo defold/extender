@@ -4,7 +4,9 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 DOCKER_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-public-registry
-DOCKER_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-private-registry
+DOCKER_PS4_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry
+DOCKER_PS5_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry
+DOCKER_NINTENDO_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry 
 
 # base images
 echo "Base image"
@@ -29,12 +31,12 @@ echo "Android ndk 25"
 DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-android-ndk25-env:latest -f $SCRIPT_DIR/docker/Dockerfile.android.ndk25-env $SCRIPT_DIR/docker
 
 echo "Ps4 images"
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PRIVATE_REGISTRY/extender-ps4-10500-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps4.10500-env $SCRIPT_DIR/docker
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PRIVATE_REGISTRY/extender-ps4-11000-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps4.11000-env $SCRIPT_DIR/docker
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PS4_PRIVATE_REGISTRY/extender-ps4-10500-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps4.10500-env $SCRIPT_DIR/docker
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PS4_PRIVATE_REGISTRY/extender-ps4-11000-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps4.11000-env $SCRIPT_DIR/docker
 echo "Ps5 images"
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PRIVATE_REGISTRY/extender-ps5-8000-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps5.8000-env $SCRIPT_DIR/docker
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PRIVATE_REGISTRY/extender-ps5-9000-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps5.9000-env $SCRIPT_DIR/docker
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PS5_PRIVATE_REGISTRY/extender-ps5-8000-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps5.8000-env $SCRIPT_DIR/docker
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PS5_PRIVATE_REGISTRY/extender-ps5-9000-env:latest -f $SCRIPT_DIR/docker/Dockerfile.ps5.9000-env $SCRIPT_DIR/docker
 echo "Nssdk images"
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PRIVATE_REGISTRY/extender-nssdk-1532-env:latest -f $SCRIPT_DIR/docker/Dockerfile.nssdk.1532-env $SCRIPT_DIR/docker
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PRIVATE_REGISTRY/extender-nssdk-1753-env:latest -f $SCRIPT_DIR/docker/Dockerfile.nssdk.1753-env $SCRIPT_DIR/docker
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_PRIVATE_REGISTRY/extender-nssdk-1832-env:latest -f $SCRIPT_DIR/docker/Dockerfile.nssdk.1832-env $SCRIPT_DIR/docker
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_NINTENDO_PRIVATE_REGISTRY/extender-nssdk-1532-env:latest -f $SCRIPT_DIR/docker/Dockerfile.nssdk.1532-env $SCRIPT_DIR/docker
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_NINTENDO_PRIVATE_REGISTRY/extender-nssdk-1753-env:latest -f $SCRIPT_DIR/docker/Dockerfile.nssdk.1753-env $SCRIPT_DIR/docker
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_NINTENDO_PRIVATE_REGISTRY/extender-nssdk-1832-env:latest -f $SCRIPT_DIR/docker/Dockerfile.nssdk.1832-env $SCRIPT_DIR/docker
