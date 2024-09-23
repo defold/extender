@@ -15,7 +15,7 @@ plugins {
     id 'java'
     id 'idea'
     id 'eclipse'
-    id 'org.springframework.boot' version '3.3.1'
+    id 'org.springframework.boot' version '3.3.4'
 }
 
 apply plugin: 'io.spring.dependency-management'
