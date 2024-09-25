@@ -54,7 +54,7 @@ If you want to use different Spring profile you can pass it via 2nd argument. Fo
 Note: all Spring profiles should be located in `./server/configs/` folder.
 
 ### Develop/debug standalone Extender using VSCode
-Note that [Prerequisites](#prerequisites) should be completed and manifestmergetool.jar already downlaoded or built.
+Note that [Prerequisites](#prerequisites) should be completed and manifestmergetool.jar already downloaded or built.
 
 1. Download VSCode: https://code.visualstudio.com/download
 2. Install following extensions:
