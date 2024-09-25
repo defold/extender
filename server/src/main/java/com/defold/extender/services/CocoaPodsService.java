@@ -284,7 +284,6 @@ public class CocoaPodsService {
         public Set<String> swiftSourceFilePaths = new LinkedHashSet<>();
         public Set<File> swiftSourceFiles = new LinkedHashSet<>();
         public Set<File> sourceFiles = new LinkedHashSet<>();
-        public String sourceFilePatterns = "";
         public Set<File> includePaths = new LinkedHashSet<>();
         public PodSpec parentSpec = null;
         public List<String> defaultSubspecs = new ArrayList<>();
@@ -1106,7 +1105,6 @@ public class CocoaPodsService {
         // https://guides.cocoapods.org/syntax/podspec.html#source_files
         JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
         if (sourceFiles != null) {
-            spec.sourceFilePatterns = sourceFiles.toString();
             Iterator<String> it = sourceFiles.iterator();
             while (it.hasNext()) {
                 String path = it.next();
