@@ -44,3 +44,5 @@ server/manifestmergetool/bin/*
 /server/docker/grafana-data/*
 /dynamo_home/
 /dynamo_home/**
+
+/server/envs/user.env

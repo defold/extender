@@ -1,59 +1,32 @@
 #!/bin/bash
 
-EXTENDER_DIR=$2
-echo "Using extender dir ${EXTENDER_DIR}."
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-PROFILE=$3
+echo "Load common env ..."
+source $SCRIPT_DIR/../../envs/.env
+export $(cat $SCRIPT_DIR/../../envs/.env | xargs)
+
+echo "Load user env ..."
+source $SCRIPT_DIR/../../envs/user.env
+export $(cat $SCRIPT_DIR/../../envs/user.env | xargs)
+
+
+if [[ -z ${ENV_PROFILE} ]]; then
+    echo "Load macos environment..."
+    source $SCRIPT_DIR/../../envs/macos.env
+    export $(cat $SCRIPT_DIR/../../envs/macos.env | xargs)
+else
+    echo "Load ${ENV_PROFILE} environment..."
+    source $SCRIPT_DIR/../../envs/${ENV_PROFILE}.env
+    export $(cat $SCRIPT_DIR/../../envs/${ENV_PROFILE}.env | xargs)
+fi
+
+PROFILE=$2
 if [[ -z ${PROFILE} ]]; then
     echo "No extender profile provided."
     PROFILE="standalone-dev"
 fi
 echo "Using profile ${PROFILE}."
-
-SERVICE_NAME=extender
-PATH_TO_JAR=${EXTENDER_DIR}/current/extender.jar
-PID_PATH_NAME=${EXTENDER_DIR}/${SERVICE_NAME}.pid
-LOG_DIRECTORY=${EXTENDER_DIR}/logs
-STDOUT_LOG=${LOG_DIRECTORY}/stdout.log
-ERROR_LOG=${LOG_DIRECTORY}/error.log
-
-# The SDK path is used by Defold SDK build.yml
-export PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
-
-export MANIFEST_MERGE_TOOL=${EXTENDER_DIR}/current/manifestmergetool.jar
-
-export JAVA_HOME=`/usr/libexec/java_home`
-
-# From Dockerfile
-# Also update setup-standalone-server.sh
-
-# Versions from >=1.4.4
-export XCODE_14_VERSION=14.2
-export XCODE_14_CLANG_VERSION=14.0.0
-export MACOS_13_VERSION=13.1
-export IOS_16_VERSION=16.2
-export SWIFT_5_5_VERSION=5.5
-export IOS_VERSION_MIN=11.0
-export MACOS_VERSION_MIN=10.13
-
-# Versions from >=1.9.0
-export XCODE_15_VERSION=15.4
-export XCODE_15_CLANG_VERSION=15.0.0
-# Versions from >=1.9.0
-export MACOS_14_VERSION=14.5
-export IOS_17_VERSION=17.5
-
-# Added 1.4.9
-export ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
-
-# Added 1.9.1
-export DOTNET_ROOT=${EXTENDER_DIR}/dotnet
-export DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
-export NUGET_PACKAGES=${EXTENDER_DIR}/.nuget
-
-export EXTENSION_CSPROJ_TEMPLATE=${EXTENDER_DIR}/current/template.csproj
-# We need access to the toolchain binary path from within the application
-export PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_15_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 
 start_service() {
     echo "${SERVICE_NAME} starting..."
@@ -70,13 +43,8 @@ start_service() {
         fi
     fi
 
-    if [[ -z "${EXTENDER_SDK_LOCATION}" ]]; then
-        echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-        java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
-    else
-        echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-        java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
-    fi
+    echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
+    java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
 
     
     echo $! > ${PID_PATH_NAME}
