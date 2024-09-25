@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Iterator;
 import java.util.Collections;
@@ -436,7 +437,7 @@ public class CocoaPodsService {
                         mainPodfile.platformMinVersion = version;
                     }
                 }
-                else {
+                else if (line.length() > 1) {
                     pods.add(line);
 
                     // get the pod name from the line
@@ -879,13 +880,10 @@ public class CocoaPodsService {
             headers.add(swiftModuleHeader.getAbsolutePath());
         }
 
-        // module name, including parent spec module name
-        String fullModuleName = ((pod.parentSpec != null) ? (pod.parentSpec.moduleName + "_") : "") + pod.moduleName;
-
         // generate final modulemap
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("FRAMEWORKOPT", pod.containsFramework ? "framework" : "");
-        envContext.put("MODULE_ID", fullModuleName);
+        envContext.put("MODULE_ID", pod.moduleName);
         envContext.put("HEADERS", headers);
         envContext.put("UMBRELLA_HEADER", umbrellaHeader);
         envContext.put("SUBMODULE", pod.containsFramework ? "module * { export * }" : "");
@@ -910,17 +908,43 @@ public class CocoaPodsService {
         return moduleMapFile.getAbsolutePath();
     }
 
+
+    private String toC99extIdentifier(String s) {
+        return s.replaceAll("^([0-9])", "_$1")  // 123FooBar -> _123FooBar
+            .replaceAll("[\\+].*", "")          // NSData+zlib -> NSData
+            .replaceAll("[^a-zA-Z0-9_]", "_")   // Foo-Bar -> Foo_Bar
+            .replaceAll("_+", "_");             // Foo__Bar -> Foo_Bar
+    }
+
+    // It seems like some exceptions such as KSCrash use a module name
+    // which doesn't separate parent and subspec by an underscore
+    // https://github.com/kstenerud/KSCrash/blob/master/KSCrash.podspec#L21
+    private static Set<String> NAME_EXCEPTIONS = new HashSet<>(Arrays.asList("KSCrash"));
+
+    // https://github.com/CocoaPods/Core/blob/master/lib/cocoapods-core/specification.rb#L187
+    private String getModuleName(JSONObject specJson, PodSpec parent) {
+        if (specJson.containsKey("module_name")) {
+            return (String)specJson.get("module_name");
+        }
+
+        if (specJson.containsKey("header_dir")) {
+            return toC99extIdentifier((String)specJson.get("header_dir"));
+        }
+
+        String name = (String)specJson.get("name");
+        String fixedName = toC99extIdentifier(name);
+        if (parent == null) {
+            return fixedName;
+        }
+
+        return parent.name + (NAME_EXCEPTIONS.contains(parent.name) ? "" : "_") + fixedName;
+    }
+
     // https://guides.cocoapods.org/syntax/podspec.html
     private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir, File generatedDir, File jobDir, Map<String, Object> jobEnvContext) throws ExtenderException {
         PodSpec spec = new PodSpec();
         spec.name = (String)specJson.get("name");
-        if (specJson.containsKey("module_name")) {
-            spec.moduleName = (String)specJson.get("module_name");
-        }
-        else {
-            // NSData+zlib -> NSData
-            spec.moduleName = ((String)specJson.get("name")).replaceAll("[\\+].*", "");
-        }
+        spec.moduleName = getModuleName(specJson, parent);
         spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;
         spec.dir = (parent == null) ? new File(podsDir, spec.name) : parent.dir;
         spec.parentSpec = parent;
@@ -938,6 +962,7 @@ public class CocoaPodsService {
             spec.defines.osx.addAll(parent.defines.osx);
             spec.linkflags.ios.addAll(parent.linkflags.ios);
             spec.linkflags.ios.addAll(parent.linkflags.ios);
+            spec.flags.remove("-fmodule-name=" + parent.moduleName);
         }
 
         // platform versions
@@ -997,11 +1022,12 @@ public class CocoaPodsService {
         spec.flags.osx.objc.add("-fmodules");
         spec.flags.ios.objcpp.add("-fcxx-modules");
         spec.flags.osx.objcpp.add("-fcxx-modules");
-        if (spec.parentSpec == null) {
-            spec.flags.ios.objc.add("-fmodule-name=" + spec.moduleName);
-            spec.flags.osx.objc.add("-fmodule-name=" + spec.moduleName);
-            spec.flags.ios.objcpp.add("-fmodule-name=" + spec.moduleName);
-        }
+        spec.flags.ios.c.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.osx.c.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.ios.objc.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.osx.objc.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.moduleName);
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
@@ -1369,6 +1395,10 @@ public class CocoaPodsService {
         resolvedPods.podsDir = new File(workingDir, "Pods");
         resolvedPods.frameworksDir = frameworksDir;
         resolvedPods.generatedDir = generatedDir;
+
+        LOGGER.info("Resolved Cocoapod dependencies");
+        LOGGER.info(resolvedPods.toString());
+
         return resolvedPods;
     }
 
