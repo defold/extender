@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Attach to java process inside docker",
+            "request": "attach",
+            "hostName": "localhost",
+            "port": "5005"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-ExtenderApplication<server>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.defold.extender.ExtenderApplication",
+            "projectName": "server",
+            "args": "--spring.config.location=classpath:./,file:${workspaceFolder}/server/configs/ --extender.sdk.location=${workspaceFolder}/server/app/sdk --spring.profiles.active=standalone-dev",
+            "envFile": ["${workspaceFolder}/server/envs/.env", "${workspaceFolder}/server/envs/user.env", "${workspaceFolder}/server/envs/macos.env"]
+        }
+    ]
+}
