@@ -415,7 +415,7 @@ public class ExtenderController {
 
     @GetMapping("/job_status")
     @ResponseBody
-    public Integer getBuildStatus(@RequestParam String jobId) throws IOException {
+    public Integer getBuildStatus(@RequestParam(name = "jobId") String jobId) throws IOException {
         File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
         if (jobResultDir.exists()) {
             File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
@@ -430,7 +430,7 @@ public class ExtenderController {
     }
 
     @GetMapping("/job_result")
-    public @ResponseBody byte[] getBuildResult(@RequestParam String jobId) throws IOException {
+    public @ResponseBody byte[] getBuildResult(@RequestParam(name = "jobId") String jobId) throws IOException {
         File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
         if (jobResultDir.exists()) {
             File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
