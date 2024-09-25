@@ -2,44 +2,37 @@
 
 set -e
 
-if [[ "$#" -lt 4 ]]; then
-    printf "Usage: $(basename "$0") <version> <target directory> <service script> [packages url] [extender profile]\n\n";
-    exit 1;
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo "Load common env ..."
+source $SCRIPT_DIR/../../envs/.env
+
+if [[ ! -e ${SCRIPT_DIR}/../../envs/user.env ]]; then
+    echo "${SCRIPT_DIR}/../../envs/user.env doesn't exist. Runs ./server/envs/generate_user_env.sh to generate it."
+    $SCRIPT_DIR/../../envs/generate_user_env.sh
 fi
 
-VERSION=$1
-EXTENDER_DIR=$2
-EXTENDER_SERVICE=$3
-export DM_PACKAGES_URL=$4
-EXTENDER_PROFILE=$5
+echo "Load user env ..."
+source $SCRIPT_DIR/../../envs/user.env
 
 if [[ -z ${DM_PACKAGES_URL} ]]; then
     echo "[setup] Missing DM_PACKAGES_URL environment variable"
     exit 1
 fi
 
-EXTENDER_INSTALL_DIR=${EXTENDER_DIR}/${VERSION}
-
-if [[ ! -e ${EXTENDER_DIR} ]]; then
-    echo "[setup] Error! Extender home directory ${EXTENDER_DIR} not setup, exiting.\n\n"
-    exit 2
-fi
-
 # Platform SDKs
-PLATFORMSDK_DIR=${EXTENDER_DIR}/platformsdk
 if [[ ! -e ${PLATFORMSDK_DIR} ]]; then
     mkdir -p ${PLATFORMSDK_DIR}
     echo "[setup] Created SDK directory at ${PLATFORMSDK_DIR}."
 fi
 
 # Logs
-LOGS_DIR=${EXTENDER_DIR}/logs
-if [[ ! -e ${LOGS_DIR} ]]; then
-    mkdir -p ${LOGS_DIR}
-    echo "[setup] Created logs directory at ${LOGS_DIR}."
+if [[ ! -e ${LOG_DIRECTORY} ]]; then
+    mkdir -p ${LOG_DIRECTORY}
+    echo "[setup] Created logs directory at ${LOG_DIRECTORY}."
 fi
 
-CURL_CMD=/usr/bin/curl
+CURL_CMD=$(which curl)
 TMP_DOWNLOAD_DIR=/tmp/_extender_download
 
 function check_url() {
@@ -117,11 +110,6 @@ function download_zig() {
     fi
 }
 
-# See service-standalone.sh (these must match)
-DOTNET_ROOT=${EXTENDER_DIR}/dotnet
-DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
-NUGET_PACKAGES=${EXTENDER_DIR}/.nuget
-
 function install_dotnet() {
     # There are no static download links, they're always generated
     # https://dotnet.microsoft.com/en-us/download/dotnet/9.0
@@ -164,10 +152,16 @@ function install_dotnet() {
     # verify that the build is the correct version
     local version=$(${DOTNET} --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
     if [ "$version" != "8" ]; then
-        echo "[setup] dotnet version is newer:" $(dotnet --version)
+        echo "[setup] dotnet version is newer:" $(${DOTNET} --version)
     fi
 
-    NUGET_PACKAGES=$(${DOTNET} nuget locals global-packages -l | awk '{print $2}')
+    if [[ ! -e ${NUGET_PACKAGES} ]]; then
+        mkdir -p ${NUGET_PACKAGES}
+        echo "[setup] Created Nuget directory at ${NUGET_PACKAGES}."
+    fi
+    echo "Set Nuget package folder to ${NUGET_PACKAGES}"
+    echo "${DOTNET} nuget config set globalPackagesFolder ${NUGET_PACKAGES}"
+    ${DOTNET} nuget config set globalPackagesFolder ${NUGET_PACKAGES}
 
     echo "[setup] Using NUGET_PACKAGES=${NUGET_PACKAGES}"
 
@@ -186,8 +180,8 @@ PACKAGES=(
     XcodeDefault15.4.xctoolchain.darwin
 )
 
-ZIG_VERSION=0.11.0
-ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
+# ZIG_VERSION=0.11.0
+# ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-${ZIG_VERSION}
 ZIG_PACKAGE_NAME=zig-macos-x86_64-${ZIG_VERSION}.tar.xz
 ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}
 
@@ -205,27 +199,3 @@ download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
 
 echo "[setup] Installing dotnet"
 install_dotnet
-
-chmod a+x ${EXTENDER_INSTALL_DIR}/service.sh
-
-if [[ -e ${EXTENDER_SERVICE} ]]; then
-    echo "[setup] Stopping extender service"
-    ${EXTENDER_SERVICE} stop ${EXTENDER_DIR}
-else
-    echo "[setup] Extender service not running"
-fi
-
-echo "[setup] Symlinking ${VERSION} to ${EXTENDER_DIR}/current"
-ln -sfn ${VERSION} ${EXTENDER_DIR}/current
-
-echo "[setup] Symlinking ${EXTENDER_DIR}/current/service.sh ${EXTENDER_SERVICE}"
-ln -sfn ${EXTENDER_DIR}/current/service.sh ${EXTENDER_SERVICE}
-
-if [[ -e ${EXTENDER_SERVICE} ]]; then
-    echo "[setup] Starting extender service with profile ${EXTENDER_PROFILE}"
-
-    ${EXTENDER_SERVICE} start ${EXTENDER_DIR} ${EXTENDER_PROFILE}
-else
-    echo "[setup] ERROR No extender service found"
-    exit 1
-fi
