@@ -869,6 +869,16 @@ class Extender {
         List<String> objs = new ArrayList<>();
 
         if (!pod.swiftSourceFiles.isEmpty()) {
+            // Add -enable-experimental-feature AccessLevelOnImport
+            // There are a lot of extensions with Swift code that seem to require this
+            // flag. Perhaps swiftFlags should be added as a new field in ext.manifest?
+            // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md
+            List<String> swiftFlags = (List<String>)mergedContextWithPodsForSwift.get("swiftFlags");
+            List<String> updatedSwiftFlags = new ArrayList<String>(swiftFlags);
+            updatedSwiftFlags.add("-enable-experimental-feature");
+            updatedSwiftFlags.add("AccessLevelOnImport");
+            mergedContextWithPodsForSwift.put("swiftFlags", updatedSwiftFlags);
+
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
             LOGGER.info("emit swift header");
