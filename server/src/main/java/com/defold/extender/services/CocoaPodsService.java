@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Iterator;
 import java.util.Collections;
@@ -39,6 +40,29 @@ import java.lang.StringBuilder;
 
 @Service
 public class CocoaPodsService {
+
+    private class MainPodfile {
+        public List<String> podnames = new ArrayList<>();
+        public String platformMinVersion;
+        public String platform;
+        public File file;
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("file: " + file);
+            sb.append("pod count: " + podnames.size() + "\n");
+            sb.append("pod names: " + podnames + "\n");
+            sb.append("platform: " + platform + "\n");
+            sb.append("min version: " + platformMinVersion + "\n");
+            return sb.toString();
+        }
+    }
+
+    private class InstalledPods {
+        public Map<String, PodSpec> podsMap = new HashMap<>();
+        public List<PodSpec> pods = new ArrayList<>();
+    }
 
     public class ResolvedPods {
         public List<PodSpec> pods = new ArrayList<>();
@@ -115,6 +139,17 @@ public class CocoaPodsService {
             }
             return new ArrayList<String>(weakFrameworks);
         }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("pod count: " + pods.size() + "\n");
+            sb.append("pods dir: " + podsDir + "\n");
+            sb.append("frameworks Dir: " + frameworksDir + "\n");
+            sb.append("generated dir: " + generatedDir + "\n");
+            sb.append("platform min version: " + platformMinVersion);
+            return sb.toString();
+        }
     }
 
     public class LanguageSet {
@@ -142,6 +177,13 @@ public class CocoaPodsService {
             objcpp.addAll(set.objcpp);
         }
 
+        public void remove(String value) {
+            c.remove(value);
+            cpp.remove(value);
+            objc.remove(value);
+            objcpp.remove(value);
+        }
+
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
@@ -166,6 +208,11 @@ public class CocoaPodsService {
                 ios.add(v);
                 osx.add(v);
             }
+        }
+
+        public void remove(String value) {
+            ios.remove(value);
+            osx.remove(value);
         }
 
         @Override
@@ -263,7 +310,7 @@ public class CocoaPodsService {
                     return spec;
                 }
             }
-            return  null;
+            return null;
         }
 
         @Override
@@ -356,18 +403,20 @@ public class CocoaPodsService {
      * @param jobDirectory The job directory from where to search for Podfiles
      * @param workingDir The working directory where pods should be resolved
      * @param platform For which platform to resolve pods
-     * @return Minimum platform version
+     * @return Main pod file structure
      */
-    private String createMainPodFile(List<File> podFiles, File jobDirectory, File workingDir, String platform, Map<String, Object> jobEnvContext) throws IOException {
-        File mainPodFile = new File(workingDir, "Podfile");
+    private MainPodfile createMainPodfile(List<File> podFiles, File jobDirectory, File workingDir, String platform, Map<String, Object> jobEnvContext) throws IOException {
+        MainPodfile mainPodfile = new MainPodfile();
+
+        mainPodfile.file = new File(workingDir, "Podfile");
 
         // This file might exist when testing and debugging the extender using a debug job folder
-        podFiles.remove(mainPodFile);
+        podFiles.remove(mainPodfile.file);
 
-        String mainPodfilePlatformVersion = (platform.contains("ios") ? 
+        mainPodfile.platformMinVersion = (platform.contains("ios") ? 
             jobEnvContext.get("env.IOS_VERSION_MIN").toString(): 
             jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
-        String mainPodfilePlatform = (platform.contains("ios") ? "ios" : "osx");
+        mainPodfile.platform = (platform.contains("ios") ? "ios" : "osx");
 
         // Load all Podfiles
         List<String> pods = new ArrayList<>();
@@ -383,27 +432,37 @@ public class CocoaPodsService {
             for (String line : lines) {
                 if (line.startsWith("platform :")) {
                     String version = line.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
-                    if (!version.isEmpty() && (compareVersions(version, mainPodfilePlatformVersion) > 0)) {
-                        mainPodfilePlatformVersion = version;
+                    if (!version.isEmpty() && (compareVersions(version, mainPodfile.platformMinVersion) > 0)) {
+                        mainPodfile.platformMinVersion = version;
                     }
                 }
-                else {
+                else if (line.length() > 1) {
                     pods.add(line);
+
+                    // get the pod name from the line
+                    // example: pod 'KSCrash', '1.17.4' -> KSCrash
+                    String[] parts = line.split("'");
+                    String podname = parts[1];
+                    mainPodfile.podnames.add(podname);
                 }
             }
         }
 
         // Create main Podfile contents
         HashMap<String, Object> envContext = new HashMap<>();
-        envContext.put("PLATFORM", mainPodfilePlatform);
-        envContext.put("PLATFORM_VERSION", mainPodfilePlatformVersion);
+        envContext.put("PLATFORM", mainPodfile.platform);
+        envContext.put("PLATFORM_VERSION", mainPodfile.platformMinVersion);
         envContext.put("PODS", pods);
-        String mainPodFileContents = templateExecutor.execute(podfileTemplateContents, envContext);
-        LOGGER.info("Created main Podfile:\n{}", mainPodFileContents);
+        String mainPodfileContents = templateExecutor.execute(podfileTemplateContents, envContext);
+        LOGGER.info("Created main Podfile:\n{}", mainPodfileContents);
 
-        Files.write(mainPodFile.toPath(), mainPodFileContents.getBytes());
+        Files.write(mainPodfile.file.toPath(), mainPodfileContents.getBytes());
 
-        return mainPodfilePlatformVersion;
+        return mainPodfile;
+    }
+
+    private boolean isHeaderFile(String filename) {
+        return filename.endsWith(".h") || filename.endsWith(".def");
     }
 
     /**
@@ -420,7 +479,7 @@ public class CocoaPodsService {
                 pod.swiftSourceFiles.add(podSrcFile);
                 pod.swiftSourceFilePaths.add(podSrcFile.getAbsolutePath());
             }
-            else if (!filename.endsWith(".h")) {
+            else if (!isHeaderFile(filename)) {
                 pod.sourceFiles.add(podSrcFile);
             }
         }
@@ -435,7 +494,8 @@ public class CocoaPodsService {
         String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
         List<File> podSrcFiles = listFilesGlob(pod.dir, absolutePatternPath);
         for (File podSrcFile : podSrcFiles) {
-            if (podSrcFile.getName().endsWith(".h")) {
+            final String filename = podSrcFile.getName();
+            if (isHeaderFile(filename)) {
                 File podIncludeDir = podSrcFile.getParentFile();
                 if (podIncludeDir != null) {
                     pod.includePaths.add(podIncludeDir);
@@ -819,13 +879,10 @@ public class CocoaPodsService {
             headers.add(swiftModuleHeader.getAbsolutePath());
         }
 
-        // module name, including parent spec module name
-        String fullModuleName = ((pod.parentSpec != null) ? (pod.parentSpec.moduleName + "_") : "") + pod.moduleName;
-
         // generate final modulemap
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("FRAMEWORKOPT", pod.containsFramework ? "framework" : "");
-        envContext.put("MODULE_ID", fullModuleName);
+        envContext.put("MODULE_ID", pod.moduleName);
         envContext.put("HEADERS", headers);
         envContext.put("UMBRELLA_HEADER", umbrellaHeader);
         envContext.put("SUBMODULE", pod.containsFramework ? "module * { export * }" : "");
@@ -850,27 +907,46 @@ public class CocoaPodsService {
         return moduleMapFile.getAbsolutePath();
     }
 
+
+    private String toC99extIdentifier(String s) {
+        return s.replaceAll("^([0-9])", "_$1")  // 123FooBar -> _123FooBar
+            .replaceAll("[\\+].*", "")          // NSData+zlib -> NSData
+            .replaceAll("[^a-zA-Z0-9_]", "_")   // Foo-Bar -> Foo_Bar
+            .replaceAll("_+", "_");             // Foo__Bar -> Foo_Bar
+    }
+
+    // It seems like some exceptions such as KSCrash use a module name
+    // which doesn't separate parent and subspec by an underscore
+    // https://github.com/kstenerud/KSCrash/blob/master/KSCrash.podspec#L21
+    private static Set<String> NAME_EXCEPTIONS = new HashSet<>(Arrays.asList("KSCrash"));
+
+    // https://github.com/CocoaPods/Core/blob/master/lib/cocoapods-core/specification.rb#L187
+    private String getModuleName(JSONObject specJson, PodSpec parent) {
+        if (specJson.containsKey("module_name")) {
+            return (String)specJson.get("module_name");
+        }
+
+        if (specJson.containsKey("header_dir")) {
+            return toC99extIdentifier((String)specJson.get("header_dir"));
+        }
+
+        String name = (String)specJson.get("name");
+        String fixedName = toC99extIdentifier(name);
+        if (parent == null) {
+            return fixedName;
+        }
+
+        return parent.name + (NAME_EXCEPTIONS.contains(parent.name) ? "" : "_") + fixedName;
+    }
+
     // https://guides.cocoapods.org/syntax/podspec.html
     private PodSpec createPodSpec(JSONObject specJson, PodSpec parent, File podsDir, File generatedDir, File jobDir, Map<String, Object> jobEnvContext) throws ExtenderException {
         PodSpec spec = new PodSpec();
         spec.name = (String)specJson.get("name");
-        if (specJson.containsKey("module_name")) {
-            spec.moduleName = (String)specJson.get("module_name");
-        }
-        else {
-            // NSData+zlib -> NSData
-            spec.moduleName = ((String)specJson.get("name")).replaceAll("[\\+].*", "");
-        }
+        spec.moduleName = getModuleName(specJson, parent);
         spec.version = (parent == null) ? (String)specJson.get("version") : parent.version;
         spec.dir = (parent == null) ? new File(podsDir, spec.name) : parent.dir;
         spec.parentSpec = parent;
-
-        if (parent == null) {
-            spec.installed = spec.dir.exists();
-        }
-        else {
-            spec.installed = (new File(new File(spec.dir, spec.parentSpec.name), spec.name)).exists();
-        }
 
         // generated files relating to the pod
         // modulemap, swift header etc
@@ -885,6 +961,7 @@ public class CocoaPodsService {
             spec.defines.osx.addAll(parent.defines.osx);
             spec.linkflags.ios.addAll(parent.linkflags.ios);
             spec.linkflags.ios.addAll(parent.linkflags.ios);
+            spec.flags.remove("-fmodule-name=" + parent.moduleName);
         }
 
         // platform versions
@@ -938,15 +1015,18 @@ public class CocoaPodsService {
         spec.flags.osx.objcpp.add("--language=objective-c++");
         // CocoaPods sets CLANG_ENABLE_MODULES when creating an XCode project
         // https://xcodebuildsettings.com/#clang_enable_modules
+        spec.flags.ios.c.add("-fmodules");
+        spec.flags.osx.c.add("-fmodules");
         spec.flags.ios.objc.add("-fmodules");
         spec.flags.osx.objc.add("-fmodules");
         spec.flags.ios.objcpp.add("-fcxx-modules");
         spec.flags.osx.objcpp.add("-fcxx-modules");
-        if (spec.parentSpec == null) {
-            spec.flags.ios.objc.add("-fmodule-name=" + spec.moduleName);
-            spec.flags.osx.objc.add("-fmodule-name=" + spec.moduleName);
-            spec.flags.ios.objcpp.add("-fmodule-name=" + spec.moduleName);
-        }
+        spec.flags.ios.c.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.osx.c.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.ios.objc.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.osx.objc.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.moduleName);
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
@@ -1023,7 +1103,6 @@ public class CocoaPodsService {
 
         // find source and header files
         // https://guides.cocoapods.org/syntax/podspec.html#source_files
-        List<String> sourceFilePatterns = new ArrayList<>();
         JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
         if (sourceFiles != null) {
             Iterator<String> it = sourceFiles.iterator();
@@ -1040,6 +1119,7 @@ public class CocoaPodsService {
                 }
             }
         }
+        spec.installed = spec.containsFramework || !spec.sourceFiles.isEmpty() || !spec.swiftSourceFiles.isEmpty();
 
         // add swift libs to the runtime search path
         if (!spec.swiftSourceFiles.isEmpty()) {
@@ -1165,10 +1245,12 @@ public class CocoaPodsService {
      * @param jobDir Directory of entire build job
      * @param workingDir Directory where to install pods. The directory must contain a valid Podfile
      * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
-     * @return A list of PodSpec instances for the installed pods
+     * @return An InstalledPods object with installed pods
      */
-    private List<PodSpec> installPods(File jobDir, File workingDir, File generatedDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+    private InstalledPods installPods(File jobDir, File workingDir, File generatedDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
+        InstalledPods installedPods = new InstalledPods();
+
         File podFile = new File(workingDir, "Podfile");
         if (!podFile.exists()) {
             throw new ExtenderException("Unable to find Podfile " + podFile);
@@ -1210,7 +1292,6 @@ public class CocoaPodsService {
 
         // get all the pod specs and store them in a map, keyed on pod name
         File podsDir = new File(workingDir, "Pods");
-        Map<String, PodSpec> specsMap = new HashMap<>();
         for (String podname : podnames) {
             // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
             String podnameparts[] = splitPodname(podname);
@@ -1218,7 +1299,7 @@ public class CocoaPodsService {
             String mainpodname = podnameparts[0];
             // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
             String podversion = podname.replaceFirst(".*\\(", "").replace(")", "");
-            if (!specsMap.containsKey(mainpodname)) {
+            if (!installedPods.podsMap.containsKey(mainpodname)) {
                 String cmd = "pod spec cat --regex ^" + mainpodname + "$ --version=" + podversion;
                 String specJson = execCommand(cmd).replace(cmd, "");
                 // find first occurence of { because in some cases pod command
@@ -1231,17 +1312,19 @@ public class CocoaPodsService {
                 //     "dependencies": {
                 //     "GoogleAppMeasurement": [
                 specJson = specJson.substring(specJson.indexOf("{", 0), specJson.length());
-
-                specsMap.put(mainpodname, createPodSpec(specJson, podsDir, generatedDir, jobDir, jobEnvContext));
+                installedPods.podsMap.put(mainpodname, createPodSpec(specJson, podsDir, generatedDir, jobDir, jobEnvContext));
             }
         }
 
         // build list of specs and their dependencies (dependencies first)
         List<String> reversePodnames = new ArrayList<>(podnames);
         Collections.reverse(reversePodnames);
-        List<PodSpec> specs = new ArrayList<PodSpec>(getSpecsAndDependencies(specsMap, reversePodnames));
+        installedPods.pods.addAll(getSpecsAndDependencies(installedPods.podsMap, reversePodnames));
         LOGGER.info("Installed pods");
-        return specs;
+        for (PodSpec pod : installedPods.pods) {
+            LOGGER.info("  " + pod.name);
+        }
+        return installedPods;
     }
 
     private Map<String, Object> createJobEnvContext(Map<String, Object> env) {
@@ -1267,19 +1350,19 @@ public class CocoaPodsService {
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for
-        List<File> allPodFiles = ExtenderUtil.listFilesMatchingRecursive(jobDir, "Podfile");
-        List<File> platformPodFiles = new ArrayList<>();
-        for (File podFile : allPodFiles) {
+        List<File> allPodfiles = ExtenderUtil.listFilesMatchingRecursive(jobDir, "Podfile");
+        List<File> platformPodfiles = new ArrayList<>();
+        for (File podFile : allPodfiles) {
             String parentFolder = podFile.getParentFile().getName();
             if ((platform.contains("ios") && parentFolder.contains("ios")) ||
                 (platform.contains("osx") && parentFolder.contains("osx"))) {
-                platformPodFiles.add(podFile);
+                platformPodfiles.add(podFile);
             }
             else {
                 LOGGER.warn("Unexpected Podfile found in " + podFile);
             }
         }
-        if (platformPodFiles.isEmpty()) {
+        if (platformPodfiles.isEmpty()) {
             LOGGER.info("Project has no Cocoapod dependencies");
             return null;
         }
@@ -1293,8 +1376,11 @@ public class CocoaPodsService {
         workingDir.mkdirs();
         generatedDir.mkdirs();
 
-        String platformMinVersion = createMainPodFile(platformPodFiles, jobDir, workingDir, platform, jobEnvContext);
-        List<PodSpec> pods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
+        MainPodfile mainPodfile = createMainPodfile(platformPodfiles, jobDir, workingDir, platform, jobEnvContext);
+        InstalledPods installedPods = installPods(jobDir, workingDir, generatedDir, jobEnvContext);
+        List<PodSpec> allPods = installedPods.pods;
+        List<PodSpec> pods = new ArrayList<>();
+        pods = allPods;
         copyPodFrameworks(pods, frameworksDir, config);
 
         dumpDir(jobDir, 0);
@@ -1303,10 +1389,14 @@ public class CocoaPodsService {
 
         ResolvedPods resolvedPods = new ResolvedPods();
         resolvedPods.pods = pods;
-        resolvedPods.platformMinVersion = platformMinVersion;
+        resolvedPods.platformMinVersion = mainPodfile.platformMinVersion;
         resolvedPods.podsDir = new File(workingDir, "Pods");
         resolvedPods.frameworksDir = frameworksDir;
         resolvedPods.generatedDir = generatedDir;
+
+        LOGGER.info("Resolved Cocoapod dependencies");
+        LOGGER.info(resolvedPods.toString());
+
         return resolvedPods;
     }
 

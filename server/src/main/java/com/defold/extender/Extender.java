@@ -561,7 +561,7 @@ class Extender {
     // swiftc: https://gist.github.com/enomoto/7f11d57e4add7e702f9f84f34d3a0f8c
     // swift-frontend: https://gist.github.com/palaniraja/b4de1e64e874b68bda9e5236829cd8a6
 
-    private void emitSwiftHeaders(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private void emitSwiftHeader(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
 
         List<String> frameworks = new ArrayList<>();
@@ -813,7 +813,7 @@ class Extender {
     }
 
     // compile the source files of a pod and return a list of object files
-    private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext, Set<File> podSourceLookup) throws IOException, InterruptedException, ExtenderException {
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
@@ -862,51 +862,75 @@ class Extender {
         mergedContextWithPodsForObjC.put("systemIncludes", new ArrayList<String>());
         mergedContextWithPodsForObjCpp.put("systemIncludes", new ArrayList<String>());
         mergedContextWithPodsForSwift.put("systemIncludes", new ArrayList<String>());
-
+        // also clearing systemIncludes for c
+        // see https://github.com/defold/extender/issues/389
+        mergedContextWithPodsForC.put("systemIncludes", new ArrayList<String>());
 
         List<String> objs = new ArrayList<>();
 
         if (!pod.swiftSourceFiles.isEmpty()) {
+            // Add -enable-experimental-feature AccessLevelOnImport
+            // There are a lot of extensions with Swift code that seem to require this
+            // flag. Perhaps swiftFlags should be added as a new field in ext.manifest?
+            // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md
+            List<String> swiftFlags = (List<String>)mergedContextWithPodsForSwift.get("swiftFlags");
+            List<String> updatedSwiftFlags = new ArrayList<String>(swiftFlags);
+            updatedSwiftFlags.add("-enable-experimental-feature");
+            updatedSwiftFlags.add("AccessLevelOnImport");
+            mergedContextWithPodsForSwift.put("swiftFlags", updatedSwiftFlags);
+
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
-            emitSwiftHeaders(pod, mergedContextWithPodsForC, emitSwiftHeaderCommands);
+            LOGGER.info("emit swift header");
+            emitSwiftHeader(pod, mergedContextWithPodsForSwift, emitSwiftHeaderCommands);
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
             List<String> emitSwiftModuleCommands = new ArrayList<>();
-            emitSwiftModule(pod, mergedContextWithPodsForC, emitSwiftModuleCommands);
+            LOGGER.info("emit swift module");
+            emitSwiftModule(pod, mergedContextWithPodsForSwift, emitSwiftModuleCommands);
             ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
 
             // compile swift source files one by one
             List<String> compileSwiftCommands = new ArrayList<>();
             for (File src : pod.swiftSourceFiles) {
-                final int i = getAndIncreaseNameCount();
-                File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForC, compileSwiftCommands);
-                objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+                if (!podSourceLookup.contains(src)) {
+                    final int i = getAndIncreaseNameCount();
+                    File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForSwift, compileSwiftCommands);
+                    String objPath = ExtenderUtil.getRelativePath(jobDirectory, o);
+                    objs.add(objPath);
+                    podSourceLookup.add(src);
+                }
             }
+            LOGGER.info("compiling {} swift files", compileSwiftCommands.size());
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
         }
 
         List<String> commands = new ArrayList<>();
         for (File src : pod.sourceFiles) {
-            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
-            final int i = getAndIncreaseNameCount();
-            File o = null;
-            // use the correct context depending on the source file language
-            if (extension.equals("c")) {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
+            if (!podSourceLookup.contains(src)) {
+                String extension = FilenameUtils.getExtension(src.getAbsolutePath());
+                final int i = getAndIncreaseNameCount();
+                File o = null;
+                // use the correct context depending on the source file language
+                if (extension.equals("c")) {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
+                }
+                else if (extension.equals("m")) {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
+                }
+                else if (extension.equals("mm")) {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
+                }
+                else {
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
+                }
+                String objPath = ExtenderUtil.getRelativePath(jobDirectory, o);
+                objs.add(objPath);
+                podSourceLookup.add(src);
             }
-            else if (extension.equals("m")) {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
-            }
-            else if (extension.equals("mm")) {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
-            }
-            else {
-                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
-            }
-            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
         }
+        LOGGER.info("compiling {} source files", commands.size());
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
         return objs;
@@ -921,7 +945,9 @@ class Extender {
         }
 
         LOGGER.info("buildPods");
+        Set<File> podSourceLookup = new HashSet<>();
         for (PodSpec pod : resolvedPods.pods) {
+            LOGGER.info("building {}", pod.name);
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
             // manifest context for each pod
@@ -931,15 +957,17 @@ class Extender {
             manifestContext.put("extension_name", pod.name);
             manifestContext.put("extension_name_upper", pod.name.toUpperCase());
             manifestContext.put("osMinVersion", resolvedPods.platformMinVersion);
+            manifestContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
 
             // Compile pod source files
-            List<String> objs = compilePodSourceFiles(pod, manifestContext);
+            List<String> objs = compilePodSourceFiles(pod, manifestContext, podSourceLookup);
             if (!objs.isEmpty()) {
                 // Create c++ library
                 File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
                 Map<String, Object> context = createContext(manifestContext);
                 context.put("tgt", lib);
                 context.put("objs", objs);
+                LOGGER.info("creating library {} from {} objects", lib.getName(), objs.size());
                 executeCommand(platformConfig.libCmd, context);
             }
         }
@@ -2210,6 +2238,7 @@ class Extender {
                 podAppContext.put("libs", resolvedPods.getAllPodLibs(platform));
                 podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags(platform));
                 podAppContext.put("osMinVersion", resolvedPods.platformMinVersion);
+                podAppContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
             }
             Map mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
