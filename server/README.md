@@ -1,41 +1,40 @@
 # Server part
-Server part consists of set of Docker containers and standalone instances. The most common setup is:
-* **frontend instance** that runs in empty environment. Handle all incoming requests and redirects it to remote instances according to platfrom.sdks.json mappings that instance download for engine version. Also handle all access checks.
-* **remote instances**. One instance per platform and platform sdk version. Instance has necessary environment and produce engine builds.
-* **standalone instances**. It also can be any builder for any platform. Recommended for osx/ios builder instances because there are no ready-to-use environment to run on MacOS host. So you need to setup all environment manually and deploy extender's jars to host and run it.
+Server part consists of a set of Docker containers and standalone instances. The most common setup is:
 
-Extender consists of two parts:
-* **app.jar** - the main jar contains all functionality to work with network requests, making engine builds.
-* **manifestmerger.jar** - standalone jar used by app.jar to do platform manifest merging (like merging of *AndroidManifest.xml*, *Info.plist*, *PrivacyInfo.xcprivacy* manifests).
+* **frontend instance** runs in an empty environment and handles all incoming requests and redirects them to remote instances according to `platfrom.sdks.json` mappings that the instance downloads for an engine version. Also handle all access checks.
+* **remote instances** exist per platform and platform sdk version. The remote instance run preconfigured Docker images with the necessary environment and produce engine builds for the specific platform and sdk version.
+* **standalone instances** are typically used for osx/ios builder instances running on a macOS host. A standalone instance does not use a Docker image and instead have the necessary environment and jar files installed directly on the host.
+
+The extender consists of two parts:
+* **app.jar** - the main jar contains all functionality to work with network requests and making engine builds.
+* **manifestmerger.jar** - a standalone jar used by app.jar to do platform manifest merging (like merging of *AndroidManifest.xml*, *Info.plist*, *PrivacyInfo.xcprivacy* manifests).
 
 # Docker images
-Extender instance should run in preconfigured environment (where necessary SDKs, toolchains, environment variables are confgured). For all platforms (except MacOS/iOS) exist Docker images where everything is done.
+Extender instance should run in preconfigured environment where necessary SDKs, toolchains, environment variables are confgured. For all platforms (except MacOS/iOS) there exists Docker images where everything is set up.
 
 ## How to use ready-to-use Docker images
-1. Make sure that you have access to Defold Artifact registries.
-2. Authorize to Google Cloud and create Application default credentials
+1. Authorize to Google Cloud and create Application default credentials
    ```sh
    gcloud auth application-default login
    ```
-3. Configure Docker to use Artifact registries
+2. Configure Docker to use Artifact registries
    ```sh
    gcloud auth configure-docker europe-west1-docker.pkg.dev
    ```
-4. Check that everything set up correctly by pulling base image. Run
+3. Check that everything set up correctly by pulling base image. Run
    ```sh
    docker pull europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
    ```
 
 ## How to build docker images locally
-In repository provided Dockerfiles for currently support by Defold platforms. All Dockerfiles can be found in `docker` folder.
-Dockerfile named according to platform and sdk version that used inside. For example, `Dockerfile.emsdk-2011` means that inside Emscripten sdk 2.0.11 will be installed.
-Dockerfiles contains only environment settings (e.g. no app.jar/manifestmerger.jar inside).
+Dockerfiles for the currently supported platforms can be found in `server/docker`. Dockerfiles are named according to the platform and sdk version that is used inside. For example, `Dockerfile.emsdk-2011` means that inside Emscripten sdk 2.0.11 will be installed.
+The Dockerfiles contain only environment settings (e.g. no app.jar/manifestmerger.jar inside).
 
-All available docker images can be build via (can be called from the root of repository)
+All available docker images can be built using the following command, run from the root of this repository:
 ```sh
 DM_PACKAGE_URL=<url_to_packages> ./server/build-docker.sh
 ```
-It's mandatory to provide `DM_PACKAGE_URL` variable. Otherwise most of containers cannot be built. `DM_PACKAGE_URL` variable should contains url to place where prebuilt platform sdks are located.
+It's mandatory to provide a `DM_PACKAGE_URL` variable. Otherwise most of containers cannot be built. `DM_PACKAGE_URL` variable should contains url to the location where prebuilt platform sdks are located.
 
 If you don't have all platform sdks (for example, you don't have consoles sdks) you can customize `build-docker.sh` script and remove all unused parts.
 By default all built images tagged with `latest` version.
@@ -95,8 +94,7 @@ Test can be run from the root directory with
 ```sh
 ./gradlew server:test
 ```
-During the testing local servers will be run. That's why it necessary to have prebuild docker images.
-There are two set of services that run:
+During the testing local servers will be run. That's why it necessary to have prebuild docker images. There are two set of services that run:
 * **test** - run for integration testing (see *IntegrationTest.java*)
 * **auth-test** - run for authentication testing (see *AuthenticationTest.java*)
 
@@ -117,15 +115,15 @@ Rerun docker compose. After that you can attach to running JVM process via `loca
 * VSCode - https://code.visualstudio.com/docs/java/java-debugging
 
 ## How to release new application's versions
-To release new extender application version simply need to create an new git tag
+To release new extender application version simply need to create an new git tag:
 ```sh
 git tag -a extender-v1.0.0 -m "Initial extender release."
 ```
-and push it to remote repository
+and push it to remote repository:
 ```sh
 git push origin extender-v1.0.0
 ```
-It triggres appropriate Github workflow that build jar, test, and upload to private Maven repository.
+It triggers appropriate GitHub workflow that build jar, test, and upload to private Maven repository.
 
 Tags should be in the following format:
 * **extender-vX.X.X** - for Extender jar. For example, extender-v2.0.0
@@ -134,7 +132,7 @@ Tags should be in the following format:
 For more details see [application workflow](../.github/workflows/application-build.yml).
 
 ## How to change and release new version of Docker image
-As an example show stepp on Android NDK25 Docker image.
+As an example here is how to change Android NDK25 Docker image.
 1. Make changes in `server/docker/Dockerfile.android.ndk25-env` file and save it.
 2. Test locally that everything build correctly. Run
    ```sh
@@ -144,9 +142,9 @@ As an example show stepp on Android NDK25 Docker image.
    ```sh
    DM_PACKAGES_URL=<URL_TO_PACKAGES> docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:latest -f ./server/docker/Dockerfile.android-env ./server/docker
    ```
-3. Create new git tag according to name convention:
+3. Create new git tag according to the following naming convention:
    `<platform>[.<sdk_version>]-<version>`
-   For example, `android.ndk25-1.0.0`. Base part of th tag name should be the same as the middle part of Dockerfile name, e.g. if Dockerfile has name `Dockerfile.XXXX-env` than tag should have name `XXXX-<version>`.
+   For example, `android.ndk25-1.0.0`. Base part of the tag name should be the same as the middle part of Dockerfile name, e.g. if Dockerfile has name `Dockerfile.XXXX-env` than tag should have name `XXXX-<version>`.
    ```sh
    git tag -a android.ndk25-1.0.0 -m "Initial Android NDK25 Docker image."
    ```
@@ -154,17 +152,18 @@ As an example show stepp on Android NDK25 Docker image.
    ```sh
    git push origin android.ndk25-1.0.0
    ```
-Tag push triggres Github workflow that build and push to private Docker registry new Docker image. For more details, see [docker workflow](../.github/workflows/docker-env-build.yml).
+Tag push triggers GitHub workflow that build and push the new Docker image to the Docker registry. For more details, see [docker workflow](../.github/workflows/docker-env-build.yml).
 
-In case if new version of base image will be release do not forget to update tag version in `.server/build-socker.sh`.
+In case if new version of base image will be released do not forget to update tag version in `.server/build-socker.sh`.
 
 # Deployment notes
 
 ## How to configure remote hosts
 Frontend instance should run with configs that contains urls to remote hosts. For example, see `server/configs/application-local-dev-app.yml`.
-Keys in `extender.remote-builder.platform` should be formed in following way: `<platform_name>-<sdk_version>`. That mappings must have the same names as used in https://github.com/defold/defold/blob/generate-platform-sdks-mappings/share/platform.sdks.json. How it works.
-1. Frontend instance get a request.
-2. By engine sha1 version instance downloads `platform.sdks.json`.
-3. Instance looks into `platform.sdks.json` and found information according to requested platform. For example, user try to build engine for platform `js-web`. In that case frontend instance found `["emsdk", "3155"]`.
-4. Frontend instance search through `extender.remote-builder.platforms` two keys: `<platform>-<sdk_version>` and `<platform>-latest`. If no mappings was found - frontend instance starts local build (which highly likely will fail because no appropriate environment was configured). For our example frontend instance search for `emsdk-3155` and `emsdk-latest`. 
-5. For find url frontend instance start remote build.
+Keys in `extender.remote-builder.platform` should be formed in the following way: `<platform_name>-<sdk_version>` and the mappings must have the same names as used in https://github.com/defold/defold/blob/generate-platform-sdks-mappings/share/platform.sdks.json. Here's how it works:
+
+1. Frontend instance get a request. The request contains a sha1 matching an engine version and which platform to build.
+2. Frontend instance downloads `platform.sdks.json` for the specified engine sha1.
+3. Frontend instance looks into `platform.sdks.json` for information according to requested platform. For example, user try to build engine for platform `js-web`. In that case frontend instance found `["emsdk", "3155"]`.
+4. Frontend instance search through `extender.remote-builder.platforms` using the keys: `<platform>-<sdk_version>` and `<platform>-latest`. If no mappings was found - frontend instance starts local build (which highly likely will fail because no appropriate environment was configured). For our example frontend instance search for `emsdk-3155` and `emsdk-latest`. 
+5. Frontend instance sends a build request to the found server url.
