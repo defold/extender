@@ -44,7 +44,7 @@ task mainJar(type: Jar) {
         doLast {
         copy {
             from "${project.projectDir}/build/libs/manifestmergetool-${project.ext.manifestMergetoolVersion}.jar"
-            into "app"
+            into "${project.projectDir}/../app"
             rename { String fileName ->
                 fileName.replace("-$project.ext.manifestMergetoolVersion", "")
             }
