@@ -180,9 +180,11 @@ PACKAGES=(
     XcodeDefault15.4.xctoolchain.darwin
 )
 
-# ZIG_VERSION=0.11.0
-# ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-${ZIG_VERSION}
-ZIG_PACKAGE_NAME=zig-macos-x86_64-${ZIG_VERSION}.tar.xz
+ZIG_ARCH=x86_64
+if [[ $(uname -m) == "arm64" ]]; then
+    ZIG_ARCH=aarch64
+fi
+ZIG_PACKAGE_NAME=zig-macos-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz
 ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}
 
 function download_packages() {
