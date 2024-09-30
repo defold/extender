@@ -26,6 +26,7 @@ public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);
 
     private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
+    private static final String DOTNET_CLI_HOME = System.getenv("DOTNET_CLI_HOME");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
     private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
 
@@ -57,7 +58,7 @@ public class CSharpBuilder {
         this.template = ExtenderUtil.readContentFromResource(csProjectResource);
         this.context = context;
 
-        LOGGER.info(String.format("DOTNET_ROOT: %s", DOTNET_ROOT));
+        LOGGER.info(String.format("DOTNET_CLI_HOME: %s", DOTNET_CLI_HOME));
         LOGGER.info(String.format("NUGET_PACKAGES: %s", NUGET_PACKAGES));
     }
 
@@ -132,8 +133,12 @@ public class CSharpBuilder {
 
     private File runDotnet(File project, String platform) throws IOException, InterruptedException, ExtenderException {
 
+        if (DOTNET_CLI_HOME == null) {
+            throw new ExtenderException("DOTNET_CLI_HOME is not setup correctly! Cannot build C#.");
+        }
+
         String csplatform = convertPlatform(this.platform);
-        String cmd = String.format("%s/dotnet publish --nologo -c Release -r %s ", DOTNET_ROOT, csplatform);
+        String cmd = String.format("%s/dotnet publish --nologo -c Release -r %s ", DOTNET_CLI_HOME, csplatform);
         cmd += project.getAbsolutePath();
 
         List<String> commands = new ArrayList<>();
@@ -166,38 +171,53 @@ public class CSharpBuilder {
         return out;
     }
 
-    public static List<File> getStaticDependencies(String platform) throws IOException {
+    private static Path getNativePath(String platform) throws IOException {
         String csplatform = convertPlatform(platform);
         String dotnetVersion = readFile(DOTNET_VERSION_FILE).trim();
+        return Paths.get(NUGET_PACKAGES, String.format("microsoft.netcore.app.runtime.nativeaot.%s/%s/runtimes/%s/native", csplatform, dotnetVersion, csplatform));
+    }
 
-        Path aotBase = Paths.get(NUGET_PACKAGES, String.format("microsoft.netcore.app.runtime.nativeaot.%s/%s/runtimes/%s/native", csplatform, dotnetVersion, csplatform));
+    private static void addLibFlags(String platform, List<String> linkFlags) throws IOException {
+        Path aotBase = getNativePath(platform);
 
-        List<File> out = new ArrayList<>();
+        linkFlags.add(Paths.get(aotBase.toString(), "libbootstrapperdll.o").toString());
+
+        // Note: These libraries are specified with full paths, or the linker will link against the dynamic libraries.
+        // We want to avoid that hassle for now. Let's do that in a step two.
+
+        // TODO: Do we need a way to toggle these behaviors on/off?
+        linkFlags.add(Paths.get(aotBase.toString(), "libRuntime.WorkstationGC.a").toString());
+        linkFlags.add(Paths.get(aotBase.toString(), "libeventpipe-enabled.a").toString());
+        linkFlags.add(Paths.get(aotBase.toString(), "libstandalonegc-enabled.a").toString());
+
+        linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Native.a").toString());
+        linkFlags.add(Paths.get(aotBase.toString(), "libSystem.IO.Compression.Native.a").toString());
+        linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Globalization.Native.a").toString());
+
         if (platform.equals("arm64-osx") || platform.equals("x86_64-osx"))
         {
-            out.add(Paths.get(aotBase.toString(), "libbootstrapperdll.o").toFile());
-            out.add(Paths.get(aotBase.toString(), "libRuntime.WorkstationGC.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libeventpipe-enabled.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libstandalonegc-enabled.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.IO.Compression.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.Globalization.Native.a").toFile());
+            linkFlags.add(Paths.get(aotBase.toString(), "libRuntime.VxsortEnabled.a").toString());
+
         }
         else if (platform.equals("arm64-ios") || platform.equals("x86_64-ios"))
         {
-            out.add(Paths.get(aotBase.toString(), "libbootstrapperdll.o").toFile());
-            out.add(Paths.get(aotBase.toString(), "libRuntime.WorkstationGC.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libeventpipe-disabled.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libstandalonegc-disabled.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libstdc++compat.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.Globalization.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.IO.Compression.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.Net.Security.Native.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libSystem.Security.Cryptography.Native.Apple.a").toFile());
-            out.add(Paths.get(aotBase.toString(), "libicucore.a").toFile());
+            linkFlags.add(Paths.get(aotBase.toString(), "libstdc++compat.a").toString());
+            linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Net.Security.Native.a").toString());
+            linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Security.Cryptography.Native.Apple.a").toString());
+            linkFlags.add("-licucore");
         }
-
-        return out;
     }
+
+    public static void updateContext(String platform, Map<String, Object> context) throws IOException {
+        Path aotBase = getNativePath(platform);
+
+        List<String> libPaths = (List<String>)context.getOrDefault("libPaths", new ArrayList<String>());
+        libPaths.add(aotBase.toString()); // -L/path/to/aot
+        context.put("libPaths", libPaths);
+
+        List<String> linkFlags = (List<String>)context.getOrDefault("linkFlags", new ArrayList<String>());
+        CSharpBuilder.addLibFlags(platform, linkFlags);
+        context.put("linkFlags", linkFlags);
+    }
+
 }

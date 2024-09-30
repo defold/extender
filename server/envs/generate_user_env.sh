@@ -20,6 +20,7 @@ ERROR_LOG=${LOG_DIRECTORY}/error.log
 EXTENDER_SDK_LOCATION=${ENV_DIR}/../app/sdk
 
 DOTNET_ROOT=${ENV_DIR}/../app/dotnet
+DOTNET_CLI_HOME=${DOTNET_ROOT}
 DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
 NUGET_PACKAGES=${ENV_DIR}/../app/.nuget
 
@@ -49,6 +50,7 @@ echo "STDOUT_LOG=${STDOUT_LOG}" >> $ENV_DIR/user.env
 echo "ERROR_LOG=${ERROR_LOG}" >> $ENV_DIR/user.env
 echo "EXTENDER_SDK_LOCATION=${EXTENDER_SDK_LOCATION}" >> $ENV_DIR/user.env
 echo "DOTNET_ROOT=${DOTNET_ROOT}" >> $ENV_DIR/user.env
+echo "DOTNET_CLI_HOME=${DOTNET_CLI_HOME}" >> $ENV_DIR/user.env
 echo "DOTNET_VERSION_FILE=${DOTNET_VERSION_FILE}" >> $ENV_DIR/user.env
 echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $ENV_DIR/user.env
 # Added 1.4.9

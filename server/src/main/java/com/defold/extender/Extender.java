@@ -1377,11 +1377,7 @@ class Extender {
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
         if (this.needsCSLibraries) {
-            List<String> linkFlags = (List<String>)context.getOrDefault("linkFlags", new ArrayList<String>());
-            for (File dependency : CSharpBuilder.getStaticDependencies(platform)) {
-                linkFlags.add(dependency.getAbsolutePath());
-            }
-            context.put("linkFlags", linkFlags);
+            CSharpBuilder.updateContext(platform, context);
         }
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
