@@ -6,7 +6,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'io.spring.gradle:dependency-management-plugin:1.1.5'
+        classpath 'io.spring.gradle:dependency-management-plugin:1.1.6'
         classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.3.1'
     }
 }
