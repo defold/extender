@@ -14,7 +14,7 @@ services:
       - ./../app/:/app/:ro
       - ./../manifestmergetool/app/manifestmergetool.jar:/etc/extender/apps/manifestmergetool.jar:ro
       - ./../configs:/etc/defold/extender:ro
-      - ./../../dynamo_home:/dynamo_home:ro
+      - ${DYNAMO_HOME:-dummy:/dynamo_home}
     entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
     environment:
       - DYNAMO_HOME
