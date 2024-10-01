@@ -14,10 +14,10 @@ services:
       - ./../app/:/app/:ro
       - ./../app/:/etc/extender/apps/:ro
       - ./../configs:/etc/defold/extender:ro
-      - ${DYNAMO_HOME:-./../app/dummy:/dynamo_home}
+      - ${DYNAMO_HOME:-./../app/dummy}:/dynamo_home
     entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
     environment:
-      - DYNAMO_HOME
+      - ${DYNAMO_HOME:+DYNAMO_HOME=/dynamo_home}
       - DM_DEBUG_COMMANDS
       - DM_DEBUG_DISABLE_PROGUARD
       - DM_DEBUG_JOB_FOLDER
