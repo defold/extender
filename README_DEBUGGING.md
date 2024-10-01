@@ -12,7 +12,7 @@ There is a debug script that you can run to download a specific SDK version, or 
 
     $ ./server/scripts/debug_defoldsdk.py [<sha1>]
 
-This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`; creates link from `defoldsdk/<sha1>/defoldsdk` to `./dynamo_home`; sets the environment variable `DYNAMO_HOME` and then starts the extender server with profile `all`. If you want to run docker compose with other profiles - it can be done via COMPOSE_PROFILES variable. For example
+This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`; sets the environment variable `DYNAMO_HOME` and then starts the extender server with profile `all`. If you want to run docker compose with other profiles - it can be done via `COMPOSE_PROFILES` variable. For example
 
 ```sh
     COMPOSE_PROFILES=web,windows python ./server/scripts/debug_defoldsdk.py
@@ -62,9 +62,9 @@ The command will connect to the container using the `extender` user, and execute
 
 ## Preparation
 
-* For locally built SDK's (in DYNAMO_HOME), it's good to map the same folder path locally as is in the Docker container. Create a symlink to ./dynamo_home folder:
+* To use locally built SDK set `DYNAMO_HOME` variable before docker compose command. For example, 
 ```sh
-    ln -sf $DYNAMO_HOME ./dynamo_home
+    DYNAMO_HOME=/Users/user/work/defold/tmp/dynamo_home docker compose -f ./server/docker/docker-compose.yml --profile android up
 ```
 * Run docker compose with following environment variables:
 ```sh
