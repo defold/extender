@@ -11,6 +11,8 @@ Extender is a build server that builds native extensions of the Defold engine. T
 The stand-alone server is currently used on a machine runing macOS. The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang). It is also possible to use this setup when developing on macOS.
 
 ### Prerequisites
+Before running Extender you need to have prepackaged toolchains and sdks. Full instruction how it can be done you can find [here](https://github.com/defold/defold/tree/dev/scripts/package).
+
 Ensure that you have the following tools packaged:
 * iPhoneOS16.2.sdk
 * iPhoneOS17.5.sdk
@@ -23,11 +25,19 @@ Ensure that you have the following tools packaged:
 
 NOTE: Complete list of needed packages see [link](./server/scripts/standalone/setup-standalone-env.sh)
 
+After obtain packages with sdks and toolchains you make it available via HTTP. The easiest way to do these is to run Python HTTP server on local machine. For example,
+```sh
+    cd <path_where_packages_located>
+    python -m http.server
+```
+It starts local web server that available at `http://localhost:8000`.
+
 Setup all needed packages via
 ```sh
     DM_PACKAGES_URL=<url_where_package_located> ./server/scripts/standalone/setup-standalone-env.sh
 ```
-It's download packages, unpack it to correct folder and generate .env file with correct pathes
+If you run local HTTP server from previous step replace `<url_where_package_located>` with `http://localhost:8000`.
+It's download packages, unpack it to correct folder and generate .env file with correct pathes.
 
 ### Local Extender's application
 There are two ways to obtain Extender's jars:
@@ -53,32 +63,20 @@ If you want to use different Spring profile you can pass it via 2nd argument. Fo
 
 Note: all Spring profiles should be located in `./server/configs/` folder.
 
+As a result Extender should start and start listening 9010 port (that port set by default). E.g. Extender can be reached via `http://localhost:9010`.
+Logs of extender can be found in `./server/app/logs/` folder.
+
+If you want to use other port (not 9010) you can change property `server.port` in `./server/configs/application-standalone-dev.yml`.
+
 ### Develop/debug standalone Extender using VSCode
 Note that [Prerequisites](#prerequisites) should be completed and manifestmergetool.jar already downloaded or built.
 
 1. Download VSCode: https://code.visualstudio.com/download
-2. Install following extensions:
+2. Open folder with Extender sources in VSCode.
+3. Install following extensions:
    1. Spring Boot Extension Pack https://marketplace.visualstudio.com/items?itemName=vmware.vscode-boot-dev-pack
    2. Spring Boot Dashboard https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-spring-boot-dashboard
    3. Language Support for Java(TM) by Red Hat https://marketplace.visualstudio.com/items?itemName=redhat.java
    4. Gradle for Java https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-gradle
    5. Debugger for Java https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-debug. Note: version should be v0.58.2024090204 (pre-release) or greater.
-3. Open folder with Extender sources in VSCode.
-4. Go to `Run and Debug` and open `launch.json` 
-
-   ![](images/run_debug.png)
-
-5. Add following launch configuration
-    ```json
-        {
-            "type": "java",
-            "name": "Spring Boot-ExtenderApplication<server>",
-            "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "mainClass": "com.defold.extender.ExtenderApplication",
-            "projectName": "server",
-            "args": "--spring.config.location=classpath:./,file:${workspaceFolder}/server/configs/ --extender.sdk.location=${workspaceFolder}/server/app/sdk --spring.profiles.active=standalone-dev",
-            "envFile": ["${workspaceFolder}/server/envs/.env", "${workspaceFolder}/server/envs/user.env", "${workspaceFolder}/server/envs/macos.env"]
-        }
-    ```
-6. Select `Spring Boot-ExtenderApplication<server>` in dropdown and start debug session.
+4. Select `Spring Boot-ExtenderApplication<server>` in dropdown and start debug session.

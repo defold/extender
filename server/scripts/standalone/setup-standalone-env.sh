@@ -167,18 +167,32 @@ function install_dotnet() {
 
 }
 
+if [[ $(uname) == "Darwin" ]]; then
+    echo "Setup Macos environment"
 
-# Keep Apple's naming convention to avoid bugs
-PACKAGES=(
-    iPhoneOS16.2.sdk
-    iPhoneOS17.5.sdk
-    iPhoneSimulator16.2.sdk
-    iPhoneSimulator17.5.sdk
-    MacOSX13.1.sdk
-    MacOSX14.5.sdk
-    XcodeDefault14.2.xctoolchain.darwin
-    XcodeDefault15.4.xctoolchain.darwin
-)
+    echo "Load macos environment..."
+    source $SCRIPT_DIR/../../envs/macos.env
+
+    # Keep Apple's naming convention to avoid bugs
+    PACKAGES=(
+        iPhoneOS${IOS_16_VERSION}.sdk
+        iPhoneOS${IOS_17_VERSION}.sdk
+        iPhoneSimulator${IOS_16_VERSION}.sdk
+        iPhoneSimulator${IOS_17_VERSION}.sdk
+        MacOSX${MACOS_13_VERSION}.sdk
+        MacOSX${MACOS_14_VERSION}.sdk
+        XcodeDefault${XCODE_14_VERSION}.xctoolchain.darwin
+        XcodeDefault${XCODE_15_VERSION}.xctoolchain.darwin
+    )
+    function download_packages() {
+        for package_name in ${PACKAGES[@]}; do
+            download_package ${package_name}
+        done
+    }
+
+    echo "[setup] Downloading packages"
+    download_packages
+fi
 
 ZIG_ARCH=x86_64
 if [[ $(uname -m) == "arm64" ]]; then
@@ -186,15 +200,6 @@ if [[ $(uname -m) == "arm64" ]]; then
 fi
 ZIG_PACKAGE_NAME=zig-macos-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz
 ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}
-
-function download_packages() {
-    for package_name in ${PACKAGES[@]}; do
-        download_package ${package_name}
-    done
-}
-
-echo "[setup] Downloading packages"
-download_packages
 
 echo "[setup] Downloading Zig"
 download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
