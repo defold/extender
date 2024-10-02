@@ -2,7 +2,9 @@ server:
     port: 9010
 
 extender:
-    sdk.location: /usr/local/extender/sdk
+    sdk:
+        location: /usr/local/extender/sdk
+        cache-clear-on-exit: false
     cache:
         enabled: false
     remote-builder:

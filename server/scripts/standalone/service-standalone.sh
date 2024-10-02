@@ -2,24 +2,24 @@
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# enable mode when all variables exports by default
+set -a
 echo "Load common env ..."
 source $SCRIPT_DIR/../../envs/.env
-export $(cat $SCRIPT_DIR/../../envs/.env | xargs)
 
 echo "Load user env ..."
 source $SCRIPT_DIR/../../envs/user.env
-export $(cat $SCRIPT_DIR/../../envs/user.env | xargs)
-
 
 if [[ -z ${ENV_PROFILE} ]]; then
     echo "Load macos environment..."
     source $SCRIPT_DIR/../../envs/macos.env
-    export $(cat $SCRIPT_DIR/../../envs/macos.env | xargs)
 else
     echo "Load ${ENV_PROFILE} environment..."
     source $SCRIPT_DIR/../../envs/${ENV_PROFILE}.env
-    export $(cat $SCRIPT_DIR/../../envs/${ENV_PROFILE}.env | xargs)
 fi
+
+# disable variable export mode
+set +a
 
 PROFILE=$2
 if [[ -z ${PROFILE} ]]; then

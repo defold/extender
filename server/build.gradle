@@ -84,11 +84,20 @@ task createVersionFile() {
     def sha = System.getenv("COMMIT_SHORT_SHA")
     if (sha == null) {
         def outputStream = new ByteArrayOutputStream()
-        exec {
-            commandLine "git", "rev-parse", "--short", "HEAD"
-            standardOutput = outputStream
+        try {
+            def gen_result = exec {
+                commandLine "git", "rev-parse", "--short", "HEAD"
+                standardOutput = outputStream
+                ignoreExitValue = true
+            }
+            if (gen_result.exitValue == 0 ) {
+                sha = outputStream.toString().trim()
+            } else {
+                sha = "unknown_commit"
+            }
+        } catch (Exception exc) {
+            sha = "unknown_commit"
         }
-        sha = outputStream.toString().trim()
     }
     def build_time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date ())
     def text = """

@@ -56,6 +56,6 @@ echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $ENV_DIR/user.env
 # Added 1.4.9
 echo "ZIG_PATH_0_11=${ZIG_PATH_0_11}" >> $ENV_DIR/user.env
 
-echo "PATH=${APPENDED_PATH}" >> $ENV_DIR/user.env
+echo "PATH=\"${APPENDED_PATH}\"" >> $ENV_DIR/user.env
 
 echo "Generation completed."
