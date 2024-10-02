@@ -28,7 +28,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
     - name: Process tag name
       id: name_postprocess
       run: |
@@ -89,7 +89,7 @@ jobs:
     - name: Build and push
       env:
         DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
-      uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85
+      uses: docker/build-push-action@32945a339266b759abcbdc89316275140b0fc960
       with:
         context: ${{ github.workspace }}/server/docker/
         file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
