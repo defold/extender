@@ -43,8 +43,8 @@ start_service() {
         fi
     fi
 
-    echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
-    java -Xmx4g -XX:MaxDirectMemorySize=2g -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
+    echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -Dorg.eclipse.jetty.server.Request.maxFormKeys=1500 -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
+    java -Xmx4g -XX:MaxDirectMemorySize=2g -Dorg.eclipse.jetty.server.Request.maxFormKeys=1500 -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
 
     
     echo $! > ${PID_PATH_NAME}
