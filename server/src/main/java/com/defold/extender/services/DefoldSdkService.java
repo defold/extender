@@ -2,6 +2,7 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ZipUtils;
+import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -94,7 +95,7 @@ public class DefoldSdkService {
                 try {
                     FileUtils.deleteDirectory(source.toFile());
                 } catch (IOException e2) {
-                    LOGGER.error("Failed to delete temp sdk directory {}: {}", source.toString(), e2.getMessage());
+                    LOGGER.error(Markers.SERVER_ERROR, "Failed to delete temp sdk directory {}: {}", source.toString(), e2.getMessage());
                 }
             }
         }
@@ -216,7 +217,7 @@ public class DefoldSdkService {
             Move(path, tmpDir.toPath());
             FileUtils.deleteDirectory(tmpDir);
         } catch (IOException e) {
-            LOGGER.error("Failed to delete cached SDK at " + path.toAbsolutePath().toString(), e);
+            LOGGER.error(Markers.CACHE_ERROR, "Failed to delete cached SDK at " + path.toAbsolutePath().toString(), e);
         }
     }
 

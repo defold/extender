@@ -6,6 +6,7 @@ import com.defold.extender.cache.DataCacheFactory;
 import com.defold.extender.cache.info.CacheInfoFileParser;
 import com.defold.extender.cache.info.CacheInfoFileWriter;
 import com.defold.extender.cache.info.CacheInfoWrapper;
+import com.defold.extender.log.Markers;
 import com.defold.extender.cache.CacheKeyGenerator;
 import com.defold.extender.cache.DataCache;
 import org.apache.commons.lang3.StringUtils;
@@ -83,7 +84,7 @@ public class DataCacheService {
                         result.cachedFileSize.addAndGet(fileSize);
                         result.cachedFileCount.addAndGet(fileSize >= fileSizeThreshold ? 1 : 0);
                     } catch (IOException e) {
-                        LOGGER.error("Could not cache file " + path.toString(), e);
+                        LOGGER.error(Markers.CACHE_ERROR, "Could not cache file " + path.toString(), e);
                     }
                 });
 

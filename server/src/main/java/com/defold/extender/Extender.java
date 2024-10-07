@@ -39,6 +39,7 @@ import com.defold.extender.services.CocoaPodsService.PodSpec;
 import com.defold.extender.services.CocoaPodsService.ResolvedPods;
 
 import com.defold.extender.builders.CSharpBuilder;
+import com.defold.extender.log.Markers;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
@@ -363,7 +364,7 @@ class Extender {
                     v = templateExecutor.execute((List<String>) v, context);
                 }
             } catch (Exception e) {
-                LOGGER.error(String.format("Failed to substitute key %s", k));
+                LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute key %s", k));
                 throw e;
             }
             context.put(k, v);
@@ -2567,7 +2568,7 @@ class Extender {
             LOGGER.info("Writing log file");
             processExecutor.writeLog(logFile);
         } catch (IOException e) {
-            LOGGER.error("Failed to write log file to {}", logFile.getAbsolutePath());
+            LOGGER.error(Markers.SERVER_ERROR, "Failed to write log file to {}", logFile.getAbsolutePath());
         }
         return logFile;
     }

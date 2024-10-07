@@ -1,0 +1,2 @@
+spring.main.banner-mode: "off"
+logging.config: etc/defold/extender/extender-logging.xml

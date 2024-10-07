@@ -5,6 +5,7 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.GCPInstanceService;
 import com.defold.extender.Timer;
+import com.defold.extender.log.Markers;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -93,11 +94,11 @@ public class RemoteEngineBuilder {
 
             if (isClientError(response)) {
                 String error = getErrorString(response);
-                LOGGER.error("Client error when building engine remotely:\n{}", error);
+                LOGGER.error(Markers.COMPILATION_ERROR, "Client error when building engine remotely:\n{}", error);
                 throw new ExtenderException("Client error when building engine remotely: " + error);
             } else if (isServerError(response)) {
                 String error = getErrorString(response);
-                LOGGER.error("Server error when building engine remotely:\n{}", error);
+                LOGGER.error(Markers.SERVER_ERROR, "Server error when building engine remotely:\n{}", error);
                 throw new RemoteBuildException("Server error when building engine remotely: " + getStatusReason(response) + ": " + error);
             } else {
                 response.getEntity().writeTo(out);
@@ -177,7 +178,7 @@ public class RemoteEngineBuilder {
                     Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
                 } else {
                     String errorLog = EntityUtils.toString(response.getEntity());
-                    LOGGER.error(String.format("Failed to build source.\n%s", errorLog));
+                    LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to build source.\n%s", errorLog));
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     PrintWriter writer = new PrintWriter(errorFile);
                     writer.write(errorLog);
@@ -185,7 +186,7 @@ public class RemoteEngineBuilder {
                 }
             } else {
                 String errorLog = EntityUtils.toString(response.getEntity());
-                LOGGER.error(String.format("Failed to build source.\n%s", errorLog));
+                LOGGER.error(Markers.COMPILATION_ERROR,  String.format("Failed to build source.\n%s", errorLog));
                 File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                 PrintWriter writer = new PrintWriter(errorFile);
                 writer.write(errorLog);
@@ -256,7 +257,7 @@ public class RemoteEngineBuilder {
             try {
                 instanceService.touchInstance(instanceId);
             } catch(Exception exc) {
-                LOGGER.error(String.format("Exception during touch instance '%s'", instanceId), exc);
+                LOGGER.error(Markers.INSTANCE_MANAGER_ERROR, String.format("Exception during touch instance '%s'", instanceId), exc);
             }
         }
     }

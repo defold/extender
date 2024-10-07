@@ -6,7 +6,9 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--management.metrics.tags.instance=frontend-local"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app,metrics${STRUCTURED_LOGGING+,logging}"]
+    environment:
+      - INSTANCE_ID=frontend-local
     expose:
       - "9000"
     ports:
@@ -29,7 +31,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=linux-local"]
+    environment:
+      - INSTANCE_ID=linux-local
     profiles:
       - all
       - linux
@@ -42,7 +45,9 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android", "--management.metrics.tags.instance=android_ndk25-local"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android,metrics${STRUCTURED_LOGGING+,logging}"]
+    environment:
+      - INSTANCE_ID=emsdk-2011-local
     profiles:
       - all
       - android
@@ -52,10 +57,11 @@ services:
           - android-ndk25
   emscripten_2011-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-2011-env:latest
+    environment:
+      - INSTANCE_ID=emsdk-2011-local
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=emsdk-2011-local"]
     profiles:
       - all
       - web
@@ -68,7 +74,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=emsdk-3155-local"]
+    environment:
+      - INSTANCE_ID=emsdk-3155-local
     profiles:
       - all
       - web
@@ -81,7 +88,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=emsdk-3165-local"]
+    environment:
+      - INSTANCE_ID=emsdk-3165-local
     profiles:
       - all
       - web
@@ -94,7 +102,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=nssdk-1532-local"]
+    environment:
+      - INSTANCE_ID=nssdk-1532-local
     profiles:
       - all
       - consoles
@@ -108,7 +117,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=nssdk-1753-local"]
+    environment:
+      - INSTANCE_ID=nssdk-1753-local
     profiles:
       - all
       - consoles
@@ -122,7 +132,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=nssdk-1832-local"]
+    environment:
+      - INSTANCE_ID=nssdk-1832-local
     profiles:
       - all
       - consoles
@@ -136,7 +147,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=ps4-11000-local"]
+    environment:
+      - INSTANCE_ID=ps4-11000-local
     profiles:
       - all
       - consoles
@@ -150,7 +162,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=ps4-10500-local"]
+    environment:
+      - INSTANCE_ID=ps4-10500-local
     profiles:
       - all
       - consoles
@@ -164,7 +177,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=ps5-8000-local"]
+    environment:
+      - INSTANCE_ID=ps5-8000-local
     profiles:
       - all
       - consoles
@@ -178,7 +192,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=ps5-9000-local"]
+    environment:
+      - INSTANCE_ID=ps5-9000-local
     profiles:
       - all
       - consoles
@@ -192,7 +207,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=winsdk-2019-local"]
+    environment:
+      - INSTANCE_ID=winsdk-2019-local
     profiles:
       - all
       - windows
@@ -205,7 +221,8 @@ services:
     extends:
       file: common-services.yml
       service: remote_builder
-    command: ["--management.metrics.tags.instance=winsdk-2022-local"]
+    environment:
+      - INSTANCE_ID=winsdk-2022-local
     profiles:
       - all
       - windows

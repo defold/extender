@@ -3,6 +3,7 @@ package com.defold.extender;
 import com.defold.extender.remote.RemoteEngineBuilder;
 import com.defold.extender.remote.RemoteHostConfiguration;
 import com.defold.extender.remote.RemoteInstanceConfig;
+import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
@@ -127,7 +128,7 @@ public class ExtenderController {
 
     @ExceptionHandler({ExtenderException.class})
     public ResponseEntity<String> handleExtenderException(ExtenderException ex) {
-        LOGGER.error("Failed to build extension: " + ex.getOutput());
+        LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build extension: " + ex.getOutput());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.TEXT_PLAIN);
         return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.UNPROCESSABLE_ENTITY);
@@ -135,7 +136,7 @@ public class ExtenderController {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleException(Exception ex) {
-        LOGGER.error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), ex);
+        LOGGER.error(Markers.SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), ex);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.TEXT_PLAIN);
         return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), headers, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -397,14 +398,14 @@ public class ExtenderController {
         try {
             input = request.getInputStream();
         } catch (IOException e) {
-            LOGGER.error("Failed to get input stream: " + e.getMessage());
+            LOGGER.error(Markers.SERVER_ERROR, "Failed to get input stream: " + e.getMessage());
             throw new ExtenderException(e, "Failed to get input stream: " + e.getMessage());
         }
 
         try {
             output = response.getOutputStream();
         } catch (IOException e) {
-            LOGGER.error("Failed to get output stream: " + e.getMessage());
+            LOGGER.error(Markers.SERVER_ERROR, "Failed to get output stream: " + e.getMessage());
             throw new ExtenderException(e, "Failed to get output stream: " + e.getMessage());
         }
 
