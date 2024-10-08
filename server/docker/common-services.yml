@@ -6,6 +6,7 @@ services:
       - ./../configs:/etc/defold/extender:ro
       - ./../test-data/sdk:/var/extender/sdk
     entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
+    user: extender
     environment:
       - EXAMPLE_VAR=1
   common_builder:
@@ -16,6 +17,7 @@ services:
       - ./../configs:/etc/defold/extender:ro
       - ${DYNAMO_HOME:-./../app/dummy}:/dynamo_home
     entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500","-jar","/app/extender.jar"]
+    user: extender
     environment:
       - ${DYNAMO_HOME:+DYNAMO_HOME=/dynamo_home}
       - DM_DEBUG_COMMANDS
