@@ -91,9 +91,11 @@ public class CSharpBuilder {
     }
 
     private File writeProject() throws IOException {
+        // The cross compilation (win32) doesn't like absolute unix paths, so we use the path relative to cwd
+        Path relativeOutputDir = sourceDir.toPath().relativize(outputDir.toPath());
 
         context.put("PINVOKE", engineLibs);
-        context.put("BUILDDIR_CS", outputDir);
+        context.put("BUILDDIR_CS", relativeOutputDir);
         context.put("DMSDK_CSPROJ", csProject.getAbsolutePath());
 
         String projectText = templateExecutor.execute(this.template, context);
