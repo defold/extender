@@ -6,7 +6,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app,metrics${STRUCTURED_LOGGING+,logging}"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app${STRUCTURED_LOGGING+,logging}"]
     environment:
       - INSTANCE_ID=frontend-local
     expose:
@@ -45,7 +45,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android,metrics${STRUCTURED_LOGGING+,logging}"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
     environment:
       - INSTANCE_ID=emsdk-2011-local
     profiles:

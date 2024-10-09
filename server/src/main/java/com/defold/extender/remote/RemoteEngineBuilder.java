@@ -4,6 +4,11 @@ import com.defold.extender.BuilderConstants;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.GCPInstanceService;
+import com.defold.extender.tracing.ExtenderTracerInterceptor;
+
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
+
 import com.defold.extender.Timer;
 import com.defold.extender.log.Markers;
 
@@ -23,6 +28,7 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -49,16 +55,23 @@ public class RemoteEngineBuilder {
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
     private boolean keepJobDirectory = false;
+    private final HttpClient httpClient;
 
     public RemoteEngineBuilder(Optional<GCPInstanceService> instanceService,
                             @Value("${extender.job-result.location}") String jobResultLocation,
                             @Value("${extender.remote-builder.build-sleep-timeout:5000}") long buildSleepTimeout,
-                            @Value("${extender.remote-builder.build-result-wait-timeout:1200000}") long buildResultWaitTimeout) {
+                            @Value("${extender.remote-builder.build-result-wait-timeout:1200000}") long buildResultWaitTimeout,
+                            @Autowired Tracer tracer,
+                            @Autowired Propagator propogator) {
         instanceService.ifPresent(val -> { LOGGER.info("Instance client is initialized"); this.instanceService = val; });
         this.buildSleepTimeout = buildSleepTimeout;
         this.buildResultWaitTimeout = buildResultWaitTimeout;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
+        this.httpClient  = HttpClientBuilder
+            .create()
+            .addInterceptorLast(new ExtenderTracerInterceptor(tracer, propogator))
+            .build();
     }
 
     private String getErrorString(HttpResponse response) throws IOException {
@@ -108,7 +121,7 @@ public class RemoteEngineBuilder {
         }
     }
 
-    @Async
+    @Async(value="extenderTaskExecutor")
     public void buildAsync(final RemoteInstanceConfig remoteInstanceConfig,
                         final File projectDirectory,
                         final String platform,
@@ -136,10 +149,8 @@ public class RemoteEngineBuilder {
             final HttpPost request = new HttpPost(serverUrl);
             request.setEntity(httpEntity);
     
-            final HttpClient client  = HttpClientBuilder.create().build();
-    
             touchInstance(remoteInstanceConfig.getInstanceId());
-            HttpResponse response = client.execute(request);
+            HttpResponse response = httpClient.execute(request);
             // copied from ExtenderClient. Think about code deduplication.
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 String jobId = EntityUtils.toString(response.getEntity());
@@ -150,7 +161,7 @@ public class RemoteEngineBuilder {
                 while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
                     touchInstance(remoteInstanceConfig.getInstanceId());
                     HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
-                    response = client.execute(statusRequest);
+                    response = httpClient.execute(statusRequest);
                     jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
                     if (jobStatus != 0) {
                         LOGGER.info(String.format("Job %s status is %d", jobId, jobStatus));
@@ -166,7 +177,7 @@ public class RemoteEngineBuilder {
                 }
                 touchInstance(remoteInstanceConfig.getInstanceId());
                 HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
-                response = client.execute(resultRequest);
+                response = httpClient.execute(resultRequest);
                 LOGGER.info(String.format("Job %s result got.", jobId));
                 if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
                     // Write zip file to result directory
@@ -219,8 +230,7 @@ public class RemoteEngineBuilder {
         final HttpPost request = new HttpPost(serverUrl);
         request.setEntity(httpEntity);
 
-        final HttpClient client  = HttpClientBuilder.create().build();
-        return client.execute(request);
+        return httpClient.execute(request);
     }
 
     HttpEntity buildHttpEntity(final File projectDirectory) throws IOException {
