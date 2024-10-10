@@ -6,6 +6,7 @@ import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.Timer;
 import com.defold.extender.ZipUtils;
+import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -157,7 +158,7 @@ public class RealGradleService implements GradleServiceInterface {
                 try {
                     FileUtils.deleteDirectory(source.toFile());
                 } catch (IOException e2) {
-                    LOGGER.error("Failed to delete temp directory {}: {}", source.toString(), e2.getMessage());
+                    LOGGER.error(Markers.SERVER_ERROR, "Failed to delete temp directory {}: {}", source.toString(), e2.getMessage());
                 }
             }
         }

@@ -1,0 +1,4 @@
+spring.main.banner-mode: "off"
+logging.config: /etc/defold/extender/extender-logging.xml
+logging.pattern.level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+management.tracing.sampling.probability: 1.0

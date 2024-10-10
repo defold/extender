@@ -42,6 +42,8 @@ import java.util.logging.Logger;
 public class ExtenderClient {
     private static Logger logger = Logger.getLogger(ExtenderClient.class.getName());
 
+    private static final String TRACE_ID_HEADER_NAME = "X-TraceId";
+
     private final String extenderBaseUrl;
     private ExtenderClientCache cache;
     private CookieStore httpCookies;
@@ -237,7 +239,8 @@ public class ExtenderClient {
             final int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode == HttpStatus.SC_OK) {
                 String jobId = EntityUtils.toString(response.getEntity());
-                log("Async build request was accepted as job %s", jobId);
+                String traceId = response.getFirstHeader(TRACE_ID_HEADER_NAME).getValue();
+                log("Async build request was accepted as job %s (traceId: %s)", jobId, traceId == null ? "null" : traceId);
                 long currentTime = System.currentTimeMillis();
                 Integer jobStatus = 0;
                 Thread.sleep(buildSleepTimeout);
