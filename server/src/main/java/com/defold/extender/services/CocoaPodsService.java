@@ -70,6 +70,7 @@ public class CocoaPodsService {
         public File frameworksDir;
         public File generatedDir;
         public String platformMinVersion;
+        public File podFileLock;
 
         // In the functions below we also get the values from the parent spec
         // if one exists. A parent spec inherits all of its subspecs (unless a 
@@ -147,7 +148,8 @@ public class CocoaPodsService {
             sb.append("pods dir: " + podsDir + "\n");
             sb.append("frameworks Dir: " + frameworksDir + "\n");
             sb.append("generated dir: " + generatedDir + "\n");
-            sb.append("platform min version: " + platformMinVersion);
+            sb.append("platform min version: " + platformMinVersion + "\n");
+            sb.append("podfile.lock: " + podFileLock);
             return sb.toString();
         }
     }
@@ -1393,6 +1395,7 @@ public class CocoaPodsService {
         resolvedPods.podsDir = new File(workingDir, "Pods");
         resolvedPods.frameworksDir = frameworksDir;
         resolvedPods.generatedDir = generatedDir;
+        resolvedPods.podFileLock = new File(workingDir, "Podfile.lock");
 
         LOGGER.info("Resolved Cocoapod dependencies");
         LOGGER.info(resolvedPods.toString());
