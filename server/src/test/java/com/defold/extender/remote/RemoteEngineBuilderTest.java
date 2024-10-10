@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import io.micrometer.tracing.test.simple.SimpleTracer;
 
 public class RemoteEngineBuilderTest {
 
@@ -31,7 +32,7 @@ public class RemoteEngineBuilderTest {
     public void setUp() throws IOException {
         final HttpEntity httpEntity = mock(HttpEntity.class);
 
-        remoteEngineBuilder = spy(new RemoteEngineBuilder(Optional.empty(), "/var/tmp/results", 5000, 240000));
+        remoteEngineBuilder = spy(new RemoteEngineBuilder(Optional.empty(), "/var/tmp/results", 5000, 240000, new SimpleTracer(), null));
         doReturn(httpEntity).when(remoteEngineBuilder).buildHttpEntity(any(File.class));
     }
 

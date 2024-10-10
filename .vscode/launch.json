@@ -12,6 +12,7 @@
             "name": "Spring Boot-ExtenderApplication<server>",
             "request": "launch",
             "cwd": "${workspaceFolder}",
+            "vmArgs": "-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500",
             "mainClass": "com.defold.extender.ExtenderApplication",
             "projectName": "server",
             "args": "--spring.config.location=classpath:./,file:${workspaceFolder}/server/configs/ --extender.sdk.location=${workspaceFolder}/server/app/sdk --spring.profiles.active=standalone-dev",
