@@ -1017,6 +1017,13 @@ class Extender {
             }
         }
 
+        if (resolvedPods.podFileLock != null) {
+            LOGGER.info("buildPods - adding Podfile.lock to build output");
+            File destPodFileLock = new File(buildDirectory, "Podfile.lock");
+            FileUtils.copyFile(resolvedPods.podFileLock, destPodFileLock);
+            outputFiles.add(destPodFileLock);
+        }
+
         return outputFiles;
     }
 
