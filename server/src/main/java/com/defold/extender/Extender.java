@@ -945,10 +945,10 @@ class Extender {
             return outputFiles;
         }
 
-        LOGGER.info("buildPods");
+        LOGGER.info("buildPods - compiling pod source files");
         Set<File> podSourceLookup = new HashSet<>();
         for (PodSpec pod : resolvedPods.pods) {
-            LOGGER.info("building {}", pod.name);
+            LOGGER.info("buildPods - compiling pod source files for {}", pod.name);
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
             // manifest context for each pod
@@ -978,14 +978,24 @@ class Extender {
         resourcesBuildDir.mkdir();
         List<String> resources = resolvedPods.getAllPodResources(platform);
         for (String resource : resources) {
+            // example:
+            // source = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
+            // dest   = build/resources/YandexMobileAds/PrivacyInfo.xcprivacy
+            //
+            // resourceFile = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
+            // relativeFile = YandexMobileAds/PrivacyInfo.xcprivacy
+            // resourceDestFile = build/resources/YandexMobileAds/PrivacyInfo.xcprivacy
             File resourceFile = new File(resource);
+            File relativeFile = resolvedPods.podsDir.toPath().relativize(resourceFile.toPath()).toFile();
             if (resourceFile.isFile()) {
-                File resourceDestFile = new File(resourcesBuildDir, resourceFile.getName());
+                File resourceDestFile = new File(resourcesBuildDir, relativeFile.toString());
+                resourceDestFile.getParentFile().mkdirs();
                 Files.copy(resourceFile.toPath(), resourceDestFile.toPath());
                 outputFiles.add(resourceDestFile);
             }
             else {
-                File resourceDestDir = new File(resourcesBuildDir, resourceFile.getName());
+                File resourceDestDir = new File(resourcesBuildDir, relativeFile.toString());
+                resourceDestDir.mkdirs();
                 FileUtils.copyDirectory(resourceFile, resourceDestDir);
                 outputFiles.add(resourceDestDir);
             }
@@ -2447,6 +2457,10 @@ class Extender {
     private List<File> buildApple(String platform) throws ExtenderException {
         LOGGER.info("Building Apple specific code");
         List<File> outputFiles = new ArrayList<>();
+
+        File resourceDirectory = new File(buildDirectory, "resources");
+        List<File> resources = ExtenderUtil.listFiles(resourceDirectory, ".*");
+        outputFiles.addAll(resources);
 
         List<File> privacyManifests = new ArrayList<>();
         privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(uploadDirectory, "PrivacyInfo.xcprivacy"));
