@@ -733,6 +733,10 @@ public class ExtenderUtil
                platform.equals("js-web");
     }
 
+    public static boolean isWindowsTarget(String platform) {
+        return platform.equals("x86_64-win32") ||
+               platform.equals("x86-win32");
+    }
 
     @SuppressWarnings("unchecked")
     public static <V> V get(Object object, String fieldName) {

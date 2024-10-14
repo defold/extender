@@ -1078,11 +1078,24 @@ class Extender {
         File sdkProject = new File(sdkCsdmSDKDir, "dmsdk.csproj");
 
         Map<String, Object> context = createContext(manifestContext);
+        
+        // Make sure the engine libraries isn't starting with "lib" (i.e. "libextension" -> "extension")
+        List<String> libs = (List<String>)context.get("engineLibs");
+        if (ExtenderUtil.isWindowsTarget(this.platform))
+        {
+            libs = new ArrayList<>();
+            for (String lib : (List<String>)context.get("engineLibs")) {
+                if (lib.startsWith("lib"))
+                    lib = lib.substring(3);
+                libs.add(lib);
+            }    
+        }
+
         CSharpBuilder csBuilder = new CSharpBuilder(processExecutor, templateExecutor, context);
         csBuilder.setSdkProject(sdkProject);
         csBuilder.setSourceDirectory(extDir);
         csBuilder.setOutputDirectory(new File(buildDirectory, extDir.getName()));
-        csBuilder.setEngineLibraries((List<String>)context.get("engineLibs"));
+        csBuilder.setEngineLibraries(libs);
         csBuilder.setOutputFile(library);
         csBuilder.setOutputName(name);
         csBuilder.setPlatform(this.platform);
