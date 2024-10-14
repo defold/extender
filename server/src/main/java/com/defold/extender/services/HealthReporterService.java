@@ -13,10 +13,15 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.defold.extender.remote.RemoteInstanceConfig;
+import com.defold.extender.tracing.ExtenderTracerInterceptor;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
+
 
 @Service
 public class HealthReporterService {
@@ -29,9 +34,20 @@ public class HealthReporterService {
     }
 
     private GCPInstanceService instanceService = null;
+    private final HttpClient httpClient;
 
-    public HealthReporterService(Optional<GCPInstanceService> instanceService) {
+    public HealthReporterService(Optional<GCPInstanceService> instanceService,
+                            @Autowired Tracer tracer,
+                            @Autowired Propagator propogator) {
         instanceService.ifPresent(val -> { this.instanceService = val; });
+        RequestConfig config = RequestConfig.custom()
+            .setConnectTimeout(connectionTimeout)
+            .setConnectionRequestTimeout(connectionTimeout)
+            .setSocketTimeout(connectionTimeout).build();
+        this.httpClient = HttpClientBuilder.create()
+            .setDefaultRequestConfig(config)
+            .addInterceptorLast(new ExtenderTracerInterceptor(tracer, propogator))
+            .build();
     }
 
 
@@ -42,11 +58,6 @@ public class HealthReporterService {
             Map<String, OperationalStatus> platformOperationalStatus = new HashMap<>();
             JSONObject result = new JSONObject();
             JSONParser parser = new JSONParser();
-            RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(connectionTimeout)
-                .setConnectionRequestTimeout(connectionTimeout)
-                .setSocketTimeout(connectionTimeout).build();
-            final HttpClient client  = HttpClientBuilder.create().setDefaultRequestConfig(config).build();
             for (Map.Entry<String, RemoteInstanceConfig> entry : remoteBuilderPlatformMappings.entrySet()) {
                 String platform = getPlatform(entry.getKey());
                 String instanceId = entry.getValue().getInstanceId();
@@ -58,7 +69,7 @@ public class HealthReporterService {
                 final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
                 final HttpGet request = new HttpGet(healthUrl);
                 try {
-                    HttpResponse response = client.execute(request);
+                    HttpResponse response = httpClient.execute(request);
                     if (response.getStatusLine().getStatusCode() == org.apache.http.HttpStatus.SC_OK) {
                         JSONObject responseBody = (JSONObject)parser.parse(EntityUtils.toString(response.getEntity()));
                         if (responseBody.containsKey("status") 

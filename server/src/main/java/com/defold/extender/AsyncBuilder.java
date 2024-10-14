@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 
+import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.DefoldSdkService;
@@ -65,7 +66,7 @@ public class AsyncBuilder {
             fos.close();
         }
         catch(Exception e) {
-            LOGGER.error("Could not write extender logs to error file", e);
+            LOGGER.error(Markers.SERVER_ERROR, "Could not write extender logs to error file", e);
         }
     }
 
@@ -78,7 +79,7 @@ public class AsyncBuilder {
             fos.close();
         }
         catch(Exception e) {
-            LOGGER.error("Could not write exception to error file", e);
+            LOGGER.error(Markers.SERVER_ERROR, "Could not write exception to error file", e);
         }
     }
 
@@ -130,7 +131,7 @@ public class AsyncBuilder {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             writeExtenderLogsToFile(extender, errorFile);
             writeExceptionToFile(e, errorFile);
-            LOGGER.error("Client closed connection prematurely, build aborted", e);
+            LOGGER.error(Markers.SERVER_ERROR, "Client closed connection prematurely, build aborted", e);
             isSuccefull = false;
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
@@ -171,12 +172,12 @@ public class AsyncBuilder {
                                     LOGGER.info("Cleaned up folder " + path.toString());
                                 }
                             } catch (IOException e) {
-                                LOGGER.error("Could not clear build results  " + path.toString(), e);
+                                LOGGER.error(Markers.SERVER_ERROR, "Could not clear build results  " + path.toString(), e);
                             }
                         });
             }
         } catch (IOException ex) {
-            LOGGER.error("Error during cleanup", ex);
+            LOGGER.error(Markers.SERVER_ERROR, "Error during cleanup", ex);
         }
         LOGGER.debug("Clean result folder finished.");
     }

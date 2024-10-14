@@ -27,6 +27,8 @@ NUGET_PACKAGES=${ENV_DIR}/../app/.nuget
 ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-${ZIG_VERSION}
 
 
+OUTPUT_FILE=$ENV_DIR/user.env
+
 if [[ -z $1 ]]; then
     echo "Load macos environment..."
     source ${ENV_DIR}/macos.env
@@ -36,26 +38,28 @@ else
     source ${ENV_DIR}/$1.env
 fi
 
+[ -f "$OUTPUT_FILE" ] && echo "Remove old user.env" && rm "$OUTPUT_FILE"
+
 JAVA_HOME=`/usr/libexec/java_home`
 
-echo "ENV_DIR=${ENV_DIR}" > $ENV_DIR/user.env
-echo "JAVA_HOME=${JAVA_HOME}" >> $ENV_DIR/user.env
-echo "PLATFORMSDK_DIR=${PLATFORMSDK_DIR}" >> $ENV_DIR/user.env
-echo "MANIFEST_MERGE_TOOL=${MANIFEST_MERGE_TOOL}" >> $ENV_DIR/user.env
-echo "SPRING_PROFILES_LOCATION=${SPRING_PROFILES_LOCATION}" >> $ENV_DIR/user.env
-echo "PATH_TO_JAR=${PATH_TO_JAR}" >> $ENV_DIR/user.env
-echo "PID_PATH_NAME=${PID_PATH_NAME}" >> $ENV_DIR/user.env
-echo "LOG_DIRECTORY=${LOG_DIRECTORY}" >> $ENV_DIR/user.env
-echo "STDOUT_LOG=${STDOUT_LOG}" >> $ENV_DIR/user.env
-echo "ERROR_LOG=${ERROR_LOG}" >> $ENV_DIR/user.env
-echo "EXTENDER_SDK_LOCATION=${EXTENDER_SDK_LOCATION}" >> $ENV_DIR/user.env
-echo "DOTNET_ROOT=${DOTNET_ROOT}" >> $ENV_DIR/user.env
-echo "DOTNET_CLI_HOME=${DOTNET_CLI_HOME}" >> $ENV_DIR/user.env
-echo "DOTNET_VERSION_FILE=${DOTNET_VERSION_FILE}" >> $ENV_DIR/user.env
-echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $ENV_DIR/user.env
+echo "ENV_DIR=${ENV_DIR}" > $OUTPUT_FILE
+echo "JAVA_HOME=${JAVA_HOME}" >> $OUTPUT_FILE
+echo "PLATFORMSDK_DIR=${PLATFORMSDK_DIR}" >> $OUTPUT_FILE
+echo "MANIFEST_MERGE_TOOL=${MANIFEST_MERGE_TOOL}" >> $OUTPUT_FILE
+echo "SPRING_PROFILES_LOCATION=${SPRING_PROFILES_LOCATION}" >> $OUTPUT_FILE
+echo "PATH_TO_JAR=${PATH_TO_JAR}" >> $OUTPUT_FILE
+echo "PID_PATH_NAME=${PID_PATH_NAME}" >> $OUTPUT_FILE
+echo "LOG_DIRECTORY=${LOG_DIRECTORY}" >> $OUTPUT_FILE
+echo "STDOUT_LOG=${STDOUT_LOG}" >> $OUTPUT_FILE
+echo "ERROR_LOG=${ERROR_LOG}" >> $OUTPUT_FILE
+echo "EXTENDER_SDK_LOCATION=${EXTENDER_SDK_LOCATION}" >> $OUTPUT_FILE
+echo "DOTNET_ROOT=${DOTNET_ROOT}" >> $OUTPUT_FILE
+echo "DOTNET_CLI_HOME=${DOTNET_CLI_HOME}" >> $OUTPUT_FILE
+echo "DOTNET_VERSION_FILE=${DOTNET_VERSION_FILE}" >> $OUTPUT_FILE
+echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $OUTPUT_FILE
 # Added 1.4.9
-echo "ZIG_PATH_0_11=${ZIG_PATH_0_11}" >> $ENV_DIR/user.env
+echo "ZIG_PATH_0_11=${ZIG_PATH_0_11}" >> $OUTPUT_FILE
 
-echo "PATH=\"${APPENDED_PATH}\"" >> $ENV_DIR/user.env
+echo "PATH=\"${APPENDED_PATH}\"" >> $OUTPUT_FILE
 
 echo "Generation completed."

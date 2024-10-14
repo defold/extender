@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.google.cloud.compute.v1.InstancesClient;
 import com.google.cloud.compute.v1.InstancesSettings;
 import com.google.cloud.compute.v1.Operation;
+import com.defold.extender.log.Markers;
 import com.defold.extender.remote.RemoteHostConfiguration;
 import com.defold.extender.remote.RemoteInstanceConfig;
 import com.defold.extender.services.data.GCPInstanceState;
@@ -141,11 +142,11 @@ public class GCPInstanceService {
                     try {
                         suspendInstance(entry.getKey());
                     } catch(TimeoutException exc) {
-                        LOGGER.error(String.format("Suspend '%s' timeouted.", entry.getKey()), exc);
+                        LOGGER.error(Markers.INSTANCE_MANAGER_ERROR, String.format("Suspend '%s' timeouted.", entry.getKey()), exc);
                     } catch(InterruptedException exc) {
-                        LOGGER.error(String.format("Suspend '%s' interrupted.", entry.getKey()), exc);
+                        LOGGER.error(Markers.INSTANCE_MANAGER_ERROR, String.format("Suspend '%s' interrupted.", entry.getKey()), exc);
                     } catch(ExecutionException exc) {
-                        LOGGER.error(String.format("Suspend '%s' failed.", entry.getKey()), exc);
+                        LOGGER.error(Markers.INSTANCE_MANAGER_ERROR, String.format("Suspend '%s' failed.", entry.getKey()), exc);
                     }
             }
         }
@@ -160,7 +161,7 @@ public class GCPInstanceService {
             try {
                 touchInstance(entry.getKey());
             } catch (Exception exc) {
-                LOGGER.error(String.format("Exception during touch instance '%s'", entry.getKey()), exc);
+                LOGGER.error(Markers.INSTANCE_MANAGER_ERROR, String.format("Exception during touch instance '%s'", entry.getKey()), exc);
             }
         }
     }
