@@ -72,3 +72,4 @@ management:
 spring.cloud.gcp:
     core.enabled: false
     storage.enabled: false
+    logging.enabled: false
