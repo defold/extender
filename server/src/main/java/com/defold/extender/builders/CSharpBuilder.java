@@ -3,7 +3,6 @@ package com.defold.extender.builders;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
@@ -127,22 +126,10 @@ public class CSharpBuilder {
         return "unknown_platform";
     }
 
-    private static boolean ismacOS(String platform) {
-        return platform.equals("arm64-osx") || platform.equals("x86_64-osx");
-    }
-
-    private static boolean isiOS(String platform) {
-        return platform.equals("arm64-ios") || platform.equals("x86_64-ios");
-    }
-
-    private static boolean isWindows(String platform) {
-        return platform.equals("x86-win32") || platform.equals("x86_64-win32");
-    }
-
     private static String getLibName(String platform, String name) {
         String prefix = "lib";
         String suffix = ".a";
-        if (isWindows(platform))
+        if (ExtenderUtil.isWindowsTarget(platform))
         {
             prefix = "";
             suffix = ".lib";
@@ -153,7 +140,7 @@ public class CSharpBuilder {
     private static String getObjName(String platform, String name) {
         String prefix = "lib";
         String suffix = ".o";
-        if (isWindows(platform))
+        if (ExtenderUtil.isWindowsTarget(platform))
         {
             prefix = "";
             suffix = ".obj";
@@ -223,17 +210,17 @@ public class CSharpBuilder {
         paths.add(getLibName(platform, "standalonegc-enabled"));
 
         String aotSuffix = "";
-        if (isWindows(platform))
+        if (ExtenderUtil.isWindowsTarget(platform))
             aotSuffix = ".Aot";
         paths.add(getLibName(platform, "System.IO.Compression.Native" + aotSuffix));
         paths.add(getLibName(platform, "System.Globalization.Native" + aotSuffix));
 
-        if (ismacOS(platform))
+        if (ExtenderUtil.isMacOSTarget(platform))
         {
             paths.add(getLibName(platform, "System.Native"));
             paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
         }
-        else if (isiOS(platform))
+        else if (ExtenderUtil.isIOSTarget(platform))
         {
             paths.add(getLibName(platform, "System.Native"));
             paths.add(getLibName(platform, "stdc++compat"));
@@ -241,7 +228,7 @@ public class CSharpBuilder {
             paths.add(getLibName(platform, "System.Security.Cryptography.Native.Apple"));
             linkFlags.add("-licucore");
         }
-        else if (isWindows(platform))
+        else if (ExtenderUtil.isWindowsTarget(platform))
         {
             paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
             linkFlags.add("-lbcrypt");

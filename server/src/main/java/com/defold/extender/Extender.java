@@ -1079,7 +1079,7 @@ class Extender {
 
         Map<String, Object> context = createContext(manifestContext);
         
-        // Make sure the engine libraries isn't starting with "lib" (i.e. "libextension" -> "extension")
+        // Make sure the engine libraries aren't starting with "lib" (i.e. "libextension" -> "extension")
         List<String> libs = (List<String>)context.get("engineLibs");
         if (ExtenderUtil.isWindowsTarget(this.platform))
         {
