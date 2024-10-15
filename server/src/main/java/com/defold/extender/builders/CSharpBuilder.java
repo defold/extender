@@ -3,7 +3,6 @@ package com.defold.extender.builders;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
@@ -91,9 +90,11 @@ public class CSharpBuilder {
     }
 
     private File writeProject() throws IOException {
+        // The cross compilation (win32) doesn't like absolute unix paths, so we use the path relative to cwd
+        Path relativeOutputDir = sourceDir.toPath().relativize(outputDir.toPath());
 
         context.put("PINVOKE", engineLibs);
-        context.put("BUILDDIR_CS", outputDir);
+        context.put("BUILDDIR_CS", relativeOutputDir);
         context.put("DMSDK_CSPROJ", csProject.getAbsolutePath());
 
         String projectText = templateExecutor.execute(this.template, context);
@@ -125,10 +126,26 @@ public class CSharpBuilder {
         return "unknown_platform";
     }
 
-    private boolean isWindows(String platform) {
-        if (platform.endsWith("win32"))
-            return true;
-        return false;
+    private static String getLibName(String platform, String name) {
+        String prefix = "lib";
+        String suffix = ".a";
+        if (ExtenderUtil.isWindowsTarget(platform))
+        {
+            prefix = "";
+            suffix = ".lib";
+        }
+        return String.format("%s%s%s", prefix, name, suffix);
+    }
+
+    private static String getObjName(String platform, String name) {
+        String prefix = "lib";
+        String suffix = ".o";
+        if (ExtenderUtil.isWindowsTarget(platform))
+        {
+            prefix = "";
+            suffix = ".obj";
+        }
+        return String.format("%s%s%s", prefix, name, suffix);
     }
 
     private File runDotnet(File project, String platform) throws IOException, InterruptedException, ExtenderException {
@@ -145,12 +162,7 @@ public class CSharpBuilder {
         commands.add(cmd);
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
-        String libName;
-        if (isWindows(platform))
-            libName = String.format("%s.lib", outputName);
-        else
-            libName = String.format("lib%s.a", outputName);
-
+        String libName = getLibName(platform, outputName);
         File csOutput = new File(this.outputDir, csplatform);
         File csPublish = new File(csOutput, "publish");
         File publishLibrary = new File(csPublish, libName);
@@ -177,35 +189,56 @@ public class CSharpBuilder {
         return Paths.get(NUGET_PACKAGES, String.format("microsoft.netcore.app.runtime.nativeaot.%s/%s/runtimes/%s/native", csplatform, dotnetVersion, csplatform));
     }
 
+    private static ArrayList<String> makePathsAbsolute(String basePath, ArrayList<String> files) {
+        ArrayList<String> out = new ArrayList<>();
+        for (String name : files) {
+            out.add(Paths.get(basePath, name).toString());
+        }
+        return out;
+    }
+
     private static void addLibFlags(String platform, List<String> linkFlags) throws IOException {
         Path aotBase = getNativePath(platform);
 
-        linkFlags.add(Paths.get(aotBase.toString(), "libbootstrapperdll.o").toString());
+        ArrayList<String> paths = new ArrayList<>();
 
-        // Note: These libraries are specified with full paths, or the linker will link against the dynamic libraries.
-        // We want to avoid that hassle for now. Let's do that in a step two.
+        paths.add(getObjName(platform, "bootstrapperdll"));
 
         // TODO: Do we need a way to toggle these behaviors on/off?
-        linkFlags.add(Paths.get(aotBase.toString(), "libRuntime.WorkstationGC.a").toString());
-        linkFlags.add(Paths.get(aotBase.toString(), "libeventpipe-enabled.a").toString());
-        linkFlags.add(Paths.get(aotBase.toString(), "libstandalonegc-enabled.a").toString());
+        paths.add(getLibName(platform, "Runtime.WorkstationGC"));
+        paths.add(getLibName(platform, "eventpipe-enabled"));
+        paths.add(getLibName(platform, "standalonegc-enabled"));
 
-        linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Native.a").toString());
-        linkFlags.add(Paths.get(aotBase.toString(), "libSystem.IO.Compression.Native.a").toString());
-        linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Globalization.Native.a").toString());
+        String aotSuffix = "";
+        if (ExtenderUtil.isWindowsTarget(platform))
+            aotSuffix = ".Aot";
+        paths.add(getLibName(platform, "System.IO.Compression.Native" + aotSuffix));
+        paths.add(getLibName(platform, "System.Globalization.Native" + aotSuffix));
 
-        if (platform.equals("arm64-osx") || platform.equals("x86_64-osx"))
+        if (ExtenderUtil.isMacOSTarget(platform))
         {
-            linkFlags.add(Paths.get(aotBase.toString(), "libRuntime.VxsortEnabled.a").toString());
-
+            paths.add(getLibName(platform, "System.Native"));
+            paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
         }
-        else if (platform.equals("arm64-ios") || platform.equals("x86_64-ios"))
+        else if (ExtenderUtil.isIOSTarget(platform))
         {
-            linkFlags.add(Paths.get(aotBase.toString(), "libstdc++compat.a").toString());
-            linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Net.Security.Native.a").toString());
-            linkFlags.add(Paths.get(aotBase.toString(), "libSystem.Security.Cryptography.Native.Apple.a").toString());
+            paths.add(getLibName(platform, "System.Native"));
+            paths.add(getLibName(platform, "stdc++compat"));
+            paths.add(getLibName(platform, "System.Net.Security.Native"));
+            paths.add(getLibName(platform, "System.Security.Cryptography.Native.Apple"));
             linkFlags.add("-licucore");
         }
+        else if (ExtenderUtil.isWindowsTarget(platform))
+        {
+            paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
+            linkFlags.add("-lbcrypt");
+            linkFlags.add("-lole32");
+            linkFlags.add("-ladvapi32");
+        }
+
+        // Note: These libraries are specified with full paths, or the linker will link against the dynamic libraries (macOS)
+        // We want to avoid that hassle for now. Let's do that in a step two.
+        linkFlags.addAll(makePathsAbsolute(aotBase.toString(), paths));
     }
 
     public static void updateContext(String platform, Map<String, Object> context) throws IOException {

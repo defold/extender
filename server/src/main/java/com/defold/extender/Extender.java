@@ -1075,11 +1075,9 @@ class Extender {
             throw new ExtenderException(String.format("%s:1: error: We currently don't support merging or building two library files at the same time!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest)));
         }
 
-        // // Create static library
+        // Create static library
         File library = getStaticLibraryFile(manifestContext, libraryOut);
         String name = library.getName();
-        if (name.startsWith("lib"))
-            name = name.substring(3);
         name = name.substring(0, name.lastIndexOf('.'));
 
         File extDir = manifest.getParentFile();
@@ -1090,11 +1088,24 @@ class Extender {
         File sdkProject = new File(sdkCsdmSDKDir, "dmsdk.csproj");
 
         Map<String, Object> context = createContext(manifestContext);
+        
+        // Make sure the engine libraries aren't starting with "lib" (i.e. "libextension" -> "extension")
+        List<String> libs = (List<String>)context.get("engineLibs");
+        if (ExtenderUtil.isWindowsTarget(this.platform))
+        {
+            libs = new ArrayList<>();
+            for (String lib : (List<String>)context.get("engineLibs")) {
+                if (lib.startsWith("lib"))
+                    lib = lib.substring(3);
+                libs.add(lib);
+            }    
+        }
+
         CSharpBuilder csBuilder = new CSharpBuilder(processExecutor, templateExecutor, context);
         csBuilder.setSdkProject(sdkProject);
         csBuilder.setSourceDirectory(extDir);
-        csBuilder.setOutputDirectory(new File(buildDirectory, "cs"));
-        csBuilder.setEngineLibraries((List<String>)context.get("engineLibs"));
+        csBuilder.setOutputDirectory(new File(buildDirectory, extDir.getName()));
+        csBuilder.setEngineLibraries(libs);
         csBuilder.setOutputFile(library);
         csBuilder.setOutputName(name);
         csBuilder.setPlatform(this.platform);

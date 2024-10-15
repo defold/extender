@@ -724,8 +724,18 @@ public class ExtenderUtil
     public static boolean isAppleTarget(String platform) {
         return platform.equals("arm64-osx") ||
                platform.equals("x86_64-osx") ||
-               platform.equals("x86_64-ios") ||
-               platform.equals("arm64-ios");
+               platform.equals("arm64-ios") ||
+               platform.equals("x86_64-ios");
+    }
+
+    public static boolean isMacOSTarget(String platform) {
+        return platform.equals("arm64-osx") ||
+               platform.equals("x86_64-osx");
+    }
+
+    public static boolean isIOSTarget(String platform) {
+        return platform.equals("arm64-ios") ||
+               platform.equals("x86_64-ios");
     }
 
     public static boolean isWebTarget(String platform) {
@@ -733,6 +743,10 @@ public class ExtenderUtil
                platform.equals("js-web");
     }
 
+    public static boolean isWindowsTarget(String platform) {
+        return platform.equals("x86_64-win32") ||
+               platform.equals("x86-win32");
+    }
 
     @SuppressWarnings("unchecked")
     public static <V> V get(Object object, String fieldName) {

@@ -87,3 +87,10 @@ RUN \
   cd ${WINDOWS_SDK_10_DIR}/Include/${WINDOWS_SDK_10_20348_VERSION}/um && \
   mkdir ./GL && \
   cp -v ./gl/*.* ./GL/
+
+# Since dotnet cannot really cross compile, we need to create a "lib" shim for "wine lib.exe"
+# As long as it's in the path, it will be picked up
+RUN \
+  echo '#!/usr/bin/env bash' > /usr/bin/lib && \
+  echo 'wine ${WINDOWS_VCINSTALLDIR_2022}/bin/Hostx64/x64/lib.exe $*' >> /usr/bin/lib && \
+  chmod +x /usr/bin/lib
