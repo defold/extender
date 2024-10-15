@@ -1,5 +1,6 @@
 package com.defold.extender.tracing;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -23,6 +24,9 @@ import java.util.concurrent.RejectedExecutionHandler;
 
 @Configuration(proxyBeanMethods = false)
 class ExtenderExecutor {
+
+    @Value("${extender.tasks.executor.pool-size:35}")
+    private int executorPoolSize;
 
     @Configuration(proxyBeanMethods = false)
     @EnableAsync
@@ -63,6 +67,7 @@ class ExtenderExecutor {
                     return ContextScheduledExecutorService.wrap(super.getScheduledExecutor());
                 }
         };
+        threadPoolTaskScheduler.setPoolSize(executorPoolSize);
         threadPoolTaskScheduler.initialize();
         return threadPoolTaskScheduler;
     }
