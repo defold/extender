@@ -83,7 +83,7 @@ public class AsyncBuilder {
         }
     }
 
-    @Async
+    @Async(value="extenderTaskExecutor")
     public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion,
             File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException {
         String jobName = jobDirectory.getName();
