@@ -32,9 +32,9 @@ The Dockerfiles contain only environment settings (e.g. no app.jar/manifestmerge
 
 All available docker images can be built using the following command, run from the root of this repository:
 ```sh
-DM_PACKAGE_URL=<url_to_packages> ./server/build-docker.sh
+DM_PACKAGES_URL=<url_to_packages> ./server/build-docker.sh
 ```
-It's mandatory to provide a `DM_PACKAGE_URL` variable. Otherwise most of containers cannot be built. `DM_PACKAGE_URL` variable should contains url to the location where prebuilt platform sdks are located.
+It's mandatory to provide a `DM_PACKAGES_URL` variable. Otherwise most of containers cannot be built. `DM_PACKAGES_URL` variable should contains url to the location where prebuilt platform sdks are located.
 
 If you don't have all platform sdks (for example, you don't have consoles sdks) you can customize `build-docker.sh` script and remove all unused parts.
 By default all built images tagged with `latest` version.
@@ -64,7 +64,7 @@ Build Extender's jars (called from root directory):
 ```
 Main command
 ```sh
-docker compose -p extender -f docker/docker-compose.yml --profile <profile> up
+docker compose -p extender -f server/docker/docker-compose.yml --profile <profile> up
 ```
 where *profile* can be:
 * **all** - runs remote instances for every platform
@@ -79,7 +79,7 @@ where *profile* can be:
 
 Several profiles can be passed to command line. For example:
 ```sh
-docker compose -p extender -f docker/docker-compose.yml --profile android --profile web --profile windows up
+docker compose -p extender -f server/docker/docker-compose.yml --profile android --profile web --profile windows up
 ```
 Example above runs frontend, Android, Web, Windows instances.
 
