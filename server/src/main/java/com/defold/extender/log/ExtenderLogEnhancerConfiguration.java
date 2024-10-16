@@ -1,6 +1,7 @@
 package com.defold.extender.log;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -8,6 +9,7 @@ import com.google.cloud.MonitoredResource;
 import com.google.cloud.spring.core.DefaultGcpProjectIdProvider;
 
 @Component
+@ConditionalOnProperty(name = "spring.cloud.gcp.logging.enabled", havingValue = "true")
 public class ExtenderLogEnhancerConfiguration {
     
     private String instanceName;
