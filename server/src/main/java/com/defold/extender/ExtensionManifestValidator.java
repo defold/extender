@@ -114,6 +114,7 @@ class ExtensionManifestValidator {
                 case "minFirefoxVersion":
                 case "minSafariVersion":
                 case "minChromeVersion":
+                case "emscriptenLinkFlags":
                 case "use-clang": // deprecated
                     continue; // no need to whitelist
 
