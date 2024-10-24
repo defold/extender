@@ -30,10 +30,10 @@ public class PlatformConfig {
     public String manifestMergeCmd;
     public String bitcodeStripCmd;
     public String proGuardSourceRe;
-    public String proGuardCmd = new String();
-    public String windresCmd = new String();
-    public String symbolCmd = new String();
-    public String symbolsPattern = new String();
+    public String proGuardCmd;
+    public String windresCmd;
+    public String symbolCmd;
+    public String symbolsPattern;
     public List<String> allowedLibs;
     public List<String> allowedFlags;
     public List<String> allowedSymbols;
