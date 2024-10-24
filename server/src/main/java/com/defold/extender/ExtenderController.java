@@ -129,7 +129,7 @@ public class ExtenderController {
         this.asyncBuilder = asyncBuilder;
 
         Supplier<Number> staticValue = () -> 1;
-        Gauge.builder("extender.version_info", staticValue).tags("version", Version.appVersion, "commit_sha", Version.gitVersion).register(meterRegistry);
+        Gauge.builder("extender.versionInfo", staticValue).tags("version", Version.appVersion, "commit_sha", Version.gitVersion).register(meterRegistry);
     }
 
     @ExceptionHandler({ExtenderException.class})

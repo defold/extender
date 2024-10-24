@@ -26,3 +26,4 @@ Below is the table with metrics description that collected inside application. T
 |extender.service.sdk.get.duration|Timer|Milliseconds|How long Defold sdk was downloading|
 |extender.service.gradle.unpack|Timer|Milliseconds|How long Gradle was unpacking dependencies|
 |extender.service.gradle.get|Timer|Milliseconds|How long Gradle dependencies step was going|
+|extender.versionInfo|Gauge|Unit|Always return 1. Labels contains git tag and git commit sha with current version|
