@@ -29,6 +29,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -123,7 +126,10 @@ public class ExtenderController {
         this.jobResultLocation = new File(jobResultLocation);
         this.jobResultLocation.mkdirs();
 
-        this.asyncBuilder = asyncBuilder;            
+        this.asyncBuilder = asyncBuilder;
+
+        Supplier<Number> staticValue = () -> 1;
+        Gauge.builder("extender.versionInfo", staticValue).tags("version", Version.appVersion, "commit_sha", Version.gitVersion).register(meterRegistry);
     }
 
     @ExceptionHandler({ExtenderException.class})
