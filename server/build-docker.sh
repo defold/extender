@@ -23,7 +23,7 @@ for request in $REQUESTED; do
             INSTALL="wine emsdk-2011 emsdk-3155 emsdk-3165"
             ;;
         ps4)
-            INSTALL="wine ps4-10500 ps4-11000"
+            INSTALL="wine ps4-10500 ps4-11000 ps4-12000"
             ;;
         ps5)
             INSTALL="wine ps5-8000 ps5-9000"
