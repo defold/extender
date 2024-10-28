@@ -6,36 +6,21 @@ extender:
                 url: http://android-ndk25:9000
                 instanceId: android-ndk25
                 alwaysOn: true
-            emsdk-2011:
-                url: http://emsdk-2011:9000
-                instanceId: emsdk-2011
-            emsdk-3155:
-                url: http://emsdk-3155:9000
-                instanceId: emsdk-3155
             emsdk-3165:
                 url: http://emsdk-3165:9000
                 instanceId: emsdk-3165
             linux-latest:
                 url: http://linux:9000
                 instanceId: linux
-            nssdk-1532:
-                url: http://10.0.0.3:9000
-                instanceId: nssdk-1532
-            nssdk-1753:
+            nssdk-1832:
                 url: http://10.0.0.4:9000
-                instanceId: nssdk-1753
-            ps4-10500:
-                url: http://ps4-10500:9000
-                instanceId: ps4-10500
-            ps4-11000:
-                url: http://ps4-11000:9000
-                instanceId: ps4-11000
-            ps5-8000:
-                url: http://ps5-8000:9000
-                instanceId: ps5-8000
-            winsdk-2019:
-                url: http://winsdk-2019:9000
-                instanceId: winsdk-2019
+                instanceId: nssdk-1832
+            ps4-12000:
+                url: http://ps4-12000:9000
+                instanceId: ps4-12000
+            ps5-10000:
+                url: http://ps5-10000:9000
+                instanceId: ps5-10000
             winsdk-2022:
                 url: http://winsdk-2022:9000
                 instanceId: winsdk-2022
