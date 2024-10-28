@@ -26,7 +26,7 @@ for request in $REQUESTED; do
             INSTALL="wine ps4-10500 ps4-11000"
             ;;
         ps5)
-            INSTALL="wine ps5-8000 ps5-9000"
+            INSTALL="wine ps5-8000 ps5-9000 ps5-10000"
             ;;
         nintendo)
             INSTALL="wine nssdk-1532 nssdk-1753 nssdk-1832"
