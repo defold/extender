@@ -142,6 +142,21 @@ services:
       default:
         aliases:
           - nssdk-1832
+  ps4_12000-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-12000-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    environment:
+      - INSTANCE_ID=ps4-12000-local
+    profiles:
+      - all
+      - consoles
+      - playstation
+    networks:
+      default:
+        aliases:
+          - ps4-12000
   ps4_11000-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-11000-env:latest
     extends:
