@@ -97,21 +97,6 @@ services:
       default:
         aliases:
           - emsdk-3165
-  nssdk_1532-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-1532-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=nssdk-1532-local
-    profiles:
-      - all
-      - consoles
-      - nintendo
-    networks:
-      default:
-        aliases:
-          - nssdk-1532
   nssdk_1753-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-1753-env:latest
     extends:
@@ -172,36 +157,6 @@ services:
       default:
         aliases:
           - ps4-11000
-  ps4_10500-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-10500-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=ps4-10500-local
-    profiles:
-      - all
-      - consoles
-      - playstation
-    networks:
-      default:
-        aliases:
-          - ps4-10500
-  ps5_8000-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-8000-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=ps5-8000-local
-    profiles:
-      - all
-      - consoles
-      - playstation
-    networks:
-      default:
-        aliases:
-          - ps5-8000
   ps5_9000-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-9000-env:latest
     extends:
@@ -232,20 +187,6 @@ services:
       default:
         aliases:
           - ps5-10000
-  win_2019-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2019-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=winsdk-2019-local
-    profiles:
-      - all
-      - windows
-    networks:
-      default:
-        aliases:
-          - winsdk-2019
   win_2022-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
     extends:
@@ -406,4 +347,3 @@ services:
       default:
         aliases:
           - victoriametrics
-
