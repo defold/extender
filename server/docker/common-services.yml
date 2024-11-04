@@ -9,6 +9,13 @@ services:
     user: extender
     environment:
       - EXAMPLE_VAR=1
+    healthcheck:
+      # Extender's port is hardcoded here.
+      test: wget --no-verbose --tries=1 --spider http://localhost:9000/actuator/health
+      interval: 10s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
   common_builder:
     platform: linux/amd64
     volumes:
