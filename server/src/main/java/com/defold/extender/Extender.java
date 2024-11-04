@@ -1429,7 +1429,7 @@ class Extender {
         if (this.withSymbols) {
             LOGGER.info("Extracting symbols");
             String symbolCmd = platformConfig.symbolCmd;
-            if (symbolCmd != null && !symbolCmd.equals("")) {
+            if (symbolCmd != null && !symbolCmd.isBlank()) {
                 Map<String, Object> symbolContext = createContext(linkContext);
                 symbolContext.put("src", ExtenderUtil.getRelativePath(jobDirectory, exe));
 
@@ -1449,7 +1449,7 @@ class Extender {
         // If we wish to grab the symbols, prepend the pattern (E.g. to "(.*dSYM)|(dmengine)")
         if (this.withSymbols) {
             String symbolsPattern = platformConfig.symbolsPattern;
-            if (!symbolsPattern.equals("")) {
+            if (symbolsPattern != null && !symbolsPattern.isBlank()) {
                 zipContentPattern = symbolsPattern + "|" + zipContentPattern;
             }
         }
