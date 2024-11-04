@@ -39,3 +39,48 @@ if [ "$GITHUB_ACTION" != "" ]; then
 fi
 
 docker compose -p $APPLICATION -f ${DIR}/../docker/docker-compose.yml --profile $COMPOSE_PROFILE up -d
+
+# Retry configuration
+max_retries=10
+retry_interval=15
+
+check_containers_health() {
+  all_healthy=true
+
+  for container in $(docker ps -q); do
+    name=$(docker inspect --format='{{.Name}}' "$container" | sed 's/\///')
+    health_status=$(docker inspect --format='{{.State.Health.Status}}' "$container")
+
+    # If health status is empty, container doesn't have a health check defined
+    if [ -z "$health_status" ]; then
+      health_status="no health check"
+    fi
+
+    echo "$name: $health_status"
+
+    # Check if the container is not healthy
+    if [ "$health_status" != "healthy" ]; then
+      all_healthy=false
+    fi
+  done
+
+  # Return whether all containers are healthy
+  $all_healthy && return 0 || return 1
+}
+
+# Main loop to retry until all containers are healthy or retries run out
+for (( i=1; i<=$max_retries; i++ )); do
+  echo "Attempt $i of $max_retries: Checking container health..."
+
+  if check_containers_health; then
+    echo "All containers are healthy!"
+    exit 0
+  else
+    echo "Some containers are not healthy yet. Retrying in $retry_interval seconds..."
+    sleep $retry_interval
+  fi
+done
+
+# If we reach this point, some containers did not become healthy within the retry limit
+echo "Some containers did not become healthy after $max_retries retries."
+exit 1
