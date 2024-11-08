@@ -98,3 +98,10 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
 # check that aapt installed correctly
     aapt v  && \
     aapt2 version
+
+# Since dotnet cannot really cross compile, we need to create a "ar" shim for "llvm-ar"
+# As long as it's in the path, it will be picked up
+RUN \
+  echo '#!/usr/bin/env bash' > /usr/bin/ar && \
+  find /opt/platformsdk/android -iname "llvm-ar" | tail -1 | xargs xargs printf "%s \$*\n" $1 >> /usr/bin/ar && \
+  chmod +x /usr/bin/ar

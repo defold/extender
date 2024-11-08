@@ -1379,7 +1379,7 @@ class Extender {
         mainContext.put("ext", ImmutableMap.of("symbols", ExtenderUtil.makeUnique(extSymbols)));
 
         String main = templateExecutor.execute(config.main, mainContext);
-        FileUtils.writeStringToFile(maincpp, main);
+        FileUtils.writeStringToFile(maincpp, main, Charset.defaultCharset());
 
         File mainObject = compileMain(maincpp, linkContext);
 
@@ -1406,7 +1406,7 @@ class Extender {
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
         if (this.needsCSLibraries) {
-            CSharpBuilder.updateContext(platform, context);
+            CSharpBuilder.updateContext(platform, this.buildDirectory, context);
         }
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
@@ -1449,7 +1449,7 @@ class Extender {
         // If we wish to grab the symbols, prepend the pattern (E.g. to "(.*dSYM)|(dmengine)")
         if (this.withSymbols) {
             String symbolsPattern = platformConfig.symbolsPattern;
-            if (!symbolsPattern.equals("")) {
+            if (symbolsPattern != null && !symbolsPattern.equals("")) {
                 zipContentPattern = symbolsPattern + "|" + zipContentPattern;
             }
         }
@@ -2242,8 +2242,19 @@ class Extender {
         try {
             outputFiles.addAll(buildPods());
 
+            // An easy way to disable building an extension, is if the symbol name is
+            // disabled at the .appmanifest level
+            List<String> excludeSymbols = ExtenderUtil.getStringList(mergedAppContext, "excludeSymbols");
+
+            // Not sure what the best way to do this is, but
+
             List<String> symbols = getSortedKeys(manifestConfigs.keySet());
             for (String extensionSymbol : symbols) {
+                if (excludeSymbols.contains(extensionSymbol)) {
+                    LOGGER.info("Skipping extension {} due to excludeSymbols in app manifest", extensionSymbol);
+                    continue;
+                }
+
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
                 File manifest = manifestFiles.get(extensionSymbol);
 

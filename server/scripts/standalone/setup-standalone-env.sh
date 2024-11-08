@@ -111,36 +111,37 @@ function download_zig() {
 }
 
 function install_dotnet() {
-    # There are no static download links, they're always generated
     # https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+    # https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
 
-    if [ -d "${DOTNET_ROOT}" ]; then
-        echo "[setup] Removing installed version of dotnet" ${DOTNET_ROOT}
-        rm -rf ${DOTNET_ROOT}
-    fi
+    local version="9.0.100-rc.2.24474.11"
+    if [[ ! -e ${DOTNET_ROOT} ]]; then
 
-    mkdir -p ${DOTNET_ROOT}
+        mkdir -p ${DOTNET_ROOT}
 
-    local os=$(uname)
-    if [ "Darwin" == "${os}" ] || [ "Linux" == "${os}" ]; then
+        local os=$(uname)
+        if [ "Darwin" == "${os}" ] || [ "Linux" == "${os}" ]; then
 
-        echo "Downloading dotnet-install.sh ..."
+            echo "Downloading dotnet-install.sh ..."
 
-        ${CURL_CMD} -L https://dot.net/v1/dotnet-install.sh --output ./dotnet-install.sh
-        chmod +x ./dotnet-install.sh
+            ${CURL_CMD} -L https://dot.net/v1/dotnet-install.sh --output ./dotnet-install.sh
+            chmod +x ./dotnet-install.sh
 
-        echo "Installing dotnet ..."
-        ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_ROOT}
+            echo "Installing dotnet ..."
+            ./dotnet-install.sh --version ${9.0.100-rc.2.24474.11} --install-dir ${DOTNET_ROOT}
 
-        rm ./dotnet-install.sh
+            rm ./dotnet-install.sh
 
+        else
+            echo "Windows not supported standalone yet"
+
+            # https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+        fi
+
+        echo "[setup] Installed dotnet"
     else
-        echo "Windows not supported standalone yet"
-
-        # https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
+        echo "[setup] Package" ${DOTNET_ROOT} "already installed"
     fi
-
-    echo "[setup] Installed dotnet"
 
     local DOTNET=${DOTNET_ROOT}/dotnet
 
