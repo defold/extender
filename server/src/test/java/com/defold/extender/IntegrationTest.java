@@ -113,21 +113,14 @@ public class IntegrationTest {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 // new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // // 2023-11-03 https://github.com/defold/defold/releases/tag/1.6.1
-                new DefoldVersion("a90c50928623cf23b3687a7eec05972d11427202", new Version(1, 6, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
-                // // ??????? https://github.com/defold/defold/releases/tag/1.6.2
-                new DefoldVersion("4e156b7cf37a380122aada30dacbf2b590ead76b", new Version(1, 6, 2), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
-                // // 2024-03-11 https://github.com/defold/defold/releases/tag/1.7.0
-                new DefoldVersion("bf4dc66ab5fbbafd4294d32c2797c08b630c0be5", new Version(1, 7, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
                 // // ??????? https://github.com/defold/defold/releases/tag/1.8.0
                 new DefoldVersion("9141d9d3605e3f5d51c71293116d769da2613d39", new Version(1, 8, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // // 2024-06-25 https://github.com/defold/defold/releases/tag/1.9.0
                 new DefoldVersion("d6882f432beca85d460ec42497888157c356d058", new Version(1, 9, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
+                // // 2024-10-29 https://github.com/defold/defold/releases/tag/1.9.4
+                new DefoldVersion("edfdbe31830c1f8aa4d96644569ae87a8ea32672", new Version(1, 9, 4), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // new DefoldVersion("e624625d90111ab8442e6b672b1335bb024b9885", new Version(1, 9, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder

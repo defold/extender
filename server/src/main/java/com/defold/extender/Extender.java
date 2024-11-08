@@ -182,7 +182,7 @@ class Extender {
 
         String os = System.getProperty("os.name");
         String arch = System.getProperty("os.arch");
-        
+
         // These host names are using the Defold SDK names
         if (os.contains("Mac")) {
             if (arch.contains("aarch64")) {
@@ -1088,7 +1088,7 @@ class Extender {
         File sdkProject = new File(sdkCsdmSDKDir, "dmsdk.csproj");
 
         Map<String, Object> context = createContext(manifestContext);
-        
+
         // Make sure the engine libraries aren't starting with "lib" (i.e. "libextension" -> "extension")
         List<String> libs = (List<String>)context.get("engineLibs");
         if (ExtenderUtil.isWindowsTarget(this.platform))
@@ -1098,7 +1098,7 @@ class Extender {
                 if (lib.startsWith("lib"))
                     lib = lib.substring(3);
                 libs.add(lib);
-            }    
+            }
         }
 
         CSharpBuilder csBuilder = new CSharpBuilder(processExecutor, templateExecutor, context);
@@ -1429,7 +1429,7 @@ class Extender {
         if (this.withSymbols) {
             LOGGER.info("Extracting symbols");
             String symbolCmd = platformConfig.symbolCmd;
-            if (symbolCmd != null && !symbolCmd.equals("")) {
+            if (symbolCmd != null && !symbolCmd.isBlank()) {
                 Map<String, Object> symbolContext = createContext(linkContext);
                 symbolContext.put("src", ExtenderUtil.getRelativePath(jobDirectory, exe));
 
@@ -1449,7 +1449,7 @@ class Extender {
         // If we wish to grab the symbols, prepend the pattern (E.g. to "(.*dSYM)|(dmengine)")
         if (this.withSymbols) {
             String symbolsPattern = platformConfig.symbolsPattern;
-            if (symbolsPattern != null && !symbolsPattern.equals("")) {
+            if (symbolsPattern != null && !symbolsPattern.isBlank()) {
                 zipContentPattern = symbolsPattern + "|" + zipContentPattern;
             }
         }
@@ -2496,7 +2496,7 @@ class Extender {
         if (resolvedPods != null) {
             privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
         }
-        
+
         // do nothing if there are no privacy manifests
         if (privacyManifests.isEmpty()) {
             return outputFiles;
