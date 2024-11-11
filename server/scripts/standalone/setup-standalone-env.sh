@@ -128,7 +128,7 @@ function install_dotnet() {
             chmod +x ./dotnet-install.sh
 
             echo "Installing dotnet ..."
-            ./dotnet-install.sh --version ${9.0.100-rc.2.24474.11} --install-dir ${DOTNET_ROOT}
+            ./dotnet-install.sh --version ${version} --install-dir ${DOTNET_ROOT}
 
             rm ./dotnet-install.sh
 
@@ -149,12 +149,6 @@ function install_dotnet() {
     echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
 
     echo "[setup] Using dotnet:" ${DOTNET} " version:" $(${DOTNET} --version) "  sdk:" ${DOTNET_VERSION}
-
-    # verify that the build is the correct version
-    local version=$(${DOTNET} --version | sed -E 's/[ \t]*([0-9]+).*/\1/')
-    if [ "$version" != "8" ]; then
-        echo "[setup] dotnet version is newer:" $(${DOTNET} --version)
-    fi
 
     if [[ ! -e ${NUGET_PACKAGES} ]]; then
         mkdir -p ${NUGET_PACKAGES}
