@@ -738,6 +738,11 @@ public class ExtenderUtil
                platform.equals("x86_64-ios");
     }
 
+    public static boolean isAndroidTarget(String platform) {
+        return platform.equals("arm64-android") ||
+               platform.equals("armv7-android");
+    }
+
     public static boolean isWebTarget(String platform) {
         return platform.equals("wasm-web") ||
                platform.equals("js-web");

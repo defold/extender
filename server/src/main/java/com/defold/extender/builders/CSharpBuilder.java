@@ -6,7 +6,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
+import java.io.PrintWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -115,8 +117,8 @@ public class CSharpBuilder {
     private static String convertPlatform(String platform) {
         if (platform.equals("arm64-osx"))       return "osx-arm64";
         if (platform.equals("x86_64-osx"))      return "osx-x64";
-        if (platform.equals("arm64-android"))   return "android-arm64";
-        if (platform.equals("armv7-android"))   return "android-arm32";
+        if (platform.equals("arm64-android"))   return "linux-bionic-arm64";
+        if (platform.equals("armv7-android"))   return "linux-bionic-arm32";
         if (platform.equals("arm64-win32"))     return "win-arm64";
         if (platform.equals("x86_64-win32"))    return "win-x64";
         if (platform.equals("x86-win32"))       return "win-x86";
@@ -162,7 +164,11 @@ public class CSharpBuilder {
         commands.add(cmd);
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
-        String libName = getLibName(platform, outputName);
+        String name = new String(outputName);
+        if (name.startsWith("lib"))
+            name = name.substring(3);
+
+        String libName = getLibName(platform, name);
         File csOutput = new File(this.outputDir, csplatform);
         File csPublish = new File(csOutput, "publish");
         File publishLibrary = new File(csPublish, libName);
@@ -197,7 +203,42 @@ public class CSharpBuilder {
         return out;
     }
 
-    private static void addLibFlags(String platform, List<String> linkFlags) throws IOException {
+    private static void getExportsFlags(String platform, File buildDir, List<String> linkFlags) throws IOException {
+        // We need to add the exported symbols map
+        File exportsFile = new File(String.format("%s/defold_cs.exports", buildDir));
+
+        String exportsPattern = "-Wl,--version-script=%s";
+        if (ExtenderUtil.isMacOSTarget(platform) || ExtenderUtil.isIOSTarget(platform))
+        {
+            exportsPattern = "-exported_symbols_list \"%s\"";
+        }
+
+        // HACK: In anticipation of the fix for https://github.com/dotnet/runtime/issues/109341
+        // we have to make sure not all symbols are public, and at the same time respect the engine symbols
+        String contents = "";
+        contents += "V1.0 { \n";
+        contents += "    global: \n";
+        contents += "        DotNetRuntimeDebugHeader; \n";
+        if (ExtenderUtil.isAndroidTarget(platform))
+        {
+            contents += "        ANativeActivity*;\n";
+            contents += "        Java_com_*;\n";
+        }
+        contents += "    local: *; \n";
+        contents += "};\n";
+
+        File parent = exportsFile.getParentFile();
+        if (!parent.exists())
+            parent.mkdirs();
+        FileOutputStream fos = new FileOutputStream(exportsFile, false);
+        PrintWriter writer = new PrintWriter(fos);
+        writer.write(contents);
+        writer.close();
+
+        linkFlags.add(String.format(exportsPattern, exportsFile.getAbsolutePath()));
+    }
+
+    private static void getLinkFlags(String platform, File buildDir, List<String> linkFlags) throws IOException {
         Path aotBase = getNativePath(platform);
 
         ArrayList<String> paths = new ArrayList<>();
@@ -206,8 +247,9 @@ public class CSharpBuilder {
 
         // TODO: Do we need a way to toggle these behaviors on/off?
         paths.add(getLibName(platform, "Runtime.WorkstationGC"));
-        paths.add(getLibName(platform, "eventpipe-enabled"));
-        paths.add(getLibName(platform, "standalonegc-enabled"));
+        paths.add(getLibName(platform, "eventpipe-disabled"));
+        paths.add(getLibName(platform, "standalonegc-disabled"));
+
 
         String aotSuffix = "";
         if (ExtenderUtil.isWindowsTarget(platform))
@@ -218,7 +260,6 @@ public class CSharpBuilder {
         if (ExtenderUtil.isMacOSTarget(platform))
         {
             paths.add(getLibName(platform, "System.Native"));
-            paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
         }
         else if (ExtenderUtil.isIOSTarget(platform))
         {
@@ -235,13 +276,19 @@ public class CSharpBuilder {
             linkFlags.add("-lole32");
             linkFlags.add("-ladvapi32");
         }
+        else if (ExtenderUtil.isAndroidTarget(platform))
+        {
+            paths.add(getLibName(platform, "System.Native"));
+        }
 
         // Note: These libraries are specified with full paths, or the linker will link against the dynamic libraries (macOS)
         // We want to avoid that hassle for now. Let's do that in a step two.
         linkFlags.addAll(makePathsAbsolute(aotBase.toString(), paths));
+
+        CSharpBuilder.getExportsFlags(platform, buildDir, linkFlags);
     }
 
-    public static void updateContext(String platform, Map<String, Object> context) throws IOException {
+    public static void updateContext(String platform, File buildDir, Map<String, Object> context) throws IOException {
         Path aotBase = getNativePath(platform);
 
         List<String> libPaths = (List<String>)context.getOrDefault("libPaths", new ArrayList<String>());
@@ -249,7 +296,7 @@ public class CSharpBuilder {
         context.put("libPaths", libPaths);
 
         List<String> linkFlags = (List<String>)context.getOrDefault("linkFlags", new ArrayList<String>());
-        CSharpBuilder.addLibFlags(platform, linkFlags);
+        CSharpBuilder.getLinkFlags(platform, buildDir, linkFlags);
         context.put("linkFlags", linkFlags);
     }
 
