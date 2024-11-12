@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 @Service
@@ -188,20 +189,20 @@ public class RemoteEngineBuilder {
                     File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
                     Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
                 } else {
-                    String errorLog = EntityUtils.toString(response.getEntity());
-                    LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to build source.\n%s", errorLog));
+                    LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     PrintWriter writer = new PrintWriter(errorFile);
-                    writer.write(errorLog);
+                    IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
                     writer.close();
+                    EntityUtils.consumeQuietly(response.getEntity());
                 }
             } else {
-                String errorLog = EntityUtils.toString(response.getEntity());
-                LOGGER.error(Markers.COMPILATION_ERROR,  String.format("Failed to build source.\n%s", errorLog));
+                LOGGER.error(Markers.COMPILATION_ERROR,  "Failed to build source.");
                 File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                 PrintWriter writer = new PrintWriter(errorFile);
-                writer.write(errorLog);
-                writer.close();        
+                IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
+                writer.close();
+                EntityUtils.consumeQuietly(response.getEntity());
             }
             metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
         } catch (Exception e) {

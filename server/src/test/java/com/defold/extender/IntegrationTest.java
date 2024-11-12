@@ -90,15 +90,17 @@ public class IntegrationTest {
     private static class TestConfiguration {
         public DefoldVersion version;
         public String platform = "";
+        public boolean async = false;
 
-        public TestConfiguration(DefoldVersion version, String platform) {
+        public TestConfiguration(DefoldVersion version, String platform, boolean async) {
             this.version = version;
             this.platform = platform;
+            this.async = async;
         }
 
         @Override
         public String toString() {
-            return String.format("%s sha1(%s) %s", version.version.toString(), version.sha1, platform);
+            return String.format("%s sha1(%s) %s async: %b", version.version.toString(), version.sha1, platform, async);
         }
     }
 
@@ -140,7 +142,8 @@ public class IntegrationTest {
         for( int i = 0; i < versions.length; ++i )
         {
             for (String platform : versions[i].platforms ) {
-                data.add(new TestConfiguration(versions[i], platform));
+                data.add(new TestConfiguration(versions[i], platform, false));
+                data.add(new TestConfiguration(versions[i], platform, true));
             }
         }
 
@@ -247,6 +250,7 @@ public class IntegrationTest {
 
         String platform = configuration.platform;
         String sdkVersion = configuration.version.sha1;
+        boolean isAsync = configuration.async;
 
         try {
             extenderClient.build(
@@ -254,7 +258,8 @@ public class IntegrationTest {
                     sdkVersion,
                     sourceFiles,
                     destination,
-                    log
+                    log,
+                    isAsync
             );
         } catch (ExtenderClientException e) {
             System.out.println("ERROR LOG:");
@@ -501,6 +506,21 @@ public class IntegrationTest {
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/testproject_appmanifest_variant/_app/app.manifest"));
+
+        doBuild(sourceFiles);
+    }
+
+    @Test(expected = ExtenderClientException.class)
+    public void buildEngineWithError() throws IOException, ExtenderClientException {
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+            new FileExtenderResource("test-data/ext/ext.manifest"),
+            new FileExtenderResource("test-data/ext/include/ext.h"),
+            new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+            new FileExtenderResource(String.format("test-data/ext/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
+            new FileExtenderResource("test-data/ext_error_extension/ext.manifest"),
+            new FileExtenderResource("test-data/ext_error_extension/src/test_error_ext.cpp"),
+            new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml")
+        );
 
         doBuild(sourceFiles);
     }
