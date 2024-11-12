@@ -12,8 +12,5 @@ updates:
   - package-ecosystem: "gradle"
     directories:
       - "/"
-      - "/client"
-      - "/server"
-      - "/server/manifestmergetool"
     schedule:
       interval: "weekly"
