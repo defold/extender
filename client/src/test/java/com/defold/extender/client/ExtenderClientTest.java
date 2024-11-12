@@ -1,9 +1,12 @@
 package com.defold.extender.client;
 
 import org.apache.commons.io.FileUtils;
-
 import org.apache.http.StatusLine;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.entity.EntityBuilder;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.DefaultHttpClient;
 
@@ -11,6 +14,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -371,6 +375,50 @@ public class ExtenderClientTest extends Mockito {
             System.out.println("ERROR LOG:");
             throw e;
         }
+    }
+
+    @Test(expected = ExtenderClientException.class)
+    public void testClientHandleHTTPError() throws ClientProtocolException, IOException, ExtenderClientException {
+        DefaultHttpClient httpClient = Mockito.mock(DefaultHttpClient.class);
+        CloseableHttpResponse httpResponse = Mockito.mock(CloseableHttpResponse.class);
+        StatusLine statusLine = Mockito.mock(StatusLine.class);
+
+        when(statusLine.getStatusCode()).thenReturn(401);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getEntity()).thenReturn(
+            EntityBuilder.create()
+            .setStream(new ByteArrayInputStream("Unauthorized".getBytes()))
+            .build()
+        );
+        when(httpClient.execute(Mockito.any(HttpGet.class))).thenReturn(httpResponse);
+        when(httpClient.execute(Mockito.any(HttpPost.class))).thenReturn(httpResponse);
+
+        File cacheDir = new File("build");
+        File targetDir = new File("output");
+        File log = new File("build.log");
+
+        File a = new File("build/a");
+        File b = new File("build/b");
+        File c = new File("build/c");
+        FileExtenderResource aRes = new FileExtenderResource(a);
+        FileExtenderResource bRes = new FileExtenderResource(b);
+        FileExtenderResource cRes = new FileExtenderResource(c);
+
+        a.deleteOnExit();
+        b.deleteOnExit();
+        c.deleteOnExit();
+
+        writeToFile("build/a", "a");
+        writeToFile("build/b", "b");
+        writeToFile("build/c", "c");
+
+        List<ExtenderResource> inputFiles = new ArrayList<>();
+        inputFiles.add(aRes);
+        inputFiles.add(bRes);
+        inputFiles.add(cRes);
+
+        ExtenderClient extenderClient = new ExtenderClient(httpClient, "http://localhost", cacheDir);
+        extenderClient.build("js-web", "aaaaaaaa", inputFiles, targetDir, log, true);
     }
 
     /*

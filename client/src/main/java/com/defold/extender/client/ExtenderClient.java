@@ -190,6 +190,7 @@ public class ExtenderClient {
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 return EntityUtils.toString(response.getEntity()).replace("\\/", "/");
             } else {
+                EntityUtils.consumeQuietly(response.getEntity());
                 return null; // Caching is not supported
             }
         } catch (Exception e) {
@@ -398,6 +399,7 @@ public class ExtenderClient {
         addAuthorizationHeader(request);
         addHeaders(request);
         HttpResponse response = httpClient.execute(request);
+        EntityUtils.consumeQuietly(response.getEntity());
         if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
             return true;
         }
