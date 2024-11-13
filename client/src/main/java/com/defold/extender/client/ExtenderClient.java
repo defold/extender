@@ -2,19 +2,22 @@ package com.defold.extender.client;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
+import org.apache.http.StatusLine;
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.AbstractHttpClient;
 import org.apache.http.message.AbstractHttpMessage;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.ByteArrayBody;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.apache.http.client.CookieStore;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -24,6 +27,7 @@ import org.json.simple.parser.ParseException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -50,7 +54,7 @@ public class ExtenderClient {
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
     private List<BasicHeader> headers;
-    private AbstractHttpClient httpClient;
+    private HttpClient httpClient;
 
     public static final String appManifestFilename = "app.manifest";
     public static final String extensionFilename = "ext.manifest";
@@ -63,25 +67,18 @@ public class ExtenderClient {
      * @param cacheDir        A directory where the cache files are located (it must exist beforehand)
      */
     public ExtenderClient(String extenderBaseUrl, File cacheDir) throws IOException {
-        this(new DefaultHttpClient(), extenderBaseUrl, cacheDir);
-    }
-
-    /**
-     * Creates an extender client
-     *
-     * @param httpClient      The http client instance to use when communicating with the extender server
-     * @param extenderBaseUrl The build server url (e.g. https://build.defold.com)
-     * @param cacheDir        A directory where the cache files are located (it must exist beforehand)
-     */
-    public ExtenderClient(AbstractHttpClient httpClient, String extenderBaseUrl, File cacheDir) throws IOException {
         this.extenderBaseUrl = extenderBaseUrl;
         this.cache = new ExtenderClientCache(cacheDir);
         this.httpCookies = new BasicCookieStore();
         this.buildSleepTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-sleep-timeout", "5000"));
         this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "1200000"));
         this.headers = new ArrayList<BasicHeader>();
-        this.httpClient = httpClient;
-        this.httpClient.setCookieStore(httpCookies);
+        RequestConfig requestConfig = RequestConfig.custom()
+            .setExpectContinueEnabled(true).build();
+        HttpClientBuilder clientBuilder = HttpClientBuilder.create()
+                    .setDefaultRequestConfig(requestConfig)
+                    .setDefaultCookieStore(httpCookies);
+        this.httpClient = clientBuilder.build();
     }
 
     private void log(String s, Object... args) {
@@ -224,7 +221,7 @@ public class ExtenderClient {
     }
 
 
-    private void build_async(String platform, String sdkVersion, MultipartEntity entity, File destination, File log) throws ExtenderClientException {
+    private void build_async(String platform, String sdkVersion, HttpEntity entity, File destination, File log) throws ExtenderClientException {
         try {
             String url = String.format("%s/build_async/%s/%s", extenderBaseUrl, platform, sdkVersion);
             HttpPost request = new HttpPost(url);
@@ -237,7 +234,8 @@ public class ExtenderClient {
 
             HttpResponse response = httpClient.execute(request);
 
-            final int statusCode = response.getStatusLine().getStatusCode();
+            StatusLine statusLine = response.getStatusLine();
+            final int statusCode = statusLine.getStatusCode();
             if (statusCode == HttpStatus.SC_OK) {
                 String jobId = EntityUtils.toString(response.getEntity());
                 String traceId = response.getFirstHeader(TRACE_ID_HEADER_NAME).getValue();
@@ -257,7 +255,7 @@ public class ExtenderClient {
                 }
 
                 if (jobStatus == 0) {
-                    throw new TimeoutException(String.format("Job %s did not complete in time (timeout: %d ms)", jobId, buildResultWaitTimeout));
+                    throw new TimeoutException(String.format("Job %s (traceId %s) did not complete in time (timeout: %d ms)", jobId, traceId == null ? "null" : traceId, buildResultWaitTimeout));
                 }
 
                 log("Checking job result for job %s", jobId);
@@ -268,12 +266,19 @@ public class ExtenderClient {
                     response.getEntity().writeTo(new FileOutputStream(destination));
                 } else {
                     log("Job %s did not complete successfully. Writing log to %s", jobId, log);
-                    response.getEntity().writeTo(new FileOutputStream(log));
-                    throw new ExtenderClientException("Failed to build source.");
+                    OutputStream os = new FileOutputStream(log);
+                    os.write(String.format("Job id: %s; traceId: %s", jobId, traceId == null ? "null" : traceId).getBytes());
+                    response.getEntity().writeTo(os);
+                    os.close();
+                    throw new ExtenderClientException(String.format("Failed to build source: jobId - %s, traceId - %s", jobId, traceId == null ? "null" : traceId));
                 }
             } else {
-                log("Async build request failed with status code %d", statusCode);
-                response.getEntity().writeTo(new FileOutputStream(log));
+                String result = String.format("Async build request failed with status code %d %s", statusCode, statusLine.getReasonPhrase());
+                log(result);
+                OutputStream os = new FileOutputStream(log);
+                os.write(result.getBytes());
+                response.getEntity().writeTo(os);
+                os.close();
                 throw new ExtenderClientException("Failed to build source.");
             }
         } catch (Exception e) {
@@ -282,7 +287,7 @@ public class ExtenderClient {
 
     }
 
-    private void build_sync(String platform, String sdkVersion, MultipartEntity entity, File destination, File log) throws ExtenderClientException {
+    private void build_sync(String platform, String sdkVersion, HttpEntity entity, File destination, File log) throws ExtenderClientException {
         try {
             String url = String.format("%s/build/%s/%s", extenderBaseUrl, platform, sdkVersion);
             HttpPost request = new HttpPost(url);
@@ -296,8 +301,12 @@ public class ExtenderClient {
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 response.getEntity().writeTo(new FileOutputStream(destination));
             } else {
-                response.getEntity().writeTo(new FileOutputStream(log));
-                throw new ExtenderClientException("Failed to build source.");
+                String traceId = response.getFirstHeader(TRACE_ID_HEADER_NAME).getValue();
+                OutputStream os = new FileOutputStream(log);
+                os.write(String.format("TraceId: %s", traceId == null ? "null" : traceId).getBytes());
+                response.getEntity().writeTo(os);
+                os.close();
+                throw new ExtenderClientException(String.format("Failed to build source (traceId %s).", traceId == null ? "null" : traceId));
             }
         } catch (Exception e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
@@ -339,7 +348,8 @@ public class ExtenderClient {
             return;
         }
 
-        MultipartEntity entity = new MultipartEntity();
+        MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
+        entityBuilder.setStrictMode();
 
         // Now, let's ask the server what files it already has
         String cacheInfoName = "ne-cache-info.json";
@@ -349,7 +359,7 @@ public class ExtenderClient {
             cachedFiles = getCachedFiles(cacheInfoJson);
 
             // add the updated info to the file
-            entity.addPart(cacheInfoName, new ByteArrayBody(cacheInfoJson.getBytes(), cacheInfoName)); // Same as specified in DataStoreService.java
+            entityBuilder.addPart(cacheInfoName, new ByteArrayBody(cacheInfoJson.getBytes(), cacheInfoName)); // Same as specified in DataStoreService.java
         }
 
         for (ExtenderResource s : sourceResources) {
@@ -364,22 +374,18 @@ public class ExtenderClient {
             } catch (IOException e) {
                 throw new ExtenderClientException("Error while getting content for " + s.getPath() + ": " + e.getMessage());
             }
-            entity.addPart(s.getPath(), bin);
+            entityBuilder.addPart(s.getPath(), bin);
         }
 
         if (async) {
-            build_async(platform, sdkVersion, entity, destination, log);
+            build_async(platform, sdkVersion, entityBuilder.build(), destination, log);
         }
         else {
-            build_sync(platform, sdkVersion, entity, destination, log);
+            build_sync(platform, sdkVersion, entityBuilder.build(), destination, log);
         }
 
         // Store the new build
         cache.put(platform, cacheKey, destination);
-    }
-
-    private static final String getRelativePath(File base, File path) {
-        return base.toURI().relativize(path.toURI()).getPath();
     }
 
     // Left for future debugging

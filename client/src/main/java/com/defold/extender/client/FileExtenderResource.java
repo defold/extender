@@ -7,7 +7,6 @@ import java.nio.file.Files;
 public class FileExtenderResource implements ExtenderResource {
     private File file = null;
     private String filePath;
-    private String fileAbsPath;
 
     public FileExtenderResource(String filePath) {
         this(new File(filePath));
@@ -21,7 +20,6 @@ public class FileExtenderResource implements ExtenderResource {
     FileExtenderResource(File file) {
         this.file = file;
         this.filePath = file.getPath();
-        this.fileAbsPath = file.getAbsolutePath();
     }
 
     @Override

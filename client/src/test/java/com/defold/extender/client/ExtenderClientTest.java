@@ -18,6 +18,8 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.security.MessageDigest;
@@ -340,7 +342,7 @@ public class ExtenderClientTest extends Mockito {
     }
 
     @Test
-    public void testClientHeaders() throws IOException {
+    public void testClientHeaders() throws Exception {
         class MockHttpClient extends DefaultHttpClient {
             public HttpUriRequest request;
 
@@ -362,7 +364,12 @@ public class ExtenderClientTest extends Mockito {
             final String HDR_VALUE_2 = "my custom header2";
             MockHttpClient httpClient = new MockHttpClient();
             File cacheDir = new File("build");
-            ExtenderClient extenderClient = new ExtenderClient(httpClient, "http://localhost", cacheDir);
+            Class<?> mockExtenderClientClass = Class.forName("com.defold.extender.client.ExtenderClient");
+            ExtenderClient extenderClient = (ExtenderClient) mockExtenderClientClass.getDeclaredConstructor(String.class, File.class).newInstance("http://localhost", cacheDir);
+            Field field = mockExtenderClientClass.getDeclaredField("httpClient");
+            field.setAccessible(true);
+            field.set(extenderClient, httpClient);
+
             extenderClient.setHeader(HDR_NAME_1, HDR_VALUE_1);
             extenderClient.setHeader(HDR_NAME_2, HDR_VALUE_2);
             extenderClient.health();
@@ -378,7 +385,7 @@ public class ExtenderClientTest extends Mockito {
     }
 
     @Test(expected = ExtenderClientException.class)
-    public void testClientHandleHTTPError() throws ClientProtocolException, IOException, ExtenderClientException {
+    public void testClientHandleHTTPError() throws ClientProtocolException, IOException, ExtenderClientException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, NoSuchFieldException {
         DefaultHttpClient httpClient = Mockito.mock(DefaultHttpClient.class);
         CloseableHttpResponse httpResponse = Mockito.mock(CloseableHttpResponse.class);
         StatusLine statusLine = Mockito.mock(StatusLine.class);
@@ -417,7 +424,12 @@ public class ExtenderClientTest extends Mockito {
         inputFiles.add(bRes);
         inputFiles.add(cRes);
 
-        ExtenderClient extenderClient = new ExtenderClient(httpClient, "http://localhost", cacheDir);
+        Class<?> mockExtenderClientClass = Class.forName("com.defold.extender.client.ExtenderClient");
+        ExtenderClient extenderClient = (ExtenderClient) mockExtenderClientClass.getDeclaredConstructor(String.class, File.class).newInstance("http://localhost", cacheDir);
+        Field field = mockExtenderClientClass.getDeclaredField("httpClient");
+        field.setAccessible(true);
+        field.set(extenderClient, httpClient);
+
         extenderClient.build("js-web", "aaaaaaaa", inputFiles, targetDir, log, true);
     }
 
