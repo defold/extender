@@ -43,7 +43,8 @@ public class HealthReporterService {
         RequestConfig config = RequestConfig.custom()
             .setConnectTimeout(connectionTimeout)
             .setConnectionRequestTimeout(connectionTimeout)
-            .setSocketTimeout(connectionTimeout).build();
+            .setSocketTimeout(connectionTimeout)
+            .build();
         this.httpClient = HttpClientBuilder.create()
             .setDefaultRequestConfig(config)
             .addInterceptorLast(new ExtenderTracerInterceptor(tracer, propogator))
@@ -54,16 +55,20 @@ public class HealthReporterService {
     @SuppressWarnings("unchecked")
     public String collectHealthReport(boolean isRemoteBuildEnabled, Map<String, RemoteInstanceConfig> remoteBuilderPlatformMappings) {
         if (isRemoteBuildEnabled) {
-            // we collect information by platform. If one of the builder is unreachable - set
+            // we collect information by platform. If one of the builder is unreachable - set status to "not fully operational"
             Map<String, OperationalStatus> platformOperationalStatus = new HashMap<>();
             JSONObject result = new JSONObject();
             JSONParser parser = new JSONParser();
             for (Map.Entry<String, RemoteInstanceConfig> entry : remoteBuilderPlatformMappings.entrySet()) {
                 String platform = getPlatform(entry.getKey());
                 String instanceId = entry.getValue().getInstanceId();
-                // if instance controlled by instanceService and is currently suspended - mark it as 'operational'
-                if (instanceService != null && instanceService.isInstanceControlled(instanceId) && instanceService.isInstanceSuspended(instanceId)) {
+                // if instance controlled by instanceService and is currently suspended or suspending - mark it as 'operational'
+                if (instanceService != null && instanceService.isInstanceControlled(instanceId)) {
+                    if (instanceService.isInstanceSuspended(instanceId) || instanceService.isInstanceSuspending(instanceId)) {
                     updateOperationalStatus(platformOperationalStatus, platform, true);
+                    continue;
+                } else if (!instanceService.isInstanceRunning(instanceId)) {
+                    updateOperationalStatus(platformOperationalStatus, platform, false);
                     continue;
                 }
                 final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
