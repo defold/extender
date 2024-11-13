@@ -114,6 +114,10 @@ public class GCPInstanceService {
         return getInstanceStatus(instanceId).equalsIgnoreCase(Status.RUNNING.toString());
     }
 
+    public boolean isInstanceSuspending(final String instanceId) {
+        return getInstanceStatus(instanceId).equalsIgnoreCase(Status.SUSPENDING.toString());
+    }
+
     // check if instance with 'instanceId' is controlled by the service
     public boolean isInstanceControlled(final String instanceId) {
         return instanceState.containsKey(instanceId);
