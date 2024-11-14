@@ -65,8 +65,9 @@ public class HealthReporterService {
                 // if instance controlled by instanceService and is currently suspended or suspending - mark it as 'operational'
                 if (instanceService != null && instanceService.isInstanceControlled(instanceId)) {
                     if (instanceService.isInstanceSuspended(instanceId) || instanceService.isInstanceSuspending(instanceId)) {
-                    updateOperationalStatus(platformOperationalStatus, platform, true);
-                    continue;
+                        updateOperationalStatus(platformOperationalStatus, platform, true);
+                        continue;
+                    }
                 } else if (!instanceService.isInstanceRunning(instanceId)) {
                     updateOperationalStatus(platformOperationalStatus, platform, false);
                     continue;
