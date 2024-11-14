@@ -11,7 +11,6 @@ import java.util.List;
 
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
-import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.CocoaPodsService;
@@ -31,7 +30,6 @@ public class AsyncBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(AsyncBuilder.class);
 
     private DefoldSdkService defoldSdkService;
-    private DataCacheService dataCacheService;
     private GradleService gradleService;
     private CocoaPodsService cocoaPodsService;
     private File jobResultLocation;
@@ -39,13 +37,11 @@ public class AsyncBuilder {
     private boolean keepJobDirectory = false;
 
     public AsyncBuilder(DefoldSdkService defoldSdkService,
-                        DataCacheService dataCacheService,
                         GradleService gradleService,
                         CocoaPodsService cocoaPodsService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
-        this.dataCacheService = dataCacheService;
         this.gradleService = gradleService;
         this.cocoaPodsService = cocoaPodsService;
         this.jobResultLocation = new File(jobResultLocation);

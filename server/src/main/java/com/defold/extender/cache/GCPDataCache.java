@@ -13,7 +13,6 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.BlobId;
-import com.defold.extender.AsyncBuilder;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobInfo;
 
@@ -45,7 +44,15 @@ private static final Logger LOGGER = LoggerFactory.getLogger(GCPDataCache.class)
 
     @Override
     public void touch(String key) {
-        // no-op
+        Blob blob = storage.get(this.bucketName, getBlobKey(key));
+        if (blob != null) {
+            try {
+                // metadata can be updated only by copying object to itself
+                blob.copyTo(this.bucketName, key);
+            } catch (StorageException exc) {
+                LOGGER.warn(String.format("Exception when touch object '%s' %s", key, exc.getReason()));
+            }
+        }
     }
 
     @Override
