@@ -588,6 +588,31 @@ public class ExtenderUtil
         if (dir.exists()) {
             File[] files = dir.listFiles();
             for (File f : files) {
+                if (f.isDirectory()) {
+                    continue;
+                }
+                Matcher m = p.matcher(f.getName());
+                if (m.matches()) {
+                    result.add(m.group(1));
+                }
+            }
+        }
+        Collections.sort(result);
+        return result;
+    }
+
+    static public List<String> collectDirsByName(File dir, String re) {
+        List<String> result = new ArrayList<>();
+        if (re == null) {
+            return result;
+        }
+        Pattern p = Pattern.compile(re);
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
+            for (File f : files) {
+                if (f.isFile()) {
+                    continue;
+                }
                 Matcher m = p.matcher(f.getName());
                 if (m.matches()) {
                     result.add(m.group(1));
@@ -606,6 +631,9 @@ public class ExtenderUtil
         if (dir.exists()) {
             File[] files = dir.listFiles();
             for (File f : files) {
+                if (f.isDirectory()) {
+                    continue;
+                }
                 Matcher m = p.matcher(f.getName());
                 if (m.matches()) {
                     String name = m.group(1);
@@ -630,6 +658,9 @@ public class ExtenderUtil
         if (dir.exists()) {
             File[] files = dir.listFiles();
             for (File f : files) {
+                if (f.isDirectory()) {
+                    continue;
+                }
                 Matcher m = p.matcher(f.getAbsolutePath());
                 if (m.matches()) {
                     result.add(m.group(1));
