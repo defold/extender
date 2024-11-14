@@ -348,6 +348,12 @@ public class ExtenderController {
             DataCacheService.DataCacheServiceInfo totalCacheDownloadInfo = dataCacheService.getCachedFiles(uploadDirectory);
             metricsWriter.measureCacheDownload(totalCacheDownloadInfo.cachedFileSize.longValue(), totalCacheDownloadInfo.cachedFileCount.intValue());
 
+            // Cache upload before build because upload operation can be long-running and
+            // build can be finished before cache upload completes
+            // Regardless of success/fail status, we want to cache the uploaded files
+            DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
+            metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
+            
             String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
             // Build engine locally or on remote builder
             if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
@@ -371,10 +377,6 @@ public class ExtenderController {
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion));
             throw e;
         } finally {
-            // Regardless of success/fail status, we want to cache the uploaded files
-            DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
-            metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
-
             boolean deleteDirectory = true;
             if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
                 deleteDirectory = false;
