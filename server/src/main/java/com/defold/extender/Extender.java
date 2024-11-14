@@ -387,9 +387,9 @@ class Extender {
     private List<String> getFrameworks(File dir) {
         List<String> frameworks = new ArrayList<>();
         final String[] platformParts = this.platform.split("-");
-        frameworks.addAll(ExtenderUtil.collectFilesByName(new File(dir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
+        frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
         if (platformParts.length == 2) {
-            frameworks.addAll(ExtenderUtil.collectFilesByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
+            frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
         }
         return frameworks;
     }
@@ -1420,6 +1420,7 @@ class Extender {
             String command = templateExecutor.execute(template, context);
 
             // WINE->clang transition pt2: Replace any redundant ".lib.lib"
+            LOGGER.info(command);
             command = command.replace(".lib.lib", ".lib").replace(".Lib.lib", ".lib").replace(".LIB.lib", ".lib");
 
             processExecutor.execute(command);

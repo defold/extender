@@ -239,13 +239,18 @@ public class ExtenderTest {
     public void testCollectLibraries() {
         // The folder contains a library and a text file
         {
-            List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), "lib(.+).a");
+            List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), "lib(.+)\\.a");
             String[] expected = {"alib"};
             checkArray(expected, result);
         }
         {
-            List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-osx"), Extender.FRAMEWORK_RE);
+            List<String> result = ExtenderUtil.collectDirsByName(new File("test-data/ext/lib/x86_64-osx"), Extender.FRAMEWORK_RE);
             String[] expected = {"blib"};
+            checkArray(expected, result);
+        }
+        {
+            List<String> result = ExtenderUtil.collectFilesByName(new File("test-data/ext/lib/x86_64-win32"), "(.+)\\.lib");
+            String[] expected = {"alib"};
             checkArray(expected, result);
         }
     }
