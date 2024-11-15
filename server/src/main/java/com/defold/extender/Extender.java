@@ -40,6 +40,7 @@ import com.defold.extender.services.CocoaPodsService.ResolvedPods;
 
 import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.Markers;
+import com.defold.extender.metrics.MetricsWriter;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
@@ -57,6 +58,7 @@ class Extender {
     private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
+    private MetricsWriter metricsWriter;
     private final Boolean withSymbols;
     private final Boolean useJetifier;
     private final String buildArtifacts;
@@ -124,14 +126,66 @@ class Extender {
 
     private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
 
-    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory, Map<String,String> env) throws IOException, ExtenderException {
-        this.jobDirectory = jobDirectory;
-        this.uploadDirectory = uploadDirectory;
-        this.buildDirectory = buildDirectory;
+    static public class Builder {
+        private String platform;
+        private File sdk;
+        private File jobDirectory;
+        private File buildDirectory;
+        private File uploadDirectory;
+        private Map<String, String> env = new HashMap<String, String>();
+        private MetricsWriter metricsWriter;
+
+        public Builder() { }
+
+        public Builder setPlatform(String platform) {
+            this.platform = platform;
+            return this;
+        }
+
+        public Builder setSdk(File sdk) {
+            this.sdk = sdk;
+            return this;
+        }
+
+        public Builder setJobDirectory(File jobDirectory) {
+            this.jobDirectory = jobDirectory;
+            return this;
+        }
+
+        public Builder setBuildDirectory(File buildDirectory) {
+            this.buildDirectory = buildDirectory;
+            return this;
+        }
+
+        public Builder setUploadDirectory(File uploadDirectory) {
+            this.uploadDirectory = uploadDirectory;
+            return this;
+        }
+
+        public Builder setEnv(Map<String, String> env) {
+            this.env = env;
+            return this;
+        }
+
+        public Builder setMetricsWriter(MetricsWriter writer) {
+            this.metricsWriter = writer;
+            return this;
+        }
+
+        public Extender build() throws IOException, ExtenderException {
+            return new Extender(this);
+        }
+    };
+
+    private Extender(Builder builder) throws IOException, ExtenderException {
+        this.jobDirectory = builder.jobDirectory;
+        this.uploadDirectory = builder.uploadDirectory;
+        this.buildDirectory = builder.buildDirectory;
+        this.metricsWriter = builder.metricsWriter;
         this.gradlePackages = new ArrayList<>();
 
         // Read config from SDK
-        this.config = Extender.loadYaml(this.jobDirectory, new File(sdk.getPath() + "/extender/build.yml"), Configuration.class);
+        this.config = Extender.loadYaml(this.jobDirectory, new File(builder.sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
         // Read the app manifest from the upload folder
         Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
@@ -162,7 +216,7 @@ class Extender {
             String baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
             if (baseVariant != null)
             {
-                File baseVariantFile = new File(sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
+                File baseVariantFile = new File(builder.sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
 
                 if (!baseVariantFile.exists()) {
                     throw new ExtenderException("Base variant " + baseVariant + " not found!");
@@ -173,12 +227,12 @@ class Extender {
             }
         }
 
-        this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, platform, APPMANIFEST_JETIFIER_KEYWORD, true);
+        this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, builder.platform, APPMANIFEST_JETIFIER_KEYWORD, true);
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
         this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
 
-        this.platform = platform;
-        this.sdk = sdk;
+        this.platform = builder.platform;
+        this.sdk = builder.sdk;
 
         String os = System.getProperty("os.name");
         String arch = System.getProperty("os.arch");
@@ -258,7 +312,7 @@ class Extender {
                 envContext.put("env." + sysEnvEntry.getKey(), sysEnvEntry.getValue());
             }
             // Make custom env variables available for the template execution below.
-            for (Map.Entry<String, String> envEntry : env.entrySet()) {
+            for (Map.Entry<String, String> envEntry : builder.env.entrySet()) {
                 envContext.put("env." + envEntry.getKey(), envEntry.getValue());
             }
 
@@ -291,10 +345,6 @@ class Extender {
 
         // Load and merge manifests
         loadManifests();
-    }
-
-    Extender(String platform, File sdk, File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException, ExtenderException {
-        this(platform, sdk, jobDirectory, uploadDirectory, buildDirectory, new HashMap<String, String>());
     }
 
     private int getAndIncreaseNameCount() {
@@ -337,7 +387,7 @@ class Extender {
     }
 
     static <T> T loadYaml(File root, File manifest, Class<T> type) throws IOException, ExtenderException {
-        String yaml = FileUtils.readFileToString(manifest);
+        String yaml = FileUtils.readFileToString(manifest, Charset.defaultCharset());
 
         if (yaml.contains("\t")) {
             int numLines = 1 + countLines(yaml.substring(0, yaml.indexOf("\t")));
@@ -2227,6 +2277,7 @@ class Extender {
                 outputFiles.addAll(buildLibrary(manifest, extensionContext));
             }
 
+            metricsWriter.measureBuildTarget("library");
             return outputFiles;
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
@@ -2280,6 +2331,8 @@ class Extender {
             Map mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
             outputFiles.addAll(linkEngine(symbols, mergedAppContextWithPods, resourceFile));
+
+            metricsWriter.measureBuildTarget("engine");
             return outputFiles;
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());
@@ -2316,7 +2369,7 @@ class Extender {
                 List<File> pluginOutput = buildPipelineExtension(manifest, extensionContext);
                 output.addAll(pluginOutput);
             }
-
+            metricsWriter.measureBuildTarget("plugins");
             return output;
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, processExecutor.getOutput());

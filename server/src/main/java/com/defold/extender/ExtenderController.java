@@ -230,7 +230,14 @@ public class ExtenderController {
                 final File sdk = defoldSdkService.getSdk(sdkVersion);
                 metricsWriter.measureSdkDownload(sdkVersion);
 
-                Extender extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+                Extender extender = new Extender.Builder()
+                    .setPlatform(platform)
+                    .setSdk(sdk)
+                    .setJobDirectory(jobDirectory)
+                    .setUploadDirectory(uploadDirectory)
+                    .setBuildDirectory(buildDirectory)
+                    .setMetricsWriter(metricsWriter)
+                    .build();
 
                 // Resolve Gradle dependencies
                 if (platform.contains("android")) {

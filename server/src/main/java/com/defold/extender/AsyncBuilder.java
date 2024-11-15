@@ -99,7 +99,14 @@ public class AsyncBuilder {
             final File sdk = defoldSdkService.getSdk(sdkVersion);
             metricsWriter.measureSdkDownload(sdkVersion);
 
-            extender = new Extender(platform, sdk, jobDirectory, uploadDirectory, buildDirectory);
+            extender = new Extender.Builder()
+                        .setPlatform(platform)
+                        .setSdk(sdk)
+                        .setJobDirectory(jobDirectory)
+                        .setUploadDirectory(uploadDirectory)
+                        .setBuildDirectory(buildDirectory)
+                        .setMetricsWriter(metricsWriter)
+                        .build();
 
             // Resolve Gradle dependencies
             if (platform.contains("android")) {
