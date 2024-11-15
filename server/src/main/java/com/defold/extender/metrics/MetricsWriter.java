@@ -103,4 +103,8 @@ public class MetricsWriter {
     public static void metricsCounterIncrement(MeterRegistry registry, String id, String... tags) {
         registry.counter(id, Tags.of(tags)).increment();
     }
+
+    public void measureBuildTarget(String target) {
+        metricsCounterIncrement(this.registry, "extender.build.target", "target", target);
+    }
 }

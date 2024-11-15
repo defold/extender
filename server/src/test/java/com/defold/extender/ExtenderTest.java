@@ -68,7 +68,14 @@ public class ExtenderTest {
 
         Map<String, String> env = createEnv();
 
-        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
+        Extender extender = new Extender.Builder()
+                            .setPlatform("x86_64-osx")
+                            .setSdk(sdk)
+                            .setJobDirectory(jobDir)
+                            .setUploadDirectory(uploadDir)
+                            .setBuildDirectory(buildDir)
+                            .setEnv(env)
+                            .build();
 
         uploadDir.delete();
         assertTrue(true);
@@ -385,7 +392,14 @@ public class ExtenderTest {
 
         Map<String, String> env = createEnv();
 
-        Extender extender = new Extender("x86_64-osx", sdk, jobDir, uploadDir, buildDir, env);
+        Extender extender = new Extender.Builder()
+                            .setPlatform("x86_64-osx")
+                            .setSdk(sdk)
+                            .setJobDirectory(jobDir)
+                            .setUploadDirectory(uploadDir)
+                            .setBuildDirectory(buildDir)
+                            .setEnv(env)
+                            .build();
         Map<String, Object> mergedAppContext = extender.getMergedAppContext();
 
         List<String> libsOriginal = Arrays.asList("engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null");
@@ -488,7 +502,14 @@ public class ExtenderTest {
 
         Map<String, String> env = createEnv();
 
-        Extender extender = new Extender("x86_64-linux", sdk, jobDir, uploadDir, buildDir, env);
+        Extender extender = new Extender.Builder()
+                            .setPlatform("x86_64-linux")
+                            .setSdk(sdk)
+                            .setJobDirectory(jobDir)
+                            .setUploadDirectory(uploadDir)
+                            .setBuildDirectory(buildDir)
+                            .setEnv(env)
+                            .build();
 
         Map<String, Object> map = extender.getMergedAppContext();
 
@@ -524,7 +545,14 @@ public class ExtenderTest {
 
         Map<String, String> env = createEnv();
 
-        Extender extender = new Extender("x86_64-linux", sdk, jobDir, uploadDir, buildDir, env);
+        Extender extender = new Extender.Builder()
+                            .setPlatform("x86_64-linux")
+                            .setSdk(sdk)
+                            .setJobDirectory(jobDir)
+                            .setUploadDirectory(uploadDir)
+                            .setBuildDirectory(buildDir)
+                            .setEnv(env)
+                            .build();
 
         Map<String, Object> map = extender.getMergedAppContext();
 
