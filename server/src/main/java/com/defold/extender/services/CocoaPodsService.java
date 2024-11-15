@@ -6,6 +6,7 @@ import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
+
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ import org.json.simple.parser.ParseException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -31,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Iterator;
@@ -41,7 +45,7 @@ import java.lang.StringBuilder;
 @Service
 public class CocoaPodsService {
 
-    private class MainPodfile {
+    static class MainPodfile {
         public List<String> podnames = new ArrayList<>();
         public String platformMinVersion;
         public String platform;
@@ -57,6 +61,10 @@ public class CocoaPodsService {
             sb.append("min version: " + platformMinVersion + "\n");
             return sb.toString();
         }
+    }
+
+    static MainPodfile createMainPodfile() {
+        return new MainPodfile();
     }
 
     private class InstalledPods {
@@ -382,7 +390,7 @@ public class CocoaPodsService {
     }
 
     // https://www.baeldung.com/java-comparing-versions#customSolution
-    private int compareVersions(String version1, String version2) {
+    private static int compareVersions(String version1, String version2) {
         int result = 0;
         String[] parts1 = version1.split("\\.");
         String[] parts2 = version2.split("\\.");
@@ -408,7 +416,7 @@ public class CocoaPodsService {
      * @return Main pod file structure
      */
     private MainPodfile createMainPodfile(List<File> podFiles, File jobDirectory, File workingDir, String platform, Map<String, Object> jobEnvContext) throws IOException {
-        MainPodfile mainPodfile = new MainPodfile();
+        MainPodfile mainPodfile = createMainPodfile();
 
         mainPodfile.file = new File(workingDir, "Podfile");
 
@@ -420,35 +428,9 @@ public class CocoaPodsService {
             jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
         mainPodfile.platform = (platform.contains("ios") ? "ios" : "osx");
 
-        // Load all Podfiles
-        List<String> pods = new ArrayList<>();
-        for (File podFile : podFiles) {
-            // Split each file into lines and go through them one by one
-            // Search for a Podfile platform and version configuration, examples:
-            //   platform :ios, '9.0'
-            //   platform :osx, '10.2'
-            // Get the version and figure out which is the highest version defined. This
-            // version will be used in the combined Podfile created by this function. 
-            // Treat everything else as pods
-            List<String> lines = Files.readAllLines(podFile.getAbsoluteFile().toPath());
-            for (String line : lines) {
-                if (line.startsWith("platform :")) {
-                    String version = line.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
-                    if (!version.isEmpty() && (compareVersions(version, mainPodfile.platformMinVersion) > 0)) {
-                        mainPodfile.platformMinVersion = version;
-                    }
-                }
-                else if (line.length() > 1) {
-                    pods.add(line);
 
-                    // get the pod name from the line
-                    // example: pod 'KSCrash', '1.17.4' -> KSCrash
-                    String[] parts = line.split("'");
-                    String podname = parts[1];
-                    mainPodfile.podnames.add(podname);
-                }
-            }
-        }
+        // Load all Podfiles
+        List<String> pods = parsePodfiles(mainPodfile, podFiles);
 
         // Create main Podfile contents
         HashMap<String, Object> envContext = new HashMap<>();
@@ -1265,7 +1247,7 @@ public class CocoaPodsService {
         if (!podFileLock.exists()) {
             throw new ExtenderException("Unable to find Podfile.lock in directory " + dir);
         }
-        LOGGER.info("Podfile.lock:\n{}", FileUtils.readFileToString(podFileLock));
+        LOGGER.info("Podfile.lock:\n{}", FileUtils.readFileToString(podFileLock, Charset.defaultCharset()));
 
         /* Parse Podfile.lock and get all pods. Example Podfile.lock:
 
@@ -1420,9 +1402,47 @@ public class CocoaPodsService {
 
         return pe.getOutput();
     }
+
     private String execCommand(String command) throws ExtenderException {
         return execCommand(command, null);
     }
 
+    static List<String> parsePodfiles(MainPodfile mainPodfile, List<File> podFiles) throws IOException {
+        // Load all Podfiles
+        Pattern podPattern = Pattern.compile("pod '([\\w|-]+)'.*");
+        List<String> pods = new ArrayList<>();
+        for (File podFile : podFiles) {
+            // Split each file into lines and go through them one by one
+            // Search for a Podfile platform and version configuration, examples:
+            //   platform :ios, '9.0'
+            //   platform :osx, '10.2'
+            // Get the version and figure out which is the highest version defined. This
+            // version will be used in the combined Podfile created by this function. 
+            // Treat everything else as pods
+            List<String> lines = Files.readAllLines(podFile.getAbsoluteFile().toPath());
+            for (String line : lines) {
+                if (line.isEmpty()) {
+                    continue;
+                }
+                if (line.startsWith("platform :")) {
+                    String version = line.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
+                    if (!version.isEmpty() && (compareVersions(version, mainPodfile.platformMinVersion) > 0)) {
+                        mainPodfile.platformMinVersion = version;
+                    }
+                }
+                else {
+                    pods.add(line);
 
+                    Matcher matcher = podPattern.matcher(line);
+                    if (matcher.matches()) {
+                        // get the pod name from the line
+                        // example: pod 'KSCrash', '1.17.4' -> KSCrash
+                        String podname = matcher.group(1);
+                        mainPodfile.podnames.add(podname);
+                    }
+                }
+            }
+        }
+        return pods;
+    }
 }
