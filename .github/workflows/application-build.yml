@@ -40,7 +40,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@d156388eb19639ec20ade50009f3d199ce1e2808
+      uses: gradle/actions/setup-gradle@473878a77f1b98e2b5ac4af93489d1656a80a5ed
     - name: Build the extender-client.jar
       run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:jar
     - name: Test the extender-client.jar
@@ -97,7 +97,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@d156388eb19639ec20ade50009f3d199ce1e2808
+      uses: gradle/actions/setup-gradle@473878a77f1b98e2b5ac4af93489d1656a80a5ed
     - name: Build manifestmerger
       run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:mainJar
     - name: Test manifestmerger
@@ -163,7 +163,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@d156388eb19639ec20ade50009f3d199ce1e2808
+      uses: gradle/actions/setup-gradle@473878a77f1b98e2b5ac4af93489d1656a80a5ed
     - name: Build extender
       run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
     - name: Login to Google Artifact registry (Docker)
