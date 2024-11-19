@@ -1,3 +1,3 @@
 
-javac  -source 1.6 -target 1.6  -cp . com/defoldtest/engine/Engine.java
+javac  -source 1.8 -target 1.8  -cp . com/defoldtest/engine/Engine.java
 jar cvf Engine.jar com

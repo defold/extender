@@ -18,7 +18,7 @@ ANDROID_JAR=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
 mkdir -p $BUILD
 
 # Dummy.jar
-javac  -source 1.6 -target 1.6  -cp .  com/defold/dummy/Dummy.java
+javac  -source 1.8 -target 1.8  -cp .  com/defold/dummy/Dummy.java
 jar -cvf ../ext/lib/armv7-android/Dummy.jar com
 
 # VeryLarge.jar
@@ -46,7 +46,7 @@ do
 
     echo "done."
 
-    javac  -source 1.6 -target 1.6  -cp . $VERYLARGE_JAVA
+    javac  -source 1.8 -target 1.8  -cp . $VERYLARGE_JAVA
     rm $VERYLARGE_JAVA
     jar -cvf ../../ext/lib/armv7-android/$NAME.jar com
 
