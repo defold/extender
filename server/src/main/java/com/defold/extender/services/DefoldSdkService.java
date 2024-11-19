@@ -261,7 +261,7 @@ public class DefoldSdkService {
                 return new String(body.readAllBytes(), StandardCharsets.UTF_8);
             }
         }
-        throw new ExtenderException(String.format("Cannot found platform sdks mappings for hash: %s", hash));
+        throw new ExtenderException(String.format("Cannot find platform sdks mappings for hash: %s", hash));
     }
 
     public String getPlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException {

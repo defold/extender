@@ -21,7 +21,7 @@ RUN \
 #
 # Java
 #
-ENV JAVA_HOME=/usr/local/jdk-17.0.7+7
+ENV JAVA_HOME=/usr/local/jdk-21.0.5+11
 ENV PATH=${JAVA_HOME}/bin:${PATH}
 
 RUN locale-gen en_US.UTF-8
@@ -30,7 +30,7 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
 RUN \
-  wget -q -O - https://aka.ms/download-jdk/microsoft-jdk-17.0.7-linux-x64.tar.gz | tar xz -C /usr/local && \
+  wget -q -O - https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.5%2B11/OpenJDK21U-jdk_x64_linux_hotspot_21.0.5_11.tar.gz | tar xz -C /usr/local && \
   java -version && \
   javac -version
 
