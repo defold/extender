@@ -82,7 +82,7 @@ public class ExtenderClientCache {
     /** Gets the cache storage file
      */
     public File getCacheFile() {
-        return new File(cacheDir.getAbsolutePath() + File.separator + this.cacheFile);
+        return new File(cacheDir.getAbsolutePath() + File.separator + ExtenderClientCache.cacheFile);
     }
 
     /** Calculates a key to identify a build

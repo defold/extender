@@ -85,6 +85,7 @@ public class HealthReporterService {
                             updateOperationalStatus(platformOperationalStatus, platform, false);
                         }
                     } else {
+                        EntityUtils.consumeQuietly(response.getEntity());
                         updateOperationalStatus(platformOperationalStatus, platform, false);
                     }
                 } catch(Exception exc) {
