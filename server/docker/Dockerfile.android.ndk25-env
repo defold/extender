@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.3.3
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.4.0
 
 #
 # Android SDK/NDK
@@ -98,6 +98,15 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
 # check that aapt installed correctly
     aapt v  && \
     aapt2 version
+
+# download and install R8 utility separatly. It's done in that way because
+# R8/D8 received fixes from time to time which not populated with build tools
+# It's ok that R8.jar downloaded but saved to D8.jar. Can't find D8 as separate utility.
+# R8 contains all classes of D8.
+ENV R8_VERSION=8.7.0-dev
+RUN \
+    wget -O ${ANDROID_SDK_BUILD_TOOLS_PATH_34}/lib/d8.jar https://storage.googleapis.com/r8-releases/raw/${R8_VERSION}/r8.jar && \
+    wget -O ${ANDROID_SDK_BUILD_TOOLS_PATH_33}/lib/d8.jar https://storage.googleapis.com/r8-releases/raw/${R8_VERSION}/r8.jar
 
 # Since dotnet cannot really cross compile, we need to create a "ar" shim for "llvm-ar"
 # As long as it's in the path, it will be picked up

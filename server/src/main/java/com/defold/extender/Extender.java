@@ -2094,7 +2094,9 @@ class Extender {
         try {
             mainList.createNewFile();
             for (String classFile : mainClassNames) {
-                FileUtils.writeStringToFile(mainList, classFile + "\n", Charset.defaultCharset(), true);
+                // create main dex list in form of Proguards rules. Additional info https://github.com/defold/extender/issues/393
+                classFile = classFile.replace("/", ".").replace(".class", "");
+                FileUtils.writeStringToFile(mainList, String.format("-keep class %s { *; }\n", classFile), Charset.defaultCharset(), true);
             }
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to write to " + mainList.getAbsolutePath());
@@ -2114,6 +2116,10 @@ class Extender {
         context.put("engineJars", empty_list);
         context.put("mainDexList", mainDexList.getAbsolutePath());
 
+        // replace parameter name because '--main-dex-list' is deprecated and reported as error
+        // we can't change command format for older version of engine so replace parameter here.
+        // Remove when old versions won't be supported.
+        platformConfig.dxCmd = platformConfig.dxCmd.replace("--main-dex-list", "--main-dex-rules");
         executeCommand(platformConfig.dxCmd, context);
 
         File[] classes = ExtenderUtil.listFilesMatching(buildDirectory, "^classes(|[0-9]+)\\.dex$");
