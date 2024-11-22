@@ -64,13 +64,15 @@ public class HealthReporterService {
                 String instanceId = entry.getValue().getInstanceId();
                 // if instance controlled by instanceService and is currently suspended or suspending - mark it as 'operational'
                 if (instanceService != null && instanceService.isInstanceControlled(instanceId)) {
-                    if (instanceService.isInstanceSuspended(instanceId) || instanceService.isInstanceSuspending(instanceId)) {
+                    if (instanceService.isInstanceSuspended(instanceId) 
+                    || instanceService.isInstanceSuspending(instanceId)
+                    || instanceService.isInstanceStarting(instanceId)) {
                         updateOperationalStatus(platformOperationalStatus, platform, true);
                         continue;
+                    } else if (!instanceService.isInstanceRunning(instanceId)) {
+                        updateOperationalStatus(platformOperationalStatus, platform, false);
+                        continue;
                     }
-                } else if (!instanceService.isInstanceRunning(instanceId)) {
-                    updateOperationalStatus(platformOperationalStatus, platform, false);
-                    continue;
                 }
                 final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
                 final HttpGet request = new HttpGet(healthUrl);
