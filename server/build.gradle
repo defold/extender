@@ -67,7 +67,7 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-actuator')
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
-    implementation('io.micrometer:micrometer-core:1.13.1')
+    implementation('io.micrometer:micrometer-core:1.14.1')
     implementation('io.micrometer:micrometer-tracing:1.3.4')
     implementation('io.micrometer:micrometer-tracing-bridge-otel:1.3.4')
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
