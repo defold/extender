@@ -44,13 +44,14 @@ private static final Logger LOGGER = LoggerFactory.getLogger(GCPDataCache.class)
 
     @Override
     public void touch(String key) {
-        Blob blob = storage.get(this.bucketName, getBlobKey(key));
+        String fullKey = getBlobKey(key);
+        Blob blob = storage.get(this.bucketName, fullKey);
         if (blob != null) {
             try {
                 // metadata can be updated only by copying object to itself
-                blob.copyTo(this.bucketName, key);
+                blob.copyTo(this.bucketName, fullKey);
             } catch (StorageException exc) {
-                LOGGER.warn(String.format("Exception when touch object '%s' %s", key, exc.getReason()));
+                LOGGER.warn(String.format("Exception when touch object '%s' %s", fullKey, exc.getReason()));
             }
         }
     }
