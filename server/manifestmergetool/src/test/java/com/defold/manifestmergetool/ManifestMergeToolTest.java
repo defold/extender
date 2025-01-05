@@ -1,26 +1,22 @@
 package com.defold.manifestmergetool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 import com.defold.manifestmergetool.ManifestMergeTool.Platform;
 
-@RunWith(Parameterized.class)
 public class ManifestMergeToolTest {
 
     private static final String LIB_MANIFEST_PATH = "builtins/manifests/ios/InfoLib.plist";
@@ -28,7 +24,6 @@ public class ManifestMergeToolTest {
     private static final String MERGED_MANIFEST_PATH = "builtins/manifests/ios/InfoMerged.plist";
 
     private String contentRoot;
-    private Platform platform;
     private File root;
     private File main;
     private File target;
@@ -41,7 +36,7 @@ public class ManifestMergeToolTest {
         return file;
     }
 
-    protected void createDefaultFiles() throws IOException {
+    protected void createDefaultFiles(Platform platform) throws IOException {
         // These are the base manifest files
         String iosManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -126,14 +121,7 @@ public class ManifestMergeToolTest {
         }
     }
 
-    @Parameters
-    public static Collection<Platform[]> data() {
-        Platform[][] data = new Platform[][] { {Platform.ANDROID}, {Platform.IOS}, {Platform.WEB}};
-        return Arrays.asList(data);
-    }
-
-    public ManifestMergeToolTest(Platform platform) throws IOException {
-        this.platform = platform;
+    public ManifestMergeToolTest() throws IOException {
         root = Files.createTempDirectory("defoldmergetest").toFile();
         //root.deleteOnExit();
         contentRoot = root.getAbsolutePath();
@@ -150,12 +138,9 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("android")
     public void testMergeAndroid() throws IOException {
-        if (platform != Platform.ANDROID) {
-            return;
-        }
-
-        createDefaultFiles();
+        createDefaultFiles(Platform.ANDROID);
 
         String manifest = ""
                 + "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -221,12 +206,9 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("android")
     public void testMergeAndroidFailSdkMinVersion() throws IOException {
-        if (platform != Platform.ANDROID) {
-            return;
-        }
-
-        createDefaultFiles();
+        createDefaultFiles(Platform.ANDROID);
 
         String manifest = ""
                 + "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -243,14 +225,10 @@ public class ManifestMergeToolTest {
         }
     }
 
-
     @Test
+    @Tag("ios")
     public void testMergeIOS() throws IOException {
-        if (platform != Platform.IOS) {
-            return;
-        }
-
-        createDefaultFiles();
+        createDefaultFiles(Platform.IOS);
 
         String libManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -325,15 +303,10 @@ public class ManifestMergeToolTest {
         assertEquals(expected, merged);
     }
 
-
-
     @Test
+    @Tag("ios")
     public void testMergeIOSMergeMarkers() throws IOException {
-        if (platform != Platform.IOS) {
-            return;
-        }
-
-        createDefaultFiles();
+        createDefaultFiles(Platform.IOS);
 
         String builtinsManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -393,12 +366,9 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("ios")
     public void testMergeIOSArrayDuplication() throws IOException {
-        if (platform != Platform.IOS) {
-            return;
-        }
-
-        createDefaultFiles();
+        createDefaultFiles(Platform.IOS);
 
         String builtinsManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -449,12 +419,9 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("ios")
     public void testMergeIOSMixedTypes() throws IOException {
-        if (platform != Platform.IOS) {
-            return;
-        }
-
-        createDefaultFiles();
+        createDefaultFiles(Platform.IOS);
 
         String builtinsManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -488,11 +455,9 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("ios")
     public void testMergeNestedDictionaries() throws IOException {
-        if (platform != Platform.IOS) {
-            return;
-        }
-        createDefaultFiles();
+        createDefaultFiles(Platform.IOS);
 
         String builtinsManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -630,11 +595,9 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("ios")
     public void testMergeArrays() throws IOException {
-        if (platform != Platform.IOS && platform != Platform.OSX) {
-            return;
-        }
-        createDefaultFiles();
+        createDefaultFiles(Platform.IOS);
 
         String builtinsManifest = ""
             + "<?xml version=\"1.0\"?>\n"
@@ -711,11 +674,8 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("ios")
     public void testMergePrivacyManifest() throws IOException {
-        if (platform != Platform.IOS && platform != Platform.OSX) {
-            return;
-        }
-
         String main = ""
             + "<?xml version=\"1.0\"?>\n"
             + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
@@ -855,12 +815,9 @@ public class ManifestMergeToolTest {
     }
 
     @Test
+    @Tag("web")
     public void testMergeHTML5() throws IOException {
-        if (platform != Platform.WEB) {
-            return;
-        }
-
-        createDefaultFiles();
+        createDefaultFiles(Platform.WEB);
 
         String libManifest = ""
                 + "<html>"
