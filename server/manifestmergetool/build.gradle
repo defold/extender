@@ -76,7 +76,7 @@ dependencies {
     implementation('commons-codec:commons-codec:1.17.0')
 
     testImplementation('commons-io:commons-io:2.17.0')
-    testImplementation('junit:junit:4.13.2')
+    testImplementation('org.junit.jupiter:junit-jupiter-engine:5.11.4')
 }
 
 allprojects {
@@ -85,4 +85,8 @@ allprojects {
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
+}
+
+test {
+    useJUnitPlatform()
 }
