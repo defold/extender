@@ -34,5 +34,9 @@ dependencies {
     }
     testImplementation('commons-io:commons-io:2.17.0')
     testImplementation("org.mockito:mockito-core:5.+")
-    testImplementation group: 'junit', name: 'junit', version: '4.13.2'
+    testImplementation('org.junit.jupiter:junit-jupiter-engine:5.11.4')
+}
+
+test {
+    useJUnitPlatform()
 }
