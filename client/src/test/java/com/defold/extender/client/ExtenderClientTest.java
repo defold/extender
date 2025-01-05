@@ -9,10 +9,16 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.DefaultHttpClient;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -30,8 +36,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 
-import static org.junit.Assert.*;
-
 public class ExtenderClientTest extends Mockito {
 
     private void writeToFile(String path, String msg) throws IOException {
@@ -43,10 +47,16 @@ public class ExtenderClientTest extends Mockito {
         f.setLastModified(Instant.now().toEpochMilli() + 23);
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeClass() {
         File buildDir = new File("build");
         buildDir.mkdirs();
+    }
+
+    @AfterAll
+    public static void cleanup() {
+        File buildLog = new File("build.log");
+        buildLog.delete();
     }
 
     @Test
@@ -263,7 +273,6 @@ public class ExtenderClientTest extends Mockito {
 
     @Test
     public void testClientGetSource() throws IOException {
-        File root = new File("test-data/testproject/a");
         List<ExtenderResource> files = null;
 
         String platform = "x86-osx";
@@ -384,7 +393,7 @@ public class ExtenderClientTest extends Mockito {
         }
     }
 
-    @Test(expected = ExtenderClientException.class)
+    @Test()
     public void testClientHandleHTTPError() throws ClientProtocolException, IOException, ExtenderClientException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, NoSuchFieldException {
         DefaultHttpClient httpClient = Mockito.mock(DefaultHttpClient.class);
         CloseableHttpResponse httpResponse = Mockito.mock(CloseableHttpResponse.class);
@@ -430,7 +439,10 @@ public class ExtenderClientTest extends Mockito {
         field.setAccessible(true);
         field.set(extenderClient, httpClient);
 
-        extenderClient.build("js-web", "aaaaaaaa", inputFiles, targetDir, log, true);
+        assertThrows(ExtenderClientException.class, () -> {
+            extenderClient.build("js-web", "aaaaaaaa", inputFiles, targetDir, log, true);
+        });
+        
     }
 
     /*
