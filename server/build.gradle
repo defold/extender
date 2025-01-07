@@ -41,6 +41,7 @@ targetCompatibility = '17'
 dependencyManagement {
     imports {
         mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.8.0'
+        mavenBom 'org.junit:junit-bom:5.11.4'
     }
 }
 
@@ -72,13 +73,22 @@ dependencies {
     implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.1')
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
     runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.0')
-    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.13.2')
+    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.13.2') {
+        exclude group: 'org.junit.jupiter'
+    }
 
-    testImplementation('junit:junit:4.13.2')
+    testImplementation('org.junit.jupiter:junit-jupiter-engine')
+    testImplementation('org.junit.jupiter:junit-jupiter-params')
     testImplementation('org.springframework:spring-test')
-    testImplementation('org.springframework.boot:spring-boot-starter-test')
-    testImplementation('io.micrometer:micrometer-tracing-test')
-    testImplementation('io.micrometer:micrometer-tracing-integration-test')
+    testImplementation('org.springframework.boot:spring-boot-starter-test') {
+        exclude group: 'org.junit.jupiter'
+    }
+    testImplementation('io.micrometer:micrometer-tracing-test') {
+        exclude group: 'org.junit.jupiter'
+    }
+    testImplementation('io.micrometer:micrometer-tracing-integration-test') {
+        exclude group: 'org.junit.jupiter'
+    }
     testImplementation('org.springframework.security:spring-security-test')
 
     testImplementation('org.smali:dexlib2:2.5.2')
@@ -186,4 +196,8 @@ task buildStandalone() {
             into "build/standalone"
         }
     }
+}
+
+test {
+    useJUnitPlatform()
 }

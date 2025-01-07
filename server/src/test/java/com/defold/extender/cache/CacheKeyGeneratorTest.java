@@ -1,13 +1,14 @@
 package com.defold.extender.cache;
 
-import org.junit.Test;
 import com.defold.extender.TestUtils;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
 
 public class CacheKeyGeneratorTest {
 

@@ -1,16 +1,25 @@
 package com.defold.extender;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.junit.Assert.*;
 
 public class ExtensionManifestValidatorTest {
 
@@ -84,15 +93,9 @@ public class ExtensionManifestValidatorTest {
         stringValues.add("./foo");
         context.put("libs", stringValues);
 
-        boolean thrown;
-        try {
-            thrown = false;
+        assertThrows(ExtenderException.class, () -> {
             validator.validate("test_extension", extensionFolder, context);
-        } catch (ExtenderException e) {
-            thrown = true;
-        }
-        assertTrue(thrown);
-
+        });
 
         // FLAGS
 
@@ -123,17 +126,10 @@ public class ExtensionManifestValidatorTest {
         stringValues.add("-Weverything; rm -rf");
         context.put("flags", stringValues);
 
-        try {
-            thrown = false;
+        ExtenderException exc = assertThrows(ExtenderException.class, () -> {
             validator.validate("test_extension", extensionFolder, context);
-        } catch (ExtenderException e) {
-            if (e.toString().contains("rm -rf")) {
-                thrown = true;
-            } else {
-                throw e;
-            }
-        }
-        assertTrue(thrown);
+        });
+        assertTrue(exc.toString().contains("rm -rf"));
     }
 
     @Test
@@ -150,28 +146,19 @@ public class ExtensionManifestValidatorTest {
         context.put("libs", l);
 
         File extensionFolder = new File("ext-folder");
-        boolean thrown = false;
-        try {
-            validator.validate("testExtension", extensionFolder, context);
-        } catch (ExtenderException e) {
-            thrown = true;
-            System.out.println(e.toString());
-        }
 
-        assertFalse(thrown);
+        assertDoesNotThrow(() -> {
+            validator.validate("testExtension", extensionFolder, context);
+        });
 
         l.add("../libfoobar.a");
         context.put("libs", l);
-        try {
+
+        ExtenderException exc = assertThrows(ExtenderException.class, () -> {
             validator.validate("testExtension", extensionFolder, context);
-        } catch (ExtenderException e) {
-            System.out.println(e.toString());
-            if (e.toString().contains("Invalid")) { // expected error
-                thrown = true;
-            } else {
-                throw e;
-            }
-        }
-        assertTrue(thrown);
+        });
+        String exceptionMessage = exc.toString();
+        assertTrue(exceptionMessage.contains("Invalid"));
+        System.out.println(exceptionMessage);
     }
 }

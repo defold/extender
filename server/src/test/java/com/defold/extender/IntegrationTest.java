@@ -2,18 +2,24 @@ package com.defold.extender;
 
 import com.defold.extender.client.*;
 import com.google.common.collect.Lists;
-import org.apache.commons.io.FileUtils;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
-import org.junit.*;
-import org.junit.rules.TestName;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggingSystem;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,18 +31,8 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import static org.junit.Assert.*;
-
-@RunWith(Parameterized.class)
 public class IntegrationTest {
-
     private static final int EXTENDER_PORT = 9000;
-
-    private TestConfiguration configuration;
-    private long startTime;
-
-    @Rule
-    public TestName name = new TestName();
 
     static {
         LoggingSystem.get(ClassLoader.getSystemClassLoader()).setLogLevel(Logger.ROOT_LOGGER_NAME, LogLevel.INFO);
@@ -104,8 +100,7 @@ public class IntegrationTest {
         }
     }
 
-    @Parameterized.Parameters(name = "{index}: {0}")
-    public static Collection<TestConfiguration> data() {
+    public static List<TestConfiguration> data() {
 
         boolean ciBuild = System.getenv("GITHUB_WORKSPACE") != null;
 
@@ -141,7 +136,7 @@ public class IntegrationTest {
 
         for( int i = 0; i < versions.length; ++i )
         {
-            for (String platform : versions[i].platforms ) {
+            for (String platform : versions[i].platforms) {
                 data.add(new TestConfiguration(versions[i], platform, false));
                 data.add(new TestConfiguration(versions[i], platform, true));
             }
@@ -150,22 +145,22 @@ public class IntegrationTest {
         return data;
     }
 
-    public IntegrationTest(TestConfiguration configuration) {
-        this.configuration = configuration;
-    }
+    public IntegrationTest() { }
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("COMPOSE_PROFILE", "test");
         processExecutor.putEnv("APPLICATION", "extender-test");
+        processExecutor.putEnv("PORT", String.valueOf(EXTENDER_PORT));
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
         long startTime = System.currentTimeMillis();
 
         // Wait for server to start in container.
-        File cacheDir = new File("build");
+        File cacheDir = Files.createTempDirectory("health_check").toFile();
+        cacheDir.deleteOnExit();
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
 
         int count = 100;
@@ -187,36 +182,12 @@ public class IntegrationTest {
 
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("APPLICATION", "extender-test");
         processExecutor.execute("scripts/stop-test-server.sh");
         System.out.println(processExecutor.getOutput());
-    }
-
-    @Before
-    public void beforeTest() throws IOException {
-        File cachedBuild = new File(String.format("build/%s/build.zip", configuration.platform));
-        if (cachedBuild.exists())
-            cachedBuild.delete();
-        assertFalse(cachedBuild.exists());
-
-        startTime = System.currentTimeMillis();
-    }
-
-    @After
-    public void afterTest()
-    {
-        File buildDir = new File("build" + File.separator + configuration.version.sha1);
-        if (buildDir.exists()) {
-            try {
-                FileUtils.deleteDirectory(buildDir);
-            } catch (IOException e) {
-            }
-        }
-
-        System.out.println(String.format("Test %s took: %.2f seconds", name.getMethodName(), (System.currentTimeMillis() - startTime) / 1000.f));
     }
 
     private String[] getEngineNames(String platform) {
@@ -242,8 +213,9 @@ public class IntegrationTest {
         return String.format("lib%s.a", lib);
     }
 
-    private File doBuild(List<ExtenderResource> sourceFiles) throws IOException, ExtenderClientException {
-        File cacheDir = new File("build");
+    private File doBuild(List<ExtenderResource> sourceFiles, TestConfiguration configuration) throws IOException, ExtenderClientException {
+        File cacheDir = Files.createTempDirectory(String.format("%s-%s", configuration.platform, configuration.version.toString())).toFile();
+        cacheDir.deleteOnExit();
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
@@ -267,8 +239,8 @@ public class IntegrationTest {
             throw e;
         }
 
-        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
-        assertEquals("Log should be of size zero if successful.", 0, log.length());
+        assertTrue(destination.length() > 0, "Resulting engine should be of a size greater than zero.");
+        assertEquals(0, log.length(), "Log should be of size zero if successful.");
 
         ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
         assertTrue(cache.getCachedBuildFile(configuration.platform).exists());
@@ -287,8 +259,9 @@ public class IntegrationTest {
         return destination;
     }
 
-    @Test
-    public void buildEngine() throws IOException, ExtenderClientException {
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildEngine(TestConfiguration configuration) throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext2/ext.manifest"),
@@ -297,12 +270,13 @@ public class IntegrationTest {
                 new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "blib")))
         );
 
-        doBuild(sourceFiles);
+        doBuild(sourceFiles, configuration);
     }
 
-    @Test
-    public void buildExtensionStdLib() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("Only use with real sdk's", !configuration.version.version.isVersion(0, 0, 0));
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildExtensionStdLib(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(!configuration.version.version.isVersion(0, 0, 0), "Only use with real sdk's");
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext_std/ext.manifest"),
                 new FileExtenderResource("test-data/ext_std/include/std.h"),
@@ -310,11 +284,12 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource(String.format("test-data/ext_std/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "std")))
         );
-        doBuild(sourceFiles);
+        doBuild(sourceFiles, configuration);
     }
 
-    @Test
-    public void buildEngineWithBaseExtension() throws IOException, ExtenderClientException {
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildEngineWithBaseExtension(TestConfiguration configuration) throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/include/ext.h"),
@@ -325,7 +300,7 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml")
         );
 
-        doBuild(sourceFiles);
+        doBuild(sourceFiles, configuration);
     }
 
     private boolean checkClassesDexClasses(File buildZip, List<String> classes) throws IOException {
@@ -360,9 +335,10 @@ public class IntegrationTest {
         return true;
     }
 
-    @Test
-    public void buildAndroidCheckClassesDex() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidCheckClassesDex(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android"), "This test is only run for Android");
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -371,15 +347,16 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
 
-        File destination = doBuild(sourceFiles);
+        File destination = doBuild(sourceFiles, configuration);
 
         List<String> classes = Arrays.asList(new String[]{"Lcom/defold/dummy/Dummy;"});
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
-    public void buildAndroidCheckClassesMultiDex() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidCheckClassesMultiDex(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android"), "This test is only run for Android");
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -390,15 +367,16 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge1.jar"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge2.jar"));
 
-        File destination = doBuild(sourceFiles);
+        File destination = doBuild(sourceFiles, configuration);
 
         List<String> classes = Arrays.asList(new String[]{"Lcom/defold/dummy/Dummy;"});
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
-    public void buildAndroidCheckCompiledJava() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidCheckCompiledJava(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android"), "This test is only run for Android");
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -408,7 +386,7 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
 
-        File destination = doBuild(sourceFiles);
+        File destination = doBuild(sourceFiles, configuration);
 
         List<String> classes = Arrays.asList(new String[]{"Lcom/defold/dummy/Dummy;", "Lcom/defold/Test;"});
         assertTrue(checkClassesDexClasses(destination, classes));
@@ -417,9 +395,10 @@ public class IntegrationTest {
     /*
      * Test if a Java source can import classes specified in a supplied Jar file.
      */
-    @Test
-    public void buildAndroidJavaJarDependency() throws IOException, ExtenderClientException {
-        org.junit.Assume.assumeTrue("This test is only run for Android", configuration.platform.contains("android"));
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidJavaJarDependency(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android"), "This test is only run for Android");
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -429,17 +408,17 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/JarDep.jar"));
 
-        File destination = doBuild(sourceFiles);
+        File destination = doBuild(sourceFiles, configuration);
 
         List<String> classes = Arrays.asList(new String[]{"Lcom/defold/JarDep;", "Lcom/defold/Test;"});
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
-    public void buildAndroidRJar() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("Defold version does not support Android resources compilation test.",
-                configuration.platform.contains("android") && configuration.version.version.isGreaterThan(1, 2, 174)
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidRJar(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android") && configuration.version.version.isGreaterThan(1, 2, 174),
+            "Defold version does not support Android resources compilation test."
         );
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
@@ -448,14 +427,15 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"));
 
-        File destination = doBuild(sourceFiles);
+        File destination = doBuild(sourceFiles, configuration);
 
         List<String> classes = Arrays.asList(new String[]{"Lcom/defold/extendertest/R;"});
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
-    @Test
-    public void buildEngineAppManifest() throws IOException, ExtenderClientException {
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildEngineAppManifest(TestConfiguration configuration) throws IOException, ExtenderClientException {
         // Testing that using an app.manifest helps resolve issues with duplicate symbols
         // E.g. removing libs, symbols and jar files
 
@@ -477,25 +457,27 @@ public class IntegrationTest {
             sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy2.jar"));
         }
 
-        doBuild(sourceFiles);
+        doBuild(sourceFiles, configuration);
     }
 
-    @Test
-    public void buildLinkWithoutDotLib() throws IOException, ExtenderClientException {
-
-        org.junit.Assume.assumeTrue("This test was written to test a Win32 link.exe -> clang transition", configuration.platform.contains("win32") &&
-                (configuration.version.version.isGreaterThan(1, 2, 134) || configuration.version.version.isVersion(0, 0, 0) ));
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildLinkWithoutDotLib(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("win32") &&
+                (configuration.version.version.isGreaterThan(1, 2, 134) || configuration.version.version.isVersion(0, 0, 0) ),
+                "This test was written to test a Win32 link.exe -> clang transition");
 
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/ext3/ext.manifest"),
                 new FileExtenderResource("test-data/ext3/src/extension.cpp")
         );
 
-        doBuild(sourceFiles);
+        doBuild(sourceFiles, configuration);
     }
 
-    @Test
-    public void buildEngineAppManifestVariant() throws IOException, ExtenderClientException {
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildEngineAppManifestVariant(TestConfiguration configuration) throws IOException, ExtenderClientException {
         // Testing that the variant parameter can be parse and processed properly.
         // This test requires that we have a debug.appmanifest present in the SDK and only
         // our test data SDK currently has that, so we can only test it on that version
@@ -507,11 +489,12 @@ public class IntegrationTest {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
                 new FileExtenderResource("test-data/testproject_appmanifest_variant/_app/app.manifest"));
 
-        doBuild(sourceFiles);
+        doBuild(sourceFiles, configuration);
     }
 
-    @Test(expected = ExtenderClientException.class)
-    public void buildEngineWithError() throws IOException, ExtenderClientException {
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildEngineWithError(TestConfiguration configuration) throws IOException, ExtenderClientException {
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
             new FileExtenderResource("test-data/ext/ext.manifest"),
             new FileExtenderResource("test-data/ext/include/ext.h"),
@@ -522,6 +505,8 @@ public class IntegrationTest {
             new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml")
         );
 
-        doBuild(sourceFiles);
+        assertThrows(ExtenderClientException.class, () -> {
+            doBuild(sourceFiles, configuration);
+        });
     }
 }

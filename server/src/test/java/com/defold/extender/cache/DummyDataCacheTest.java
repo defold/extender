@@ -1,17 +1,18 @@
 package com.defold.extender.cache;
 
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.File;
 
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class DummyDataCacheTest {
 
     private DataCache cache;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         cache = new DummyDataCache();
     }

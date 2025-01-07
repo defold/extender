@@ -211,19 +211,27 @@ services:
     extends:
       file: common-services.yml
       service: test_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt", "--server.port=9001"]
     volumes:
       - ./../users:/etc/defold/users:ro
     expose:
-      - "9000"
+      - "9001"
     ports:
-      - "9000:9000"
+      - "9001:9001"
     profiles:
       - auth-test
     networks:
       default:
         aliases:
           - frontend
+    # redefine helathcheck because of another port
+    # see the same configuration in common-services.yml
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:9001/actuator/health
+      interval: 10s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
 # metrics
   grafana:
     image: grafana/grafana

@@ -7,15 +7,16 @@ import org.apache.http.StatusLine;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.message.BasicHttpResponse;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Optional;
 import java.io.ByteArrayOutputStream;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
@@ -28,7 +29,7 @@ public class RemoteEngineBuilderTest {
     private RemoteEngineBuilder remoteEngineBuilder;
     final RemoteInstanceConfig remoteBuilderConfig = new RemoteInstanceConfig("https://test.darwin-build.defold.com", "osx-latest", true);
 
-    @Before
+    @BeforeEach
     public void setUp() throws IOException {
         final HttpEntity httpEntity = mock(HttpEntity.class);
 
@@ -61,7 +62,7 @@ public class RemoteEngineBuilderTest {
         assertEquals(content, new String(bytes));
     }
 
-    @Test(expected = RemoteBuildException.class)
+    @Test
     public void buildShouldThrowException() throws IOException, ExtenderException {
         final File directory = mock(File.class);
         final String content = "Internal server error";
@@ -80,6 +81,9 @@ public class RemoteEngineBuilderTest {
                 .sendRequest(anyString(), anyString(), anyString(), any(HttpEntity.class));
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        remoteEngineBuilder.build(remoteBuilderConfig, directory, "armv7-ios", "a6876bc5s", baos);
+        assertThrows(RemoteBuildException.class, () -> {
+            remoteEngineBuilder.build(remoteBuilderConfig, directory, "armv7-ios", "a6876bc5s", baos);
+        });
+        
     }
 }

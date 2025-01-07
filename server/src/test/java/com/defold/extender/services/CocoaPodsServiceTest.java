@@ -1,15 +1,16 @@
 package com.defold.extender.services;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 
 public class CocoaPodsServiceTest {
     private File emptyPodfile;
@@ -18,7 +19,7 @@ public class CocoaPodsServiceTest {
     private File wrongPodfile;
 
 
-    @Before
+    @BeforeEach
     public void setUp() {
         this.emptyPodfile = new File("test-data/podfiles/empty.Podfile");
         this.regularPodfile = new File("test-data/podfiles/regular.Podfile");
