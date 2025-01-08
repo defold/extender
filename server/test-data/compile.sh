@@ -12,26 +12,26 @@ else
 	HOST='linux'
 fi
 
-ANDROID_NDK=${DYNAMO_HOME}/ext/SDKs/android-ndk-r20
+ANDROID_NDK=${DYNAMO_HOME}/ext/SDKs/android-ndk-r25b
 ANDROID_GCC=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/bin/
-ANDROID_AR=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar
-ANDROID_NDK_API_VERSION='16'
+ANDROID_AR=${ANDROID_GCC}/llvm-ar
+ANDROID_NDK_API_VERSION='19'
 ANDROID_64_NDK_API_VERSION='21'
 ANDROID_SYS_ROOT=${ANDROID_NDK}/toolchains/llvm/prebuilt/${HOST}-x86_64/sysroot
 ANDROID_INCLUDE_ARCH=${ANDROID_NDK}/sources/android/cpufeatures
 
-IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/clang++
-IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/ar
+IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/clang++
+IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/ar
 IOS_MIN_VERSION=11.0
-IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS16.2.sdk
+IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS17.5.sdk
 
-OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/clang++
-OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/ar
+OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/clang++
+OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/ar
 OSX_MIN_VERSION=10.13
-OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX13.1.sdk
+OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX14.5.sdk
 
-EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-2.0.11//upstream/emscripten/em++
-EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-2.0.11//upstream/emscripten/emar
+EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-3.1.65/upstream/emscripten/em++
+EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-3.1.65/upstream/emscripten/emar
 
 WIN32_CL=cl.exe
 WIN32_LIB=lib.exe
@@ -83,7 +83,7 @@ function CompileiOS {
 	local src=$2
 	local targetdir=$3
 
-	archs=("armv7" "arm64")
+	archs=("arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-ios
@@ -105,14 +105,10 @@ function CompileOSX {
 	local src=$2
 	local targetdir=$3
 
-	archs=("x86_64")
+	archs=("x86_64" "arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-osx
-		if [ "$arch" == "x86" ]; then
-			arch="i386"
-		fi
-
 		local target=$targetdir/$archname/lib$name.a
 		echo "Compiling ${name} for ${archname}"
 
@@ -163,7 +159,7 @@ function CompileWindowsOnDarwin {
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		local INCLUDES="-I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/include -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/winrt -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/um -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/shared"
+		local INCLUDES="-I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/include -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Include/10.0.20348.0/ucrt -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/14.37.32822/include"
 		local DEFINES="-DDM_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS -D__STDC_LIMIT_MACROS -DWINVER=0x0600 -DWIN32"
 		local FLAGS="-O2 -Wall -Werror=format -fvisibility=hidden -g" # -codeview
 		local ARCH_FLAGS=""
@@ -171,10 +167,10 @@ function CompileWindowsOnDarwin {
 
 		if [ "$arch" == "x86_64" ]; then
 			ARCH_FLAGS="-target x86_64-pc-win32-msvc -m64"
-			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Lib/winv6.3/um/x64"
+			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.20348.0/ucrt/x64"
 		else
 			ARCH_FLAGS="-target i386-pc-win32-msvc -m32"
-			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/ -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Lib/winv6.3/um/x86"
+			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/ -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.20348.0/ucrt/x86"
 		fi
 
 		echo $WIN32_GCC $ARCH_FLAGS $FLAGS $LIBPATHS $INCLUDES $LIB_PATHS $src -c -o /tmp/$name-$archname.o
@@ -225,14 +221,10 @@ function CompileLinux {
 	local src=$2
 	local targetdir=$3
 
-	archs=( "x86" "x86_64")
+	archs=("x86_64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-linux
-		local flags=""
-		if [ "$arch" == "x86" ]; then
-			flags="-m32"
-		fi
 
 		local target=$targetdir/$archname/lib$name.a
 		echo "Compiling ${name} for ${archname}"
@@ -240,7 +232,7 @@ function CompileLinux {
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$LINUX_GCC $flags -fPIC -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
+		$LINUX_GCC -fPIC -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
 		$LINUX_AR rcs $target /tmp/$name-$archname.o
 
 		echo Wrote $target
