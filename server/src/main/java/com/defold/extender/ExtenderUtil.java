@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -15,6 +16,8 @@ import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.charset.StandardCharsets;
@@ -812,5 +815,37 @@ public class ExtenderUtil
         JSONParser parser = new JSONParser();
         JSONObject obj = (JSONObject) parser.parse(mappings);
         return ((List<String>) obj.get(platform)).toArray(new String[2]);
+    }
+
+    public static File extractFile(ZipFile zipFile, ZipEntry entry, File outputDirectory) throws IOException {
+        // Create output file
+        File outputFile = new File(outputDirectory, entry.getName());
+        if (!outputFile.getParentFile().exists()) {
+            outputFile.getParentFile().mkdirs();
+        }
+
+        try (InputStream inputStream = zipFile.getInputStream(entry);
+             FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+        }
+        return outputFile;
+    }
+
+    // check if zip entry suitable to be copied as part of META-INF directory
+    public static boolean isMetaInfEntryValuable(ZipEntry entry) {
+        String entryName = entry.getName();
+        return entryName.startsWith("META-INF") 
+            && !entry.isDirectory()
+            && !entryName.endsWith(".MF")
+            && !entryName.endsWith(".kotlin_module")
+            && !entryName.endsWith(".class")
+            && !entryName.endsWith(".pro")
+            && !entryName.endsWith("pom.xml")
+            && !entryName.endsWith("pom.properties");
     }
 }
