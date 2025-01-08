@@ -104,6 +104,7 @@ function CompileOSX {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=("x86_64" "arm64")
 	for arch in "${archs[@]}"
@@ -246,17 +247,40 @@ function Compile {
 	local targetdir=$3
 
 	if [ "$(uname)" == "Darwin" ]; then
-		CompileOSX $name $src $targetdir
-		CompileiOS $name $src $targetdir
-		CompileAndroid $name $src $targetdir
-		CompileHTML5 $name $src $targetdir
-		CompileWindowsOnDarwin $name $src $targetdir
+		CompileOSX $name $src $targetdir static
+		CompileiOS $name $src $targetdir static
+		CompileAndroid $name $src $targetdir static
+		CompileHTML5 $name $src $targetdir static
+		CompileWindowsOnDarwin $name $src $targetdir static
 	fi
 	if [ "$(uname)" == "MINGW32_NT-6.2" ]; then
 		CompileWindows $name $src $targetdir
 	fi
 	if [ "$(uname)" == "Linux" ]; then
-		CompileLinux $name $src $targetdir
+		CompileLinux $name $src $targetdir false
 	fi
 	set +e
 }
+
+function CompileDynamic {
+	set -e
+	local name=$1
+	local src=$2
+	local targetdir=$3
+
+	if [ "$(uname)" == "Darwin" ]; then
+		CompileOSX $name $src $targetdir dynamic
+		CompileiOS $name $src $targetdir dynamic
+		CompileAndroid $name $src $targetdir dynamic
+		CompileHTML5 $name $src $targetdir dynamic
+		CompileWindowsOnDarwin $name $src $targetdir dynamic
+	fi
+	# if [ "$(uname)" == "MINGW32_NT-6.2" ]; then
+	# 	CompileWindows $name $src $targetdir
+	# fi
+	# if [ "$(uname)" == "Linux" ]; then
+	# 	CompileLinux $name $src $targetdir
+	# fi
+	set +e
+}
+
