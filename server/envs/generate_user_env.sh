@@ -40,7 +40,8 @@ fi
 
 [ -f "$OUTPUT_FILE" ] && echo "Remove old user.env" && rm "$OUTPUT_FILE"
 
-JAVA_HOME=`/usr/libexec/java_home`
+# select java home for JDK 21
+JAVA_HOME=`/usr/libexec/java_home -v 21`
 
 echo "ENV_DIR=${ENV_DIR}" > $OUTPUT_FILE
 echo "JAVA_HOME=${JAVA_HOME}" >> $OUTPUT_FILE
