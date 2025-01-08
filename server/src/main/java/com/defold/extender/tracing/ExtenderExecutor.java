@@ -28,18 +28,26 @@ class ExtenderExecutor {
     @Value("${extender.tasks.executor.pool-size:35}")
     private int executorPoolSize;
 
+    @Value("${spring.threads.virtual.enabled:false}")
+    private boolean isVirtualThreadsEnabled;
+
     @Configuration(proxyBeanMethods = false)
     @EnableAsync
     static class AsyncConfig implements AsyncConfigurer, WebMvcConfigurer {
 
+        @Value("${spring.threads.virtual.enabled:false}")
+        private boolean isVirtualThreadsEnabled;
+    
         @Override
         public Executor getAsyncExecutor() {
-            return ContextExecutorService.wrap(Executors.newCachedThreadPool(), ContextSnapshot::captureAll);
+            ThreadFactory factory = isVirtualThreadsEnabled ? Thread.ofVirtual().factory() : Executors.defaultThreadFactory();
+            return ContextExecutorService.wrap(Executors.newCachedThreadPool(factory), ContextSnapshot::captureAll);
         }
 
         @Override
         public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
-            configurer.setTaskExecutor(new SimpleAsyncTaskExecutor(r -> new Thread(ContextSnapshotFactory.builder().build().captureAll().wrap(r))));
+            SimpleAsyncTaskExecutor exec = new SimpleAsyncTaskExecutor(r -> new Thread(ContextSnapshotFactory.builder().build().captureAll().wrap(r)));
+            configurer.setTaskExecutor(exec);
         }
     }
 
@@ -68,6 +76,9 @@ class ExtenderExecutor {
                 }
         };
         threadPoolTaskScheduler.setPoolSize(executorPoolSize);
+        if (isVirtualThreadsEnabled) {
+            threadPoolTaskScheduler.setThreadFactory(Thread.ofVirtual().factory());
+        }
         threadPoolTaskScheduler.initialize();
         return threadPoolTaskScheduler;
     }

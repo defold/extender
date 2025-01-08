@@ -47,6 +47,9 @@ spring:
     # Don't check for templates on startup
     mustache:
         check-template-location: false
+    threads:
+        virtual:
+            enabled: false
 
 # All management endpoints except simple health status are disabled for security reasons
 endpoints:
