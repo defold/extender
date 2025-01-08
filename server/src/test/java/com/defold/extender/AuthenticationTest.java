@@ -1,30 +1,36 @@
 package com.defold.extender;
 
-import com.defold.extender.client.*;
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
+import com.defold.extender.client.ExtenderResource;
+import com.defold.extender.client.FileExtenderResource;
 import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
-import org.junit.*;
-import org.junit.rules.TestName;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.Logger;
 import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggingSystem;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
-import static org.junit.Assert.*;
+public class AuthenticationTest implements AfterEachCallback {
 
-public class AuthenticationTest {
-
-    private static final int EXTENDER_PORT = 9000;
+    private static final int EXTENDER_PORT = 9001;
     private static final String SDK_VERSION = "d6882f432beca85d460ec42497888157c356d058"; // 1.9.0
     private static final String PLATFORM_ARMV7_ANDROID = "armv7-android";
     private static final String PLATFORM_LINUX = "x86_64-linux";
-
-    private long startTime;
 
     private static final List<ExtenderResource> SOURCE_FILES = Lists.newArrayList(
             new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
@@ -36,26 +42,22 @@ public class AuthenticationTest {
         LoggingSystem.get(ClassLoader.getSystemClassLoader()).setLogLevel(Logger.ROOT_LOGGER_NAME, LogLevel.INFO);
     }
 
-    @Rule
-    public TestName name = new TestName();
-
-    @Rule
-    public ExpectedException exceptionRule = ExpectedException.none();
-
     public AuthenticationTest() {}
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("COMPOSE_PROFILE", "auth-test");
         processExecutor.putEnv("APPLICATION", "extender-test-auth");
+        processExecutor.putEnv("PORT", String.valueOf(EXTENDER_PORT));
         processExecutor.execute("scripts/start-test-server.sh");
         System.out.println(processExecutor.getOutput());
 
         long startTime = System.currentTimeMillis();
 
         // Wait for server to start in container.
-        File cacheDir = new File("build");
+        File cacheDir = Files.createTempDirectory("health_check").toFile();
+        cacheDir.deleteOnExit();
         ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
 
         int count = 100;
@@ -75,7 +77,7 @@ public class AuthenticationTest {
         }
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("APPLICATION", "extender-test-auth");
@@ -83,14 +85,8 @@ public class AuthenticationTest {
         System.out.println(processExecutor.getOutput());
     }
 
-    @Before
-    public void beforeTest() throws IOException {
-        startTime = System.currentTimeMillis();
-    }
-
-    @After
-    public void afterTest()
-    {
+    @Override
+    public void afterEach(ExtensionContext context) throws Exception {
         File buildDir = new File("build" + File.separator + SDK_VERSION);
         if (buildDir.exists()) {
             try {
@@ -98,17 +94,11 @@ public class AuthenticationTest {
             } catch (IOException e) {
             }
         }
-
-        System.out.println(String.format("Test %s took: %.2f seconds", name.getMethodName(), (System.currentTimeMillis() - startTime) / 1000.f));
     }
 
     private void doBuild(String user, String password, File destination, File log, String platform) throws IOException, ExtenderClientException {
-        File cachedBuild = new File(String.format("build/%s/build.zip", platform));
-        if (cachedBuild.exists())
-            cachedBuild.delete();
-        assertFalse(cachedBuild.exists());
-
-        File cacheDir = new File("build");
+        File cacheDir = Files.createTempDirectory(platform).toFile();
+        cacheDir.deleteOnExit();
         String url;
         if (user != null) {
             url = String.format("http://%s:%s@localhost:%d", user, password, EXTENDER_PORT);
@@ -119,10 +109,14 @@ public class AuthenticationTest {
         System.out.println("URL " + url);
         ExtenderClient extenderClient = new ExtenderClient(url, cacheDir);
         try {
+            // make a copy because several builds can happened concurrenlty. During the build extender client
+            // sort source list to calculate hash
+            List<ExtenderResource> sourcesCopy = SOURCE_FILES.stream()
+                                         .collect(Collectors.toList());
             extenderClient.build(
                     platform,
                     SDK_VERSION,
-                    SOURCE_FILES,
+                    sourcesCopy,
                     destination,
                     log
             );
@@ -138,28 +132,28 @@ public class AuthenticationTest {
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
         doBuild("bobuser", "bobpassword", destination, log, PLATFORM_LINUX);
-        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
-        assertEquals("Log should be of size zero if successful.", 0, log.length());
+        assertTrue(destination.length() > 0, "Resulting engine should be of a size greater than zero.");
+        assertEquals(0, log.length(), "Log should be of size zero if successful.");
     }
 
     @Test
     public void buildLinuxWithWrongPassword() throws IOException, ExtenderClientException {
-        exceptionRule.expect(ExtenderClientException.class);
-
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
-        doBuild("bobuser", "wrongpassword", destination, log, PLATFORM_LINUX);
-        assertTrue("Resulting engine should be of a size equal to zero.", destination.length() == 0);
+        assertThrows(ExtenderClientException.class, () -> {
+            doBuild("bobuser", "wrongpassword", destination, log, PLATFORM_LINUX);
+        });
+        assertTrue(destination.length() == 0, "Resulting engine should be of a size equal to zero.");
     }
 
     @Test
     public void buildLinuxWithNoUser() throws IOException, ExtenderClientException {
-        exceptionRule.expect(ExtenderClientException.class);
-
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
-        doBuild(null, null, destination, log, PLATFORM_LINUX);
-        assertTrue("Resulting engine should be of a size equal to zero.", destination.length() == 0);
+        assertThrows(ExtenderClientException.class, () -> {
+            doBuild(null, null, destination, log, PLATFORM_LINUX);
+        });
+        assertTrue(destination.length() == 0, "Resulting engine should be of a size equal to zero.");
     }
 
     @Test
@@ -167,6 +161,6 @@ public class AuthenticationTest {
         File destination = Files.createTempFile("dmengine", ".zip").toFile();
         File log = Files.createTempFile("dmengine", ".log").toFile();
         doBuild(null, null, destination, log, PLATFORM_ARMV7_ANDROID);
-        assertTrue("Resulting engine should be of a size greater than zero.", destination.length() > 0);
+        assertTrue(destination.length() > 0, "Resulting engine should be of a size greater than zero.");
     }
 }

@@ -3,8 +3,13 @@ package com.defold.extender.cache;
 import com.defold.extender.TestUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,14 +19,12 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.*;
-
 public class LocalDiskDataCacheTest {
 
     private Path baseDirectory;
     private DataCache cache;
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception {
         baseDirectory = Files.createTempDirectory("diskCacheTest");
         baseDirectory.toFile().deleteOnExit();

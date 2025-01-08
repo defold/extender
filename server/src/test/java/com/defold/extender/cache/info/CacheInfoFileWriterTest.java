@@ -1,13 +1,14 @@
 package com.defold.extender.cache.info;
 
 import com.defold.extender.cache.CacheEntry;
-import org.junit.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
 
 public class CacheInfoFileWriterTest {
 

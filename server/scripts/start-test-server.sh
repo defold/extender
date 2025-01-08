@@ -5,7 +5,6 @@ set -x
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-PORT=9000
 RUN_ENV=""
 if [ "$COMPOSE_PROFILE" == "" ]; then
 	COMPOSE_PROFILE="test"
@@ -15,6 +14,9 @@ if [ "$APPLICATION" == "" ]; then
 	APPLICATION="extender-test"
 fi
 
+if [ "$PORT" == "" ]; then
+  PORT=9000
+fi
 
 echo "Using RUN_ENV: ${RUN_ENV}"
 echo "Using compose profile: ${COMPOSE_PROFILE}"
@@ -48,12 +50,23 @@ check_containers_health() {
   all_healthy=true
 
   for container in $(docker ps -q); do
+    health_field=$(docker inspect --format='{{.State.Health}}' "$container")
+    if [ "$health_field" == "<nil>" ]; then
+      echo "Container has no health status. Skipped."
+      continue
+    fi
     name=$(docker inspect --format='{{.Name}}' "$container" | sed 's/\///')
+    app_name=$(docker inspect "$container" | jq -r '.[0].Config.Labels["com.docker.compose.project"]')
     health_status=$(docker inspect --format='{{.State.Health.Status}}' "$container")
+
+    if [ "$app_name" != "$APPLICATION" ]; then
+      echo "Skip health check of unrelated container."
+    fi
 
     # If health status is empty, container doesn't have a health check defined
     if [ -z "$health_status" ]; then
       health_status="no health check"
+      continue
     fi
 
     echo "$name: $health_status"

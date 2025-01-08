@@ -2,9 +2,8 @@ package com.defold.extender;
 
 import org.apache.commons.fileupload2.core.FileUploadException;
 import org.apache.commons.io.FileUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
@@ -13,17 +12,27 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import org.yaml.snakeyaml.Yaml;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.*;
-
-import static org.junit.Assert.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ExtenderTest {
-
-    File uploadDirectory = null;
 
     static Map<String, String> createEnv()
     {
@@ -90,22 +99,8 @@ public class ExtenderTest {
         return (MultipartHttpServletRequest)builder.buildRequest(new MockServletContext());
     }
 
-    @Before
-    public void setUp() throws IOException {
-        this.uploadDirectory = Files.createTempDirectory("upload").toFile();
-        this.uploadDirectory.deleteOnExit();
-    }
-
-    @After
-    public void tearDown() throws IOException {
-        if (this.uploadDirectory != null) {
-            FileUtils.deleteDirectory(this.uploadDirectory);
-            this.uploadDirectory = null;
-        }
-    }
-
     @Test
-    public void testReceiveFiles() throws IOException, FileUploadException, ExtenderException {
+    public void testReceiveFiles(@TempDir File uploadDirectory) throws IOException, FileUploadException, ExtenderException {
         MultipartHttpServletRequest request;
         String filename;
         String expectedContent;
@@ -137,15 +132,11 @@ public class ExtenderTest {
 
         files = new ArrayList<>();
         files.add(new MockMultipartFile(filename, expectedContent.getBytes()));
-        request = createMultipartHttpRequest(files);
+        MultipartHttpServletRequest badRequest = createMultipartHttpRequest(files);
         {
-            boolean thrown = false;
-            try {
-                ExtenderController.receiveUpload(request, uploadDirectory);
-            } catch (ExtenderException e) {
-                thrown = true;
-            }
-            assertTrue(thrown);
+            assertThrows(ExtenderException.class, () -> {
+                ExtenderController.receiveUpload(badRequest, uploadDirectory);
+            });
             File file = new File(uploadDirectory.getAbsolutePath() + "/" + filename);
             assertFalse(file.exists());
         }
@@ -167,27 +158,18 @@ public class ExtenderTest {
         }
     }
 
-    static private boolean testPath(String path) {
-        boolean thrown = false;
-        try {
-            ExtenderController.validateFilename(path);
-        } catch (ExtenderException e) {
-            thrown = true;
-        }
-        return !thrown;
-    }
-
     @Test
     public void testValidateFilenames() {
         // Should be fine
-        assertTrue(testPath("include/test.h"));
-        assertTrue(testPath("include/test+framework.h"));
-        assertTrue(testPath("src/test.c++"));
-        assertTrue(testPath("src/icon@2x.png"));
+        assertDoesNotThrow(() -> { ExtenderController.validateFilename("include/test.h"); });
+        assertDoesNotThrow(() -> { ExtenderController.validateFilename("include/test+framework.h"); });
+        assertDoesNotThrow(() -> { ExtenderController.validateFilename("src/test.c++"); });
+        assertDoesNotThrow(() -> { ExtenderController.validateFilename("src/icon@2x.png"); });
+
         // Should throw error
-        assertFalse(testPath("+foobar.h"));
-        assertFalse(testPath("include/foo;echo foo;.h")); // trying to sneak in an echo command
-        assertFalse(testPath("../../etc/passwd")); // trying to sneak in a new system file
+        assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("+foobar.h"); });
+        assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("include/foo;echo foo;.h"); });
+        assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("../../etc/passwd"); });
     }
 
     @Test
@@ -471,13 +453,13 @@ public class ExtenderTest {
     {
         Yaml yaml = new Yaml();
         String text = yaml.dump(map);
-        FileUtils.writeStringToFile(file, text);
+        FileUtils.writeStringToFile(file, text, Charset.defaultCharset(), false);
     }
 
     static File setupJobFolder(String variant) throws IOException
     {
-        File jobDir = new File("/tmp/tmpJob");
-        jobDir.mkdirs();
+        File jobDir = Files.createTempDirectory(variant).toFile();
+        jobDir.deleteOnExit();
         File uploadDir = new File(jobDir, "upload");
         uploadDir.mkdirs();
         File appDir = new File(uploadDir, "_app");

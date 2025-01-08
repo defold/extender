@@ -1,16 +1,22 @@
 package com.defold.extender;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.*;
-
-import static org.junit.Assert.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ExtenderUtilTest {
 
@@ -18,7 +24,7 @@ public class ExtenderUtilTest {
     private File uploadDir;
     private File buildDir;
 
-    @Before
+    @BeforeEach
     public void setUp() throws IOException {
         jobDir = Files.createTempDirectory("job123456").toFile();
         uploadDir = new File(jobDir, "upload");
@@ -27,7 +33,7 @@ public class ExtenderUtilTest {
         buildDir.mkdirs();
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws IOException {
         if (jobDir != null) {
             FileUtils.deleteDirectory(jobDir);

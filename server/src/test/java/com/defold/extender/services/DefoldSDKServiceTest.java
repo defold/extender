@@ -2,8 +2,6 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 
-import org.junit.Ignore;
-import org.junit.Test;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import java.io.File;
@@ -14,15 +12,18 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class DefoldSDKServiceTest {
 
     @Test
-    @Ignore("SDK too large to download on every test round.")
+    @Disabled("SDK too large to download on every test round.")
     public void t() throws IOException, URISyntaxException, ExtenderException {
         DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", 3, true, mock(MeterRegistry.class));
         File sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac");
@@ -30,7 +31,7 @@ public class DefoldSDKServiceTest {
     }
 
     @Test
-    @Ignore("SDK too large to download on every test round.")
+    @Disabled("SDK too large to download on every test round.")
     public void onlyStoreTheNewest() throws IOException, URISyntaxException, ExtenderException {
         int cacheSize = 3;
         DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk", cacheSize, true, mock(MeterRegistry.class));

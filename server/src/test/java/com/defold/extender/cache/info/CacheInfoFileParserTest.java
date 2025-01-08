@@ -2,13 +2,14 @@ package com.defold.extender.cache.info;
 
 import com.defold.extender.cache.CacheEntry;
 import com.defold.extender.TestUtils;
-import org.junit.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
 
 public class CacheInfoFileParserTest {
 
@@ -59,8 +60,6 @@ public class CacheInfoFileParserTest {
         File file = new File(ClassLoader.getSystemResource("upload/old-ne-cache-info.json").toURI());
 
         CacheInfoWrapper info = parser.parse(file);
-        List<CacheEntry> entries = info.getEntries();
-
         assertEquals(0, info.getVersion());
         assertEquals(null, info.getHashType());
     }
