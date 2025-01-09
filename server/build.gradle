@@ -35,9 +35,6 @@ repositories {
     mavenCentral()
 }
 
-sourceCompatibility = '17'
-targetCompatibility = '17'
-
 dependencyManagement {
     imports {
         mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.8.0'
