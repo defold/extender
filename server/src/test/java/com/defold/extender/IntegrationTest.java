@@ -188,10 +188,10 @@ public class IntegrationTest {
 
     @AfterAll
     public static void afterClass() throws IOException, InterruptedException {
-        // ProcessExecutor processExecutor = new ProcessExecutor();
-        // processExecutor.putEnv("APPLICATION", "extender-test");
-        // processExecutor.execute("scripts/stop-test-server.sh");
-        // System.out.println(processExecutor.getOutput());
+        ProcessExecutor processExecutor = new ProcessExecutor();
+        processExecutor.putEnv("APPLICATION", "extender-test");
+        processExecutor.execute("scripts/stop-test-server.sh");
+        System.out.println(processExecutor.getOutput());
     }
 
     private String[] getEngineNames(String platform) {
@@ -528,30 +528,21 @@ public class IntegrationTest {
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
     @MethodSource("data")
     public void buildEngineWithDynamicLibs(TestConfiguration configuration) throws IOException, ExtenderClientException {
-        String[] platformParts = configuration.platform.split("-");
         List<ExtenderResource> sourceFiles = Lists.newArrayList(
             new FileExtenderResource("test-data/ext_dyn_libs/ext.manifest"),
             new FileExtenderResource("test-data/ext_dyn_libs/src/test_ext.cpp"),
-            new FileExtenderResource(String.format("test-data/ext_dyn_libs/lib/%s/%s", configuration.platform, getDynamicLibName(configuration.platform, "specific"))),
-            new FileExtenderResource(String.format("test-data/ext_dyn_libs/lib/%s/%s", platformParts[1], getDynamicLibName(configuration.platform, "common-test"))),
+            new FileExtenderResource(String.format("test-data/ext_dyn_libs/lib/%s/%s", configuration.platform, getDynamicLibName(configuration.platform, "dynamic_specific1"))),
             new FileExtenderResource("test-data/ext_dyn_libs2/ext.manifest"),
             new FileExtenderResource("test-data/ext_dyn_libs2/src/extension.cpp"),
-            new FileExtenderResource(String.format("test-data/ext_dyn_libs2/lib/%s/%s", configuration.platform, getDynamicLibName(configuration.platform, "specific2"))),
+            new FileExtenderResource(String.format("test-data/ext_dyn_libs2/lib/%s/%s", configuration.platform, getDynamicLibName(configuration.platform, "dynamic_specific2"))),
             new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml")
         );
 
         File destination = doBuild(sourceFiles, configuration);
 
         try (ZipFile zipFile = new ZipFile(destination)) {
-            final Enumeration<? extends ZipEntry> entries = zipFile.entries();
-            while (entries.hasMoreElements()) {
-                final ZipEntry entry = entries.nextElement();
-                String name = entry.getName();
-                System.out.println(name);
-            }    
-            assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "specific")));
-            assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "common-test")));
-            assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "specific2")));
+            assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "dynamic_specific1")));
+            assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "dynamic_specific2")));
         }
     }
 }

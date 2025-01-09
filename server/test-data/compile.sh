@@ -48,13 +48,20 @@ function CompileAndroid {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=("armv7" "arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-android
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
+		fi
+
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
@@ -70,9 +77,14 @@ function CompileAndroid {
 			GCC=${ANDROID_GCC}aarch64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++
 		fi
 
-		$GCC -c -gdwarf-2 $CFLAGS -I${ANDROID_INCLUDE_ARCH} -isysroot=${ANDROID_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
 
-		$ANDROID_AR rcs $target /tmp/$name-$archname.o
+		$GCC -gdwarf-2 $CFLAGS -I${ANDROID_INCLUDE_ARCH} -isysroot=${ANDROID_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$ANDROID_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$GCC -shared -isysroot=${ANDROID_SYS_ROOT} -o $target /tmp/$name-$archname.o
+		fi
+
 		echo Wrote $target
 	done
 }
@@ -82,19 +94,30 @@ function CompileiOS {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=("arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-ios
-		local target=$targetdir/$archname/lib$name.a
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
+		fi
+
 		echo "Compiling ${name} for ${archname}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
 		$IOS_GCC -arch $arch -stdlib=libc++ -fno-strict-aliasing -fno-exceptions -miphoneos-version-min=${IOS_MIN_VERSION} -isysroot ${IOS_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
-		$IOS_AR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then	
+			$IOS_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$IOS_GCC -arch $arch -shared -isysroot ${IOS_SYS_ROOT} -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -110,14 +133,24 @@ function CompileOSX {
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-osx
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.dylib
+		fi
+		
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
 		$OSX_GCC -arch $arch -stdlib=libc++ -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions -mmacosx-version-min=${OSX_MIN_VERSION} -isysroot ${OSX_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
-		$OSX_AR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$OSX_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then	
+			$OSX_GCC -arch $arch -shared -isysroot ${OSX_SYS_ROOT} -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -127,19 +160,29 @@ function CompileHTML5 {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=("js" "wasm")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-web
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
+		fi
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
 		$EMCC $src -c -o /tmp/$name-$archname.o
-		$EMAR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$EMAR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$EMCC -sSIDE_MODULE=1 -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -149,13 +192,19 @@ function CompileWindowsOnDarwin {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=( "x86" "x86_64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-win32
-		local target=$targetdir/$archname/$name.lib
-		echo "Compiling ${name} for ${archname}"
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/$name.lib
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/$name.dll
+		fi
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
@@ -176,7 +225,12 @@ function CompileWindowsOnDarwin {
 
 		echo $WIN32_GCC $ARCH_FLAGS $FLAGS $LIBPATHS $INCLUDES $LIB_PATHS $src -c -o /tmp/$name-$archname.o
 		$WIN32_GCC $ARCH_FLAGS $FLAGS $LIBPATHS $INCLUDES $LIB_PATHS $src -c -o /tmp/$name-$archname.o
-		$WIN32_AR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$WIN32_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			echo "Create dummy .dll file with text content. Enough for testing."
+			echo "$target" > $target
+		fi
 
 		echo Wrote $target
 	done
@@ -221,20 +275,29 @@ function CompileLinux {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=("x86_64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-linux
-
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
+		fi
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
 		$LINUX_GCC -fPIC -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
-		$LINUX_AR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$LINUX_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$LINUX_GCC -shared -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -257,7 +320,7 @@ function Compile {
 		CompileWindows $name $src $targetdir
 	fi
 	if [ "$(uname)" == "Linux" ]; then
-		CompileLinux $name $src $targetdir false
+		CompileLinux $name $src $targetdir static
 	fi
 	set +e
 }
@@ -278,9 +341,9 @@ function CompileDynamic {
 	# if [ "$(uname)" == "MINGW32_NT-6.2" ]; then
 	# 	CompileWindows $name $src $targetdir
 	# fi
-	# if [ "$(uname)" == "Linux" ]; then
-	# 	CompileLinux $name $src $targetdir
-	# fi
+	if [ "$(uname)" == "Linux" ]; then
+		CompileLinux $name $src $targetdir dynamic
+	fi
 	set +e
 }
 
