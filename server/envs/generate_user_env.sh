@@ -40,7 +40,9 @@ fi
 
 [ -f "$OUTPUT_FILE" ] && echo "Remove old user.env" && rm "$OUTPUT_FILE"
 
-JAVA_HOME=`/usr/libexec/java_home`
+if [[ "" == "${JAVA_HOME}" ]]; then
+    JAVA_HOME=`/usr/libexec/java_home`
+fi
 
 echo "ENV_DIR=${ENV_DIR}" > $OUTPUT_FILE
 echo "JAVA_HOME=${JAVA_HOME}" >> $OUTPUT_FILE

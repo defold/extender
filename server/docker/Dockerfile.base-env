@@ -76,7 +76,7 @@ RUN \
   chmod +x ./dotnet-install.sh
 
 RUN \
-  ./dotnet-install.sh --channel 9.0.1xx --quality preview --install-dir ${DOTNET_ROOT} && \
+  ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} && \
   rm ./dotnet-install.sh
 
 RUN \
