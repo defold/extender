@@ -21,6 +21,10 @@ if [[ -z ${DM_PACKAGES_URL} ]]; then
 fi
 
 # Platform SDKs
+if [[ "" == ${PLATFORMSDK_DIR} ]]; then
+    echo "Missing PLATFORMSDK_DIR. Please run ./server/envs/generate_user_env.sh to generate it"
+    exit 1
+fi
 if [[ ! -e ${PLATFORMSDK_DIR} ]]; then
     mkdir -p ${PLATFORMSDK_DIR}
     echo "[setup] Created SDK directory at ${PLATFORMSDK_DIR}."
@@ -114,7 +118,7 @@ function install_dotnet() {
     # https://dotnet.microsoft.com/en-us/download/dotnet/9.0
     # https://github.com/dotnet/core/blob/main/release-notes/9.0/install.md
 
-    local version="9.0.100-rc.2.24474.11"
+    local version="9.0.1xx"
     if [[ ! -e ${DOTNET_ROOT} ]]; then
 
         mkdir -p ${DOTNET_ROOT}
@@ -128,7 +132,7 @@ function install_dotnet() {
             chmod +x ./dotnet-install.sh
 
             echo "Installing dotnet ..."
-            ./dotnet-install.sh --version ${version} --install-dir ${DOTNET_ROOT}
+            ./dotnet-install.sh --channel ${version} --install-dir ${DOTNET_ROOT}
 
             rm ./dotnet-install.sh
 
