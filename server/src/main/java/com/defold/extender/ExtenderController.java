@@ -11,6 +11,7 @@ import com.defold.extender.services.GradleService;
 import com.defold.extender.services.HealthReporterService;
 import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.UserUpdateService;
+import com.defold.extender.services.data.DefoldSdk;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.fileupload2.core.FileUploadException;
@@ -227,41 +228,42 @@ public class ExtenderController {
                 LOGGER.info("Building engine locally");
 
                 // Get SDK
-                final File sdk = defoldSdkService.getSdk(sdkVersion);
-                metricsWriter.measureSdkDownload(sdkVersion);
+                try (DefoldSdk sdk = defoldSdkService.getSdk(sdkVersion)) {
+                    metricsWriter.measureSdkDownload(sdkVersion);
 
-                Extender extender = new Extender.Builder()
-                    .setPlatform(platform)
-                    .setSdk(sdk)
-                    .setJobDirectory(jobDirectory)
-                    .setUploadDirectory(uploadDirectory)
-                    .setBuildDirectory(buildDirectory)
-                    .setMetricsWriter(metricsWriter)
-                    .build();
+                    Extender extender = new Extender.Builder()
+                        .setPlatform(platform)
+                        .setSdk(sdk.toFile())
+                        .setJobDirectory(jobDirectory)
+                        .setUploadDirectory(uploadDirectory)
+                        .setBuildDirectory(buildDirectory)
+                        .setMetricsWriter(metricsWriter)
+                        .build();
 
-                // Resolve Gradle dependencies
-                if (platform.contains("android")) {
-                    extender.resolve(gradleService);
-                    metricsWriter.measureGradleDownload();
+                    // Resolve Gradle dependencies
+                    if (platform.contains("android")) {
+                        extender.resolve(gradleService);
+                        metricsWriter.measureGradleDownload();
+                    }
+
+                    // Resolve CocoaPods dependencies
+                    if (platform.contains("ios") || platform.contains("osx")) {
+                        extender.resolve(cocoaPodsService);
+                        metricsWriter.measureCocoaPodsInstallation();
+                    }
+
+                    // Build engine
+                    List<File> outputFiles = extender.build();
+                    metricsWriter.measureEngineBuild(platform);
+
+                    // Zip files
+                    String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
+                    File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
+                    metricsWriter.measureZipFiles(zipFile);
+
+                    // Write zip file to response
+                    FileUtils.copyFile(zipFile, response.getOutputStream());
                 }
-
-                // Resolve CocoaPods dependencies
-                if (platform.contains("ios") || platform.contains("osx")) {
-                    extender.resolve(cocoaPodsService);
-                    metricsWriter.measureCocoaPodsInstallation();
-                }
-
-                // Build engine
-                List<File> outputFiles = extender.build();
-                metricsWriter.measureEngineBuild(platform);
-
-                // Zip files
-                String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
-                File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
-                metricsWriter.measureZipFiles(zipFile);
-
-                // Write zip file to response
-                FileUtils.copyFile(zipFile, response.getOutputStream());
             }
 
             response.flushBuffer();

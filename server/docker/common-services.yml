@@ -4,7 +4,6 @@ services:
     volumes:
       - ./../app/:/app/:ro
       - ./../configs:/etc/defold/extender:ro
-      - ./../test-data/sdk:/var/extender/sdk
     entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-jar","/app/extender.jar"]
     user: extender
     environment:

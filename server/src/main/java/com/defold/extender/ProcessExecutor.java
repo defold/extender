@@ -81,9 +81,10 @@ public class ProcessExecutor {
     }
 
     public void writeLog(File file) throws IOException {
-        FileOutputStream os = new FileOutputStream(file);
-        byte[] strToBytes = getOutput().getBytes();
-        os.write(strToBytes);
+        try (FileOutputStream os = new FileOutputStream(file)) {
+            byte[] strToBytes = getOutput().getBytes();
+            os.write(strToBytes);
+        }
     }
 
     public void putEnv(String key, String value) {

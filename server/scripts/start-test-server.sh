@@ -87,6 +87,13 @@ for (( i=1; i<=$max_retries; i++ )); do
 
   if check_containers_health; then
     echo "All containers are healthy!"
+    CREATED_SERVICES=$(docker compose -p $APPLICATION ps -a --services)
+    for service in $CREATED_SERVICES; do
+      echo "Copy test sdk to $service"
+      docker compose -p $APPLICATION cp "${DIR}/../test-data/sdk/a" "$service:/var/extender/sdk"
+      docker compose -p $APPLICATION exec -u root $service chown -R extender:extender /var/extender/sdk/a
+    done
+
     exit 0
   else
     echo "Some containers are not healthy yet. Retrying in $retry_interval seconds..."
