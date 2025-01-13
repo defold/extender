@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -32,6 +33,8 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.CocoaPodsService;
@@ -2448,6 +2451,31 @@ class Extender {
     }
 
 
+    private List<File> copyMetaInformationFiles(List<String> allJars) {
+        List<File> result = new ArrayList<>();
+        File metaInfDir = new File(buildDirectory, "META-INF");
+        metaInfDir.mkdir();
+        for (String jarPath : allJars) {
+            try (ZipFile jarFile = new ZipFile(jarPath)) {
+                Enumeration<? extends ZipEntry> entries = jarFile.entries();
+
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+
+                    // Check if the entry is part of the target folder
+                    if (ExtenderUtil.isMetaInfEntryValuable(entry)) {
+                        // Extract the file
+                        LOGGER.info(String.format("Extracting file: %s", entry.getName()));
+                        result.add(ExtenderUtil.extractFile(jarFile, entry, buildDirectory));
+                    }
+                }
+            } catch (IOException exc) {
+                LOGGER.error("Error extracting META-INF file", exc);
+            }
+        }
+        return result;
+    }
+
     // get extra packages (for aapt2) from the 'package' attribute in the AndroidManifest
     // of the gradle dependencies. only get extra packages from aar dependencies which
     // have a res folder
@@ -2459,7 +2487,7 @@ class Extender {
                     File res = new File(f, "res");
                     File androidManifest = new File(f, "AndroidManifest.xml");
                     if (res.exists() && androidManifest.exists()) {
-                        String am = FileUtils.readFileToString(androidManifest);
+                        String am = FileUtils.readFileToString(androidManifest, Charset.defaultCharset());
                         Pattern p = Pattern.compile(".*package=\"(.*?)\".*", Pattern.MULTILINE | Pattern.DOTALL);
                         Matcher m = p.matcher(am);
                         if (m.matches()) {
@@ -2539,6 +2567,8 @@ class Extender {
         outputFiles.addAll(copyAndroidResourceFolders(androidResourceFolders));
         outputFiles.addAll(copyAndroidAssetFolders(platform));
         outputFiles.addAll(copyAndroidJniFolders(platform));
+
+        outputFiles.addAll(copyMetaInformationFiles(allJars));
 
         return outputFiles;
     }
