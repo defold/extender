@@ -57,7 +57,7 @@ dependencies {
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
-    implementation('org.apache.commons:commons-text:1.12.+')
+    implementation('org.apache.commons:commons-text:1.13.+')
     implementation('org.apache.commons:commons-compress:1.27.+')
     implementation('org.apache.commons:commons-lang3:3.17.0')
     implementation('org.apache.httpcomponents:httpclient:4.5.14')
