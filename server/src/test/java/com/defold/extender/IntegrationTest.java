@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggingSystem;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -427,6 +428,36 @@ public class IntegrationTest {
 
         List<String> classes = Arrays.asList(new String[]{"Lcom/defold/JarDep;", "Lcom/defold/Test;"});
         assertTrue(checkClassesDexClasses(destination, classes));
+    }
+
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidJarWithMetaInf(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android"), "This test is only run for Android");
+
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/src/TestJar.java"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/JarDep.jar"),
+                new FileExtenderResource("test-data/ext/lib/armv7-android/meta-inf.jar"));
+
+        File destination = doBuild(sourceFiles, configuration);
+        List<String> metaInfFiles = new ArrayList<>();
+        try (ZipFile zipFile = new ZipFile(destination)) {
+            final Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                final ZipEntry entry = entries.nextElement();
+                final String entryName = entry.getName();
+                if (!entry.isDirectory() && entryName.startsWith("META-INF")) {
+                    metaInfFiles.add(entryName);
+                }
+            }
+        }
+        String[] expected = {"META-INF/inner.folder/com.inner", "META-INF/inner.folder/io.foo.service.HTTPClient"};
+        assertArrayEquals(expected, metaInfFiles.toArray());
     }
 
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
