@@ -54,3 +54,6 @@ do
     rm -rf ./tmp
 done
 
+# meta-inf.jar
+javac -cp .  io/foo/dummy/FooDummy.java
+jar -cvf ../ext/lib/armv7-android/meta-inf.jar io META-INF
