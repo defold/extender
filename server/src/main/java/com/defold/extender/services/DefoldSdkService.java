@@ -108,9 +108,6 @@ public class DefoldSdkService {
             if (sdk == null) {
                 throw new ExtenderException(String.format("The given sdk does not exist: %s", hash));
             }
-            if (!sdk.isValid()) {
-                throw new ExtenderException(String.format("The given sdk still does not exist: %s", hash));
-            }
             evictCache();
             LOGGER.info("Using Defold SDK version {}", hash);
             return DefoldSdk.copyOf(sdk);
