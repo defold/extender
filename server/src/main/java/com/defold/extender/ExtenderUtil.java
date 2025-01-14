@@ -674,6 +674,28 @@ public class ExtenderUtil
         return result;
     }
 
+    // collect file paths of all files which name mathes 're'
+    static public List<String> collectFilePathesByName(File dir, String re) {
+        List<String> result = new ArrayList<>();
+        if (re == null) {
+            return result;
+        }
+        Pattern p = Pattern.compile(re);
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    continue;
+                }
+                Matcher m = p.matcher(f.getName());
+                if (m.matches()) {
+                    result.add(f.getAbsolutePath());
+                }
+            }
+        }
+        return result;
+    }
+
     // -> "common", "platform", "platform-arch"
     static public List<String> getPlatformAlternatives(String platform) {
         List<String> platforms = new ArrayList<>();

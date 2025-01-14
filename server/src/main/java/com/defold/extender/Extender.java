@@ -1494,6 +1494,24 @@ class Extender {
             LOGGER.info("Skipping extraction of symbols");
         }
 
+        // collect dynamic libraries and copy to result folder
+        List<String> dynamicLibsPathes = new ArrayList<>();
+        for (File extDir : this.extDirs) {
+            File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
+            dynamicLibsPathes.addAll(ExtenderUtil.collectFilePathesByName(libDir, platformConfig.shlibRe));
+
+            String[] platformParts = this.platform.split("-");
+            if (platformParts.length == 2) {
+                File libCommonDir = new File(extDir, "lib" + File.separator + platformParts[1]); // e.g. ios
+
+                dynamicLibsPathes.addAll(ExtenderUtil.collectFilePathesByName(libCommonDir, platformConfig.shlibRe));
+            }
+        }
+
+        for (String filepath : dynamicLibsPathes) {
+            FileUtils.copyFileToDirectory(new File(filepath), buildDirectory);
+        }
+
         // Collect output/binaries
         String zipContentPattern = platformConfig.zipContentPattern;
         if (zipContentPattern == null) {
@@ -1507,6 +1525,8 @@ class Extender {
                 zipContentPattern = symbolsPattern + "|" + zipContentPattern;
             }
         }
+
+        zipContentPattern = zipContentPattern + "|" + platformConfig.shlibRe;
 
         final Pattern p = Pattern.compile(zipContentPattern);
         List<File> outputFiles = Arrays.asList(buildDirectory.listFiles(new FileFilter(){

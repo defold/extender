@@ -16,6 +16,7 @@ import org.springframework.boot.logging.LoggingSystem;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -214,6 +215,15 @@ public class IntegrationTest {
             return String.format("%s.lib", lib);
         }
         return String.format("lib%s.a", lib);
+    }
+
+        private String getDynamicLibName(String platform, String lib) {
+        if (platform.endsWith("win32")) {
+            return String.format("%s.dll", lib);
+        } else if (platform.endsWith("osx") || platform.endsWith("ios")) {
+            return String.format("%s.dylib", lib);
+        }
+        return String.format("lib%s.so", lib);
     }
 
     private File doBuild(List<ExtenderResource> sourceFiles, TestConfiguration configuration) throws IOException, ExtenderClientException {
@@ -513,5 +523,26 @@ public class IntegrationTest {
         assertThrows(ExtenderClientException.class, () -> {
             doBuild(sourceFiles, configuration);
         });
+    }
+
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildEngineWithDynamicLibs(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+            new FileExtenderResource("test-data/ext_dyn_libs/ext.manifest"),
+            new FileExtenderResource("test-data/ext_dyn_libs/src/test_ext.cpp"),
+            new FileExtenderResource(String.format("test-data/ext_dyn_libs/lib/%s/%s", configuration.platform, getDynamicLibName(configuration.platform, "dynamic_specific1"))),
+            new FileExtenderResource("test-data/ext_dyn_libs2/ext.manifest"),
+            new FileExtenderResource("test-data/ext_dyn_libs2/src/extension.cpp"),
+            new FileExtenderResource(String.format("test-data/ext_dyn_libs2/lib/%s/%s", configuration.platform, getDynamicLibName(configuration.platform, "dynamic_specific2"))),
+            new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml")
+        );
+
+        File destination = doBuild(sourceFiles, configuration);
+
+        try (ZipFile zipFile = new ZipFile(destination)) {
+            assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "dynamic_specific1")));
+            assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "dynamic_specific2")));
+        }
     }
 }

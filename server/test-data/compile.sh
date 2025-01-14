@@ -12,26 +12,26 @@ else
 	HOST='linux'
 fi
 
-ANDROID_NDK=${DYNAMO_HOME}/ext/SDKs/android-ndk-r20
+ANDROID_NDK=${DYNAMO_HOME}/ext/SDKs/android-ndk-r25b
 ANDROID_GCC=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/bin/
-ANDROID_AR=${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar
-ANDROID_NDK_API_VERSION='16'
+ANDROID_AR=${ANDROID_GCC}/llvm-ar
+ANDROID_NDK_API_VERSION='19'
 ANDROID_64_NDK_API_VERSION='21'
 ANDROID_SYS_ROOT=${ANDROID_NDK}/toolchains/llvm/prebuilt/${HOST}-x86_64/sysroot
 ANDROID_INCLUDE_ARCH=${ANDROID_NDK}/sources/android/cpufeatures
 
-IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/clang++
-IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/ar
+IOS_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/clang++
+IOS_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/ar
 IOS_MIN_VERSION=11.0
-IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS16.2.sdk
+IOS_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS17.5.sdk
 
-OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/clang++
-OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.1.xctoolchain/usr/bin/ar
+OSX_GCC=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/clang++
+OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault15.4.xctoolchain/usr/bin/ar
 OSX_MIN_VERSION=10.13
-OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX13.1.sdk
+OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX14.5.sdk
 
-EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-2.0.11//upstream/emscripten/em++
-EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-2.0.11//upstream/emscripten/emar
+EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-3.1.65/upstream/emscripten/em++
+EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-3.1.65/upstream/emscripten/emar
 
 WIN32_CL=cl.exe
 WIN32_LIB=lib.exe
@@ -48,13 +48,20 @@ function CompileAndroid {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=("armv7" "arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-android
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
+		fi
+
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
@@ -70,9 +77,14 @@ function CompileAndroid {
 			GCC=${ANDROID_GCC}aarch64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++
 		fi
 
-		$GCC -c -gdwarf-2 $CFLAGS -I${ANDROID_INCLUDE_ARCH} -isysroot=${ANDROID_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
 
-		$ANDROID_AR rcs $target /tmp/$name-$archname.o
+		$GCC -gdwarf-2 $CFLAGS -I${ANDROID_INCLUDE_ARCH} -isysroot=${ANDROID_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$ANDROID_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$GCC -shared -isysroot=${ANDROID_SYS_ROOT} -o $target /tmp/$name-$archname.o
+		fi
+
 		echo Wrote $target
 	done
 }
@@ -82,19 +94,30 @@ function CompileiOS {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
-	archs=("armv7" "arm64")
+	archs=("arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-ios
-		local target=$targetdir/$archname/lib$name.a
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
+		fi
+
 		echo "Compiling ${name} for ${archname}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
 		$IOS_GCC -arch $arch -stdlib=libc++ -fno-strict-aliasing -fno-exceptions -miphoneos-version-min=${IOS_MIN_VERSION} -isysroot ${IOS_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
-		$IOS_AR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then	
+			$IOS_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$IOS_GCC -arch $arch -shared -isysroot ${IOS_SYS_ROOT} -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -104,23 +127,30 @@ function CompileOSX {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
-	archs=("x86_64")
+	archs=("x86_64" "arm64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-osx
-		if [ "$arch" == "x86" ]; then
-			arch="i386"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.dylib
 		fi
-
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
 		$OSX_GCC -arch $arch -stdlib=libc++ -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions -mmacosx-version-min=${OSX_MIN_VERSION} -isysroot ${OSX_SYS_ROOT} $src -c -o /tmp/$name-$archname.o
-		$OSX_AR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$OSX_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then	
+			$OSX_GCC -arch $arch -shared -isysroot ${OSX_SYS_ROOT} -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -130,19 +160,29 @@ function CompileHTML5 {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=("js" "wasm")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-web
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
+		fi
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
 		$EMCC $src -c -o /tmp/$name-$archname.o
-		$EMAR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$EMAR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$EMCC -sSIDE_MODULE=1 -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -152,18 +192,24 @@ function CompileWindowsOnDarwin {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
 	archs=( "x86" "x86_64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-win32
-		local target=$targetdir/$archname/$name.lib
-		echo "Compiling ${name} for ${archname}"
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/$name.lib
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/$name.dll
+		fi
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		local INCLUDES="-I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/include -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/winrt -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/um -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Include/shared"
+		local INCLUDES="-I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/include -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Include/10.0.20348.0/ucrt -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/14.37.32822/include"
 		local DEFINES="-DDM_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS -D__STDC_LIMIT_MACROS -DWINVER=0x0600 -DWIN32"
 		local FLAGS="-O2 -Wall -Werror=format -fvisibility=hidden -g" # -codeview
 		local ARCH_FLAGS=""
@@ -171,15 +217,20 @@ function CompileWindowsOnDarwin {
 
 		if [ "$arch" == "x86_64" ]; then
 			ARCH_FLAGS="-target x86_64-pc-win32-msvc -m64"
-			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Lib/winv6.3/um/x64"
+			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.20348.0/ucrt/x64"
 		else
 			ARCH_FLAGS="-target i386-pc-win32-msvc -m32"
-			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/ -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/8.1/Lib/winv6.3/um/x86"
+			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/ -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.20348.0/ucrt/x86"
 		fi
 
 		echo $WIN32_GCC $ARCH_FLAGS $FLAGS $LIBPATHS $INCLUDES $LIB_PATHS $src -c -o /tmp/$name-$archname.o
 		$WIN32_GCC $ARCH_FLAGS $FLAGS $LIBPATHS $INCLUDES $LIB_PATHS $src -c -o /tmp/$name-$archname.o
-		$WIN32_AR rcs $target /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$WIN32_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			echo "Create dummy .dll file with text content. Enough for testing."
+			echo "$target" > $target
+		fi
 
 		echo Wrote $target
 	done
@@ -224,24 +275,29 @@ function CompileLinux {
 	local name=$1
 	local src=$2
 	local targetdir=$3
+	local lib_type=$4
 
-	archs=( "x86" "x86_64")
+	archs=("x86_64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-linux
-		local flags=""
-		if [ "$arch" == "x86" ]; then
-			flags="-m32"
+		local target=""
+		if [ "$lib_type" == "static" ]; then
+			target=$targetdir/$archname/lib$name.a
+		elif [ "$lib_type" == "dynamic" ]; then
+			target=$targetdir/$archname/lib$name.so
 		fi
-
-		local target=$targetdir/$archname/lib$name.a
-		echo "Compiling ${name} for ${archname}"
+		echo "Compiling ${name} for ${archname} type ${lib_type}"
 
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		$LINUX_GCC $flags -fPIC -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
-		$LINUX_AR rcs $target /tmp/$name-$archname.o
+		$LINUX_GCC -fPIC -fomit-frame-pointer -fno-strict-aliasing -fno-exceptions $src -c -o /tmp/$name-$archname.o
+		if [ "$lib_type" == "static" ]; then
+			$LINUX_AR rcs $target /tmp/$name-$archname.o
+		elif [ "$lib_type" == "dynamic" ]; then
+			$LINUX_GCC -shared -o $target /tmp/$name-$archname.o
+		fi
 
 		echo Wrote $target
 	done
@@ -254,17 +310,40 @@ function Compile {
 	local targetdir=$3
 
 	if [ "$(uname)" == "Darwin" ]; then
-		CompileOSX $name $src $targetdir
-		CompileiOS $name $src $targetdir
-		CompileAndroid $name $src $targetdir
-		CompileHTML5 $name $src $targetdir
-		CompileWindowsOnDarwin $name $src $targetdir
+		CompileOSX $name $src $targetdir static
+		CompileiOS $name $src $targetdir static
+		CompileAndroid $name $src $targetdir static
+		CompileHTML5 $name $src $targetdir static
+		CompileWindowsOnDarwin $name $src $targetdir static
 	fi
 	if [ "$(uname)" == "MINGW32_NT-6.2" ]; then
 		CompileWindows $name $src $targetdir
 	fi
 	if [ "$(uname)" == "Linux" ]; then
-		CompileLinux $name $src $targetdir
+		CompileLinux $name $src $targetdir static
 	fi
 	set +e
 }
+
+function CompileDynamic {
+	set -e
+	local name=$1
+	local src=$2
+	local targetdir=$3
+
+	if [ "$(uname)" == "Darwin" ]; then
+		CompileOSX $name $src $targetdir dynamic
+		CompileiOS $name $src $targetdir dynamic
+		CompileAndroid $name $src $targetdir dynamic
+		CompileHTML5 $name $src $targetdir dynamic
+		CompileWindowsOnDarwin $name $src $targetdir dynamic
+	fi
+	# if [ "$(uname)" == "MINGW32_NT-6.2" ]; then
+	# 	CompileWindows $name $src $targetdir
+	# fi
+	if [ "$(uname)" == "Linux" ]; then
+		CompileLinux $name $src $targetdir dynamic
+	fi
+	set +e
+}
+

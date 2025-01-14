@@ -13,13 +13,18 @@ source ./compile.sh
 function CompileLibsToExtension {
 	local dir=$1
 	local extension=$2
+	local lib_type=$3
 
 	for file in $dir/*.cpp
 	do
 		local name=$(basename $file)
 		name="${name%.*}"
-		echo $name $file
-		Compile $name $file $extension
+		echo $name $file $lib_type
+		if [ "$lib_type" == "dynamic" ]; then
+			CompileDynamic $name $file $extension
+		else
+			Compile $name $file $extension
+		fi
 	done
 }
 
@@ -29,7 +34,7 @@ function Copy {
 }
 
 
-CompileLibsToExtension enginelibs engineext/lib
+CompileLibsToExtension enginelibs engineext/lib static
 
 # copy these into the "a" sdk
 mkdir -p sdk/a/defoldsdk/lib
@@ -46,10 +51,13 @@ mv sdk/a/defoldsdk/lib/x86-linux sdk/a/defoldsdk/lib/linux
 mkdir -p sdk/a/defoldsdk/ext/lib/darwin
 mkdir -p sdk/a/defoldsdk/ext/lib/x86_64-macos
 
-CompileLibsToExtension alib ext/lib
-CompileLibsToExtension alib ext2/lib
-CompileLibsToExtension blib ext2/lib
-CompileLibsToExtension stdlib ext_std/lib
+CompileLibsToExtension alib ext/lib static
+CompileLibsToExtension alib ext2/lib static
+CompileLibsToExtension blib ext2/lib static
+CompileLibsToExtension stdlib ext_std/lib static
+
+CompileLibsToExtension dynamic_specific1 ext_dyn_libs/lib dynamic
+CompileLibsToExtension dynamic_specific2 ext_dyn_libs2/lib dynamic
 
 (cd testproject_appmanifest && ./build.sh)
 
