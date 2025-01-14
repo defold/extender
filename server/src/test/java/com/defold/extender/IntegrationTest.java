@@ -110,15 +110,18 @@ public class IntegrationTest {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 // new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // // ??????? https://github.com/defold/defold/releases/tag/1.8.0
-                new DefoldVersion("9141d9d3605e3f5d51c71293116d769da2613d39", new Version(1, 8, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
-                // // 2024-06-25 https://github.com/defold/defold/releases/tag/1.9.0
-                new DefoldVersion("d6882f432beca85d460ec42497888157c356d058", new Version(1, 9, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
+                // // 2024-08-20 https://github.com/defold/defold/releases/tag/1.9.1
+                new DefoldVersion("691478c02875b80e76da65d2f5756394e7a906b1", new Version(1, 9, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2024-09-16 https://github.com/defold/defold/releases/tag/1.9.2
+                // new DefoldVersion("3251ca82359cf238a1074e383281e3126547d50b", new Version(1, 9, 2), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // //  2024-10-14 https://github.com/defold/defold/releases/tag/1.9.3
+                new DefoldVersion("e4aaff11f49c941fde1dd93883cf69c6b8abebe4", new Version(1, 9, 3), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // // 2024-10-29 https://github.com/defold/defold/releases/tag/1.9.4
-                new DefoldVersion("edfdbe31830c1f8aa4d96644569ae87a8ea32672", new Version(1, 9, 4), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // new DefoldVersion("e624625d90111ab8442e6b672b1335bb024b9885", new Version(1, 9, 0), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // new DefoldVersion("edfdbe31830c1f8aa4d96644569ae87a8ea32672", new Version(1, 9, 4), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2024-12-05 https://github.com/defold/defold/releases/tag/1.9.5
+                new DefoldVersion("d01194cf0fb576b516a1dca6af6f643e9e590051", new Version(1, 9, 5), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2024-12-19 https://github.com/defold/defold/releases/tag/1.9.6
+                new DefoldVersion("11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96", new Version(1, 9, 6), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -245,15 +248,16 @@ public class IntegrationTest {
         ExtenderClientCache cache = new ExtenderClientCache(cacheDir);
         assertTrue(cache.getCachedBuildFile(configuration.platform).exists());
 
-        ZipFile zipFile = new ZipFile(destination);
-        String[] expectedEngineNames = getEngineNames(configuration.platform);
-        for (String engineName : expectedEngineNames) {
-            assertNotEquals(null, zipFile.getEntry( engineName ) );
-        }
+        try (ZipFile zipFile = new ZipFile(destination)) {
+            String[] expectedEngineNames = getEngineNames(configuration.platform);
+            for (String engineName : expectedEngineNames) {
+                assertNotEquals(null, zipFile.getEntry( engineName ) );
+            }
 
-        if (configuration.platform.endsWith("android")) {
-            // Add this when we've made sure that all android builds create a classes.dex
-            assertNotEquals(null, zipFile.getEntry("classes.dex"));
+            if (configuration.platform.endsWith("android")) {
+                // Add this when we've made sure that all android builds create a classes.dex
+                assertNotEquals(null, zipFile.getEntry("classes.dex"));
+            }
         }
 
         return destination;
@@ -306,23 +310,24 @@ public class IntegrationTest {
     private boolean checkClassesDexClasses(File buildZip, List<String> classes) throws IOException {
         Set<String> dexClasses = new HashSet<>();
 
-        ZipFile zipFile = new ZipFile(buildZip);
-        final Enumeration<? extends ZipEntry> entries = zipFile.entries();
-        while (entries.hasMoreElements()) {
-            final ZipEntry entry = entries.nextElement();
-            String name = entry.getName();
+        try (ZipFile zipFile = new ZipFile(buildZip)) {
+            final Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                final ZipEntry entry = entries.nextElement();
+                String name = entry.getName();
 
-            if (!name.endsWith(".dex"))
-                continue;
+                if (!name.endsWith(".dex"))
+                    continue;
 
-            InputStream in = zipFile.getInputStream(entry);
-            Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
-            Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
+                InputStream in = zipFile.getInputStream(entry);
+                Path tmpClassesDexPath = Files.createTempFile("classes", "dex");
+                Files.copy(in, tmpClassesDexPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Verify that classes.dex contains our Dummy class
-            DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
-            for (ClassDef classDef: dexFile.getClasses()) {
-                dexClasses.add(classDef.getType());
+                // Verify that classes.dex contains our Dummy class
+                DexFile dexFile = DexFileFactory.loadDexFile(tmpClassesDexPath.toFile().getAbsolutePath(), Opcodes.forApi(19));
+                for (ClassDef classDef: dexFile.getClasses()) {
+                    dexClasses.add(classDef.getType());
+                }
             }
         }
 

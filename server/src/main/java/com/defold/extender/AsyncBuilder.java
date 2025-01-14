@@ -13,6 +13,7 @@ import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.data.DefoldSdk;
 import com.defold.extender.services.CocoaPodsService;
 
 import org.apache.commons.io.FileUtils;
@@ -92,44 +93,45 @@ public class AsyncBuilder {
             LOGGER.info("Building engine locally");
 
             // Get SDK
-            final File sdk = defoldSdkService.getSdk(sdkVersion);
-            metricsWriter.measureSdkDownload(sdkVersion);
+            try (DefoldSdk sdk = defoldSdkService.getSdk(sdkVersion)) {
+                metricsWriter.measureSdkDownload(sdkVersion);
 
-            extender = new Extender.Builder()
-                        .setPlatform(platform)
-                        .setSdk(sdk)
-                        .setJobDirectory(jobDirectory)
-                        .setUploadDirectory(uploadDirectory)
-                        .setBuildDirectory(buildDirectory)
-                        .setMetricsWriter(metricsWriter)
-                        .build();
+                extender = new Extender.Builder()
+                            .setPlatform(platform)
+                            .setSdk(sdk.toFile())
+                            .setJobDirectory(jobDirectory)
+                            .setUploadDirectory(uploadDirectory)
+                            .setBuildDirectory(buildDirectory)
+                            .setMetricsWriter(metricsWriter)
+                            .build();
 
-            // Resolve Gradle dependencies
-            if (platform.contains("android")) {
-                extender.resolve(gradleService);
-                metricsWriter.measureGradleDownload();
+                // Resolve Gradle dependencies
+                if (platform.contains("android")) {
+                    extender.resolve(gradleService);
+                    metricsWriter.measureGradleDownload();
+                }
+
+                // Resolve CocoaPods dependencies
+                if (platform.contains("ios") || platform.contains("osx")) {
+                    extender.resolve(cocoaPodsService);
+                    metricsWriter.measureCocoaPodsInstallation();
+                }
+
+                // Build engine
+                List<File> outputFiles = extender.build();
+                metricsWriter.measureEngineBuild(platform);
+
+                // Zip files
+                String zipFilename = jobDirectory.getAbsolutePath() + File.separator + BuilderConstants.BUILD_RESULT_FILENAME;
+                File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
+                metricsWriter.measureZipFiles(zipFile);
+
+                // Write zip file to result directory
+                File tmpResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME + ".tmp");
+                File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
+                FileUtils.copyFile(zipFile, tmpResult);
+                Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
             }
-
-            // Resolve CocoaPods dependencies
-            if (platform.contains("ios") || platform.contains("osx")) {
-                extender.resolve(cocoaPodsService);
-                metricsWriter.measureCocoaPodsInstallation();
-            }
-
-            // Build engine
-            List<File> outputFiles = extender.build();
-            metricsWriter.measureEngineBuild(platform);
-
-            // Zip files
-            String zipFilename = jobDirectory.getAbsolutePath() + File.separator + BuilderConstants.BUILD_RESULT_FILENAME;
-            File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
-            metricsWriter.measureZipFiles(zipFile);
-
-            // Write zip file to result directory
-            File tmpResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME + ".tmp");
-            File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
-            FileUtils.copyFile(zipFile, tmpResult);
-            Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
         } catch(EofException e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             writeExtenderLogsToFile(extender, errorFile);
