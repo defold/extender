@@ -674,7 +674,7 @@ public class ExtenderUtil
         return result;
     }
 
-    // collect file pathes of all files which name mathes 're'
+    // collect file paths of all files which name mathes 're'
     static public List<String> collectFilePathesByName(File dir, String re) {
         List<String> result = new ArrayList<>();
         if (re == null) {
