@@ -1496,7 +1496,6 @@ class Extender {
 
         // collect dynamic libraries and copy to result folder
         List<String> dynamicLibsPathes = new ArrayList<>();
-        dynamicLibsPathes.addAll(ExtenderUtil.collectFilePathesByName(buildDirectory, platformConfig.shlibRe));
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
             dynamicLibsPathes.addAll(ExtenderUtil.collectFilePathesByName(libDir, platformConfig.shlibRe));
