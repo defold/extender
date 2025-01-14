@@ -38,28 +38,11 @@ import java.util.concurrent.ExecutionException;
 @Service
 public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
-    private static final String REMOTE_SDK_URL_PATTERNS[] = {
-        "http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip",
-        "http://d.defold.com/archive/%s/engine/defoldsdk.zip",
-        "http://d-switch.defold.com/archive/stable/%s/engine/defoldsdk.zip",
-        "http://d-switch.defold.com/archive/%s/engine/defoldsdk.zip",
-        "http://d-ps4.defold.com/archive/stable/%s/engine/defoldsdk.zip",
-        "http://d-ps4.defold.com/archive/%s/engine/defoldsdk.zip",
-        "http://d-xbox.defold.com/archive/stable/%s/engine/defoldsdk.zip",
-        "http://d-xbox.defold.com/archive/%s/engine/defoldsdk.zip"};
-
-    private static final String REMOTE_MAPPINGS_URL_PATTERNS[] = {
-            "http://d.defold.com/archive/stable/%s/engine/platform.sdks.json",
-            "http://d.defold.com/archive/%s/engine/platform.sdks.json",
-            "http://d-switch.defold.com/archive/stable/%s/engine/platform.sdks.json",
-            "http://d-switch.defold.com/archive/%s/engine/platform.sdks.json",
-            "http://d-ps4.defold.com/archive/stable/%s/engine/platform.sdks.json",
-            "http://d-ps4.defold.com/archive/%s/engine/platform.sdks.json",
-            "http://d-xbox.defold.com/archive/stable/%s/engine/platform.sdks.json",
-            "http://d-xbox.defold.com/archive/%s/engine/platform.sdks.json"};
     private static final String TEST_SDK_DIRECTORY = "a";
     private static final String LOCAL_VERSION = "local";
 
+    private final String[] REMOTE_SDK_URL_PATTERNS;
+    private final String[] REMOTE_MAPPINGS_URL_PATTERNS;
     private final Path baseSdkDirectory;
     private final File dynamoHome;
     private final int cacheSize;
@@ -72,11 +55,15 @@ public class DefoldSdkService {
     DefoldSdkService(@Value("${extender.sdk.location}") String baseSdkDirectory,
                      @Value("${extender.sdk.cache-size}") int cacheSize,
                      @Value("${extender.sdk.cache-clear-on-exit}") boolean cacheClearOnExit,
+                     @Value("${extender.sdk.sdk-urls}") String[] sdkUrlPatterns,
+                     @Value("${extender.sdk.mappings-urls}") String[] mappingsUrlPatterns,
                      MeterRegistry meterRegistry) throws IOException {
         this.baseSdkDirectory = new File(baseSdkDirectory).toPath();
         this.cacheSize = cacheSize;
         this.meterRegistry = meterRegistry;
         this.cacheClearOnExit = cacheClearOnExit;
+        this.REMOTE_SDK_URL_PATTERNS = sdkUrlPatterns;
+        this.REMOTE_MAPPINGS_URL_PATTERNS = mappingsUrlPatterns;
 
         this.dynamoHome = System.getenv("DYNAMO_HOME") != null ? new File(System.getenv("DYNAMO_HOME")) : null;
         this.cacheReferenceCount = new ConcurrentHashMap<>(this.cacheSize + 10);

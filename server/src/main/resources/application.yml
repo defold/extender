@@ -9,6 +9,12 @@ extender:
         # Slightly bigger than production in order to not remove version controlled SDK
         cache-size: 10
         cache-clear-on-exit: true
+        sdk-urls: >
+            "http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip",
+            "http://d.defold.com/archive/%s/engine/defoldsdk.zip"
+        mappings-urls: >
+            "http://d.defold.com/archive/stable/%s/engine/platform.sdks.json",
+            "http://d.defold.com/archive/%s/engine/platform.sdks.json"
     server:
         http:
             idle-timeout: 600000
@@ -19,7 +25,6 @@ extender:
         enabled: false
         build-sleep-timeout: 5000
         build-result-wait-timeout: 1200000
-                
     gradle:
         enabled: false
         location: /tmp/.gradle

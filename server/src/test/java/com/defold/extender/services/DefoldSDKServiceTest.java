@@ -8,14 +8,12 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -34,6 +32,14 @@ import static org.mockito.Mockito.mock;
 
 public class DefoldSDKServiceTest {
     private static final String folderPath = "/tmp/defoldsdk";
+    private static final String sdkUrls[] = {
+        "http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip",
+        "http://d.defold.com/archive/%s/engine/defoldsdk.zip"
+    };
+    private static final String mappingsUrls[] = {
+        "http://d.defold.com/archive/stable/%s/engine/platform.sdks.json",
+        "http://d.defold.com/archive/%s/engine/platform.sdks.json"
+    };
 
     @BeforeAll
     public static void beforeAll() throws IOException {
@@ -48,7 +54,7 @@ public class DefoldSDKServiceTest {
     @Test
     @Disabled("SDK too large to download on every test round.")
     public void t() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 3, true, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 3, true, sdkUrls, mappingsUrls, mock(MeterRegistry.class));
         DefoldSdk sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac");
         System.out.println(sdk.toFile().getCanonicalFile());
     }
@@ -57,7 +63,7 @@ public class DefoldSDKServiceTest {
     @Disabled("SDK too large to download on every test round.")
     public void onlyStoreTheNewest() throws IOException, ExtenderException {
         int cacheSize = 3;
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, cacheSize, true, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, cacheSize, true, sdkUrls, mappingsUrls, mock(MeterRegistry.class));
 
         String[] sdksToDownload = {
                 "fe2b689302e79b7cf8c0bc7d934f23587b268c8a",
@@ -81,7 +87,7 @@ public class DefoldSDKServiceTest {
 
     @Test
     public void testGetSDK() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 3, true, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 3, true, sdkUrls, mappingsUrls, mock(MeterRegistry.class));
 
         File dir = new File("/tmp/defoldsdk/notexist");
         assertFalse(Files.exists(dir.toPath()));
@@ -94,7 +100,7 @@ public class DefoldSDKServiceTest {
         final String testSdk = "11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96";
         final int expectedRefCount = 3;
         List<DefoldSdk> sdks = new ArrayList<>();
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 0, true, new SimpleMeterRegistry());
+        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 0, true, sdkUrls, mappingsUrls, new SimpleMeterRegistry());
 
         // check when several threads request one sdk and that sdk need to be downloaded
         ExecutorService service = Executors.newFixedThreadPool(10);
@@ -154,7 +160,7 @@ public class DefoldSDKServiceTest {
     @Test
     public void testSdkCorrectPath() throws IOException, ExtenderException {
         final String testSdk = "11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96";
-        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk_test", 0, true, new SimpleMeterRegistry());
+        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk_test", 0, true, sdkUrls, mappingsUrls, new SimpleMeterRegistry());
         try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
             assertTrue(new File(String.format("%s/extender/build.yml", sdk.toFile().getAbsolutePath())).exists());
         }
