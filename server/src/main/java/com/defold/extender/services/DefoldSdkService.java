@@ -7,6 +7,9 @@ import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.data.DefoldSdk;
 
 import org.apache.commons.io.FileUtils;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,16 +24,19 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -51,12 +57,15 @@ public class DefoldSdkService {
     private final MeterRegistry meterRegistry;
     private final ConcurrentHashMap<String, CompletableFuture<DefoldSdk>> operationCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Integer> cacheReferenceCount;
+    private final ConcurrentHashMap<String, CompletableFuture<JSONObject>> mappingsDownloadOperationCache = new ConcurrentHashMap<>();
+    protected final LinkedHashMap<String, JSONObject> mappingsCache;
 
     DefoldSdkService(@Value("${extender.sdk.location}") String baseSdkDirectory,
                      @Value("${extender.sdk.cache-size}") int cacheSize,
                      @Value("${extender.sdk.cache-clear-on-exit}") boolean cacheClearOnExit,
                      @Value("${extender.sdk.sdk-urls}") String[] sdkUrlPatterns,
                      @Value("${extender.sdk.mappings-urls}") String[] mappingsUrlPatterns,
+                     @Value("${extender.sdk.mappings-cache-size:20}") int mappingsCacheSize,
                      MeterRegistry meterRegistry) throws IOException {
         this.baseSdkDirectory = new File(baseSdkDirectory).toPath();
         this.cacheSize = cacheSize;
@@ -73,6 +82,13 @@ public class DefoldSdkService {
         if (!Files.exists(this.baseSdkDirectory)) {
             Files.createDirectories(this.baseSdkDirectory);
         }
+
+        mappingsCache = new LinkedHashMap<String, JSONObject>() {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, JSONObject> eldest) {
+                return size() > mappingsCacheSize;
+            }
+        };
     }
 
     public String getSdkVersion(final String version) {
@@ -221,33 +237,69 @@ public class DefoldSdkService {
         }
     }
 
-    private String getLocalPlatformSdkMappings(String hash) throws IOException {
-        return new String(Files.readAllBytes(Path.of(getLocalSdk().toFile().getAbsolutePath(), "platform.sdks.json")), StandardCharsets.UTF_8);
+    private JSONObject getLocalPlatformSdkMappings(String hash) throws IOException, ParseException {
+        JSONParser parser = new JSONParser();
+        return (JSONObject)parser.parse(new FileReader(Path.of(getLocalSdk().toFile().getAbsolutePath(), "platform.sdks.json").toFile()));
     }
 
-    private String getRemotePlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException {
-        for (String url_pattern : REMOTE_MAPPINGS_URL_PATTERNS) {
-            URL url = URI.create(String.format(url_pattern, hash)).toURL();
-
-            ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
-            ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
-
-            // Connect and copy to file
-            try (ClientHttpResponse response = request.execute()) {
-                if (response.getStatusCode() != HttpStatus.OK) {
-                    LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
-                    continue;
+    private CompletableFuture<JSONObject> downloadSdkMappings(String hash) {
+        return CompletableFuture.supplyAsync(() -> {
+            JSONObject result = null;
+            synchronized(mappingsCache) {
+                if (mappingsCache.containsKey(hash)) {
+                    result = mappingsCache.get(hash);
                 }
-
-                LOGGER.info("Downloading platform sdks mappings from {} ...", url);
-                InputStream body = response.getBody();
-                return new String(body.readAllBytes(), StandardCharsets.UTF_8);
             }
+            if (result == null) {
+                for (String url_pattern : REMOTE_MAPPINGS_URL_PATTERNS) {
+                    try {
+                        URL url = URI.create(String.format(url_pattern, hash)).toURL();
+            
+                        ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
+                        ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+            
+                        // Connect and copy to file
+                        try (ClientHttpResponse response = request.execute()) {
+                            if (response.getStatusCode() != HttpStatus.OK) {
+                                LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
+                                continue;
+                            }
+            
+                            LOGGER.info("Downloading platform sdks mappings from {} ...", url);
+                            InputStream body = response.getBody();
+                            JSONParser parser = new JSONParser();
+                            result = (JSONObject)parser.parse(new InputStreamReader(body));
+                            break;
+                        }
+                    } catch(URISyntaxException|IOException|ParseException exc) {
+                        LOGGER.error(String.format("Error during loading sdk mappings for %s", hash), exc);
+                    }
+                }
+            }
+            if (result != null) {
+                synchronized(mappingsCache) {
+                    mappingsCache.put(hash, result);
+                }
+            }
+            return result;
+        });
+    }
+
+    private JSONObject getRemotePlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException {
+        CompletableFuture<JSONObject> operation = mappingsDownloadOperationCache.computeIfAbsent(hash, this::downloadSdkMappings);
+        try {
+            JSONObject result = operation.get();
+            if (result == null) {
+                throw new ExtenderException(String.format("Cannot find or parse platform sdks mappings for hash: %s", hash));
+            }
+            return result;
+        } catch (InterruptedException|ExecutionException exc) {
+            LOGGER.error(String.format("Mappings downloading %s was interrupted", hash), exc);
         }
         throw new ExtenderException(String.format("Cannot find platform sdks mappings for hash: %s", hash));
     }
 
-    public String getPlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException {
+    public JSONObject getPlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException, ParseException {
         return isLocalSdk(hash) ? getLocalPlatformSdkMappings(hash) : getRemotePlatformSdkMappings(hash);
     }
 
