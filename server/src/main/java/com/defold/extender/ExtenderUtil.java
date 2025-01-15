@@ -29,8 +29,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.springframework.core.io.Resource;
 
 public class ExtenderUtil
@@ -833,10 +831,8 @@ public class ExtenderUtil
 
     // return a list of two string: platform name like "emsdk" and platform version like "3155"
     @SuppressWarnings("unchecked")
-    public static String[] getSdksForPlatform(String platform, String mappings) throws ParseException {
-        JSONParser parser = new JSONParser();
-        JSONObject obj = (JSONObject) parser.parse(mappings);
-        return ((List<String>) obj.get(platform)).toArray(new String[2]);
+    public static String[] getSdksForPlatform(String platform, JSONObject mappings) {
+        return ((List<String>) mappings.get(platform)).toArray(new String[2]);
     }
 
     public static File extractFile(ZipFile zipFile, ZipEntry entry, File outputDirectory) throws IOException {
