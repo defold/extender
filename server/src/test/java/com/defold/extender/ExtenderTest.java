@@ -42,12 +42,14 @@ public class ExtenderTest {
         env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
         env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
         env.put("XCODE_15_VERSION", "15.4");
+        env.put("XCODE_16_VERSION", "16.2");
         env.put("XCODE_15_CLANG_VERSION", "15.0.0");
-        env.put("IOS_16_VERSION", "16.2");
+        env.put("XCODE_16_CLANG_VERSION", "16.0.0");
         env.put("IOS_17_VERSION", "17.5");
+        env.put("IOS_18_VERSION", "18.2");
         env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
-        env.put("MACOS_13_VERSION", "13.1");
         env.put("MACOS_14_VERSION", "14.5");
+        env.put("MACOS_15_VERSION", "15.2");
         env.put("MACOS_VERSION_MIN", "10.13");
         env.put("SWIFT_5_5_VERSION", "5.5");
         env.put("SYSROOT", "/opt/platformsdk/MacOSX13.1.sdk");
