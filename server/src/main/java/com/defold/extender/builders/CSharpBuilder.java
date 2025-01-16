@@ -26,7 +26,6 @@ import com.defold.extender.TemplateExecutor;
 public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);
 
-    private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
     private static final String DOTNET_CLI_HOME = System.getenv("DOTNET_CLI_HOME");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
     private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
