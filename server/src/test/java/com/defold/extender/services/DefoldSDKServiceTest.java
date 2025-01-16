@@ -8,7 +8,6 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -181,7 +180,7 @@ public class DefoldSDKServiceTest {
     }
 
     @Test
-    public void testMappingsCacheSize() throws IOException, URISyntaxException, ExtenderException, ParseException {
+    public void testMappingsCacheSize() throws IOException, ExtenderException, ParseException {
         String[] mappingsToDownload = {
             "691478c02875b80e76da65d2f5756394e7a906b1",
             "e4aaff11f49c941fde1dd93883cf69c6b8abebe4",
@@ -231,7 +230,7 @@ public class DefoldSDKServiceTest {
             service.submit(() -> {
                 try {
                     defoldSdkService.getPlatformSdkMappings(hash);
-                } catch (ExtenderException|IOException|URISyntaxException|ParseException e) {
+                } catch (ExtenderException|IOException|ParseException e) {
                     e.printStackTrace();
                 }
                 latch.countDown();

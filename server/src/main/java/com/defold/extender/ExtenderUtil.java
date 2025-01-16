@@ -20,6 +20,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.lang.reflect.Field;
@@ -865,5 +867,22 @@ public class ExtenderUtil
             && !entryName.endsWith(".pro")
             && !entryName.endsWith("pom.xml")
             && !entryName.endsWith("pom.properties");
+    }
+
+    public static String calculateSHA256(InputStream input, int blockSize) throws NoSuchAlgorithmException, IOException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] byteArray = new byte[1024];
+        int bytesCount;
+        while ((bytesCount = input.read(byteArray)) != -1) {
+            digest.update(byteArray, 0, bytesCount);
+        }
+        byte[] hashBytes = digest.digest();
+
+        // Convert bytes to hex
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hashBytes) {
+            hexString.append(String.format("%02x", b));
+        }
+        return hexString.toString();
     }
 }

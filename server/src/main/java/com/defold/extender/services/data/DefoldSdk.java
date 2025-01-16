@@ -9,6 +9,7 @@ public class DefoldSdk implements AutoCloseable {
     private File sdkDir;
     private String sdkHash;
     private DefoldSdkService sdkService;
+    private boolean isVerified = false;
     private AtomicBoolean isUsed = new AtomicBoolean(true);
 
     public DefoldSdk(File sdkDir, String sdkHash, DefoldSdkService sdkService) {
@@ -20,11 +21,13 @@ public class DefoldSdk implements AutoCloseable {
     }
 
     public static DefoldSdk copyOf(DefoldSdk sdk) {
-        return new DefoldSdk(sdk.sdkDir, sdk.sdkHash, sdk.sdkService);
+        DefoldSdk copy = new DefoldSdk(sdk.sdkDir, sdk.sdkHash, sdk.sdkService);
+        copy.setVerified(sdk.isVerified);
+        return copy;
     }
 
     public boolean isValid() {
-        return this.sdkDir != null && this.sdkDir.exists();
+        return this.isVerified && this.sdkDir != null && this.sdkDir.exists();
     }
 
     public File toFile() {
@@ -33,6 +36,14 @@ public class DefoldSdk implements AutoCloseable {
 
     public String getHash() {
         return this.sdkHash;
+    }
+
+    public void setVerified(boolean isValid) {
+        this.isVerified = isValid;
+    }
+
+    public boolean isVerified() {
+        return this.isVerified;
     }
 
     @Override

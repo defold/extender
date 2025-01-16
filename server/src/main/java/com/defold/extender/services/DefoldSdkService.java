@@ -1,6 +1,7 @@
 package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ZipUtils;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
@@ -24,16 +25,17 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -46,6 +48,8 @@ public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
     private static final String TEST_SDK_DIRECTORY = "a";
     private static final String LOCAL_VERSION = "local";
+    // retry count in case of checksum validation fail
+    private static final int maxRetryCount = 3;
 
     private final String[] REMOTE_SDK_URL_PATTERNS;
     private final String[] REMOTE_MAPPINGS_URL_PATTERNS;
@@ -111,6 +115,9 @@ public class DefoldSdkService {
             if (sdk == null) {
                 throw new ExtenderException(String.format("The given sdk does not exist: %s", hash));
             }
+            if (!sdk.isValid()) {
+                throw new ExtenderException(String.format("Sdk verification failed: %s", hash));
+            }
             evictCache();
             LOGGER.info("Using Defold SDK version {}", hash);
             return DefoldSdk.copyOf(sdk);
@@ -129,41 +136,93 @@ public class DefoldSdkService {
             File sdkDirectory = new File(baseSdkDirectory.toFile(), hash);
             File sdkRootDirectory = new File(sdkDirectory, "defoldsdk");
             DefoldSdk sdk = new DefoldSdk(sdkRootDirectory, hash, this);
+            boolean isVerified = false;
             // If directory does not exist, create it and download SDK
-            if (!Files.exists(sdkDirectory.toPath())) {
+            if (Files.exists(sdkDirectory.toPath())) {
+                // if sdk already exists in cache - it means that sdk already verified
+                isVerified = true;
+            } else  {
                 boolean sdkFound = false;
-                for (String url_pattern : REMOTE_SDK_URL_PATTERNS) {
+                String url = null;
+                ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
+                for (String urlPattern : REMOTE_SDK_URL_PATTERNS) {
                     try {
-                        URL url = URI.create(String.format(url_pattern, hash)).toURL();
-
-                        ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
-                        ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
-
-                        // Connect and copy to file
-                        try (ClientHttpResponse response = request.execute()) {
+                        url = String.format(urlPattern, hash);
+                        URI sdkURI = URI.create(url);
+                        ClientHttpRequest existenceRequest = clientHttpRequestFactory.createRequest(sdkURI, HttpMethod.HEAD);
+                        try (ClientHttpResponse response = existenceRequest.execute()) {
                             if (response.getStatusCode() != HttpStatus.OK) {
                                 LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
                                 continue;
+                            } else {
+                                // mark sdk as found for download
+                                sdkFound = true;
+                            }
+                        } catch (IOException exc) {
+                            LOGGER.warn(String.format("HEAD for %s failed", url), exc);
+                        }
+                    }  catch (IOException exc) {
+                        LOGGER.warn("Can't create HEAD request", exc);
+                    }
+                }
+                if (sdkFound) {
+                    int attempt = 0;
+                    while (attempt < maxRetryCount) {
+                        LOGGER.info("Downloading Defold SDK from {} attempt {} ...", url, attempt);
+                        ClientHttpRequest request;
+                        try {
+                            request = clientHttpRequestFactory.createRequest(URI.create(url), HttpMethod.GET);
+                        } catch (IOException exc) {
+                            LOGGER.error("Connect can't be established", exc);
+                            break;
+                        }
+
+                        // Connect and copy to file
+                        try (ClientHttpResponse response = request.execute()) {
+                            LOGGER.info("Download checksum for sdk {}", hash);
+                            URI checksumURI = URI.create(url.replace(".zip", ".sha256"));
+                            ClientHttpRequest checksumRequest = clientHttpRequestFactory.createRequest(checksumURI, HttpMethod.GET);
+                            String expectedChecksum = null;
+                            try (ClientHttpResponse checksumResponse = checksumRequest.execute()) {
+                                if (checksumResponse.getStatusCode() == HttpStatus.OK) {
+                                    expectedChecksum = new String(checksumResponse.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                                }
+                            } catch (IOException exc) {
+                                LOGGER.warn(String.format("Can't doenload checksum for sdk %s", hash), exc);
                             }
 
-                            LOGGER.info("Downloading Defold SDK from {} ...", url);
+                            InputStream body = response.getBody();
+                            File tmpResponseBody = File.createTempFile(hash, ".zip.tmp");
+                            Files.copy(body, tmpResponseBody.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                            boolean isChecksumValid = true;
+                            if (expectedChecksum != null) {
+                                LOGGER.info("Verify checksum for downloaded sdk {}", hash);
+                                try {
+                                    String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody), 1024 * 1024 * 10);
+                                    isChecksumValid = expectedChecksum.equals(actualChecksum);
+                                    LOGGER.info("Checksum verification result {}", isChecksumValid);
+                                } catch(NoSuchAlgorithmException|IOException exc) {
+                                    LOGGER.warn(String.format("Error during checksum calculation"), exc);
+                                }
+                            }
+                            if (!isChecksumValid) {
+                                ++attempt;
+                                continue;
+                            }
                             Path tempDirectoryPath = Files.createTempDirectory(baseSdkDirectory, "tmp" + hash);
                             File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
 
                             Files.createDirectories(tempDirectoryPath);
-                            InputStream body = response.getBody();
-                            ZipUtils.unzip(body, tmpSdkDirectory.toPath());
+                            ZipUtils.unzip(new FileInputStream(tmpResponseBody), tmpSdkDirectory.toPath());
 
                             Files.move(tmpSdkDirectory.toPath(), sdkDirectory.toPath(), StandardCopyOption.ATOMIC_MOVE);
-                            sdkFound = true;
+                            isVerified = true;
                             break;
+                        } catch (IOException exc) {
+                            LOGGER.error("Error downloading defoldsdk", exc);
                         }
-                    } catch (IOException|URISyntaxException exc) {
-                        LOGGER.error("Error downloading defoldsdk", exc);
                     }
-                }
-
-                if (!sdkFound) {
+                } else {
                     sdk.close();
                     return null;
                 }
@@ -171,6 +230,10 @@ public class DefoldSdkService {
                 MetricsWriter.metricsCounterIncrement(meterRegistry, "extender.service.sdk.get.download", "sdk", hash);
             }
             MetricsWriter.metricsTimer(meterRegistry, "extender.service.sdk.get.duration", System.currentTimeMillis() - methodStart, "sdk", hash);
+            if (!isVerified) {
+                LOGGER.warn("Sdk {} verification failed", hash);
+            }
+            sdk.setVerified(isVerified);
             return sdk;
         });
     }
@@ -253,10 +316,10 @@ public class DefoldSdkService {
             if (result == null) {
                 for (String url_pattern : REMOTE_MAPPINGS_URL_PATTERNS) {
                     try {
-                        URL url = URI.create(String.format(url_pattern, hash)).toURL();
+                        URI url = URI.create(String.format(url_pattern, hash));
             
                         ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
-                        ClientHttpRequest request = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+                        ClientHttpRequest request = clientHttpRequestFactory.createRequest(url, HttpMethod.GET);
             
                         // Connect and copy to file
                         try (ClientHttpResponse response = request.execute()) {
@@ -271,7 +334,7 @@ public class DefoldSdkService {
                             result = (JSONObject)parser.parse(new InputStreamReader(body));
                             break;
                         }
-                    } catch(URISyntaxException|IOException|ParseException exc) {
+                    } catch(IOException|ParseException exc) {
                         LOGGER.error(String.format("Error during loading sdk mappings for %s", hash), exc);
                     }
                 }
@@ -285,7 +348,7 @@ public class DefoldSdkService {
         });
     }
 
-    private JSONObject getRemotePlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException {
+    private JSONObject getRemotePlatformSdkMappings(String hash) throws IOException, ExtenderException {
         CompletableFuture<JSONObject> operation = mappingsDownloadOperationCache.computeIfAbsent(hash, this::downloadSdkMappings);
         try {
             JSONObject result = operation.get();
@@ -299,7 +362,7 @@ public class DefoldSdkService {
         throw new ExtenderException(String.format("Cannot find platform sdks mappings for hash: %s", hash));
     }
 
-    public JSONObject getPlatformSdkMappings(String hash) throws IOException, URISyntaxException, ExtenderException, ParseException {
+    public JSONObject getPlatformSdkMappings(String hash) throws IOException, ExtenderException, ParseException {
         return isLocalSdk(hash) ? getLocalPlatformSdkMappings(hash) : getRemotePlatformSdkMappings(hash);
     }
 

@@ -42,7 +42,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
@@ -157,7 +156,7 @@ public class ExtenderController {
     @PostMapping(value = "/build/{platform}")
     public void buildEngineLocal(HttpServletRequest request, HttpServletResponse response,
                                  @PathVariable("platform") String platform)
-            throws URISyntaxException, IOException, ExtenderException, ParseException {
+            throws IOException, ExtenderException, ParseException {
 
         if (defoldSdkService.isLocalSdkSupported()) {
             buildEngine(request, response, platform, null);
@@ -172,7 +171,7 @@ public class ExtenderController {
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, URISyntaxException, ParseException {
+            throws ExtenderException, IOException, ParseException {
 
         boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
@@ -312,7 +311,7 @@ public class ExtenderController {
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, URISyntaxException, ParseException {
+            throws ExtenderException, IOException, ParseException {
 
         boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
