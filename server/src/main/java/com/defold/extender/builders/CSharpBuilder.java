@@ -26,6 +26,7 @@ import com.defold.extender.TemplateExecutor;
 public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);
 
+    private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
     private static final String DOTNET_CLI_HOME = System.getenv("DOTNET_CLI_HOME");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
     private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
@@ -202,6 +203,41 @@ public class CSharpBuilder {
         return out;
     }
 
+    private static void getExportsFlags(String platform, File buildDir, List<String> linkFlags) throws IOException {
+        // We need to add the exported symbols map
+        File exportsFile = new File(String.format("%s/defold_cs.exports", buildDir));
+
+        String exportsPattern = "-Wl,--version-script=%s";
+        if (ExtenderUtil.isMacOSTarget(platform) || ExtenderUtil.isIOSTarget(platform))
+        {
+            exportsPattern = "-exported_symbols_list %s";
+        }
+
+        // HACK: In anticipation of the fix for https://github.com/dotnet/runtime/issues/109341
+        // we have to make sure not all symbols are public, and at the same time respect the engine symbols
+        String contents = "";
+        contents += "V1.0 { \n";
+        contents += "    global: \n";
+        contents += "        DotNetRuntimeDebugHeader; \n";
+        if (ExtenderUtil.isAndroidTarget(platform))
+        {
+            contents += "        ANativeActivity*;\n";
+            contents += "        Java_com_*;\n";
+        }
+        contents += "    local: *; \n";
+        contents += "};\n";
+
+        File parent = exportsFile.getParentFile();
+        if (!parent.exists())
+            parent.mkdirs();
+        FileOutputStream fos = new FileOutputStream(exportsFile, false);
+        PrintWriter writer = new PrintWriter(fos);
+        writer.write(contents);
+        writer.close();
+
+        linkFlags.add(String.format(exportsPattern, exportsFile.getAbsolutePath()));
+    }
+
     private static void getLinkFlags(String platform, File buildDir, List<String> linkFlags) throws IOException {
         Path aotBase = getNativePath(platform);
 
@@ -243,6 +279,8 @@ public class CSharpBuilder {
         else if (ExtenderUtil.isAndroidTarget(platform))
         {
             paths.add(getLibName(platform, "System.Native"));
+
+            CSharpBuilder.getExportsFlags(platform, buildDir, linkFlags);
         }
 
         // Note: These libraries are specified with full paths, or the linker will link against the dynamic libraries (macOS)
