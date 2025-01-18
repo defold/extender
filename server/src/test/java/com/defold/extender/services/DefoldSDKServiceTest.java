@@ -3,14 +3,12 @@ package com.defold.extender.services;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.services.data.DefoldSdk;
 
-import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,36 +30,44 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 public class DefoldSDKServiceTest {
-    private static final String folderPath = "/tmp/defoldsdk";
-    private static final String sdkUrls[] = {
-        "http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip",
-        "http://d.defold.com/archive/%s/engine/defoldsdk.zip"
-    };
-    private static final String mappingsUrls[] = {
-        "http://d.defold.com/archive/stable/%s/engine/platform.sdks.json",
-        "http://d.defold.com/archive/%s/engine/platform.sdks.json"
-    };
-    private static final int sdkCacheSize = 3;
-    private static final int mappingsCacheSize = 3;
+    private static DefoldSdkServiceConfiguration configuration;
+    private static DefoldSdkServiceConfiguration zeroCacheConfiguration;
+    private static DefoldSdkServiceConfiguration otherLocationConfiguration;
+
 
     @BeforeAll
     public static void beforeAll() throws IOException {
-        Files.createDirectories(Path.of(folderPath));
+        DefoldSDKServiceTest.configuration = DefoldSdkServiceConfiguration.builder()
+            .location(Path.of("/tmp/defoldsdk"))
+            .sdkUrls(new String[]{"http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "http://d.defold.com/archive/%s/engine/defoldsdk.zip"})
+            .mappingsUrls(new String[] {"http://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "http://d.defold.com/archive/%s/engine/platform.sdks.json"})
+            .cacheSize(3)
+            .mappingsCacheSize(3)
+            .cacheClearOnExit(true)
+            .build();
+
+        DefoldSDKServiceTest.zeroCacheConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.configuration.toBuilder());
+            zeroCacheConfiguration.setCacheSize(0);
+    
+        Files.createDirectories(DefoldSDKServiceTest.configuration.getLocation());
+
+        DefoldSDKServiceTest.otherLocationConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.zeroCacheConfiguration.toBuilder());
+        DefoldSDKServiceTest.otherLocationConfiguration.setLocation(Path.of("/tmp/defoldsdk_test"));
+        Files.createDirectories(DefoldSDKServiceTest.otherLocationConfiguration.getLocation());
     }
 
     @AfterAll
     public static void afterAll() throws IOException {
-        FileUtils.deleteDirectory(new File(folderPath));
+        FileUtils.deleteDirectory(DefoldSDKServiceTest.configuration.getLocation().toFile());
+        FileUtils.deleteDirectory(DefoldSDKServiceTest.otherLocationConfiguration.getLocation().toFile());
     }
 
     @Test
     @Disabled("SDK too large to download on every test round.")
     public void t() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, sdkCacheSize, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.configuration, new SimpleMeterRegistry());
         DefoldSdk sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac");
         System.out.println(sdk.toFile().getCanonicalFile());
     }
@@ -69,8 +75,7 @@ public class DefoldSDKServiceTest {
     @Test
     @Disabled("SDK too large to download on every test round.")
     public void onlyStoreTheNewest() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, sdkCacheSize, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.configuration, new SimpleMeterRegistry());
 
         String[] sdksToDownload = {
                 "fe2b689302e79b7cf8c0bc7d934f23587b268c8a",
@@ -84,9 +89,9 @@ public class DefoldSDKServiceTest {
             defoldSdkService.getSdk(sdkHash);
         }
 
-        List<String> collect = Files.list(Paths.get(folderPath)).map(path -> path.toFile().getName()).collect(Collectors.toList());
+        List<String> collect = Files.list(DefoldSDKServiceTest.configuration.getLocation()).map(path -> path.toFile().getName()).collect(Collectors.toList());
 
-        assertEquals(sdkCacheSize, collect.size());
+        assertEquals(DefoldSDKServiceTest.configuration.getCacheSize(), collect.size());
         assertTrue(collect.contains("e41438cca6cc1550d4a0131b8fc3858c2a4097f1"));
         assertTrue(collect.contains("7107bc8781535e83cbb30734b32d6b32a3039cd0"));
         assertTrue(collect.contains("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac"));
@@ -94,10 +99,9 @@ public class DefoldSDKServiceTest {
 
     @Test
     public void testGetSDK() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, sdkCacheSize, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, mock(MeterRegistry.class));
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.configuration, new SimpleMeterRegistry());
 
-        File dir = new File("/tmp/defoldsdk/notexist");
+        File dir = new File(DefoldSDKServiceTest.configuration.getLocation().toFile(), "notexist");
         assertFalse(Files.exists(dir.toPath()));
 
         assertThrows(ExtenderException.class, () -> defoldSdkService.getSdk("notexist"));
@@ -108,8 +112,7 @@ public class DefoldSDKServiceTest {
         final String testSdk = "11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96";
         final int expectedRefCount = 3;
         List<DefoldSdk> sdks = new ArrayList<>();
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 0, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, new SimpleMeterRegistry());
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
 
         // check when several threads request one sdk and that sdk need to be downloaded
         ExecutorService service = Executors.newFixedThreadPool(10);
@@ -169,14 +172,13 @@ public class DefoldSDKServiceTest {
     @Test
     public void testSdkCorrectPath() throws IOException, ExtenderException {
         final String testSdk = "11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96";
-        DefoldSdkService defoldSdkService = new DefoldSdkService("/tmp/defoldsdk_test", 0, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, new SimpleMeterRegistry());
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.otherLocationConfiguration, new SimpleMeterRegistry());
         try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
             assertTrue(new File(String.format("%s/extender/build.yml", sdk.toFile().getAbsolutePath())).exists());
         }
 
         defoldSdkService.evictCache();
-        assertFalse(new File("/tmp/defoldsdk_test", testSdk).exists());
+        assertFalse(new File(DefoldSDKServiceTest.otherLocationConfiguration.getLocation().toFile(), testSdk).exists());
     }
 
     @Test
@@ -187,12 +189,12 @@ public class DefoldSDKServiceTest {
             "3251ca82359cf238a1074e383281e3126547d50b",
             "edfdbe31830c1f8aa4d96644569ae87a8ea32672",
             "d01194cf0fb576b516a1dca6af6f643e9e590051"};
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 0, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, new SimpleMeterRegistry());
+
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
         for (String hash : mappingsToDownload) {
             defoldSdkService.getPlatformSdkMappings(hash);
         }
-        assertEquals(mappingsCacheSize, defoldSdkService.mappingsCache.size());
+        assertEquals(DefoldSDKServiceTest.zeroCacheConfiguration.getMappingsCacheSize(), defoldSdkService.mappingsCache.size());
         String expectedHashes[] = {
             "3251ca82359cf238a1074e383281e3126547d50b",
             "edfdbe31830c1f8aa4d96644569ae87a8ea32672",
@@ -205,8 +207,7 @@ public class DefoldSDKServiceTest {
 
     @Test
     public void testNonExistMappings() throws IOException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 0, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, new SimpleMeterRegistry());
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
         assertThrows(ExtenderException.class, () -> defoldSdkService.getPlatformSdkMappings("non-exist"));
     }
 
@@ -222,8 +223,7 @@ public class DefoldSDKServiceTest {
             "691478c02875b80e76da65d2f5756394e7a906b1",
             "edfdbe31830c1f8aa4d96644569ae87a8ea32672",
             "d01194cf0fb576b516a1dca6af6f643e9e590051"};
-        DefoldSdkService defoldSdkService = new DefoldSdkService(folderPath, 0, true,
-            sdkUrls, mappingsUrls, mappingsCacheSize, new SimpleMeterRegistry());
+        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
         ExecutorService service = Executors.newFixedThreadPool(10);
         CountDownLatch latch = new CountDownLatch(mappingsToDownload.length);
         for (final String hash : mappingsToDownload) {
@@ -237,7 +237,7 @@ public class DefoldSDKServiceTest {
             });
         }
         latch.await();
-        assertEquals(mappingsCacheSize, defoldSdkService.mappingsCache.size());
+        assertEquals(DefoldSDKServiceTest.zeroCacheConfiguration.getMappingsCacheSize(), defoldSdkService.mappingsCache.size());
         for (Map.Entry<String, JSONObject> entry : defoldSdkService.mappingsCache.entrySet()) {
             assertNotNull(entry.getValue());
         }

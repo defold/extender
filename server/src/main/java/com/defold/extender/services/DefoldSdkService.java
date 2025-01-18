@@ -13,7 +13,6 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -48,49 +47,34 @@ public class DefoldSdkService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DefoldSdkService.class);
     private static final String TEST_SDK_DIRECTORY = "a";
     private static final String LOCAL_VERSION = "local";
-    // retry count in case of checksum validation fail
-    private static final int maxRetryCount = 3;
-
-    private final String[] REMOTE_SDK_URL_PATTERNS;
-    private final String[] REMOTE_MAPPINGS_URL_PATTERNS;
-    private final Path baseSdkDirectory;
     private final File dynamoHome;
-    private final int cacheSize;
-    private final boolean cacheClearOnExit;
 
+    private final DefoldSdkServiceConfiguration configuration;
     private final MeterRegistry meterRegistry;
     private final ConcurrentHashMap<String, CompletableFuture<DefoldSdk>> operationCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Integer> cacheReferenceCount;
     private final ConcurrentHashMap<String, CompletableFuture<JSONObject>> mappingsDownloadOperationCache = new ConcurrentHashMap<>();
     protected final LinkedHashMap<String, JSONObject> mappingsCache;
 
-    DefoldSdkService(@Value("${extender.sdk.location}") String baseSdkDirectory,
-                     @Value("${extender.sdk.cache-size}") int cacheSize,
-                     @Value("${extender.sdk.cache-clear-on-exit}") boolean cacheClearOnExit,
-                     @Value("${extender.sdk.sdk-urls}") String[] sdkUrlPatterns,
-                     @Value("${extender.sdk.mappings-urls}") String[] mappingsUrlPatterns,
-                     @Value("${extender.sdk.mappings-cache-size:20}") int mappingsCacheSize,
+    DefoldSdkService(DefoldSdkServiceConfiguration configuration,
                      MeterRegistry meterRegistry) throws IOException {
-        this.baseSdkDirectory = new File(baseSdkDirectory).toPath();
-        this.cacheSize = cacheSize;
+        this.configuration = configuration;
         this.meterRegistry = meterRegistry;
-        this.cacheClearOnExit = cacheClearOnExit;
-        this.REMOTE_SDK_URL_PATTERNS = sdkUrlPatterns;
-        this.REMOTE_MAPPINGS_URL_PATTERNS = mappingsUrlPatterns;
 
         this.dynamoHome = System.getenv("DYNAMO_HOME") != null ? new File(System.getenv("DYNAMO_HOME")) : null;
-        this.cacheReferenceCount = new ConcurrentHashMap<>(this.cacheSize + 10);
+        this.cacheReferenceCount = new ConcurrentHashMap<>(this.configuration.getCacheSize() + 10);
 
-        LOGGER.info("SDK service using directory {} with cache size {}", baseSdkDirectory, cacheSize);
+        Path sdkLocation = this.configuration.getLocation();
+        LOGGER.info("SDK service using directory {} with cache size {}", sdkLocation, this.configuration.getCacheSize());
 
-        if (!Files.exists(this.baseSdkDirectory)) {
-            Files.createDirectories(this.baseSdkDirectory);
+        if (!Files.exists(sdkLocation)) {
+            Files.createDirectories(sdkLocation);
         }
 
         mappingsCache = new LinkedHashMap<String, JSONObject>() {
             @Override
             protected boolean removeEldestEntry(Map.Entry<String, JSONObject> eldest) {
-                return size() > mappingsCacheSize;
+                return size() > configuration.getMappingsCacheSize();
             }
         };
     }
@@ -133,7 +117,7 @@ public class DefoldSdkService {
         return CompletableFuture.supplyAsync(() -> {
             long methodStart = System.currentTimeMillis();
             // Define SDK directory for this version
-            File sdkDirectory = new File(baseSdkDirectory.toFile(), hash);
+            File sdkDirectory = new File(this.configuration.getLocation().toFile(), hash);
             File sdkRootDirectory = new File(sdkDirectory, "defoldsdk");
             DefoldSdk sdk = new DefoldSdk(sdkRootDirectory, hash, this);
             boolean isVerified = false;
@@ -145,7 +129,7 @@ public class DefoldSdkService {
                 boolean sdkFound = false;
                 String url = null;
                 ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
-                for (String urlPattern : REMOTE_SDK_URL_PATTERNS) {
+                for (String urlPattern : configuration.getSdkUrls()) {
                     try {
                         url = String.format(urlPattern, hash);
                         URI sdkURI = URI.create(url);
@@ -167,7 +151,7 @@ public class DefoldSdkService {
                 }
                 if (sdkFound) {
                     int attempt = 0;
-                    while (attempt < maxRetryCount) {
+                    while (attempt < configuration.getMaxVerificationRetryCount()) {
                         LOGGER.info("Downloading Defold SDK from {} attempt {} ...", url, attempt);
                         ClientHttpRequest request;
                         try {
@@ -209,7 +193,7 @@ public class DefoldSdkService {
                                 ++attempt;
                                 continue;
                             }
-                            Path tempDirectoryPath = Files.createTempDirectory(baseSdkDirectory, "tmp" + hash);
+                            Path tempDirectoryPath = Files.createTempDirectory(configuration.getLocation(), "tmp" + hash);
                             File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
 
                             Files.createDirectories(tempDirectoryPath);
@@ -255,12 +239,12 @@ public class DefoldSdkService {
                 Comparator<Path> refCountComparator = Comparator.comparing(path -> getSdkRefCount(path.getFileName().toString()));
 
                 Files
-                        .list(baseSdkDirectory)
+                        .list(configuration.getLocation())
                         .filter(path -> !path.getFileName().toString().startsWith("tmp")
                                     && !path.toString().endsWith(".delete")
                                     && !path.getFileName().toString().equals(TEST_SDK_DIRECTORY))
                         .sorted(refCountComparator.reversed())
-                        .skip(cacheSize)
+                        .skip(configuration.getCacheSize())
                         .forEach(this::deleteCachedSdk);
             } catch (IOException exc) {
                 LOGGER.error("Error during cache eviction", exc);
@@ -286,13 +270,13 @@ public class DefoldSdkService {
 
     @PreDestroy
     public void destroy() {
-        if (!this.cacheClearOnExit) {
+        if (!configuration.isCacheClearOnExit()) {
             LOGGER.info("Skipping cleanup of SDK cache");
             return;
         }
         LOGGER.info("Cleaning up SDK cache");
         try {
-            Files.list(baseSdkDirectory)
+            Files.list(configuration.getLocation())
                     .filter(path -> ! path.endsWith(TEST_SDK_DIRECTORY))
                     .forEach(this::deleteCachedSdk);
         } catch(IOException e) {
@@ -314,7 +298,7 @@ public class DefoldSdkService {
                 }
             }
             if (result == null) {
-                for (String url_pattern : REMOTE_MAPPINGS_URL_PATTERNS) {
+                for (String url_pattern : configuration.getMappingsUrls()) {
                     try {
                         URI url = URI.create(String.format(url_pattern, hash));
             
