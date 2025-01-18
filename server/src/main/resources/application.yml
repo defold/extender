@@ -16,8 +16,8 @@ extender:
         mappings-urls: >
             http://d.defold.com/archive/stable/%s/engine/platform.sdks.json,
             http://d.defold.com/archive/%s/engine/platform.sdks.json
-        max-verification-retry-count: 6
-        enable-sdk-verification: false
+        max-verification-retry-count: 3
+        enable-sdk-verification: true
     server:
         http:
             idle-timeout: 600000

@@ -163,35 +163,40 @@ public class DefoldSdkService {
 
                         // Connect and copy to file
                         try (ClientHttpResponse response = request.execute()) {
-                            LOGGER.info("Download checksum for sdk {}", hash);
-                            URI checksumURI = URI.create(url.replace(".zip", ".sha256"));
-                            ClientHttpRequest checksumRequest = clientHttpRequestFactory.createRequest(checksumURI, HttpMethod.GET);
-                            String expectedChecksum = null;
-                            try (ClientHttpResponse checksumResponse = checksumRequest.execute()) {
-                                if (checksumResponse.getStatusCode() == HttpStatus.OK) {
-                                    expectedChecksum = new String(checksumResponse.getBody().readAllBytes(), StandardCharsets.UTF_8);
-                                }
-                            } catch (IOException exc) {
-                                LOGGER.warn(String.format("Can't doenload checksum for sdk %s", hash), exc);
-                            }
-
                             InputStream body = response.getBody();
                             File tmpResponseBody = File.createTempFile(hash, ".zip.tmp");
                             Files.copy(body, tmpResponseBody.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                            boolean isChecksumValid = true;
-                            if (expectedChecksum != null) {
-                                LOGGER.info("Verify checksum for downloaded sdk {}", hash);
-                                try {
-                                    String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody), 1024 * 1024 * 10);
-                                    isChecksumValid = expectedChecksum.equals(actualChecksum);
-                                    LOGGER.info("Checksum verification result {}", isChecksumValid);
-                                } catch(NoSuchAlgorithmException|IOException exc) {
-                                    LOGGER.warn(String.format("Error during checksum calculation"), exc);
+
+                            if (this.configuration.isEnableSdkVerification()) {
+                                LOGGER.info("Download checksum for sdk {}", hash);
+                                URI checksumURI = URI.create(url.replace(".zip", ".sha256"));
+                                ClientHttpRequest checksumRequest = clientHttpRequestFactory.createRequest(checksumURI, HttpMethod.GET);
+                                String expectedChecksum = null;
+                                try (ClientHttpResponse checksumResponse = checksumRequest.execute()) {
+                                    if (checksumResponse.getStatusCode() == HttpStatus.OK) {
+                                        expectedChecksum = new String(checksumResponse.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                                    }
+                                } catch (IOException exc) {
+                                    LOGGER.warn(String.format("Can't download checksum for sdk %s", hash), exc);
                                 }
-                            }
-                            if (!isChecksumValid) {
-                                ++attempt;
-                                continue;
+
+                                boolean isChecksumValid = true;
+                                if (expectedChecksum != null) {
+                                    LOGGER.info("Verify checksum for downloaded sdk {}", hash);
+                                    try {
+                                        String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody), 1024 * 1024 * 10);
+                                        isChecksumValid = expectedChecksum.equals(actualChecksum);
+                                        LOGGER.info("Checksum verification result {}", isChecksumValid);
+                                    } catch(NoSuchAlgorithmException|IOException exc) {
+                                        LOGGER.warn(String.format("Error during checksum calculation"), exc);
+                                    }
+                                }
+                                if (!isChecksumValid) {
+                                    ++attempt;
+                                    continue;
+                                }
+                            } else {
+                                LOGGER.info("Sdk checksum verification is disabled");
                             }
                             Path tempDirectoryPath = Files.createTempDirectory(configuration.getLocation(), "tmp" + hash);
                             File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()

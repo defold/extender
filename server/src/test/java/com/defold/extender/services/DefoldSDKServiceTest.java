@@ -2,6 +2,9 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.services.data.DefoldSdk;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
@@ -25,17 +28,23 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+
 public class DefoldSDKServiceTest {
     private static DefoldSdkServiceConfiguration configuration;
     private static DefoldSdkServiceConfiguration zeroCacheConfiguration;
     private static DefoldSdkServiceConfiguration otherLocationConfiguration;
 
+    private static WireMockServer mockServer;
+    private static int serverPort = 8090;
+    private static Path tmpHTTPRoot = Path.of("/tmp/__defoldsdk_http");
 
     @BeforeAll
     public static void beforeAll() throws IOException {
@@ -46,6 +55,8 @@ public class DefoldSDKServiceTest {
             .cacheSize(3)
             .mappingsCacheSize(3)
             .cacheClearOnExit(true)
+            .enableSdkVerification(false)
+            .maxVerificationRetryCount(3)
             .build();
 
         DefoldSDKServiceTest.zeroCacheConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.configuration.toBuilder());
@@ -56,12 +67,58 @@ public class DefoldSDKServiceTest {
         DefoldSDKServiceTest.otherLocationConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.zeroCacheConfiguration.toBuilder());
         DefoldSDKServiceTest.otherLocationConfiguration.setLocation(Path.of("/tmp/defoldsdk_test"));
         Files.createDirectories(DefoldSDKServiceTest.otherLocationConfiguration.getLocation());
+
+        // prepare content for serving
+        Files.createDirectories(tmpHTTPRoot);
+        FileUtils.copyDirectory(new File("test-data/checksum_sdk/"), new File(tmpHTTPRoot.toFile(), "__files"), File::isFile);
+
+        // Configure WireMock to respond with the contents of a local file
+        DefoldSDKServiceTest.mockServer = new WireMockServer(WireMockConfiguration.options()
+            .port(serverPort)
+            .withRootDirectory(tmpHTTPRoot.toString())
+        );
+        DefoldSDKServiceTest.mockServer.start();
+        WireMock.configureFor("localhost", serverPort);
+
+        stubFor(head(urlEqualTo("/test_sdk.zip"))
+                .willReturn(aResponse()
+                        .withStatus(200)));
+        stubFor(get(urlEqualTo("/test_sdk.zip"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBodyFile("test_sdk.zip")
+                        .withHeader("Content-Type", "application/zip")));
+        stubFor(get(urlEqualTo("/test_sdk.sha256"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBodyFile("test_sdk.sha256")
+                        .withHeader("Content-Type", "text/plain")));
+        // stub for invalid checksums
+        stubFor(head(urlEqualTo("/test_sdk_invalid.zip"))
+                .willReturn(aResponse()
+                        .withStatus(200)));
+        stubFor(get(urlEqualTo("/test_sdk_invalid.zip"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBodyFile("test_sdk.zip")
+                        .withHeader("Content-Type", "application/zip")));
+        stubFor(get(urlEqualTo("/test_sdk_invalid.sha256"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBodyFile("test_sdk_invalid.sha256")
+                        .withHeader("Content-Type", "text/plain")));
+
     }
 
     @AfterAll
     public static void afterAll() throws IOException {
         FileUtils.deleteDirectory(DefoldSDKServiceTest.configuration.getLocation().toFile());
         FileUtils.deleteDirectory(DefoldSDKServiceTest.otherLocationConfiguration.getLocation().toFile());
+
+        if (DefoldSDKServiceTest.mockServer != null) {
+            DefoldSDKServiceTest.mockServer.stop();
+        }
+        FileUtils.deleteDirectory(tmpHTTPRoot.toFile());
     }
 
     @Test
@@ -241,5 +298,47 @@ public class DefoldSDKServiceTest {
         for (Map.Entry<String, JSONObject> entry : defoldSdkService.mappingsCache.entrySet()) {
             assertNotNull(entry.getValue());
         }
+    }
+
+    @Test
+    public void testChecksumVerification() throws IOException {
+        DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
+            .location(Path.of("/tmp/defoldsdk"))
+            .cacheSize(1)
+            .sdkUrls(new String[] {"http://localhost:8090/%s.zip"})
+            .enableSdkVerification(true)
+            .maxVerificationRetryCount(3)
+            .build();
+        DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
+        assertDoesNotThrow(() -> sdkService.getSdk("test_sdk"));
+    }
+
+    @Test
+    public void testInvalidVerification() throws IOException {
+        DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
+            .location(Path.of("/tmp/defoldsdk"))
+            .cacheSize(0)
+            .sdkUrls(new String[] {"http://localhost:8090/%s.zip"})
+            .enableSdkVerification(false)
+            .maxVerificationRetryCount(3)
+            .build();
+        DefoldSdkService sdkService = new DefoldSdkService(disabledVerificationConf, new SimpleMeterRegistry());
+        assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
+
+        DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
+            .location(Path.of("/tmp/defoldsdk"))
+            .cacheSize(0)
+            .sdkUrls(new String[] {"http://localhost:8090/%s.zip"})
+            .enableSdkVerification(true)
+            .maxVerificationRetryCount(3)
+            .build();
+        DefoldSdkService sdkService1 = new DefoldSdkService(enabledVerificationConf, new SimpleMeterRegistry());
+        // no exception because sdk folder already exists
+        assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
+        // force remove cache
+        sdkService1.evictCache();
+
+        ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid"));
+        assertTrue(exc.getMessage().contains("Sdk verification failed"));
     }
 }
