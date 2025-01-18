@@ -161,10 +161,11 @@ public class DefoldSdkService {
                             break;
                         }
 
+                        File tmpResponseBody = null;
                         // Connect and copy to file
                         try (ClientHttpResponse response = request.execute()) {
                             InputStream body = response.getBody();
-                            File tmpResponseBody = File.createTempFile(hash, ".zip.tmp");
+                            tmpResponseBody = File.createTempFile(hash, ".zip.tmp");
                             Files.copy(body, tmpResponseBody.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
                             if (this.configuration.isEnableSdkVerification()) {
@@ -209,6 +210,10 @@ public class DefoldSdkService {
                             break;
                         } catch (IOException exc) {
                             LOGGER.error("Error downloading defoldsdk", exc);
+                        } finally {
+                            if (tmpResponseBody != null && tmpResponseBody.exists()) {
+                                tmpResponseBody.delete();
+                            }
                         }
                     }
                 } else {
