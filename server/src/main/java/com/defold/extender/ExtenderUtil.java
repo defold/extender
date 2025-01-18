@@ -869,7 +869,7 @@ public class ExtenderUtil
             && !entryName.endsWith("pom.properties");
     }
 
-    public static String calculateSHA256(InputStream input, int blockSize) throws NoSuchAlgorithmException, IOException {
+    public static String calculateSHA256(InputStream input) throws NoSuchAlgorithmException, IOException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] byteArray = new byte[1024];
         int bytesCount;

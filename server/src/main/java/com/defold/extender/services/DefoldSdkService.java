@@ -184,7 +184,7 @@ public class DefoldSdkService {
                                 if (expectedChecksum != null) {
                                     LOGGER.info("Verify checksum for downloaded sdk {}", hash);
                                     try {
-                                        String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody), 1024 * 1024 * 10);
+                                        String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody));
                                         isChecksumValid = expectedChecksum.equals(actualChecksum);
                                         LOGGER.info("Checksum verification result {}", isChecksumValid);
                                     } catch(NoSuchAlgorithmException|IOException exc) {
