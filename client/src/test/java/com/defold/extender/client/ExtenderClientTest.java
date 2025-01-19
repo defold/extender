@@ -440,7 +440,7 @@ public class ExtenderClientTest extends Mockito {
         field.set(extenderClient, httpClient);
 
         assertThrows(ExtenderClientException.class, () -> {
-            extenderClient.build("js-web", "aaaaaaaa", inputFiles, targetDir, log, true);
+            extenderClient.build("js-web", "aaaaaaaa", inputFiles, targetDir, log);
         });
         
     }

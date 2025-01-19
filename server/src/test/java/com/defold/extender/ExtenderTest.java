@@ -12,7 +12,6 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import org.yaml.snakeyaml.Yaml;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
