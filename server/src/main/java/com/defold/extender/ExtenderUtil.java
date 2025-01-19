@@ -196,7 +196,7 @@ public class ExtenderUtil
             }
         }
     }
-    @SuppressWarnings("unchecked")
+
     public static void debugPrintObject(String name, Object obj) throws ExtenderException {
         debugPrintObject(name, obj, 0);
     }

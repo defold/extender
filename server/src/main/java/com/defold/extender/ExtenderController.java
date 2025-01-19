@@ -7,11 +7,8 @@ import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
-import com.defold.extender.services.GradleService;
 import com.defold.extender.services.HealthReporterService;
-import com.defold.extender.services.CocoaPodsService;
 import com.defold.extender.services.UserUpdateService;
-import com.defold.extender.services.data.DefoldSdk;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.fileupload2.core.FileUploadException;
@@ -45,7 +42,6 @@ import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -63,8 +59,6 @@ public class ExtenderController {
 
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
-    private final GradleService gradleService;
-    private final CocoaPodsService cocoaPodsService;
     private final MeterRegistry meterRegistry;
     private final UserUpdateService userUpdateService;
     private final AsyncBuilder asyncBuilder;
@@ -101,8 +95,6 @@ public class ExtenderController {
 
     public ExtenderController(DefoldSdkService defoldSdkService,
                               DataCacheService dataCacheService,
-                              GradleService gradleService,
-                              CocoaPodsService cocoaPodsService,
                               UserUpdateService userUpdateService,
                               MeterRegistry meterRegistry,
                               AsyncBuilder asyncBuilder,
@@ -114,8 +106,6 @@ public class ExtenderController {
                               @Value("${extender.job-result.location}") String jobResultLocation) {
         this.defoldSdkService = defoldSdkService;
         this.dataCacheService = dataCacheService;
-        this.gradleService = gradleService;
-        this.cocoaPodsService = cocoaPodsService;
         this.meterRegistry = meterRegistry;
         this.userUpdateService = userUpdateService;
         this.healthReporter = healthReporter;
@@ -152,159 +142,6 @@ public class ExtenderController {
     @GetMapping("/")
     public String index() {
         return String.format("Extender<br>%s<br>%s", Version.gitVersion, Version.buildTime);
-    }
-
-    @PostMapping(value = "/build/{platform}")
-    public void buildEngineLocal(HttpServletRequest request, HttpServletResponse response,
-                                 @PathVariable("platform") String platform)
-            throws URISyntaxException, IOException, ExtenderException, ParseException {
-
-        if (defoldSdkService.isLocalSdkSupported()) {
-            buildEngine(request, response, platform, null);
-            return;
-        }
-
-        throw new ExtenderException("No SDK version specified.");
-    }
-
-    @PostMapping(value = "/build/{platform}/{sdkVersion}")
-    public void buildEngine(HttpServletRequest _request,
-                            HttpServletResponse response,
-                            @PathVariable("platform") String platform,
-                            @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, URISyntaxException, ParseException {
-
-        boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
-        if (!isMultipart) {
-            throw new ExtenderException("The request must be a multi part request");
-        }
-
-        MultipartHttpServletRequest request = (MultipartHttpServletRequest)_request;
-
-        this.userUpdateService.update();
-
-        File jobDirectory;
-        if (DM_DEBUG_JOB_FOLDER != null) {
-            jobDirectory = new File(DM_DEBUG_JOB_FOLDER);
-            if (!jobDirectory.isDirectory()) {
-                throw new ExtenderException("The DM_DEBUG_JOB_FOLDER must be a directory: " + DM_DEBUG_JOB_FOLDER);
-            }
-            LOGGER.info("Setting DM_DEBUG_JOB_FOLDER to {}", DM_DEBUG_JOB_FOLDER);
-        } else {
-            jobDirectory = Files.createTempDirectory("job").toFile();
-        }
-
-        Thread.currentThread().setName(jobDirectory.getName());
-        Boolean isSuccessfull = true;
-
-
-        LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
-
-        File uploadDirectory = new File(jobDirectory, "upload");
-        uploadDirectory.mkdir();
-        File buildDirectory = new File(jobDirectory, "build");
-        buildDirectory.mkdir();
-
-        final MetricsWriter metricsWriter = new MetricsWriter(meterRegistry);
-        final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
-
-        try {
-            // Get files uploaded by the client
-            receiveUpload(request, uploadDirectory);
-            metricsWriter.measureReceivedRequest(request);
-
-            // Get cached files from the cache service
-            DataCacheService.DataCacheServiceInfo totalCacheDownloadInfo = dataCacheService.getCachedFiles(uploadDirectory);
-            metricsWriter.measureCacheDownload(totalCacheDownloadInfo.cachedFileSize.longValue(), totalCacheDownloadInfo.cachedFileCount.intValue());
-
-            String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
-            // Build engine locally or on remote builder
-            if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
-                LOGGER.info("Building engine on remote builder");
-                RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.build(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, response.getOutputStream());
-                metricsWriter.measureRemoteEngineBuild(platform);
-            } else {
-                LOGGER.info("Building engine locally");
-
-                // Get SDK
-                try (DefoldSdk sdk = defoldSdkService.getSdk(sdkVersion)) {
-                    metricsWriter.measureSdkDownload(sdkVersion);
-
-                    Extender extender = new Extender.Builder()
-                        .setPlatform(platform)
-                        .setSdk(sdk.toFile())
-                        .setJobDirectory(jobDirectory)
-                        .setUploadDirectory(uploadDirectory)
-                        .setBuildDirectory(buildDirectory)
-                        .setMetricsWriter(metricsWriter)
-                        .build();
-
-                    // Resolve Gradle dependencies
-                    if (platform.contains("android")) {
-                        extender.resolve(gradleService);
-                        metricsWriter.measureGradleDownload();
-                    }
-
-                    // Resolve CocoaPods dependencies
-                    if (platform.contains("ios") || platform.contains("osx")) {
-                        extender.resolve(cocoaPodsService);
-                        metricsWriter.measureCocoaPodsInstallation();
-                    }
-
-                    // Build engine
-                    List<File> outputFiles = extender.build();
-                    metricsWriter.measureEngineBuild(platform);
-
-                    // Zip files
-                    String zipFilename = jobDirectory.getAbsolutePath() + "/build.zip";
-                    File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
-                    metricsWriter.measureZipFiles(zipFile);
-
-                    // Write zip file to response
-                    FileUtils.copyFile(zipFile, response.getOutputStream());
-                }
-            }
-
-            response.flushBuffer();
-            response.getOutputStream().close(); // No need for the user to wait for our upload to the cache
-            metricsWriter.measureSentResponse();
-
-        } catch(EofException e) {
-            isSuccessfull = false;
-            throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
-        } catch(FileUploadException e) {
-            isSuccessfull = false;
-            throw new ExtenderException(e, "Bad request: " + e.getMessage());
-        } catch(Exception e) {
-            isSuccessfull = false;
-            LOGGER.error("Exception while building or sending response - SDK: " + sdkVersion);
-            throw e;
-        } finally {
-            // Regardless of success/fail status, we want to cache the uploaded files
-            DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
-            metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
-            metricsWriter.measureCounterBuild(platform, sdkVersionString, "sync", isSuccessfull);
-
-            boolean deleteDirectory = true;
-            if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
-                deleteDirectory = false;
-            }
-            if (DM_DEBUG_JOB_FOLDER != null) {
-                deleteDirectory = false;
-            }
-            // Delete temporary upload directory
-            if (deleteDirectory) {
-                if (!FileUtils.deleteQuietly(jobDirectory)) {
-                    LOGGER.warn("Failed to delete job directory");
-                }
-            }
-            else {
-                LOGGER.info("Keeping job folder due to debug flags");
-            }
-
-            LOGGER.info("Job done");
-        }
     }
 
     @PostMapping(value = "/build_async/{platform}/{sdkVersion}")
