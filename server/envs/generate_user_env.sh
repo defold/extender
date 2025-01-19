@@ -32,7 +32,7 @@ OUTPUT_FILE=$ENV_DIR/user.env
 if [[ -z $1 ]]; then
     echo "Load macos environment..."
     source ${ENV_DIR}/macos.env
-    APPENDED_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_15_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
+    APPENDED_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_16_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 else
     echo "Load $1 environment..."
     source ${ENV_DIR}/$1.env
