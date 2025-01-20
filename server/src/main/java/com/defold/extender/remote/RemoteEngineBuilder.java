@@ -1,7 +1,6 @@
 package com.defold.extender.remote;
 
 import com.defold.extender.BuilderConstants;
-import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.GCPInstanceService;
 import com.defold.extender.tracing.ExtenderTracerInterceptor;
@@ -33,7 +32,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.File;
@@ -44,7 +42,6 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 
 @Service
 public class RemoteEngineBuilder {
@@ -56,7 +53,7 @@ public class RemoteEngineBuilder {
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
     private boolean keepJobDirectory = false;
-    private final HttpClient httpClient;
+    protected final HttpClient httpClient;
 
     public RemoteEngineBuilder(Optional<GCPInstanceService> instanceService,
                             @Value("${extender.job-result.location}") String jobResultLocation,
@@ -73,53 +70,6 @@ public class RemoteEngineBuilder {
             .create()
             .addInterceptorLast(new ExtenderTracerInterceptor(tracer, propogator))
             .build();
-    }
-
-    private String getErrorString(HttpResponse response) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        response.getEntity().writeTo(bos);
-        final byte[] bytes = bos.toByteArray();
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
-
-    public void build(final RemoteInstanceConfig remoteInstanceConfig,
-                        final File projectDirectory,
-                        final String platform,
-                        final String sdkVersion,
-                        final OutputStream out) throws ExtenderException {
-
-        LOGGER.info("Building engine remotely at {}", remoteInstanceConfig.getUrl());
-
-        final HttpEntity httpEntity;
-
-        try {
-            httpEntity = buildHttpEntity(projectDirectory);
-        } catch(IllegalStateException|IOException e) {
-            throw new RemoteBuildException("Failed to add files to multipart request", e);
-        }
-
-
-        try {
-            touchInstance(remoteInstanceConfig.getInstanceId());
-            final HttpResponse response = sendRequest(remoteInstanceConfig.getUrl(), platform, sdkVersion, httpEntity);
-
-            touchInstance(remoteInstanceConfig.getInstanceId());
-            LOGGER.info("Remote builder response status: {}", response.getStatusLine());
-
-            if (isClientError(response)) {
-                String error = getErrorString(response);
-                LOGGER.error(Markers.COMPILATION_ERROR, "Client error when building engine remotely:\n{}", error);
-                throw new ExtenderException("Client error when building engine remotely: " + error);
-            } else if (isServerError(response)) {
-                String error = getErrorString(response);
-                LOGGER.error(Markers.SERVER_ERROR, "Server error when building engine remotely:\n{}", error);
-                throw new RemoteBuildException("Server error when building engine remotely: " + getStatusReason(response) + ": " + error);
-            } else {
-                response.getEntity().writeTo(out);
-            }
-        } catch (IOException e) {
-            throw new RemoteBuildException("Failed to communicate with remote builder", e);
-        }
     }
 
     @Async(value="extenderTaskExecutor")
@@ -226,14 +176,6 @@ public class RemoteEngineBuilder {
         }
     }
 
-    HttpResponse sendRequest(final String remoteBuilderUrl, String platform, String sdkVersion, HttpEntity httpEntity) throws IOException {
-        final String serverUrl = String.format("%s/build/%s/%s", remoteBuilderUrl, platform, sdkVersion);
-        final HttpPost request = new HttpPost(serverUrl);
-        request.setEntity(httpEntity);
-
-        return httpClient.execute(request);
-    }
-
     HttpEntity buildHttpEntity(final File projectDirectory) throws IOException {
         final MultipartEntityBuilder builder = MultipartEntityBuilder.create()
                 .setContentType(ContentType.MULTIPART_FORM_DATA);
@@ -247,20 +189,6 @@ public class RemoteEngineBuilder {
                 });
 
         return builder.build();
-    }
-
-    private boolean isClientError(final HttpResponse response) {
-        final int statusCode = response.getStatusLine().getStatusCode();
-        return HttpStatus.SC_BAD_REQUEST <= statusCode && statusCode < HttpStatus.SC_INTERNAL_SERVER_ERROR;
-    }
-
-    private boolean isServerError(final HttpResponse response) {
-        final int statusCode = response.getStatusLine().getStatusCode();
-        return statusCode >= HttpStatus.SC_INTERNAL_SERVER_ERROR;
-    }
-
-    private String getStatusReason(final HttpResponse response) {
-        return response.getStatusLine().getReasonPhrase();
     }
 
     private void touchInstance(String instanceId) {

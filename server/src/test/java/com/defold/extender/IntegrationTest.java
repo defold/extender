@@ -88,17 +88,15 @@ public class IntegrationTest {
     private static class TestConfiguration {
         public DefoldVersion version;
         public String platform = "";
-        public boolean async = false;
 
-        public TestConfiguration(DefoldVersion version, String platform, boolean async) {
+        public TestConfiguration(DefoldVersion version, String platform) {
             this.version = version;
             this.platform = platform;
-            this.async = async;
         }
 
         @Override
         public String toString() {
-            return String.format("%s sha1(%s) %s async: %b", version.version.toString(), version.sha1, platform, async);
+            return String.format("%s sha1(%s) %s", version.version.toString(), version.sha1, platform);
         }
     }
 
@@ -142,8 +140,7 @@ public class IntegrationTest {
         for( int i = 0; i < versions.length; ++i )
         {
             for (String platform : versions[i].platforms) {
-                data.add(new TestConfiguration(versions[i], platform, false));
-                data.add(new TestConfiguration(versions[i], platform, true));
+                data.add(new TestConfiguration(versions[i], platform));
             }
         }
 
@@ -236,7 +233,6 @@ public class IntegrationTest {
 
         String platform = configuration.platform;
         String sdkVersion = configuration.version.sha1;
-        boolean isAsync = configuration.async;
 
         try {
             extenderClient.build(
@@ -244,8 +240,7 @@ public class IntegrationTest {
                     sdkVersion,
                     sourceFiles,
                     destination,
-                    log,
-                    isAsync
+                    log
             );
         } catch (ExtenderClientException e) {
             System.out.println("ERROR LOG:");

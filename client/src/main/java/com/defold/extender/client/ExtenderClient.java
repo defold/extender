@@ -287,32 +287,6 @@ public class ExtenderClient {
 
     }
 
-    private void build_sync(String platform, String sdkVersion, HttpEntity entity, File destination, File log) throws ExtenderClientException {
-        try {
-            String url = String.format("%s/build/%s/%s", extenderBaseUrl, platform, sdkVersion);
-            HttpPost request = new HttpPost(url);
-            request.setEntity(entity);
-
-            addAuthorizationHeader(request);
-            addHeaders(request);
-
-            HttpResponse response = httpClient.execute(request);
-
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                response.getEntity().writeTo(new FileOutputStream(destination));
-            } else {
-                String traceId = response.getFirstHeader(TRACE_ID_HEADER_NAME).getValue();
-                OutputStream os = new FileOutputStream(log);
-                os.write(String.format("TraceId: %s", traceId == null ? "null" : traceId).getBytes());
-                response.getEntity().writeTo(os);
-                os.close();
-                throw new ExtenderClientException(String.format("Failed to build source (traceId %s).", traceId == null ? "null" : traceId));
-            }
-        } catch (Exception e) {
-            throw new ExtenderClientException("Failed to communicate with Extender service.", e);
-        }
-    }
-
     /**
      * Builds a new engine given a platform and an sdk version plus source files.
      * The result is a .zip file
@@ -325,22 +299,6 @@ public class ExtenderClient {
      * @throws ExtenderClientException
      */
     public void build(String platform, String sdkVersion, List<ExtenderResource> sourceResources, File destination, File log) throws ExtenderClientException {
-        build(platform, sdkVersion, sourceResources, destination, log, false);
-    }
-
-    /**
-     * Builds a new engine given a platform and an sdk version plus source files.
-     * The result is a .zip file
-     *
-     * @param platform        E.g. "arm64-ios", "armv7-android", "x86_64-osx"
-     * @param sdkVersion      Sha1 of defold version
-     * @param sourceResources List of resources that should be build on server (.cpp, .a, etc)
-     * @param destination     The output where the returned zip file is copied
-     * @param log             A log file
-     * @param async           True if build should be async and polling
-     * @throws ExtenderClientException
-     */
-    public void build(String platform, String sdkVersion, List<ExtenderResource> sourceResources, File destination, File log, boolean async) throws ExtenderClientException {
         String cacheKey = cache.calcKey(platform, sdkVersion, sourceResources);
         boolean isCached = cache.isCached(platform, cacheKey);
         if (isCached) {
@@ -377,12 +335,7 @@ public class ExtenderClient {
             entityBuilder.addPart(s.getPath(), bin);
         }
 
-        if (async) {
-            build_async(platform, sdkVersion, entityBuilder.build(), destination, log);
-        }
-        else {
-            build_sync(platform, sdkVersion, entityBuilder.build(), destination, log);
-        }
+        build_async(platform, sdkVersion, entityBuilder.build(), destination, log);
 
         // Store the new build
         cache.put(platform, cacheKey, destination);
