@@ -89,7 +89,7 @@ jobs:
     - name: Build and push
       env:
         DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
-      uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355
+      uses: docker/build-push-action@67a2d409c0a876cbe6b11854e3e25193efe4e62d
       with:
         context: ${{ github.workspace }}/server/docker/
         file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
