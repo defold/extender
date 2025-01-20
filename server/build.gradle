@@ -69,7 +69,7 @@ dependencies {
     implementation('io.micrometer:micrometer-tracing:1.4.1')
     implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.1')
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
-    runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.0')
+    runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.3')
     runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.14.2') {
         exclude group: 'org.junit.jupiter'
     }
