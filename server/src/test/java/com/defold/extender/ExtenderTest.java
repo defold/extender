@@ -19,7 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -33,26 +35,32 @@ import java.util.Map;
 
 public class ExtenderTest {
 
+    static Map<String, String> envFileToMap(File inputFile) {
+        Map<String, String> result = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(inputFile))) {
+            String line = reader.readLine();
+            while (line != null) {
+                String[] splitted = line.split("=");
+                result.put(splitted[0], splitted[1]);
+                line = reader.readLine();
+            }
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
     static Map<String, String> createEnv()
     {
         Map<String, String> env = new HashMap<>();
+        env.putAll(envFileToMap(new File("envs/.env")));
+        env.putAll(envFileToMap(new File("envs/macos.env")));
 
-        // TODO: Read these from the Dockerfile itself
         env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
         env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
-        env.put("XCODE_15_VERSION", "15.4");
-        env.put("XCODE_16_VERSION", "16.2");
-        env.put("XCODE_15_CLANG_VERSION", "15.0.0");
-        env.put("XCODE_16_CLANG_VERSION", "16.0.0");
-        env.put("IOS_17_VERSION", "17.5");
-        env.put("IOS_18_VERSION", "18.2");
-        env.put("LIB_TAPI_1_6_PATH", "/usr/local/tapi1.6/lib");
-        env.put("MACOS_14_VERSION", "14.5");
-        env.put("MACOS_15_VERSION", "15.2");
-        env.put("MACOS_VERSION_MIN", "10.13");
-        env.put("SWIFT_5_5_VERSION", "5.5");
-        env.put("SYSROOT", "/opt/platformsdk/MacOSX13.1.sdk");
-        env.put("LD_LIBRARY_PATH", "/usr/local/tapi1.6/lib");
+        env.put("ZIG_PATH_0_11", "/opt/platformsdk/zig-0.11.0");
 
         return env;
     }
@@ -247,11 +255,12 @@ public class ExtenderTest {
 
     @Test
     public void testCollectJars() {
-        List<String> paths = ExtenderUtil.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
-        assertEquals(4, paths.size());
-
         String[] endings = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar",
-                            "test-data/ext/lib/armv7-android/VeryLarge1.jar", "test-data/ext/lib/armv7-android/VeryLarge2.jar"};
+                            "test-data/ext/lib/armv7-android/VeryLarge1.jar", "test-data/ext/lib/armv7-android/VeryLarge2.jar",
+                            "test-data/ext/lib/armv7-android/meta-inf.jar"};
+        List<String> paths = ExtenderUtil.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
+        assertEquals(endings.length, paths.size());
+
 
         for (String p : endings) {
             boolean exists = false;
@@ -391,8 +400,7 @@ public class ExtenderTest {
         Map<String, Object> mergedAppContext = extender.getMergedAppContext();
 
         List<String> libsOriginal = Arrays.asList("engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null");
-        List<String> libsExpected = Arrays.asList("engine_release", "engine_service_null", "remotery_null", "record_null");
-
+        List<String> libsExpected = Arrays.asList("clang_rt.osx", "engine_release", "engine_service_null", "remotery_null", "record_null");
         assertEquals(libsExpected, mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
 
         Map<String, Object> extensionContext = extender.getMergedExtensionContext("Extension1");
