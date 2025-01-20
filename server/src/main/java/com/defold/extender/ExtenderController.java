@@ -33,6 +33,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.NotSupportedException;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -46,9 +47,14 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 @RestController
 public class ExtenderController {
+    public enum InstanceType {
+        MIXED,
+        FRONTEND_ONLY,
+        BUILDER_ONLY
+    };
+
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
 
     private static final String LATEST = "latest";
@@ -65,6 +71,8 @@ public class ExtenderController {
 
     private final RemoteEngineBuilder remoteEngineBuilder;
     private Map<String, RemoteInstanceConfig> remoteBuilderPlatformMappings;
+    @Value("${extender.instance-type:MIXED}")
+    private InstanceType instanceType;
     private final boolean remoteBuilderEnabled;
 
     private static long maxPackageSize = 1024*1024*1024;
@@ -198,17 +206,29 @@ public class ExtenderController {
             // Regardless of success/fail status, we want to cache the uploaded files
             DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
-            
-            String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
-            // Build engine locally or on remote builder
-            if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
-                LOGGER.info("Building engine on remote builder");
-                RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
-            } else {
-                asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
-            }
 
+            if (instanceType.equals(InstanceType.BUILDER_ONLY)) {
+                asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
+            } else {
+                String[] buildEnvDescription = null;
+                try {
+                    buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
+                } catch(ExtenderException exc) {
+                    if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
+                        throw new NotSupportedException("Engine version unsupported. Please, update engine to the newer version.");
+                    }
+                }
+                // Build engine locally or on remote builder
+                if (remoteBuilderEnabled && buildEnvDescription != null && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
+                    LOGGER.info("Building engine on remote builder");
+                    RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
+                    this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
+                } else if (instanceType.equals(InstanceType.MIXED)) {
+                    asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
+                } else {
+                    throw new NotSupportedException("Engine version unsupported. Please, update engine to the newer version.");
+                }
+            }
             response.getWriter().write(jobDirectory.getName());
             response.getWriter().flush();
             response.getWriter().close();
@@ -218,6 +238,9 @@ public class ExtenderController {
             throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
             throw new ExtenderException(e, "Bad request: " + e.getMessage());
+        } catch(NotSupportedException e) {
+            LOGGER.error("Unsupported engine version {}", sdkVersionString);
+            throw new ExtenderException("Unsupported engine version. Please, update engine to the newer version");
         } catch(Exception e) {
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion));
             throw e;

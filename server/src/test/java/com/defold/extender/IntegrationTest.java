@@ -9,6 +9,7 @@ import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
@@ -567,5 +568,20 @@ public class IntegrationTest {
             assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "dynamic_specific1")));
             assertNotNull(zipFile.getEntry(getDynamicLibName(configuration.platform, "dynamic_specific2")));
         }
+    }
+
+    @Test
+    public void testUnsupportedVersion() throws IOException, ExtenderClientException {
+        TestConfiguration configuration = new TestConfiguration(new DefoldVersion("non-exist", new Version(2, 10, 1), new String[]{ "x86_64-linux" }) , "x86_64-linux");
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+            new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+            new FileExtenderResource("test-data/ext2/ext.manifest"),
+            new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
+            new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
+            new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "blib")))
+        );
+
+        ExtenderClientException exc = assertThrows(ExtenderClientException.class, () -> doBuild(sourceFiles, configuration));
+        assertTrue(exc.getMessage().contains("Unsupported engine version"));
     }
 }

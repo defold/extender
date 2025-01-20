@@ -1,4 +1,5 @@
 extender:
+    instance-type: FRONTEND_ONLY
     remote-builder:
         enabled: true
         platforms:
