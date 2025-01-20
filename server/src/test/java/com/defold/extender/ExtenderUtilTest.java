@@ -8,11 +8,17 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -281,5 +287,14 @@ public class ExtenderUtilTest {
 
         assertEquals("valueA", config.context.getOrDefault("a", "invalid"));
         assertEquals(Arrays.asList("B", "b"), config.context.getOrDefault("b", "invalid"));
+    }
+
+    @Test
+    public void testSHA256Checksum() throws NoSuchAlgorithmException, FileNotFoundException, IOException {
+        String calculatedSha = ExtenderUtil.calculateSHA256(new FileInputStream("test-data/checksum_sdk/test_sdk.zip"));
+        String expectedSha = new String(Files.readAllBytes(Path.of("test-data/checksum_sdk/test_sdk.sha256")), StandardCharsets.UTF_8);
+        assertEquals(expectedSha, calculatedSha);
+
+        assertThrows(FileNotFoundException.class, () -> ExtenderUtil.calculateSHA256(new FileInputStream("test-data/checksum_sdk/non-exist.zip")));
     }
 }

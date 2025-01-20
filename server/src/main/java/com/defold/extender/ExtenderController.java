@@ -39,7 +39,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Map;
@@ -149,7 +148,7 @@ public class ExtenderController {
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, URISyntaxException, ParseException {
+            throws ExtenderException, IOException, ParseException {
 
         boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {

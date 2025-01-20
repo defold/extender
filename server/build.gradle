@@ -68,6 +68,9 @@ dependencies {
     implementation('io.micrometer:micrometer-core:1.14.2')
     implementation('io.micrometer:micrometer-tracing:1.4.2')
     implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.2')
+
+    implementation('org.projectlombok:lombok:1.18.36')
+
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
     runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.3')
     runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.14.2') {
@@ -90,6 +93,7 @@ dependencies {
 
     testImplementation('org.smali:dexlib2:2.5.2')
     testImplementation project(':client')
+    testImplementation('org.wiremock:wiremock-standalone:3.10.0')
 }
 
 task createVersionFile() {
