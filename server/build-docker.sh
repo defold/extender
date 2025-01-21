@@ -3,24 +3,26 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${0}")"; pwd)"
 
-DOCKER_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-public-registry
-DOCKER_PS4_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry
-DOCKER_PS5_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry
-DOCKER_NINTENDO_PRIVATE_REGISTRY=europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry
+REGISTRY_REGION=europe-west1-docker.pkg.dev
+GCP_PROJECT=extender-426409
+REGISTRY_PREFIX=$REGISTRY_REGION/$GCP_PROJECT
+
+DOCKER_REGISTRY=$REGISTRY_PREFIX/extender-public-registry
+DOCKER_PS4_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-ps4-private-registry
+DOCKER_PS5_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-ps5-private-registry
+DOCKER_NINTENDO_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-nintendo-private-registry
 
 # base images
 echo "Base image"
 DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-base-env:1.3.1 -t $DOCKER_REGISTRY/extender-base-env:latest -f $SCRIPT_DIR/docker/Dockerfile.base-env $SCRIPT_DIR/docker
-echo "Linux image"
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-linux-env:latest -f $SCRIPT_DIR/docker/Dockerfile.linux-env $SCRIPT_DIR/docker
 
 REQUESTED="$@"
-[ -z "$REQUESTED" ] && REQUESTED="android windows web ps4 ps5 nintendo"
+[ -z "$REQUESTED" ] && REQUESTED="android windows web ps4 ps5 nintendo linux"
 for request in $REQUESTED; do
     INSTALL=""
     case $request in
         web)
-            INSTALL="wine emsdk-2011 emsdk-3155 emsdk-3165"
+            INSTALL="emsdk-2011 emsdk-3155 emsdk-3165"
             ;;
         ps4)
             INSTALL="wine ps4-10500 ps4-11000 ps4-12000"
@@ -39,6 +41,9 @@ for request in $REQUESTED; do
             ;;
         windows)
             INSTALL="wine winsdk-2019 winsdk-2022"
+            ;;
+        linux)
+            INSTALL="linux"
             ;;
         *)
             INSTALL="$request"
@@ -64,6 +69,9 @@ for request in $REQUESTED; do
             ;;
         android-ndk*|winsdk-*|emsdk-*)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
+            ;;
+        linux)
+            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-linux-env:latest -f $SCRIPT_DIR/docker/Dockerfile.linux-env $SCRIPT_DIR/docker
             ;;
         *)
             echo "Unknown"
