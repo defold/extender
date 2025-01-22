@@ -6,8 +6,8 @@ FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extend
 # Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
 # Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
 ENV GRADLE_USER_HOME=/tmp/.gradle
-ENV GRADLE_VERSION=8.4
-ENV GRADLE_PLUGIN_VERSION=8.3.2
+ENV GRADLE_VERSION=8.7
+ENV GRADLE_PLUGIN_VERSION=8.6.1
 ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
   echo "Gradle" && \
