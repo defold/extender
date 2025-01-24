@@ -75,8 +75,20 @@ function download_package() {
         echo "[setup] Found folder" ${folder}
 
         if [[ -n ${folder} ]]; then
-            mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
-            echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
+            if [[ "$package_name" == *xctoolchain* ]]; then
+                for f in $folder; do
+                    if [[ -L $f ]]; then
+                        cp ${TMP_DOWNLOAD_DIR}/${f} ${PLATFORMSDK_DIR}
+                    else
+                        cp -R ${TMP_DOWNLOAD_DIR}/${f} ${PLATFORMSDK_DIR}
+                    fi
+                    echo "[setup] Copy $f to ${PLATFORMSDK_DIR}"
+                done
+                echo "[setup] Installed ${package_name}"
+            else
+                mv ${TMP_DOWNLOAD_DIR}/${folder} ${PLATFORMSDK_DIR}/${out_package_name}
+                echo "[setup] Installed" ${PLATFORMSDK_DIR}/${package_name}
+            fi
         else
             echo "[setup] Failed to install" ${package_name}
         fi
