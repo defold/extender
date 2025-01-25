@@ -1,7 +1,9 @@
 package com.defold.extender.services;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -59,6 +61,7 @@ public class HealthReporterService {
             JSONObject result = new JSONObject();
             JSONParser parser = new JSONParser();
             Map<String, CompletableFuture<Boolean>> reportResults = new HashMap<>(remoteBuilderPlatformMappings.size());
+            List<HttpGet> runningRequests = new ArrayList<>();
             for (Map.Entry<String, RemoteInstanceConfig> entry : remoteBuilderPlatformMappings.entrySet()) {
                 CompletableFuture<Boolean> statusRequest = CompletableFuture.supplyAsync(() -> {
                     String instanceId = entry.getValue().getInstanceId();
@@ -74,6 +77,9 @@ public class HealthReporterService {
                     }
                     final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
                     final HttpGet request = new HttpGet(healthUrl);
+                    synchronized(runningRequests) {
+                        runningRequests.add(request);
+                    }
                     try {
                         HttpResponse response = httpClient.execute(request);
                         if (response.getStatusLine().getStatusCode() == org.apache.http.HttpStatus.SC_OK) {
@@ -105,6 +111,16 @@ public class HealthReporterService {
                 }
                 updateOperationalStatus(platformOperationalStatus, platform, isInstanceReachable);
             }
+
+            // cleanup all stuck requests if any
+            for (HttpGet request : runningRequests) {
+                try {
+                    request.abort();
+                } catch (Exception exc) {
+                    LOGGER.warn("Request abort was unsuccessful for {}", request.getURI().toString());
+                }
+            }
+            runningRequests.clear();
 
             for (Map.Entry<String, OperationalStatus> entry : platformOperationalStatus.entrySet()) {
                 result.put(entry.getKey(), entry.getValue().toString());
