@@ -29,6 +29,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -128,7 +129,14 @@ public class DefoldSdkService {
             } else  {
                 boolean sdkFound = false;
                 String url = null;
-                ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
+                ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory() {
+                    @Override
+                    protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+                        super.prepareConnection(connection, httpMethod);
+                        connection.setInstanceFollowRedirects("GET".equals(httpMethod) || "HEAD".equals(httpMethod));
+                    }
+                };
+
                 for (String urlPattern : configuration.getSdkUrls()) {
                     try {
                         url = String.format(urlPattern, hash);
@@ -152,7 +160,7 @@ public class DefoldSdkService {
                 if (sdkFound) {
                     int attempt = 0;
                     while (attempt < configuration.getMaxVerificationRetryCount()) {
-                        LOGGER.info("Downloading Defold SDK from {} attempt {} ...", url, attempt);
+                        LOGGER.info("Downloading Defold SDK from {} attempt {} ...", url, attempt + 1);
                         ClientHttpRequest request;
                         try {
                             request = clientHttpRequestFactory.createRequest(URI.create(url), HttpMethod.GET);
