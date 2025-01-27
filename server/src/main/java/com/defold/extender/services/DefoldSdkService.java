@@ -149,6 +149,7 @@ public class DefoldSdkService {
                             } else {
                                 // mark sdk as found for download
                                 sdkFound = true;
+                                break;
                             }
                         } catch (IOException exc) {
                             LOGGER.warn(String.format("HEAD for %s failed", url), exc);
