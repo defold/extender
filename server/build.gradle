@@ -65,7 +65,7 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-actuator')
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
-    implementation('io.micrometer:micrometer-core:1.14.2')
+    implementation('io.micrometer:micrometer-core:1.14.3')
     implementation('io.micrometer:micrometer-tracing:1.4.2')
     implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.2')
 
