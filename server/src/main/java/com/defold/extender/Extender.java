@@ -74,6 +74,7 @@ class Extender {
     private List<File> extDirs;
     private List<File> manifests;       // The list of ext.manifests found in the upload
     private List<File> gradlePackages;
+    private List<File> outputFiles;
     private ResolvedPods resolvedPods;
     private int nameCounter = 0;
 
@@ -186,6 +187,7 @@ class Extender {
         this.buildDirectory = builder.buildDirectory;
         this.metricsWriter = builder.metricsWriter;
         this.gradlePackages = new ArrayList<>();
+        this.outputFiles = new ArrayList<>();
 
         // Read config from SDK
         this.config = Extender.loadYaml(this.jobDirectory, new File(builder.sdk.getPath() + "/extender/build.yml"), Configuration.class);
@@ -2728,7 +2730,7 @@ class Extender {
 
     void resolve(GradleService gradleService) throws ExtenderException {
         try {
-            gradlePackages = gradleService.resolveDependencies(this.platformConfig.context, jobDirectory, useJetifier);
+            gradlePackages = gradleService.resolveDependencies(this.platformConfig.context, jobDirectory, buildDirectory, useJetifier, outputFiles);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
@@ -2744,9 +2746,7 @@ class Extender {
         }
     }
 
-    List<File> build() throws ExtenderException {
-        List<File> outputFiles = new ArrayList<>();
-
+    void build() throws ExtenderException {
         outputFiles.addAll(buildManifests(platform));
 
         if (shouldBuildLibrary())
@@ -2770,6 +2770,9 @@ class Extender {
         if (log.exists()) {
             outputFiles.add(log);
         }
+    }
+
+    List<File> getOutputFiles() {
         return outputFiles;
     }
 }
