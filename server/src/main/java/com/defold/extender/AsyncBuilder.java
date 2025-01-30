@@ -118,12 +118,12 @@ public class AsyncBuilder {
                 }
 
                 // Build engine
-                List<File> outputFiles = extender.build();
+                extender.build();
                 metricsWriter.measureEngineBuild(platform);
 
                 // Zip files
                 String zipFilename = jobDirectory.getAbsolutePath() + File.separator + BuilderConstants.BUILD_RESULT_FILENAME;
-                File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
+                File zipFile = ZipUtils.zip(extender.getOutputFiles(), buildDirectory, zipFilename);
                 metricsWriter.measureZipFiles(zipFile);
 
                 // Write zip file to result directory

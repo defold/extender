@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import java.nio.charset.StandardCharsets;
 
 @Service
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "true")
@@ -87,7 +87,7 @@ public class RealGradleService implements GradleServiceInterface {
     }
 
     @Override
-    public List<File> resolveDependencies(Map<String, Object> env, File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+    public List<File> resolveDependencies(Map<String, Object> env, File cwd, File buildDirectory, Boolean useJetifier, List<File> outputFiles) throws IOException, ExtenderException {
         Map<String, Object> jobEnvContext = createJobEnvContext(env);
         // create build.gradle
         File mainGradleFile = new File(cwd, "build.gradle");
@@ -104,7 +104,14 @@ public class RealGradleService implements GradleServiceInterface {
         File localPropertiesFile = new File(cwd, "local.properties");
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
-        return downloadDependencies(cwd);
+        // download, parse and unpack dependencies
+        List<File> unpackedDependencies = downloadDependencies(cwd);
+
+        // add gradle lockfile to outputs
+        // configured in template.build.gradle
+        outputFiles.add(new File(buildDirectory, "gradle.lockfile"));
+
+        return unpackedDependencies;
     }
 
     @Override
@@ -261,9 +268,8 @@ public class RealGradleService implements GradleServiceInterface {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving dependencies");
 
-        String log = execCommand("gradle downloadDependencies --stacktrace --info --warning-mode all", cwd);
-
-        // Put it in the log for the end user to see
+        // add --info for additional logging
+        String log = execCommand("gradle downloadDependencies --write-locks --stacktrace --warning-mode all", cwd);
         LOGGER.info("\n" + log);
 
         Map<String, String> dependencies = parseDependencies(log);
