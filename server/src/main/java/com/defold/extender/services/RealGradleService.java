@@ -275,7 +275,7 @@ public class RealGradleService implements GradleServiceInterface {
         // add --info for additional logging
         String log = execCommand("gradle downloadDependencies --stacktrace --warning-mode all", cwd);
         LOGGER.info("\n" + log);
-        return dependencies;
+        return log;
     }
 
 }
