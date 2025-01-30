@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.4.1
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.4.2
 
 #
 # Android SDK/NDK
