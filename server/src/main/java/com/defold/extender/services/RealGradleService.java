@@ -88,9 +88,6 @@ public class RealGradleService implements GradleServiceInterface {
 
     @Override
     public List<File> resolveDependencies(Map<String, Object> env, File cwd, File buildDirectory, Boolean useJetifier, List<File> outputFiles) throws IOException, ExtenderException {
-        long methodStart = System.currentTimeMillis();
-        LOGGER.info("Resolving dependencies");
-
         Map<String, Object> jobEnvContext = createJobEnvContext(env);
         // create build.gradle
         File mainGradleFile = new File(cwd, "build.gradle");
@@ -108,16 +105,12 @@ public class RealGradleService implements GradleServiceInterface {
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
         // download, parse and unpack dependencies
-        String log = downloadDependencies(cwd);
-        Map<String, String> dependencies = parseDependencies(log);
-        List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
+        List<File> unpackedDependencies = downloadDependencies(cwd);
 
-        // write dependency log to file
-        File logFile = new File(buildDirectory, "gradle_log.txt");
-        Files.write(logFile.toPath(), log.getBytes(StandardCharsets.UTF_8));
-        outputFiles.add(logFile);
+        // add gradle lockfile to outputs
+        // configured in template.build.gradle
+        outputFiles.add(new File(buildDirectory, "gradle.lockfile"));
 
-        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;
     }
 
@@ -271,11 +264,20 @@ public class RealGradleService implements GradleServiceInterface {
         return resolvedDependencies;
     }
 
-    private String downloadDependencies(File cwd) throws IOException, ExtenderException {
+    private List<File> downloadDependencies(File cwd) throws IOException, ExtenderException {
+        long methodStart = System.currentTimeMillis();
+        LOGGER.info("Resolving dependencies");
+
         // add --info for additional logging
-        String log = execCommand("gradle downloadDependencies --stacktrace --warning-mode all", cwd);
+        String log = execCommand("gradle downloadDependencies --write-locks --stacktrace --warning-mode all", cwd);
         LOGGER.info("\n" + log);
-        return log;
+
+        Map<String, String> dependencies = parseDependencies(log);
+
+        List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
+
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
+        return unpackedDependencies;
     }
 
 }
