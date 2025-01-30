@@ -38,6 +38,11 @@ java {
 apply from: "{{{.}}}"
 {{/gradle-files}}
 
+dependencyLocking {
+    lockAllConfigurations()
+    lockFile = file("$projectDir/build/gradle.lockfile")
+}
+
 task downloadDependencies {
     doLast {
         project.configurations.releaseRuntimeClasspath.getResolvedConfiguration().getResolvedArtifacts().each {
