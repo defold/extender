@@ -1133,36 +1133,33 @@ public class CocoaPodsService {
 
         // module map
         // https://guides.cocoapods.org/syntax/podspec.html#module_map
-        if (ios != null) {
-            spec.iosModuleMap = (String)ios.getOrDefault("module_map", "true");
-        } else {
-            spec.iosModuleMap = (String)specJson.getOrDefault("module_map", "true");
-        }
-        String moduleMapValue = spec.iosModuleMap.toLowerCase();
-        if (moduleMapValue.equals("false")) {
+        spec.iosModuleMap = (String)specJson.get("module_map");
+        spec.osxModuleMap = (String)specJson.get("module_map");
+        if (ios != null) spec.iosModuleMap = (String)ios.get("module_map");
+        if (osx != null) spec.osxModuleMap = (String)osx.get("module_map");
+
+        if (spec.iosModuleMap != null && spec.iosModuleMap.toLowerCase().equals("false")) {
             // do not generate a module map
             spec.iosModuleMap = null;
-            LOGGER.info("iOS module map generation skipped for {}", spec.name);
-        } else if (spec.installed && moduleMapValue.equals("true")) {
-            spec.iosModuleMap = createIosModuleMap(spec, jobDir);
+        }
+        else if (spec.iosModuleMap == null && spec.installed) {
+            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()) {
+                spec.iosModuleMap = createIosModuleMap(spec, jobDir);
+            }
         }
         if (spec.iosModuleMap != null) {
             spec.flags.ios.objc.add("-fmodule-map-file=" + spec.iosModuleMap);
             spec.flags.ios.objcpp.add("-fmodule-map-file=" + spec.iosModuleMap);
         }
 
-        if (osx != null) {
-            spec.osxModuleMap = (String)osx.getOrDefault("module_map", "true");
-        } else {
-            spec.osxModuleMap = (String)specJson.getOrDefault("module_map", "true");
-        }
-        moduleMapValue = spec.osxModuleMap.toLowerCase();
-        if (moduleMapValue.equals("false")) {
+        if (spec.osxModuleMap != null && spec.osxModuleMap.toLowerCase().equals("false")) {
             // do not generate a module map
             spec.osxModuleMap = null;
-            LOGGER.info("OSX module map generation skipped for {}", spec.name);
-        } else if (spec.installed && moduleMapValue.equals("true")) {
-            spec.osxModuleMap = createOsxModuleMap(spec, jobDir);
+        }
+        else if (spec.osxModuleMap == null && spec.installed) {
+            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()) {
+                spec.osxModuleMap = createOsxModuleMap(spec, jobDir);
+            }
         }
         if (spec.osxModuleMap != null) {
             spec.flags.osx.objc.add("-fmodule-map-file=" + spec.osxModuleMap);
