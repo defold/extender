@@ -38,7 +38,7 @@ repositories {
 dependencyManagement {
     imports {
         // DO NOT update higher 5.8.0 because transitive dependencies has opentelemtry version 1.45.0+
-        // which has breaking changes in comparasion with 1.43.0
+        // which has breaking changes in comparison with 1.43.0
         mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.8.0'
         mavenBom 'org.junit:junit-bom:5.11.4'
     }
