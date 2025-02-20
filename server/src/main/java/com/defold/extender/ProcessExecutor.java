@@ -120,12 +120,9 @@ public class ProcessExecutor {
         ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         List<Callable<Void>> callables = new ArrayList<>();
         for (String command : commands) {
-            callables.add(new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    processExecutor.execute(command);
-                    return null;
-                }
+            callables.add(() -> {
+                processExecutor.execute(command);
+                return null;
             });
         }
         List<Future<Void>> futures = executor.invokeAll(callables);

@@ -37,7 +37,9 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.10.0'
+        // DO NOT update higher 5.8.0 because transitive dependencies has opentelemtry version 1.45.0+
+        // which has breaking changes in comparison with 1.43.0
+        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.8.0'
         mavenBom 'org.junit:junit-bom:5.11.4'
     }
 }
@@ -66,8 +68,8 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
     implementation('io.micrometer:micrometer-core:1.14.3')
-    implementation('io.micrometer:micrometer-tracing:1.4.2')
-    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.2')
+    implementation('io.micrometer:micrometer-tracing:1.4.1')
+    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.1')
 
     implementation('org.projectlombok:lombok:1.18.36')
     annotationProcessor('org.projectlombok:lombok:1.18.36')
