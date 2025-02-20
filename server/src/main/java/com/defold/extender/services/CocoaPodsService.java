@@ -1143,7 +1143,8 @@ public class CocoaPodsService {
             spec.iosModuleMap = null;
         }
         else if (spec.iosModuleMap == null && spec.installed) {
-            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()) {
+            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()
+                || !spec.swiftSourceFiles.isEmpty()) {
                 spec.iosModuleMap = createIosModuleMap(spec, jobDir);
             }
         }
@@ -1157,7 +1158,8 @@ public class CocoaPodsService {
             spec.osxModuleMap = null;
         }
         else if (spec.osxModuleMap == null && spec.installed) {
-            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()) {
+            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()
+                || !spec.swiftSourceFiles.isEmpty()) {
                 spec.osxModuleMap = createOsxModuleMap(spec, jobDir);
             }
         }
