@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.3.1
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.4.0
 
 ENV PS4_SDK_10=${PLATFORMSDK_DIR}/ps4-sdk-10.500
 
