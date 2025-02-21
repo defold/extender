@@ -36,10 +36,26 @@ services:
     profiles:
       - all
       - linux
+    platform: linux/amd64
     networks:
       default:
         aliases:
           - linux
+  linux-arm64-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    environment:
+      - INSTANCE_ID=linux-arm64-local
+    profiles:
+      - all
+      - linux
+    platform: linux/arm64
+    networks:
+      default:
+        aliases:
+          - linux-arm64
   android_ndk25-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25-env:latest
     extends:
@@ -154,6 +170,7 @@ services:
     profiles:
       - test
       - auth-test
+    platform: linux/amd64
     networks:
       default:
         aliases:

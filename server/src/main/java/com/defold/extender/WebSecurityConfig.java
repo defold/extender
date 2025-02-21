@@ -34,6 +34,7 @@ public class WebSecurityConfig {
 					break;
 				case "linux":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-linux/**").hasRole("LINUX")).httpBasic(withDefaults());
+					http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-linux/**").hasRole("LINUX")).httpBasic(withDefaults());
 					break;
 				case "macos":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-osx/**").hasRole("MACOS")).httpBasic(withDefaults());

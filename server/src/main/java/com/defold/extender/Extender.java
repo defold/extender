@@ -105,10 +105,10 @@ class Extender {
         "common",
         "ios", "armv7-ios","arm64-ios","x86_64-ios",
         "android", "armv7-android","arm64-android",
-        "osx", "x86-osx","x86_64-osx","arm64-osx",
-        "linux", "x86-linux","x86_64-linux",
-        "win32", "x86-win32","x86_64-win32",
-        "web", "js-web","wasm-web",
+        "osx", "x86_64-osx","arm64-osx",
+        "linux", "x86_64-linux", "arm64-linux",
+        "win32", "x86-win32", "x86_64-win32",
+        "web", "js-web", "wasm-web",
         "nx64", "arm64-nx64",
         "ps4", "x86_64-ps4",
         "ps5", "x86_64-ps5",
@@ -252,7 +252,11 @@ class Extender {
         } else if (os.contains("Windows")) {
             this.hostPlatform = "x86_64-win32";
         } else {
-            this.hostPlatform = "x86_64-linux";
+            if (arch.contains("aarch64")) {
+                this.hostPlatform = "arm64-linux";
+            } else {
+                this.hostPlatform = "x86_64-linux";
+            }
         }
 
         if (config.platforms.get(platform) == null) {
@@ -2359,7 +2363,7 @@ class Extender {
                 podAppContext.put("osMinVersion", resolvedPods.platformMinVersion);
                 podAppContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
             }
-            Map mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
+            Map<String, Object> mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
             outputFiles.addAll(linkEngine(symbols, mergedAppContextWithPods, resourceFile));
 
@@ -2371,7 +2375,9 @@ class Extender {
     }
 
     private boolean isDesktopPlatform(String platform) {
-        return platform.equals("x86_64-osx") || platform.equals("arm64-osx") || platform.equals("x86_64-linux") || platform.equals("x86_64-win32");
+        return platform.contains("osx")
+            || platform.contains("linux")
+            || platform.contains("win32");
     }
 
     // Supported from 1.2.186
