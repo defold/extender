@@ -1,1 +1,0 @@
-# Simply a test file for collectLibraries()

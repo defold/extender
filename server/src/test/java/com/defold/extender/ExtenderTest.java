@@ -255,10 +255,10 @@ public class ExtenderTest {
 
     @Test
     public void testCollectJars() {
-        String[] endings = {"test-data/ext/lib/armv7-android/Dummy.jar", "test-data/ext/lib/armv7-android/JarDep.jar",
-                            "test-data/ext/lib/armv7-android/VeryLarge1.jar", "test-data/ext/lib/armv7-android/VeryLarge2.jar",
-                            "test-data/ext/lib/armv7-android/meta-inf.jar"};
-        List<String> paths = ExtenderUtil.collectFilesByPath(new File("test-data/ext/lib/armv7-android"), Extender.JAR_RE);
+        String[] endings = {"test-data/ext/lib/android/Dummy.jar", "test-data/ext/lib/android/JarDep.jar",
+                            "test-data/ext/lib/android/VeryLarge1.jar", "test-data/ext/lib/android/VeryLarge2.jar",
+                            "test-data/ext/lib/android/meta-inf.jar"};
+        List<String> paths = ExtenderUtil.collectFilesByPath(new File("test-data/ext/lib/android"), Extender.JAR_RE);
         assertEquals(endings.length, paths.size());
 
 

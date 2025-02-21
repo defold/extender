@@ -351,8 +351,8 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/Dummy.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -369,10 +369,10 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge1.jar"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge2.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/Dummy.jar"),
+                new FileExtenderResource("test-data/ext/lib/android/VeryLarge1.jar"),
+                new FileExtenderResource("test-data/ext/lib/android/VeryLarge2.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -390,8 +390,8 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/src/Test.java"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/Dummy.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -412,8 +412,8 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/src/TestJar.java"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/JarDep.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/JarDep.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -431,9 +431,9 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/src/TestJar.java"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/JarDep.jar"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/meta-inf.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/JarDep.jar"),
+                new FileExtenderResource("test-data/ext/lib/android/meta-inf.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
         List<String> metaInfFiles = new ArrayList<>();
@@ -462,7 +462,7 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -490,8 +490,8 @@ public class IntegrationTest {
         );
 
         if (isAndroid) {
-            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy1.jar"));
-            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy2.jar"));
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/android/Dummy1.jar"));
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/android/Dummy2.jar"));
         }
 
         doBuild(sourceFiles, configuration);
