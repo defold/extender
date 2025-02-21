@@ -15,8 +15,11 @@ extender:
             linux-latest:
                 url: http://linux:9000
                 instanceId: linux
+            linux-arm64-latest:
+                url: http://linux-arm64:9000
+                instanceId: linux-arm64
             nssdk-1832:
-                url: http://10.0.0.4:9000
+                url: http://nssdk-1832:9000
                 instanceId: nssdk-1832
             ps4-12000:
                 url: http://ps4-12000:9000

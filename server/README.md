@@ -13,9 +13,9 @@ The extender consists of two parts:
 Extender instance should run in preconfigured environment where necessary SDKs, toolchains, environment variables are confgured. For all platforms (except MacOS/iOS) there exists Docker images where everything is set up.
 
 ## How to use ready-to-use Docker images
-1. Authorize to Google Cloud and create Application default credentials
+1. Authorize to Google Cloud
    ```sh
-   gcloud auth application-default login
+   gcloud auth login
    ```
 2. Configure Docker to use Artifact registries
    ```sh
@@ -27,6 +27,10 @@ Extender instance should run in preconfigured environment where necessary SDKs, 
    ```
 
 ## How to build docker images locally
+**IMPORTANT NOTE**: To build multi-platform images you need to switch your Docker installation to use containerd store. Here is official instructions how to do that:
+* for Docker desktop - https://docs.docker.com/go/build-multi-platform/
+* for Docker engine - https://docs.docker.com/engine/storage/containerd/
+
 Dockerfiles for the currently supported platforms can be found in `server/docker`. Dockerfiles are named according to the platform and sdk version that is used inside. For example, `Dockerfile.emsdk-2011` means that inside Emscripten sdk 2.0.11 will be installed.
 The Dockerfiles contain only environment settings (e.g. no app.jar/manifestmerger.jar inside).
 
@@ -62,9 +66,9 @@ Build Extender's jars (called from root directory):
 ./gradlew server:bootJar
 ./gradlew manifestmergetool:mainJar
 ```
-Main command
+If you don't have locally built images - pull it from registry:
 ```sh
-docker compose -p extender -f server/docker/docker-compose.yml --profile <profile> up
+docker compose -p extender -f server/docker/docker-compose.yml --profile <profile> pull
 ```
 where *profile* can be:
 * **all** - runs remote instances for every platform
@@ -72,14 +76,18 @@ where *profile* can be:
 * **web** - runs frontend instance + remote instances to build Web version
 * **linux** - runs frontend instance + remote instances to build Linux version
 * **windows** - runs frontend instance + remote instances to build Windows version
-* **consoles** - runs frontend instance + remote instances to build Nintendo Switch/PS4/PS5 versions
-* **nintendo** - runs frontend instance + remote instances to build Nintendo Switch version
-* **playstation** - runs frontend instance + remote instances to build PS4/PS5 versions
+* **consoles** - runs frontend instance + remote instances to build Nintendo Switch/PS4/PS5 versions (you should have access to private registry)
+* **nintendo** - runs frontend instance + remote instances to build Nintendo Switch version (you should have access to private registry)
+* **playstation** - runs frontend instance + remote instances to build PS4/PS5 versions (you should have access to private registry)
 * **metrics** - runs VictoriaMetrics + Grafana as metrics backend and tool for visualization
+Main command
+```sh
+docker compose -p extender -f server/docker/docker-compose.yml --profile <profile> up --pull never
+```
 
 Several profiles can be passed to command line. For example:
 ```sh
-docker compose -p extender -f server/docker/docker-compose.yml --profile android --profile web --profile windows up
+docker compose -p extender -f server/docker/docker-compose.yml --profile android --profile web --profile windows up --pull never
 ```
 Example above runs frontend, Android, Web, Windows instances.
 

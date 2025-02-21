@@ -14,8 +14,6 @@ on:
       - "ps4*"
       - "ps5*"
 
-
-
 env:
   GOOGLE_ARTIFACT_REGISTRY: europe-west1-docker.pkg.dev
   PUBLIC_REGISTRY: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry
@@ -28,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
     - name: Process tag name
       id: name_postprocess
       run: |
@@ -62,6 +60,14 @@ jobs:
             TARGET_REGISTRY=$(echo $PUBLIC_REGISTRY)
           fi
           
+          case $PLATFORM in
+            base|linux)
+              BUILD_PLATFORMS="linux/amd64,linux/arm64"
+            ;;
+            *)
+              BUILD_PLATFORMS="linux/amd64"
+            ;;
+          esac
 
           echo "TAG_NAME $TAG_NAME"
           echo "DOCKERFILE $DOCKERFILE"
@@ -70,6 +76,7 @@ jobs:
           echo "IMAGE_VERSION $IMAGE_VERSION"
           echo "IMAGE_NAME $IMAGE_NAME"
           echo "TARGET_REGISTRY $TARGET_REGISTRY"
+          echo "BUILD_PLATFORMS $BUILD_PLATFORMS"
 
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "dockerfile=$DOCKERFILE" >> $GITHUB_OUTPUT
@@ -78,25 +85,28 @@ jobs:
           echo "image_version=$IMAGE_VERSION" >> $GITHUB_OUTPUT
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "target_registry=$TARGET_REGISTRY" >> $GITHUB_OUTPUT
+          echo "build_platforms=$BUILD_PLATFORMS" >> $GITHUB_OUTPUT
     - name: Login to Google Artifact registry
-      uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
+      uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
       with:
         registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
         username: _json_key
         password: ${{ secrets.DOCKER_REGISTRY_JSON_KEY }}
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca
+      uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
     - name: Build and push
       env:
         DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
-      uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991
+      uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
       with:
         context: ${{ github.workspace }}/server/docker/
         file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
         pull: true
         push: true
         platforms: |
-          linux/amd64
+          ${{ steps.name_postprocess.outputs.build_platforms }}
         secret-envs: |
           DM_PACKAGES_URL=DM_PACKAGES_URL
         tags: |
