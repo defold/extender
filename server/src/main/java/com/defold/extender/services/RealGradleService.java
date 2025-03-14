@@ -274,7 +274,7 @@ public class RealGradleService implements GradleServiceInterface {
 
         // add --info for additional logging
         String log = execCommand("gradle downloadDependencies --write-locks --stacktrace --warning-mode all", cwd);
-        LOGGER.info("\n" + log);
+        LOGGER.debug("\n" + log);
 
         Map<String, String> dependencies = parseDependencies(log);
 
@@ -289,7 +289,7 @@ public class RealGradleService implements GradleServiceInterface {
         LOGGER.info("Writing dependency tree");
 
         String treelog = execCommand("gradle dependencies --configuration releaseCompileClasspath", cwd);
-        LOGGER.info("\n" + treelog);
+        LOGGER.debug("\n" + treelog);
 
         Files.write(out.toPath(), treelog.getBytes());
 
