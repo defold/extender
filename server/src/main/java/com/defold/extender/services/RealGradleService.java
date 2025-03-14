@@ -106,10 +106,14 @@ public class RealGradleService implements GradleServiceInterface {
 
         // download, parse and unpack dependencies
         List<File> unpackedDependencies = downloadDependencies(cwd);
-
         // add gradle lockfile to outputs
         // configured in template.build.gradle
         outputFiles.add(new File(buildDirectory, "gradle.lockfile"));
+
+        // write dependency tree and add to outputs
+        File dependencyTreeFile = new File(buildDirectory, "gradle.dependencytree");
+        writeDependencyTree(dependencyTreeFile, cwd);
+        outputFiles.add(dependencyTreeFile);
 
         return unpackedDependencies;
     }
@@ -278,6 +282,18 @@ public class RealGradleService implements GradleServiceInterface {
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;
+    }
+
+    private void writeDependencyTree(File out, File cwd) throws IOException, ExtenderException {
+        long methodStart = System.currentTimeMillis();
+        LOGGER.info("Writing dependency tree");
+
+        String treelog = execCommand("gradle dependencies --configuration releaseCompileClasspath", cwd);
+        LOGGER.info("\n" + treelog);
+
+        Files.write(out.toPath(), treelog.getBytes());
+
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.dependencytree", System.currentTimeMillis() - methodStart);
     }
 
 }
