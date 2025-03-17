@@ -75,7 +75,7 @@ dependencies {
     annotationProcessor('org.projectlombok:lombok:1.18.36')
 
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
-    runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.3')
+    runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.5')
     runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.14.3') {
         exclude group: 'org.junit.jupiter'
     }
