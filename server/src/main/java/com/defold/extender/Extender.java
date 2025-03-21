@@ -58,13 +58,14 @@ class Extender {
     private final PlatformConfig platformConfig;        // "common", platform, arch-platform from build.yml
     private final PlatformConfig platformVariantConfig; // "common", platform, arch-platform from build_variant.yml
     private final PlatformConfig platformAppConfig;     // "common", platform, arch-platform from game.appmanifest
-    private final ExtensionManifestValidator manifestValidator;
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private MetricsWriter metricsWriter;
+    // context flags
     private final Boolean withSymbols;
     private final Boolean useJetifier;
     private final String buildArtifacts;
+    private final String debugSourcePath;
     private Boolean needsCSLibraries = false;
 
     private Map<String, File>                   manifestFiles;
@@ -88,6 +89,7 @@ class Extender {
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
     static final String APPMANIFEST_BUILD_ARTIFACTS_KEYWORD = "buildArtifacts";
     static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
+    static final String APPMANIFEST_DEBUG_SOURCE_PATH = "debugSourcePath";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
@@ -235,6 +237,7 @@ class Extender {
         this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, builder.platform, APPMANIFEST_JETIFIER_KEYWORD, true);
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
         this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
+        this.debugSourcePath = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_DEBUG_SOURCE_PATH, null);
 
         this.platform = builder.platform;
         this.sdk = builder.sdk;
@@ -343,17 +346,17 @@ class Extender {
         List<String> allowedSymbols = ExtenderUtil.mergeLists(platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
 
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
-        this.manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
+        ExtensionManifestValidator manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
 
         // Make sure the user hasn't input anything invalid in the manifest
-        this.manifestValidator.validate(this.appManifestPath, this.uploadDirectory, this.platformAppConfig.context);
+        manifestValidator.validate(this.appManifestPath, this.uploadDirectory, this.platformAppConfig.context);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
         this.extDirs = this.manifests.stream().map(File::getParentFile).collect(Collectors.toList());
 
         // Load and merge manifests
-        loadManifests();
+        loadManifests(manifestValidator);
     }
 
     private int getAndIncreaseNameCount() {
@@ -2174,13 +2177,23 @@ class Extender {
         return resourceFile;
     }
 
-    private void loadManifests() throws IOException, ExtenderException {
+    private void loadManifests(ExtensionManifestValidator validator) throws IOException, ExtenderException {
         // Creates the contexts for each stage: extension and app
         //  extension context: merge(platform, variant, extension, app)
         //  app context:       merge(platform, variant, extensions, app)
 
         manifestConfigs = new HashMap<>();
         manifestFiles = new HashMap<>();
+
+        Map<String, Object> debugContext = new HashMap<>();
+        if (this.debugSourcePath != null && !this.debugSourcePath.isEmpty()) {
+            List<String> flags = new ArrayList<>(List.of(
+                String.format("-fdebug-compilation-dir=%s", this.debugSourcePath),
+                "-fdebug-prefix-map=upload=extensions",
+                "-fdebug-prefix-map=build=generated"
+            ));
+            debugContext.put("flags", flags);
+        }
 
         HashMap<String, ManifestConfiguration> _manifestConfigs = new HashMap<>();
         for (File manifest : this.manifests) {
@@ -2207,7 +2220,7 @@ class Extender {
 
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(platform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
-                this.manifestValidator.validate(relativePath, manifest.getParentFile(), ctx);
+                validator.validate(relativePath, manifest.getParentFile(), ctx);
 
                 manifestContext = ExtenderUtil.mergeContexts(manifestContext, ctx);
             }
@@ -2217,6 +2230,8 @@ class Extender {
             // Apply any global settings to the context
             manifestContext.put("extension_name", manifestConfig.name);
             manifestContext.put("extension_name_upper", manifestConfig.name.toUpperCase());
+
+            manifestContext = ExtenderUtil.mergeContexts(manifestContext, debugContext);
 
             manifestConfigs.put(extensionSymbol, manifestContext);
         }
@@ -2250,6 +2265,8 @@ class Extender {
         List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
         excludeJars.add("(.*)/proguard_files_without_jar");
         mergedAppContext.put("excludeJars", excludeJars);
+
+        mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, debugContext);
     }
 
     public Map<String, Object> getPlatformContext() {

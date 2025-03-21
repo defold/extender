@@ -47,7 +47,7 @@ class ExtensionManifestValidator {
                 }
 
                 if (!f.exists()) {
-                    LOGGER.warn("The include path '%s' does not exist:", f);
+                    LOGGER.warn("The include path '{}' does not exist:", f);
                 }
             }
         }
