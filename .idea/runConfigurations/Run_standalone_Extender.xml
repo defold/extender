@@ -1,0 +1,20 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Run standalone Extender" type="Application" factoryName="Application">
+    <option name="ALTERNATIVE_JRE_PATH" value="temurin-21" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <option name="envFilePaths">
+      <option value="$PROJECT_DIR$/server/envs/.env" />
+      <option value="$PROJECT_DIR$/server/envs/macos.env" />
+      <option value="$PROJECT_DIR$/server/envs/user.env" />
+    </option>
+    <option name="MAIN_CLASS_NAME" value="com.defold.extender.ExtenderApplication" />
+    <module name="extender.server.main" />
+    <option name="PROGRAM_PARAMETERS" value="--spring.config.location=classpath:./,file:$ProjectFileDir$/server/configs/ --extender.sdk.location=$ProjectFileDir$/server/app/sdk --spring.profiles.active=standalone-dev" />
+    <shortenClasspath name="NONE" />
+    <option name="VM_PARAMETERS" value="-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500" />
+    <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

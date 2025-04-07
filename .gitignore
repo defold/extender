@@ -20,6 +20,7 @@ server/test-data/sdk/*
 !/.idea/misc.xml
 !/.idea/modules.xml
 !/.idea/vcs.xml
+!/.idea/runConfigurations/
 .idea/workspace.xml
 .idea/assetWizardSettings.xml
 .idea/dictionaries/
