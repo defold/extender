@@ -4,7 +4,11 @@ buildscript {
     }
 }
 
-apply plugin: 'java-library'
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
 
 ext {
     manifestMergetoolVersion = findProperty('manifestMergetoolVersion') ?: '0.5.0'

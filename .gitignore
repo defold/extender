@@ -16,7 +16,17 @@ server/test-data/sdk/*
 /**/*.pdb
 
 # IntelliJ IDEA
-/.idea
+.idea/*
+!/.idea/misc.xml
+!/.idea/modules.xml
+!/.idea/vcs.xml
+!/.idea/runConfigurations/
+.idea/workspace.xml
+.idea/assetWizardSettings.xml
+.idea/dictionaries/
+.idea/shelf/
+.idea/libraries/
+.idea/httpRequests/
 /*.iml
 /*.ipr
 /*.iws
