@@ -42,11 +42,11 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244
     - name: Build the extender-client.jar
-      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:jar
+      run: ./gradlew -PpublishToGar -PclientVersion=${{ steps.version.outputs.tag_version }} client:jar
     - name: Test the extender-client.jar
-      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:test
+      run: ./gradlew -PpublishToGar -PclientVersion=${{ steps.version.outputs.tag_version }} client:test
     - name: Publish to Google artifact registry
-      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} publishExtenderClientPublicationToExtenderRepoRepository
+      run: ./gradlew -PpublishToGar -PclientVersion=${{ steps.version.outputs.tag_version }} publishExtenderClientPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
       run: |
         mkdir -p ${{ github.workspace }}/gh_release
@@ -99,11 +99,11 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244
     - name: Build manifestmerger
-      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:mainJar
+      run: ./gradlew -PpublishToGar -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:mainJar
     - name: Test manifestmerger
-      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:test
+      run: ./gradlew -PpublishToGar -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:test
     - name: Publish to Google artifact registry
-      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} publishManifestMergeToolPublicationToExtenderRepoRepository
+      run: ./gradlew -PpublishToGar -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} publishManifestMergeToolPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
       run: |
         mkdir -p ${{ github.workspace }}/gh_release
@@ -165,7 +165,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244
     - name: Build extender
-      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
+      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
     - name: Login to Google Artifact registry (Docker)
       uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
       with:
@@ -178,7 +178,7 @@ jobs:
         # if you need some new container under other profiles - need to add new statement with different profile
         docker compose --file ./server/docker/docker-compose.yml --profile test pull
     - name: Run extender tests
-      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:test -i
+      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} server:test -i
     - name: Login to Google Artifact registry (Maven)
       uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935
       with:
@@ -187,7 +187,7 @@ jobs:
         export_environment_variables: true
         create_credentials_file: true
     - name: Publish to Google artifact registry
-      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} publishExtenderPublicationToExtenderRepoRepository
+      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} publishExtenderPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
       run: |
         mkdir -p ${{ github.workspace }}/gh_release

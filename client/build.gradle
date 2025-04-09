@@ -1,6 +1,5 @@
 plugins {
     id 'java'
-    id 'maven-publish'
 }
 
 sourceCompatibility = 1.8
@@ -13,15 +12,18 @@ ext {
     clientVersion = findProperty('clientVersion') ?: '0.5.0'
 }
 
-publishing {
-  publications {
-    extenderClient(MavenPublication) {
-      artifact jar
-      groupId 'com.defold.extender'
-      artifactId 'client'
-      version project.ext.clientVersion
+if (project.hasProperty('publishToGar')) {
+    apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'
+    publishing {
+        publications {
+            extenderClient(MavenPublication) {
+            artifact jar
+            groupId 'com.defold.extender'
+            artifactId 'client'
+            version project.ext.clientVersion
+            }
+        }
     }
-  }
 }
 
 jar {
