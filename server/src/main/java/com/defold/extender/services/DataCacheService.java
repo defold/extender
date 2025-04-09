@@ -181,12 +181,8 @@ public class DataCacheService {
         return file.getParentFile().exists() || file.getParentFile().mkdirs();
     }
 
-    private long downloadFile(CacheEntry entry, File destination) throws ExtenderException, IOException {
+    private long downloadFile(CacheEntry entry, File destination) throws IOException {
         try (InputStream inputStream = dataCache.get(entry.getKey())) {
-            if (inputStream == null) {
-                throw new ExtenderException(String.format("Cache object %s (%s) was not found", entry.getPath(), entry.getKey()));
-            }
-
             return Files.copy(
                     inputStream,
                     destination.toPath(),
