@@ -1,6 +1,6 @@
 # Extender
 
-Extender is a build server that builds native extensions of the Defold engine. The build server can either by run using Docker or as a stand-alone server running on macOS.
+Extender is a build server that builds native extensions of the Defold engine. The build server can either by run using Docker or as a standalone server running on macOS.
 
 * Server description and setup/run instructions - [link](/server/README.md)
 * Debugging FAQ - [link](/README_DEBUGGING.md)
@@ -80,3 +80,10 @@ Note that [Prerequisites](#prerequisites) should be completed and manifestmerget
    4. Gradle for Java https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-gradle
    5. Debugger for Java https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-debug. Note: version should be v0.58.2024090204 (pre-release) or greater.
 4. Select `Spring Boot-ExtenderApplication<server>` in dropdown and start debug session.
+
+### Develop/debug standalone Extender using IntelliJ IDEA
+Note that [Prerequisites](#prerequisites) should be completed and manifestmergetool.jar already downloaded or built.
+
+1. Download IntelliJ IDEA: https://www.jetbrains.com/idea/download
+2. Run IntelliJ IDEA and open folder with Extender's sources from the welcome screen.
+3. Select `Run standalone Extender` in `Run configurations` dropdown and start debug session.
