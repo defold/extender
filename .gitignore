@@ -23,7 +23,6 @@ server/test-data/sdk/*
 !/.idea/gradle.xml
 !/.idea/runConfigurations/
 !/.idea/modules/
-/.idea/modules/*
 !/.idea/modules/extender.iml
 .idea/workspace.xml
 .idea/assetWizardSettings.xml
