@@ -1,30 +1,11 @@
 package com.defold.extender;
 
 import java.io.File;
-import java.io.IOException;
+import java.util.List;
+
+import com.defold.extender.process.ProcessUtils;
 
 public class FrameworkUtil {
-    private static String execCommand(String command, File cwd) throws ExtenderException {
-        ProcessExecutor pe = new ProcessExecutor();
-
-        if (cwd != null) {
-            pe.setCwd(cwd);
-        }
-
-        try {
-            if (pe.execute(command) != 0) {
-                throw new ExtenderException(pe.getOutput());
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, pe.getOutput());
-        }
-
-        return pe.getOutput();
-    }
-    private static String execCommand(String command) throws ExtenderException {
-        return execCommand(command, null);
-    }
-
     /**
      * Check if a framework is dynamically linked
      * Cocoapods (written in Ruby) uses the "macho" gem to do the same thing:
@@ -42,7 +23,9 @@ public class FrameworkUtil {
         if (framework.isDirectory() && filename.endsWith(".framework")) {
             String frameworkName = filename.replace(".framework", "");
             File frameworkBinary = new File(framework, frameworkName);
-            String output = execCommand("file " + frameworkBinary.getAbsolutePath());
+            String output = ProcessUtils.execCommand(List.of(
+                "file",
+                frameworkBinary.getAbsolutePath()), null, null);
             if (output.contains("dynamically linked shared library")) {
                 return true;
             }

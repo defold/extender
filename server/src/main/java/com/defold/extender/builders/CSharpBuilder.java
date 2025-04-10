@@ -20,8 +20,8 @@ import java.util.ArrayList;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
-import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
+import com.defold.extender.process.ProcessExecutor;
 
 public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);

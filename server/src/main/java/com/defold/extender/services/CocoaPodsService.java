@@ -2,16 +2,21 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
-import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.ProcessUtils;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.file.PathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
@@ -22,7 +27,10 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -33,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.HashSet;
@@ -43,6 +52,7 @@ import java.lang.StringBuilder;
 
 
 @Service
+@ConditionalOnProperty(prefix = "extender", name = "cocoapods.enabled", havingValue = "true")
 public class CocoaPodsService {
 
     static class MainPodfile {
@@ -354,11 +364,15 @@ public class CocoaPodsService {
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
+    private static final String CURRENT_CACHE_DIR_FILE = "current_pod_cache.txt";
+    private static final String OLD_CACHE_DIR_FILE = "old_pod_caches.txt";
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     private final String podfileTemplateContents;
     private final String modulemapTemplateContents;
     private final String umbrellaHeaderTemplateContents;
+    private @Value("${extender.cocoapods.home-dir-prefix}") String homeDirPrefix;
+    private Path currentCacheDir;
 
     private final MeterRegistry meterRegistry;
 
@@ -370,8 +384,23 @@ public class CocoaPodsService {
         this.podfileTemplateContents = ExtenderUtil.readContentFromResource(podfileTemplate);
         this.modulemapTemplateContents = ExtenderUtil.readContentFromResource(modulemapTemplate);
         this.umbrellaHeaderTemplateContents = ExtenderUtil.readContentFromResource(umbrellaHeaderTemplate);
+    }
 
-        LOGGER.info("CocoaPodsService service");
+    @EventListener(ApplicationReadyEvent.class)
+    public void runAfterStartup() {
+        // initialize cache directory
+        Path currentCacheDir = readCurrentCacheDir();
+        if (currentCacheDir != null && currentCacheDir.startsWith(this.homeDirPrefix)) {
+            this.currentCacheDir = currentCacheDir;
+            updateSpecRepo();
+        } else {
+            LOGGER.info("Cocoapods has no current cache dir or prefix is changed. Created...");
+            this.currentCacheDir = generateCacheDirPath();
+            storeCurrentCacheDir(this.currentCacheDir);
+            initializeTrunkRepo();
+        }
+        cleanupOldCacheDirectories();
+        LOGGER.info("Cocoapods startup task completed");
     }
 
     // debugging function for printing a directory structure with files and folders
@@ -496,7 +525,6 @@ public class CocoaPodsService {
     // the function will also resolve symlinks while copying files and folders
     private void copyDirectoryRecursively(File fromDir, File toDir) throws IOException {
         toDir.mkdirs();
-        File resolved = fromDir.toPath().toRealPath().toFile();
         File[] files = fromDir.toPath().toRealPath().toFile().listFiles();
         for (File file : files) {
             if (file.isDirectory()) {
@@ -528,7 +556,7 @@ public class CocoaPodsService {
             command = String.format("bitcode_strip %s -r -o %s", file.getAbsolutePath(), file.getAbsolutePath());
         }
 
-        String log = execCommand(command);
+        String log = ProcessUtils.execCommand(command);
         LOGGER.info("\n" + log);
     }
 
@@ -1242,8 +1270,12 @@ public class CocoaPodsService {
             throw new ExtenderException("Unable to find Podfile " + podFile);
         }
         File dir = podFile.getParentFile();
-        String log = execCommand("pod install  --repo-update --verbose", workingDir);
-        LOGGER.info("\n" + log);
+        String log = ProcessUtils.execCommand(List.of(
+                "pod",
+                "install",
+                "--verbose"
+            ), workingDir, null);
+        LOGGER.debug("\n" + log);
 
         File podFileLock = new File(workingDir, "Podfile.lock");
         if (!podFileLock.exists()) {
@@ -1286,8 +1318,8 @@ public class CocoaPodsService {
             // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
             String podversion = podname.replaceFirst(".*\\(", "").replace(")", "");
             if (!installedPods.podsMap.containsKey(mainpodname)) {
-                String cmd = "pod spec cat --regex ^" + mainpodname + "$ --version=" + podversion;
-                String specJson = execCommand(cmd).replace(cmd, "");
+                String cmd = String.format("pod spec cat --regex ^%s$ --version=%s", mainpodname, podversion);
+                String specJson = ProcessUtils.execCommand(cmd).replace(cmd, "");
                 // find first occurence of { because in some cases pod command
                 // can produce additional output before json spec
                 // For example:
@@ -1387,28 +1419,6 @@ public class CocoaPodsService {
         return resolvedPods;
     }
 
-    private String execCommand(String command, File cwd) throws ExtenderException {
-        ProcessExecutor pe = new ProcessExecutor();
-
-        if (cwd != null) {
-            pe.setCwd(cwd);
-        }
-
-        try {
-            if (pe.execute(command) != 0) {
-                throw new ExtenderException(pe.getOutput());
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, pe.getOutput());
-        }
-
-        return pe.getOutput();
-    }
-
-    private String execCommand(String command) throws ExtenderException {
-        return execCommand(command, null);
-    }
-
     static List<String> parsePodfiles(MainPodfile mainPodfile, List<File> podFiles) throws IOException {
         // Load all Podfiles
         Pattern podPattern = Pattern.compile("pod '([\\w|-]+)'.*");
@@ -1446,5 +1456,123 @@ public class CocoaPodsService {
             }
         }
         return pods;
+    }
+
+    private Path generateCacheDirPath() {
+        return Path.of(this.homeDirPrefix, UUID.randomUUID().toString());
+    }
+
+    private Path readCurrentCacheDir() {
+        File currentCacheDirFile = Path.of(this.homeDirPrefix, CocoaPodsService.CURRENT_CACHE_DIR_FILE).toFile();
+        if (!currentCacheDirFile.exists()) {
+            return null;
+        }
+        try (BufferedReader reader = new BufferedReader(new FileReader(currentCacheDirFile))) {
+            String strPath = reader.readLine();
+            if (strPath != null) {
+                Path result = Path.of(strPath);
+                return result.toFile().exists() ? result : null;
+            }
+        } catch(IOException io) {
+            LOGGER.warn("Exception while read old cache paths file", io);
+        }
+        return null;
+    }
+
+    private void storeCurrentCacheDir(Path currentCacheDir) {
+        try {
+            Files.createDirectories(Path.of(this.homeDirPrefix));
+        } catch (IOException exc) {
+            LOGGER.warn("Can't create directories to store pod cache path", exc);
+            return;
+        }
+        try (FileWriter writer = new FileWriter(new File(this.homeDirPrefix, CocoaPodsService.CURRENT_CACHE_DIR_FILE))) {
+            writer.append(currentCacheDir.toAbsolutePath().toString());
+            writer.close();
+        } catch (IOException exc) {
+            LOGGER.warn("Error while writing to current cache path file", exc);
+        }
+    }
+
+    private void initializeTrunkRepo() {
+        try {
+            String log = ProcessUtils.execCommand(List.of(
+                    "pod",
+                    "repo",
+                    "add-cdn",
+                    "trunk",
+                    "https://cdn.cocoapods.org/",
+                    "--verbose"
+                ), null,
+                Map.of("CP_HOME_DIR", this.currentCacheDir.toString()));
+            LOGGER.debug("\n" + log);
+
+            updateSpecRepo();
+        } catch(ExtenderException exc) {
+            LOGGER.warn("Exception during repo init", exc);
+        }        
+    }
+
+    @Scheduled(cron="${extender.cocoapods.cache-dir-rotate-cron}")
+    public void rotatePodCacheDirectory() {
+        Path newCacheDir = generateCacheDirPath();
+        try {
+            Files.createDirectories(newCacheDir);
+        } catch(IOException|UnsupportedOperationException|SecurityException exc) {
+            LOGGER.warn("Cannot create new pod cache directory", exc);
+            return;
+        }
+            
+        try (FileWriter writer = new FileWriter(new File(this.homeDirPrefix, CocoaPodsService.OLD_CACHE_DIR_FILE), true)) {
+            writer.append(currentCacheDir.toAbsolutePath().toString());
+            writer.append("\n");
+            writer.close();
+        } catch(IOException exc) {
+            LOGGER.warn("Error while writing to old cache paths file", exc);
+        }
+        this.currentCacheDir = newCacheDir;
+        storeCurrentCacheDir(currentCacheDir);
+        initializeTrunkRepo();
+    }
+
+    @Scheduled(cron="${extender.cocoapods.old-cache-clean-cron}")
+    private void cleanupOldCacheDirectories() {
+        File oldDirFile = Path.of(this.homeDirPrefix, CocoaPodsService.OLD_CACHE_DIR_FILE).toFile();
+        if (oldDirFile.exists()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(oldDirFile))) {
+                String strPath = reader.readLine();
+                while (strPath != null) {
+                    LOGGER.info("Remove old pod cache directory: {}", strPath);
+                    Path dirPath = Path.of(strPath);
+                    File path = dirPath.toFile();
+                    if (path.exists()) {
+                        PathUtils.cleanDirectory(dirPath);
+                        path.delete();
+                    }
+                }
+            } catch(IOException io) {
+                LOGGER.warn("Exception while read old cache paths file", io);
+            }
+            oldDirFile.delete();
+        } else {
+            LOGGER.warn("File with old cache paths doesn't exist. Cleanup skipped");
+        }
+    }
+
+    @Scheduled(initialDelay=3600000, fixedDelayString="${extender.cocoapods.repo-update-interval:3600000}")
+    public void updateSpecRepo() {
+        try {
+            LOGGER.info("Run pod spec update");
+            String log = ProcessUtils.execCommand(List.of(
+                    "pod",
+                    "repo",
+                    "update",
+                    "--verbose"
+                ), null,
+                Map.of("CP_HOME_DIR", this.currentCacheDir.toString()));
+            LOGGER.debug("\n" + log);
+        } catch(ExtenderException exc) {
+            LOGGER.warn("Exception during spec repo update", exc);
+        }
     }
 }

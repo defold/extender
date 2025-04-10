@@ -44,6 +44,7 @@ import com.defold.extender.services.CocoaPodsService.ResolvedPods;
 import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.ProcessExecutor;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);

@@ -31,6 +31,12 @@ extender:
     gradle:
         enabled: false
         location: /tmp/.gradle
+    cocoapods:
+        enabled: false
+        home-dir-prefix: /tmp/.cocoapods
+        repo-update-cron: "0 0 * * * *" # update spec repo every 1 h
+        cache-dir-rotate-cron: "0 10 2 * * *" # once per day
+        old-cache-clean-cron: "0 10 6 * * *" # once per day after directory rotation
     # refer to README_SECURITY.md for information on securing your server
     authentication:
         # empty string, all platforms allowed without authentication

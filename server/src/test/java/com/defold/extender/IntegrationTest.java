@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import com.defold.extender.client.*;
+import com.defold.extender.process.ProcessExecutor;
 import com.google.common.collect.Lists;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;
