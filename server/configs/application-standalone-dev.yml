@@ -11,7 +11,7 @@ extender:
         enabled: false
     cocoapods:
         enabled: true
-        home-dir-prefix: /usr/local/extender/.cocoapods
+        home-dir-prefix: /tmp/extender/.cocoapods
         repo-update-cron: "0 0 * * * *" # update spec repo every 1 h
         cache-dir-rotate-cron: "0 10 2 * * *" # once per day
         old-cache-clean-cron: "0 10 6 * * *" # once per day after directory rotation

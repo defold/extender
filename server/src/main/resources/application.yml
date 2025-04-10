@@ -33,6 +33,7 @@ extender:
         location: /tmp/.gradle
     cocoapods:
         enabled: false
+        cdn-concurrency: 10 # value for COCOAPODS_CDN_MAX_CONCURRENCY
         home-dir-prefix: /tmp/.cocoapods
         repo-update-cron: "0 0 * * * *" # update spec repo every 1 h
         cache-dir-rotate-cron: "0 10 2 * * *" # once per day

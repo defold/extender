@@ -12,13 +12,14 @@ import java.util.stream.Collectors;
 import com.defold.extender.ExtenderException;
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProcessExecutor {
     private final StringBuffer output = new StringBuffer();
     private final Map<String, String> env = new HashMap<>();
     private File cwd = null;
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
-    private int commandCounter = 0;
+    private static AtomicInteger commandCounter = new AtomicInteger(0);
 
     public int execute(String command) throws IOException, InterruptedException {
         // To avoid an issue where an extra space was interpreted as an argument
@@ -31,7 +32,7 @@ public class ProcessExecutor {
     public int execute(List<String> args) throws IOException, InterruptedException {
         putLog(String.join(" ", args) + "\n");
 
-        int commandId = commandCounter++;
+        int commandId = commandCounter.incrementAndGet();
         long startTime = System.currentTimeMillis();
         ProcessBuilder pb = new ProcessBuilder(args);
         if (cwd != null) {
@@ -42,6 +43,16 @@ public class ProcessExecutor {
         Map<String, String> pbEnv = pb.environment();
         pbEnv.putAll(this.env);
 
+        if (DM_DEBUG_COMMANDS) {
+            StringBuffer debugBuffer = new StringBuffer();
+            debugBuffer.append(String.format("CMD %d: %s\n", commandId, String.join(" ", args)));
+            debugBuffer.append(String.format("\tWorking dir: \n", this.cwd == null ? "(null)" : this.cwd.toString()));
+            debugBuffer.append("\tEnvironment:\n");
+            for (Map.Entry<String, String> envEntry : this.env.entrySet()) {
+                debugBuffer.append(String.format("\t%s=%s\n", envEntry.getKey(), envEntry.getValue()));
+            }
+            System.out.println(debugBuffer.toString());
+        }
         Process p = pb.start();
 
         byte[] buf = new byte[16 * 1024];
@@ -61,11 +72,6 @@ public class ProcessExecutor {
         if (DM_DEBUG_COMMANDS) {
             StringBuffer debugBuffer = new StringBuffer();
             debugBuffer.append(String.format("CMD %d: %s\n", commandId, String.join(" ", args)));
-            debugBuffer.append(String.format("\tWorking dir: \n", this.cwd == null ? "(null)" : this.cwd.toString()));
-            debugBuffer.append("\tEnvrionment:\n");
-            for (Map.Entry<String, String> envEntry : this.env.entrySet()) {
-                debugBuffer.append(String.format("\t%s=%s\n", envEntry.getKey(), envEntry.getValue()));
-            }
             debugBuffer.append(String.format("\tExit code: %d", exitValue));
             long duration = System.currentTimeMillis() - startTime;
             String unit = "ms";

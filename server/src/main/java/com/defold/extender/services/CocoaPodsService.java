@@ -372,6 +372,7 @@ public class CocoaPodsService {
     private final String modulemapTemplateContents;
     private final String umbrellaHeaderTemplateContents;
     private @Value("${extender.cocoapods.home-dir-prefix}") String homeDirPrefix;
+    private @Value("${extender.cocoapods.cdn-concurrency:10}") int maxPodCDNConcurrency;
     private Path currentCacheDir;
 
     private final MeterRegistry meterRegistry;
@@ -1274,7 +1275,8 @@ public class CocoaPodsService {
                 "pod",
                 "install",
                 "--verbose"
-            ), workingDir, null);
+            ), workingDir, Map.of("CP_HOME_DIR", this.currentCacheDir.toString(),
+            "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)));
         LOGGER.debug("\n" + log);
 
         File podFileLock = new File(workingDir, "Podfile.lock");
@@ -1506,8 +1508,6 @@ public class CocoaPodsService {
                 ), null,
                 Map.of("CP_HOME_DIR", this.currentCacheDir.toString()));
             LOGGER.debug("\n" + log);
-
-            updateSpecRepo();
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during repo init", exc);
         }        
@@ -1569,7 +1569,8 @@ public class CocoaPodsService {
                     "update",
                     "--verbose"
                 ), null,
-                Map.of("CP_HOME_DIR", this.currentCacheDir.toString()));
+                Map.of("CP_HOME_DIR", this.currentCacheDir.toString(),
+                    "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)));
             LOGGER.debug("\n" + log);
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during spec repo update", exc);
