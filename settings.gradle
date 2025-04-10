@@ -5,8 +5,9 @@ buildscript {
     }
   }
 }
+
 plugins {
-  id("com.google.cloud.artifactregistry.gradle-plugin") version "2.2.4"
+    id 'com.google.cloud.artifactregistry.gradle-plugin' version '2.2.4' apply false
 }
 
 include ":server"

@@ -15,7 +15,6 @@ plugins {
     id 'java'
     id 'idea'
     id 'org.springframework.boot' version '3.3.5'
-    id 'maven-publish'
 }
 
 apply plugin: 'io.spring.dependency-management'
@@ -166,15 +165,18 @@ jar {
     archiveClassifier = '' // use empty string to avoid the 'plain' suffix
 }
 
-publishing {
-  publications {
-    extender(MavenPublication) {
-      artifact bootJar
-      groupId 'com.defold.extender'
-      artifactId 'server'
-      version project.ext.extenderVersion
+if (project.hasProperty('publishToGar')) {
+    apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'
+    publishing {
+        publications {
+            extender(MavenPublication) {
+            artifact bootJar
+            groupId 'com.defold.extender'
+            artifactId 'server'
+            version project.ext.extenderVersion
+            }
+        }
     }
-  }
 }
 
 task buildStandalone() {

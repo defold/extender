@@ -6,9 +6,7 @@ buildscript {
 
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
-
 
 ext {
     manifestMergetoolVersion = findProperty('manifestMergetoolVersion') ?: '0.5.0'
@@ -56,15 +54,18 @@ task mainJar(type: Jar) {
     }
 }
 
-publishing {
-  publications {
-    manifestMergeTool(MavenPublication) {
-      artifact mainJar
-      groupId 'com.defold.extender'
-      artifactId 'manifestmergetool'
-      version project.ext.manifestMergetoolVersion
+if (project.hasProperty('publishToGar')) {
+    apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'
+    publishing {
+        publications {
+            manifestMergeTool(MavenPublication) {
+            artifact mainJar
+            groupId 'com.defold.extender'
+            artifactId 'manifestmergetool'
+            version project.ext.manifestMergetoolVersion
+            }
+        }
     }
-  }
 }
 
 repositories {
