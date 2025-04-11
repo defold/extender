@@ -373,7 +373,7 @@ public class CocoaPodsService {
     private final String umbrellaHeaderTemplateContents;
     private @Value("${extender.cocoapods.home-dir-prefix}") String homeDirPrefix;
     private @Value("${extender.cocoapods.cdn-concurrency:10}") int maxPodCDNConcurrency;
-    private Path currentCacheDir;
+    private Path currentCacheDir = Path.of("");
 
     private final MeterRegistry meterRegistry;
 
@@ -392,7 +392,7 @@ public class CocoaPodsService {
         // initialize cache directory
         Path currentCacheDir = readCurrentCacheDir();
         if (currentCacheDir != null && currentCacheDir.startsWith(this.homeDirPrefix)) {
-            synchronized(this.currentCacheDir){
+            synchronized(this.currentCacheDir) {
                 this.currentCacheDir = currentCacheDir;
             }
             updateSpecRepo();
@@ -1528,6 +1528,7 @@ public class CocoaPodsService {
 
     @Scheduled(cron="${extender.cocoapods.cache-dir-rotate-cron}")
     public void rotatePodCacheDirectory() {
+        LOGGER.info("Rotate pod cache directory");
         Path newCacheDir = generateCacheDirPath();
         Path cacheDir;
         synchronized(this.currentCacheDir) {
@@ -1556,6 +1557,7 @@ public class CocoaPodsService {
 
     @Scheduled(cron="${extender.cocoapods.old-cache-clean-cron}")
     private void cleanupOldCacheDirectories() {
+        LOGGER.info("Cleanup old cache directories");
         File oldDirFile = Path.of(this.homeDirPrefix, CocoaPodsService.OLD_CACHE_DIR_FILE).toFile();
         if (oldDirFile.exists()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(oldDirFile))) {
@@ -1565,9 +1567,9 @@ public class CocoaPodsService {
                     Path dirPath = Path.of(strPath);
                     File path = dirPath.toFile();
                     if (path.exists()) {
-                        PathUtils.cleanDirectory(dirPath);
-                        path.delete();
+                        FileUtils.deleteDirectory(path);
                     }
+                    strPath = reader.readLine();
                 }
             } catch(IOException io) {
                 LOGGER.warn("Exception while read old cache paths file", io);
