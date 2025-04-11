@@ -392,12 +392,16 @@ public class CocoaPodsService {
         // initialize cache directory
         Path currentCacheDir = readCurrentCacheDir();
         if (currentCacheDir != null && currentCacheDir.startsWith(this.homeDirPrefix)) {
-            this.currentCacheDir = currentCacheDir;
+            synchronized(this.currentCacheDir){
+                this.currentCacheDir = currentCacheDir;
+            }
             updateSpecRepo();
         } else {
             LOGGER.info("Cocoapods has no current cache dir or prefix is changed. Created...");
-            this.currentCacheDir = generateCacheDirPath();
-            storeCurrentCacheDir(this.currentCacheDir);
+            synchronized(this.currentCacheDir) {
+                this.currentCacheDir = generateCacheDirPath();
+                storeCurrentCacheDir(this.currentCacheDir);
+            }
             initializeTrunkRepo();
         }
         cleanupOldCacheDirectories();
@@ -1264,6 +1268,11 @@ public class CocoaPodsService {
      */
     private InstalledPods installPods(File jobDir, File workingDir, File generatedDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
+        Path cacheDir;
+        // store current cache dir into local variable to use the same value for all 'pod' runs
+        synchronized(currentCacheDir) {
+            cacheDir = currentCacheDir;
+        }
         InstalledPods installedPods = new InstalledPods();
 
         File podFile = new File(workingDir, "Podfile");
@@ -1275,7 +1284,7 @@ public class CocoaPodsService {
                 "pod",
                 "install",
                 "--verbose"
-            ), workingDir, Map.of("CP_HOME_DIR", this.currentCacheDir.toString(),
+            ), workingDir, Map.of("CP_HOME_DIR", cacheDir.toString(),
             "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)));
         LOGGER.debug("\n" + log);
 
@@ -1321,7 +1330,7 @@ public class CocoaPodsService {
             String podversion = podname.replaceFirst(".*\\(", "").replace(")", "");
             if (!installedPods.podsMap.containsKey(mainpodname)) {
                 String cmd = String.format("pod spec cat --regex ^%s$ --version=%s", mainpodname, podversion);
-                String specJson = ProcessUtils.execCommand(cmd).replace(cmd, "");
+                String specJson = ProcessUtils.execCommand(cmd, null, Map.of("CP_HOME_DIR", cacheDir.toString())).replace(cmd, "");
                 // find first occurence of { because in some cases pod command
                 // can produce additional output before json spec
                 // For example:
@@ -1498,6 +1507,10 @@ public class CocoaPodsService {
 
     private void initializeTrunkRepo() {
         try {
+            Path cacheDir;
+            synchronized(currentCacheDir) {
+                cacheDir = currentCacheDir;
+            }
             String log = ProcessUtils.execCommand(List.of(
                     "pod",
                     "repo",
@@ -1506,7 +1519,7 @@ public class CocoaPodsService {
                     "https://cdn.cocoapods.org/",
                     "--verbose"
                 ), null,
-                Map.of("CP_HOME_DIR", this.currentCacheDir.toString()));
+                Map.of("CP_HOME_DIR", cacheDir.toString()));
             LOGGER.debug("\n" + log);
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during repo init", exc);
@@ -1516,6 +1529,10 @@ public class CocoaPodsService {
     @Scheduled(cron="${extender.cocoapods.cache-dir-rotate-cron}")
     public void rotatePodCacheDirectory() {
         Path newCacheDir = generateCacheDirPath();
+        Path cacheDir;
+        synchronized(this.currentCacheDir) {
+            cacheDir = this.currentCacheDir;
+        }
         try {
             Files.createDirectories(newCacheDir);
         } catch(IOException|UnsupportedOperationException|SecurityException exc) {
@@ -1524,14 +1541,16 @@ public class CocoaPodsService {
         }
             
         try (FileWriter writer = new FileWriter(new File(this.homeDirPrefix, CocoaPodsService.OLD_CACHE_DIR_FILE), true)) {
-            writer.append(currentCacheDir.toAbsolutePath().toString());
+            writer.append(cacheDir.toAbsolutePath().toString());
             writer.append("\n");
             writer.close();
         } catch(IOException exc) {
             LOGGER.warn("Error while writing to old cache paths file", exc);
         }
-        this.currentCacheDir = newCacheDir;
-        storeCurrentCacheDir(currentCacheDir);
+        synchronized(this.currentCacheDir) {
+            this.currentCacheDir = newCacheDir;
+            storeCurrentCacheDir(currentCacheDir);
+        }
         initializeTrunkRepo();
     }
 
@@ -1563,13 +1582,17 @@ public class CocoaPodsService {
     public void updateSpecRepo() {
         try {
             LOGGER.info("Run pod spec update");
+            Path cacheDir;
+            synchronized(currentCacheDir) {
+                cacheDir = currentCacheDir;
+            }
             String log = ProcessUtils.execCommand(List.of(
                     "pod",
                     "repo",
                     "update",
                     "--verbose"
                 ), null,
-                Map.of("CP_HOME_DIR", this.currentCacheDir.toString(),
+                Map.of("CP_HOME_DIR", cacheDir.toString(),
                     "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)));
             LOGGER.debug("\n" + log);
         } catch(ExtenderException exc) {
