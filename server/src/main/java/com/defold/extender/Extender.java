@@ -37,10 +37,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import com.defold.extender.services.GradleService;
-import com.defold.extender.services.CocoaPodsService;
-import com.defold.extender.services.CocoaPodsService.PodSpec;
-import com.defold.extender.services.CocoaPodsService.ResolvedPods;
-
+import com.defold.extender.services.cocoapods.CocoaPodsService;
+import com.defold.extender.services.cocoapods.PodSpec;
+import com.defold.extender.services.cocoapods.ResolvedPods;
 import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
