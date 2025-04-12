@@ -3,6 +3,7 @@ package com.defold.extender.services.cocoapods;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -23,6 +24,7 @@ import com.defold.extender.TestUtils;
 
 
 public class CocoaPodsServiceTest {
+    private static final String INHERITED_VALUE = "$(inherited)";
     private File emptyPodfile;
     private File withCommentPodfile;
     private File regularPodfile;
@@ -33,7 +35,10 @@ public class CocoaPodsServiceTest {
     public static List<Path> specData() {
         return List.of(
             Path.of("test-data/pod_specs/PNChartboostSDKAdapter.json"),
-            Path.of("test-data/pod_specs/UnityAds.json")
+            Path.of("test-data/pod_specs/UnityAds.json"),
+            Path.of("test-data/pod_specs/Cuckoo.json"),
+            Path.of("test-data/pod_specs/Rtc555Sdk.json"),
+            Path.of("test-data/pod_specs/streethawk.json")
         );
     }
 
@@ -95,7 +100,7 @@ public class CocoaPodsServiceTest {
     @MethodSource("specData")
     public void testParsePodSpecs(Path spec) throws IOException, ExtenderException {
         String jsonSpec = Files.readString(spec);
-        File workingDir = Files.createTempDirectory("spec-test").toFile();
+        File workingDir = Files.createTempDirectory("parse-spec-test").toFile();
         File podsDir = new File(workingDir, "pods");
         podsDir.mkdir();
         File generatedDir = new File(workingDir, "generated");
@@ -109,5 +114,57 @@ public class CocoaPodsServiceTest {
             .setJobContext(this.jobContext)
             .build();
         assertDoesNotThrow(() -> PodSpecParser.createPodSpec(args));
+    }
+
+    @ParameterizedTest
+    @MethodSource("specData")
+    public void testPodSpecsNoInherited(Path spec) throws IOException, ExtenderException {
+        String jsonSpec = Files.readString(spec);
+        File workingDir = Files.createTempDirectory("flags-spec-test").toFile();
+        File podsDir = new File(workingDir, "pods");
+        podsDir.mkdir();
+        File generatedDir = new File(workingDir, "generated");
+        generatedDir.mkdir();
+        workingDir.deleteOnExit();
+        PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
+            .setGeneratedDir(generatedDir)
+            .setPodsDir(podsDir)
+            .setSpecJson(jsonSpec)
+            .setWorkingDir(workingDir)
+            .setJobContext(this.jobContext)
+            .build();
+        PodSpec podSpec = PodSpecParser.createPodSpec(args);
+        // ios
+        assertFalse(podSpec.linkflags.ios.contains(INHERITED_VALUE));
+        assertFalse(podSpec.defines.ios.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.ios.c.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.ios.cpp.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.ios.objc.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.ios.objcpp.contains(INHERITED_VALUE));
+        // osx
+        assertFalse(podSpec.linkflags.osx.contains(INHERITED_VALUE));
+        assertFalse(podSpec.defines.osx.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.osx.c.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.osx.cpp.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.osx.objc.contains(INHERITED_VALUE));
+        assertFalse(podSpec.flags.osx.objcpp.contains(INHERITED_VALUE));
+
+        for (PodSpec subspec : podSpec.subspecs) {
+            // ios
+            assertFalse(subspec.linkflags.ios.contains(INHERITED_VALUE));
+            assertFalse(subspec.defines.ios.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.ios.c.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.ios.cpp.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.ios.objc.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.ios.objcpp.contains(INHERITED_VALUE));
+            // osx
+            assertFalse(subspec.linkflags.osx.contains(INHERITED_VALUE));
+            assertFalse(subspec.defines.osx.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.osx.c.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.osx.cpp.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.osx.objc.contains(INHERITED_VALUE));
+            assertFalse(subspec.flags.osx.objcpp.contains(INHERITED_VALUE));
+        }
+        
     }
 }

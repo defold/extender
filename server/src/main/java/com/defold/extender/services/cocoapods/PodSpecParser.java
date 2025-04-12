@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -271,8 +272,8 @@ public final class PodSpecParser {
             while (it.hasNext()) {
                 JSONObject o = it.next();
                 CreatePodSpecArgs innerSpecArgs = new CreatePodSpecArgs(args);
-                args.specJson = o;
-                args.parentSpec = spec;
+                innerSpecArgs.specJson = o;
+                innerSpecArgs.parentSpec = spec;
                 PodSpec subSpec = createPodSpec(innerSpecArgs);
                 spec.subspecs.add(subSpec);
             }
@@ -424,19 +425,22 @@ public final class PodSpecParser {
     static void parseConfig(JSONObject config, LanguageSet flags, Set<String> linkflags, Set<String> defines) {
         // https://pewpewthespells.com/blog/buildsettings.html
         // defines
-        if (hasString(config, "GCC_PREPROCESSOR_DEFINITIONS")) {
-            defines.addAll(unescapeStrings(getAsSplitString(config, "GCC_PREPROCESSOR_DEFINITIONS")));
+        List<String> defs = getStringListValues(config, "GCC_PREPROCESSOR_DEFINITIONS");
+        if (defs != null) {
+            defines.addAll(unescapeStrings(defs));
         }
         // linker flags
         // https://xcodebuildsettings.com/#other_ldflags
-        if (hasString(config, "OTHER_LDFLAGS")) {
-            linkflags.addAll(getAsSplitString(config, "OTHER_LDFLAGS"));
+        List<String> ldFlags = getStringListValues(config, "OTHER_LDFLAGS");
+        if (ldFlags != null) {
+            linkflags.addAll(ldFlags);
         }
         // compiler flags for c and objc files
         // https://xcodebuildsettings.com/#other_cflags
-        if (hasString(config, "OTHER_CFLAGS")) {
-            flags.c.addAll(getAsSplitString(config, "OTHER_CFLAGS"));
-            flags.objc.addAll(getAsSplitString(config, "OTHER_CFLAGS"));
+        List<String> cFlags = getStringListValues(config, "OTHER_CFLAGS");
+        if (cFlags != null) {
+            flags.c.addAll(cFlags);
+            flags.objc.addAll(cFlags);
         }
         // compiler flags
         if (hasString(config, "CLANG_CXX_LANGUAGE_STANDARD")) {
@@ -525,6 +529,23 @@ public final class PodSpecParser {
         }
     }
 
+    static List<String> getStringListValues(JSONObject o, String key) {
+        if (o.containsKey(key)) {
+            Object value = o.get(key);
+            List<String> result = null;
+            if (value instanceof String) {
+                result = getAsSplitString(o, key);
+            } else if (value instanceof JSONArray) {
+                result = (JSONArray)value;
+            }
+            if (result != null) {
+                result.remove("$(inherited)");
+            }
+            return result;
+        }
+        return null;
+    }
+
     // check if a string value on a JSON object exists
     // will return false if the value doesn't exist or is an empty string
     static boolean hasString(JSONObject o, String key) {
@@ -542,7 +563,7 @@ public final class PodSpecParser {
         if (value == null || value.trim().isEmpty()) {
             return new ArrayList<>();
         }
-        return Arrays.asList(value.split(" "));
+        return new ArrayList<>(Arrays.asList(value.split(" ")));
     }
 
     static List<String> unescapeStrings(List<String> strings) {
