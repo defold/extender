@@ -19,9 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -34,29 +32,11 @@ import java.util.List;
 import java.util.Map;
 
 public class ExtenderTest {
-
-    static Map<String, String> envFileToMap(File inputFile) {
-        Map<String, String> result = new HashMap<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(inputFile))) {
-            String line = reader.readLine();
-            while (line != null) {
-                String[] splitted = line.split("=");
-                result.put(splitted[0], splitted[1]);
-                line = reader.readLine();
-            }
-            reader.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return result;
-    }
-
     static Map<String, String> createEnv()
     {
         Map<String, String> env = new HashMap<>();
-        env.putAll(envFileToMap(new File("envs/.env")));
-        env.putAll(envFileToMap(new File("envs/macos.env")));
+        env.putAll(TestUtils.envFileToMap(new File("envs/.env")));
+        env.putAll(TestUtils.envFileToMap(new File("envs/macos.env")));
 
         env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
         env.put("MANIFEST_MERGE_TOOL", "/opt/local/bin/manifestmergetool.jar");
