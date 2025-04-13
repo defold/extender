@@ -5,6 +5,7 @@ subprojects {
 }
 
 if (project.hasProperty('publishToGar')) {
+    apply plugin: 'maven-publish'
     apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'
     publishing {
         repositories {
