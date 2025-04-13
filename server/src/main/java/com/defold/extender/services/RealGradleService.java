@@ -2,12 +2,14 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
-import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.Timer;
 import com.defold.extender.ZipUtils;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.ProcessExecutor;
+import com.defold.extender.process.ProcessUtils;
+
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -175,26 +177,6 @@ public class RealGradleService implements GradleServiceInterface {
         }
     }
 
-    private String execCommand(String command, File cwd) throws ExtenderException {
-        ProcessExecutor pe = new ProcessExecutor();
-
-        pe.putEnv("GRADLE_USER_HOME", this.gradleHome);
-
-        if (cwd != null) {
-            pe.setCwd(cwd);
-        }
-
-        try {
-            if (pe.execute(command) != 0) {
-                throw new ExtenderException(pe.getOutput());
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, pe.getOutput());
-        }
-
-        return pe.getOutput();
-    }
-
     private Map<String, String> parseDependencies(String log) {
         // The output comes from template.build.gradle
         Pattern p = Pattern.compile("PATH:\\s*([\\w-.\\/]*)\\sEXTENSION:\\s*([\\w-.\\/]*)\\sTYPE:\\s*([\\w-.\\/]*)\\sMODULE_GROUP:\\s*([\\w-.\\/]*)\\sMODULE_NAME:\\s*([\\w-.\\/]*)\\sMODULE_VERSION:\\s*([\\w-.\\/]*)");
@@ -273,7 +255,15 @@ public class RealGradleService implements GradleServiceInterface {
         LOGGER.info("Resolving dependencies");
 
         // add --info for additional logging
-        String log = execCommand("gradle downloadDependencies --write-locks --stacktrace --warning-mode all", cwd);
+        String log = ProcessUtils.execCommand(List.of(
+                "gradle",
+                "downloadDependencies",
+                "--write-locks",
+                "--stacktrace",
+                "--warning-mode",
+                "all"
+            ), cwd,
+            Map.of("GRADLE_USER_HOME", this.gradleHome));
         LOGGER.debug("\n" + log);
 
         Map<String, String> dependencies = parseDependencies(log);
@@ -288,7 +278,12 @@ public class RealGradleService implements GradleServiceInterface {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Writing dependency tree");
 
-        String treelog = execCommand("gradle dependencies --configuration releaseCompileClasspath", cwd);
+        String treelog = ProcessUtils.execCommand(List.of(
+                "gradle",
+                "dependencies",
+                "--configuration",
+                "releaseCompileClasspath"
+            ), cwd, Map.of("GRADLE_USER_HOME", this.gradleHome));
         LOGGER.debug("\n" + treelog);
 
         Files.write(out.toPath(), treelog.getBytes());

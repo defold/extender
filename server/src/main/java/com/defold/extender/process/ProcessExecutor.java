@@ -1,4 +1,4 @@
-package com.defold.extender;
+package com.defold.extender.process;
 
 import java.io.File;
 import java.io.IOException;
@@ -8,31 +8,34 @@ import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import com.defold.extender.ExtenderException;
+
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProcessExecutor {
     private final StringBuffer output = new StringBuffer();
-    private final HashMap<String, String> env = new HashMap<>();
+    private final Map<String, String> env = new HashMap<>();
     private File cwd = null;
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
-    private int commandCounter = 0;
+    private static AtomicInteger commandCounter = new AtomicInteger(0);
 
     public int execute(String command) throws IOException, InterruptedException {
-        putLog(command + "\n");
-
-        int commandId = commandCounter++;
-        long startTime = System.currentTimeMillis();
-        if (DM_DEBUG_COMMANDS) {
-            System.out.printf("CMD %d: %s\n", commandId, command);
-        }
-
         // To avoid an issue where an extra space was interpreted as an argument
         List<String> args = Arrays.stream(command.split(" "))
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
+        return execute(args);
+    }
 
+    public int execute(List<String> args) throws IOException, InterruptedException {
+        putLog(String.join(" ", args) + "\n");
+
+        int commandId = commandCounter.incrementAndGet();
+        long startTime = System.currentTimeMillis();
         ProcessBuilder pb = new ProcessBuilder(args);
-        if (cwd != null ) {
+        if (cwd != null) {
             pb.directory(cwd);
         }
         pb.redirectErrorStream(true);
@@ -40,6 +43,16 @@ public class ProcessExecutor {
         Map<String, String> pbEnv = pb.environment();
         pbEnv.putAll(this.env);
 
+        if (DM_DEBUG_COMMANDS) {
+            StringBuffer debugBuffer = new StringBuffer();
+            debugBuffer.append(String.format("CMD %d: %s\n", commandId, String.join(" ", args)));
+            debugBuffer.append(String.format("\tWorking dir: \n", this.cwd == null ? "(null)" : this.cwd.toString()));
+            debugBuffer.append("\tEnvironment:\n");
+            for (Map.Entry<String, String> envEntry : this.env.entrySet()) {
+                debugBuffer.append(String.format("\t%s=%s\n", envEntry.getKey(), envEntry.getValue()));
+            }
+            System.out.println(debugBuffer.toString());
+        }
         Process p = pb.start();
 
         byte[] buf = new byte[16 * 1024];
@@ -57,6 +70,9 @@ public class ProcessExecutor {
         int exitValue = p.waitFor();
 
         if (DM_DEBUG_COMMANDS) {
+            StringBuffer debugBuffer = new StringBuffer();
+            debugBuffer.append(String.format("CMD %d: %s\n", commandId, String.join(" ", args)));
+            debugBuffer.append(String.format("\tExit code: %d", exitValue));
             long duration = System.currentTimeMillis() - startTime;
             String unit = "ms";
             double divisor = 1.0;
@@ -66,7 +82,8 @@ public class ProcessExecutor {
                 divisor = 1000.0;
             }
             double t = duration / divisor;
-            System.out.printf("CMD %d took %f %s\n", commandId, t, unit);
+            debugBuffer.append(String.format("\tCommand took %f %s", t, unit));
+            System.out.println(debugBuffer.toString());
         }
 
         if (exitValue > 0) {
@@ -93,6 +110,10 @@ public class ProcessExecutor {
             return;
         }
         env.put(key, value);
+    }
+
+    public void putEnv(Map<String, String> inputEnv) throws NullPointerException {
+        env.putAll(inputEnv);
     }
 
     public Map<String, String> getEnv() {

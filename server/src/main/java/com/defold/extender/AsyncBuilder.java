@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Optional;
 
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
@@ -39,12 +40,12 @@ public class AsyncBuilder {
 
     public AsyncBuilder(DefoldSdkService defoldSdkService,
                         GradleService gradleService,
-                        CocoaPodsService cocoaPodsService,
+                        Optional<CocoaPodsService> cocoaPodsService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
         this.gradleService = gradleService;
-        this.cocoaPodsService = cocoaPodsService;
+        cocoaPodsService.ifPresent(val -> { this.cocoaPodsService = val; });
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
         this.resultLifetime = jobResultLifetime;
