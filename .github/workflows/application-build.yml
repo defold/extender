@@ -164,8 +164,6 @@ jobs:
         distribution: 'temurin'
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244
-    - name: Build extender
-      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
     - name: Login to Google Artifact registry (Docker)
       uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
       with:
@@ -177,15 +175,17 @@ jobs:
         # pull all containers under profile 'test'. Part of them is used in 'auth-test'
         # if you need some new container under other profiles - need to add new statement with different profile
         docker compose --file ./server/docker/docker-compose.yml --profile test pull
-    - name: Run extender tests
-      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} server:test -i
     - name: Login to Google Artifact registry (Maven)
       uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935
       with:
         service_account: ${{ env.MAVEN_SERVICE_ACCOUNT }}
         credentials_json: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
         export_environment_variables: true
-        create_credentials_file: true
+        create_credentials_file: true  
+    - name: Build extender
+      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
+    - name: Run extender tests
+      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} server:test -i
     - name: Publish to Google artifact registry
       run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} publishExtenderPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
