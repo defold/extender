@@ -129,6 +129,8 @@ public final class PodSpecParser {
     public static PodSpec createPodSpec(CreatePodSpecArgs args) throws ExtenderException {
         PodSpec spec = new PodSpec();
         JSONObject specJson = args.specJson;
+        spec.umbrellaHeaderGenerator = args.umbrellaHeaderGenerator;
+        spec.moduleMapGenerator = args.moduleMapGenerator;
         spec.name = (String)specJson.get("name");
         spec.moduleName = getModuleName(specJson, args.parentSpec);
         spec.version = (args.parentSpec == null) ? (String)specJson.get("version") : args.parentSpec.version;
