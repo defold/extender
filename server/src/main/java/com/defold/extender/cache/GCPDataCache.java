@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileInputStream;
 import java.nio.channels.Channels;
+import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -27,6 +28,7 @@ private static final Logger LOGGER = LoggerFactory.getLogger(GCPDataCache.class)
     private String prefix;
 
     private Set<String> currentUploads = new HashSet<>();
+    private Set<String> currentUpdates = new HashSet<>();
 
     public GCPDataCache(final String bucketName, final String prefix) {
         this.storage = StorageOptions.getDefaultInstance().getService();
@@ -49,13 +51,32 @@ private static final Logger LOGGER = LoggerFactory.getLogger(GCPDataCache.class)
     @Override
     public void touch(String key) {
         String fullKey = getBlobKey(key);
-        Blob blob = storage.get(this.bucketName, fullKey);
-        if (blob != null) {
-            try {
-                // metadata can be updated only by copying object to itself
-                blob.copyTo(this.bucketName, fullKey);
-            } catch (StorageException exc) {
-                LOGGER.warn("Exception when touch object '{}' {}", fullKey, exc.getReason());
+        // synchronized on full
+        synchronized(currentUpdates) {
+            if (currentUpdates.contains(fullKey)) {
+                return;
+            } else {
+                currentUpdates.add(fullKey);
+            }
+        }
+        try {
+            Blob blob = storage.get(this.bucketName, fullKey);
+            if (blob != null) {
+                OffsetDateTime now = OffsetDateTime.now();
+                OffsetDateTime creationTime = blob.getCreateTimeOffsetDateTime();
+                // once per day
+                if (creationTime.plusDays(1).isBefore(now)) {
+                    // metadata can be updated only by copying object to itself
+                    blob.copyTo(this.bucketName, fullKey);
+                } else {
+                    LOGGER.debug("Cache update for {} skipped", fullKey);
+                }
+            }
+        } catch (StorageException exc) {
+            LOGGER.warn("Exception when touch object '{}' {}", fullKey, exc.getReason());
+        } finally {
+            synchronized (currentUpdates) {
+                currentUpdates.remove(fullKey);
             }
         }
     }
