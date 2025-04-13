@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.simple.JSONArray;
@@ -24,6 +26,8 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 
 public final class PodSpecParser {
+
+    private static final Pattern BRACE_PATTERN = Pattern.compile("\\{([^{}]*)\\}");
 
     public static class CreatePodSpecArgs {
         public static class Builder {
@@ -186,8 +190,8 @@ public final class PodSpecParser {
         // https://guides.cocoapods.org/syntax/podspec.html#compiler_flags
         spec.flags.ios.addAll(getAsSplitString(specJson, "compiler_flags"));
         spec.flags.osx.addAll(getAsSplitString(specJson, "compiler_flags"));
-        if (ios != null) spec.flags.ios.addAll(getAsJSONArray(ios, "compiler_flags"));
-        if (osx != null) spec.flags.osx.addAll(getAsJSONArray(osx, "compiler_flags"));
+        if (ios != null) spec.flags.ios.addAll(getAsSplitString(ios, "compiler_flags"));
+        if (osx != null) spec.flags.osx.addAll(getAsSplitString(osx, "compiler_flags"));
         spec.flags.ios.c.add("--language=c");
         spec.flags.osx.c.add("--language=c");
         spec.flags.ios.cpp.add("--language=c++");
@@ -213,39 +217,39 @@ public final class PodSpecParser {
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
-        spec.resources.addAll(getAsJSONArray(specJson, "resource"));
-        spec.resources.addAll(getAsJSONArray(specJson, "resources"));
-        if (ios != null) spec.resources.ios.addAll(getAsJSONArray(ios, "resource"));
-        if (osx != null) spec.resources.osx.addAll(getAsJSONArray(osx, "resource"));
-        if (ios != null) spec.resources.ios.addAll(getAsJSONArray(ios, "resources"));
-        if (osx != null) spec.resources.osx.addAll(getAsJSONArray(osx, "resources"));
+        spec.resources.addAll(getAsList(specJson, "resource"));
+        spec.resources.addAll(getAsList(specJson, "resources"));
+        if (ios != null) spec.resources.ios.addAll(getAsList(ios, "resource"));
+        if (osx != null) spec.resources.osx.addAll(getAsList(osx, "resource"));
+        if (ios != null) spec.resources.ios.addAll(getAsList(ios, "resources"));
+        if (osx != null) spec.resources.osx.addAll(getAsList(osx, "resources"));
 
         // frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#frameworks
-        spec.frameworks.addAll(getAsJSONArray(specJson, "frameworks"));
-        if (ios != null) spec.frameworks.ios.addAll(getAsJSONArray(ios, "frameworks"));
-        if (osx != null) spec.frameworks.osx.addAll(getAsJSONArray(osx, "frameworks"));
+        spec.frameworks.addAll(getAsList(specJson, "frameworks"));
+        if (ios != null) spec.frameworks.ios.addAll(getAsList(ios, "frameworks"));
+        if (osx != null) spec.frameworks.osx.addAll(getAsList(osx, "frameworks"));
 
         // weak frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#weak_frameworks
-        spec.weakFrameworks.addAll(getAsJSONArray(specJson, "weak_frameworks"));
-        if (ios != null) spec.weakFrameworks.ios.addAll(getAsJSONArray(ios, "weak_frameworks"));
-        if (osx != null) spec.weakFrameworks.osx.addAll(getAsJSONArray(osx, "weak_frameworks"));
+        spec.weakFrameworks.addAll(getAsList(specJson, "weak_frameworks"));
+        if (ios != null) spec.weakFrameworks.ios.addAll(getAsList(ios, "weak_frameworks"));
+        if (osx != null) spec.weakFrameworks.osx.addAll(getAsList(osx, "weak_frameworks"));
 
         // vendored frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#vendored_frameworks
-        JSONArray vendored = getAsJSONArray(specJson, "vendored_frameworks");
+        List<String> vendored = getAsList(specJson, "vendored_frameworks");
         if (vendored != null) {
             spec.vendoredFrameworks.addAll(vendored);
         }
         if (ios != null) {
-            JSONArray ios_vendored = getAsJSONArray(ios, "vendored_frameworks");
+            List<String> ios_vendored = getAsList(ios, "vendored_frameworks");
             if (ios_vendored != null) {
                 spec.vendoredFrameworks.addAll(ios_vendored);
             }
         }
         if (osx != null) {
-            JSONArray osx_vendored = getAsJSONArray(osx, "vendored_frameworks");
+            List<String> osx_vendored = getAsList(osx, "vendored_frameworks");
             if (osx_vendored != null) {
                 spec.vendoredFrameworks.addAll(osx_vendored);
             }
@@ -253,19 +257,22 @@ public final class PodSpecParser {
 
         // libraries
         // https://guides.cocoapods.org/syntax/podspec.html#libraries
-        spec.libraries.addAll(getAsJSONArray(specJson, "libraries"));
-        if (ios != null) spec.libraries.ios.addAll(getAsJSONArray(ios, "libraries"));
+        spec.libraries.addAll(getAsList(specJson, "libraries"));
+        if (ios != null) spec.libraries.ios.addAll(getAsList(ios, "libraries"));
         if (spec.libraries.ios.contains("c++")) {
             spec.flags.ios.cpp.add("-std=c++11");
         }
-        if (osx != null) spec.libraries.osx.addAll(getAsJSONArray(osx, "libraries"));
+        if (osx != null) spec.libraries.osx.addAll(getAsList(osx, "libraries"));
         if (spec.libraries.osx.contains("c++")) {
             spec.flags.osx.cpp.add("-std=c++11");
         }
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
-        spec.defaultSubspecs.addAll(getAsJSONArray(specJson, "default_subspecs"));
+        List<String> defaultSubSpecs = getStringListValues(specJson, "default_subspecs");
+        if (defaultSubSpecs != null) {
+            spec.defaultSubspecs.addAll(defaultSubSpecs);
+        }
         JSONArray subspecs = getAsJSONArray(specJson, "subspecs");
         if (subspecs != null) {
             Iterator<JSONObject> it = subspecs.iterator();
@@ -289,7 +296,7 @@ public final class PodSpecParser {
 
         // find source and header files
         // https://guides.cocoapods.org/syntax/podspec.html#source_files
-        JSONArray sourceFiles = getAsJSONArray(specJson, "source_files");
+        List<String> sourceFiles = getAsList(specJson, "source_files");
         if (sourceFiles != null) {
             Iterator<String> it = sourceFiles.iterator();
             while (it.hasNext()) {
@@ -323,9 +330,9 @@ public final class PodSpecParser {
 
         // public header files
         // https://guides.cocoapods.org/syntax/podspec.html#public_header_files
-        spec.publicHeaders.addAll(getAsJSONArray(specJson, "public_header_files"));
-        if (ios != null) spec.publicHeaders.ios.addAll(getAsJSONArray(ios, "public_header_files"));
-        if (osx != null) spec.publicHeaders.osx.addAll(getAsJSONArray(osx, "public_header_files"));
+        spec.publicHeaders.addAll(getAsList(specJson, "public_header_files"));
+        if (ios != null) spec.publicHeaders.ios.addAll(getAsList(ios, "public_header_files"));
+        if (osx != null) spec.publicHeaders.osx.addAll(getAsList(osx, "public_header_files"));
 
         // generate umbrella header
         if (spec.installed) {
@@ -529,6 +536,7 @@ public final class PodSpecParser {
         }
     }
 
+    // get values as List in case if value is List or String with ' ' delimeter
     static List<String> getStringListValues(JSONObject o, String key) {
         if (o.containsKey(key)) {
             Object value = o.get(key);
@@ -610,6 +618,41 @@ public final class PodSpecParser {
     // will return null if the value doesn't exist or is an empty string
     static String getAsString(JSONObject o, String key) {
         return getAsString(o, key, null);
+    }
+
+    public static List<String> expandBraces(String input) {
+        List<String> results = new ArrayList<>();
+        Matcher matcher = BRACE_PATTERN.matcher(input);
+
+        if (matcher.find()) {
+            String before = input.substring(0, matcher.start());
+            String after = input.substring(matcher.end());
+            String[] options = matcher.group(1).split(",");
+
+            for (String option : options) {
+                String combined = before + option + after;
+                results.addAll(expandBraces(combined));
+            }
+        } else {
+            results.add(input);
+        }
+
+        return results;
+    }
+
+    // get value as string list. If value contains {} - expand it into separate values
+    static List<String> getAsList(JSONObject o, String key) {
+        List<String> result = new ArrayList<>();
+        Object value = o.get(key);
+        if (value instanceof JSONArray) {
+            List<String> tmp = (JSONArray)value;
+            for (String element : tmp) {
+                result.addAll(expandBraces(element));
+            }
+        } else if (value instanceof String) {
+            result.addAll(expandBraces((String)value));
+        }
+        return result;
     }
     
     /**
