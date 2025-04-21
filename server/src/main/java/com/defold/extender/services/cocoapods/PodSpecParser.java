@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -663,8 +662,7 @@ public final class PodSpecParser {
      * @param pattern Source file pattern (glob format)
      */
     static void addPodSourceFiles(PodSpec pod, String pattern) {
-        String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
-        List<File> podSrcFiles = listFilesGlob(pod.dir, absolutePatternPath);
+        List<File> podSrcFiles = PodUtils.listFilesGlob(pod.dir, pattern);
         for (File podSrcFile : podSrcFiles) {
             final String filename = podSrcFile.getName();
             if (filename.endsWith(".swift")) {
@@ -688,8 +686,7 @@ public final class PodSpecParser {
      * @param pattern Source file pattern (glob format)
      */
     static void addPodIncludePaths(PodSpec pod, String pattern) {
-        String absolutePatternPath = pod.dir.getAbsolutePath() + File.separator + pattern;
-        List<File> podSrcFiles = listFilesGlob(pod.dir, absolutePatternPath);
+        List<File> podSrcFiles = PodUtils.listFilesGlob(pod.dir, pattern);
         for (File podSrcFile : podSrcFiles) {
             final String filename = podSrcFile.getName();
             if (isHeaderFile(filename)) {
@@ -760,23 +757,10 @@ public final class PodSpecParser {
         return umbrellaHeaderFile.getAbsolutePath();
     }
 
-    static List<File> listFilesGlob(File dir, String pattern) {
-        List<File> files = ExtenderUtil.listFilesGlob(dir, pattern);
-        // Cocoapods uses Ruby where glob patterns are treated slightly differently:
-        // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
-        // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
-        if (pattern.contains("/**/")) {
-            pattern = pattern.replaceFirst("\\/\\*\\*\\/", "/");
-            files.addAll(ExtenderUtil.listFilesGlob(dir, pattern));
-        }
-        return files;
-    }
-
     static void createUmbrellaHeader(PodSpec pod, Set<String> headerPatterns, File umbrellaHeaderFile, File jobDir) throws ExtenderException {
         List<String> headers = new ArrayList<>();
         for (String headerPattern : headerPatterns) {
-            String absoluteHeaderPatternPath = pod.dir.getAbsolutePath() + File.separator + headerPattern;
-            List<File> headerFiles = listFilesGlob(pod.dir, absoluteHeaderPatternPath);
+            List<File> headerFiles = PodUtils.listFilesGlob(pod.dir, headerPattern);
             for (File headerFile : headerFiles) {
                 headers.add(headerFile.getAbsolutePath());
             }
