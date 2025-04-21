@@ -13,10 +13,15 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+
+import javax.naming.InvalidNameException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.defold.extender.ExtenderException;
@@ -32,18 +37,36 @@ public class CocoaPodsServiceTest {
 
     private Map<String, Object> jobContext;
 
-    public static List<Path> specData() {
-        return List.of(
-            Path.of("test-data/pod_specs/PNChartboostSDKAdapter.json"),
-            Path.of("test-data/pod_specs/UnityAds.json"),
-            Path.of("test-data/pod_specs/Cuckoo.json"),
-            Path.of("test-data/pod_specs/Rtc555Sdk.json"),
-            Path.of("test-data/pod_specs/streethawk.json")
+    private File workingDir;
+    private File podsDir;
+    private File generatedDir;
+
+    private static Stream<Arguments> specData() {
+        return Stream.of(
+            Arguments.of("PNChartboostSDKAdapter", Path.of("test-data/pod_specs/PNChartboostSDKAdapter.json")),
+            Arguments.of("UnityAds", Path.of("test-data/pod_specs/UnityAds.json")),
+            Arguments.of("Cuckoo", Path.of("test-data/pod_specs/Cuckoo.json")),
+            Arguments.of("Rtc555Sdk", Path.of("test-data/pod_specs/Rtc555Sdk.json")),
+            Arguments.of("streethawk", Path.of("test-data/pod_specs/streethawk.json")),
+            Arguments.of("AXPracticalHUD", "test-data/pod_specs/AXPracticalHUD.json"),
+            Arguments.of("PubNub", "test-data/pod_specs/PubNub.json"),
+            Arguments.of("TPNiOS", "test-data/pod_specs/TPNiOS.json"),
+            Arguments.of("Wilddog", "test-data/pod_specs/Wilddog.json")
         );
     }
 
+    private static File createEmptyFiles(File podsDir, String podName, String[] filesToCreate) throws IOException {
+        File resultFolder = new File(podsDir, podName);
+        for (String f : filesToCreate) {
+            File emptyF = new File(resultFolder, f);
+            emptyF.getParentFile().mkdirs();
+            emptyF.createNewFile();
+        }
+        return resultFolder;
+    }
+
     @BeforeEach
-    public void setUp() {
+    public void setUp(TestInfo testInfo) throws IOException, InvalidNameException {
         this.emptyPodfile = new File("test-data/podfiles/empty.Podfile");
         this.regularPodfile = new File("test-data/podfiles/regular.Podfile");
         this.wrongPodfile = new File("test-data/podfiles/wrong.Podfile");
@@ -52,6 +75,17 @@ public class CocoaPodsServiceTest {
         this.jobContext = new HashMap<>();
         this.jobContext.putAll(TestUtils.envFileToMap(new File("envs/.env")));
         this.jobContext.putAll(TestUtils.envFileToMap(new File("envs/macos.env")));
+
+        if (testInfo.getDisplayName().contains(" ")) {
+            // display name is used as folder prefix so if it contains spaces - ask to remove spaces ))
+            throw new InvalidNameException("Test's display name shouldn't contain spaces");
+        }
+        this.workingDir = Files.createTempDirectory(testInfo.getDisplayName()).toFile();
+        this.podsDir = new File(this.workingDir, "pods");
+        this.podsDir.mkdir();
+        this.generatedDir = new File(this.workingDir, "generated");
+        this.generatedDir.mkdir();
+        this.workingDir.deleteOnExit();
     }
 
     @Test
@@ -96,41 +130,29 @@ public class CocoaPodsServiceTest {
         assertArrayEquals(expected, mainPodfile.podnames.toArray());
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{index}_testParsePodSpecs_{0}")
     @MethodSource("specData")
-    public void testParsePodSpecs(Path spec) throws IOException, ExtenderException {
+    public void testParsePodSpecs(String alias, Path spec) throws IOException, ExtenderException {
         String jsonSpec = Files.readString(spec);
-        File workingDir = Files.createTempDirectory("parse-spec-test").toFile();
-        File podsDir = new File(workingDir, "pods");
-        podsDir.mkdir();
-        File generatedDir = new File(workingDir, "generated");
-        generatedDir.mkdir();
-        workingDir.deleteOnExit();
         PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
-            .setGeneratedDir(generatedDir)
-            .setPodsDir(podsDir)
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
             .setSpecJson(jsonSpec)
-            .setWorkingDir(workingDir)
+            .setWorkingDir(this.workingDir)
             .setJobContext(this.jobContext)
             .build();
         assertDoesNotThrow(() -> PodSpecParser.createPodSpec(args));
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{index}_testPodSpecsNoInherited_{0}")
     @MethodSource("specData")
-    public void testPodSpecsNoInherited(Path spec) throws IOException, ExtenderException {
+    public void testPodSpecsNoInherited(String alias, Path spec) throws IOException, ExtenderException {
         String jsonSpec = Files.readString(spec);
-        File workingDir = Files.createTempDirectory("flags-spec-test").toFile();
-        File podsDir = new File(workingDir, "pods");
-        podsDir.mkdir();
-        File generatedDir = new File(workingDir, "generated");
-        generatedDir.mkdir();
-        workingDir.deleteOnExit();
         PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
-            .setGeneratedDir(generatedDir)
-            .setPodsDir(podsDir)
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
             .setSpecJson(jsonSpec)
-            .setWorkingDir(workingDir)
+            .setWorkingDir(this.workingDir)
             .setJobContext(this.jobContext)
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
@@ -170,17 +192,11 @@ public class CocoaPodsServiceTest {
     @Test
     public void testSpecBraceExpanderVendoredFrameworks() throws ExtenderException, IOException {
         String jsonSpec = Files.readString(Path.of("test-data/pod_specs/TPNiOS.json"));
-        File workingDir = Files.createTempDirectory("bracer-spec-test").toFile();
-        File podsDir = new File(workingDir, "pods");
-        podsDir.mkdir();
-        File generatedDir = new File(workingDir, "generated");
-        generatedDir.mkdir();
-        workingDir.deleteOnExit();
         PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
-            .setGeneratedDir(generatedDir)
-            .setPodsDir(podsDir)
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
             .setSpecJson(jsonSpec)
-            .setWorkingDir(workingDir)
+            .setWorkingDir(this.workingDir)
             .setJobContext(this.jobContext)
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
@@ -199,17 +215,11 @@ public class CocoaPodsServiceTest {
     @Test
     public void testSpecBraceExpanderSourceFiles() throws ExtenderException, IOException {
         String jsonSpec = Files.readString(Path.of("test-data/pod_specs/PubNub.json"));
-        File workingDir = Files.createTempDirectory("sources-spec-test").toFile();
-        File podsDir = new File(workingDir, "pods");
-        podsDir.mkdir();
-        File generatedDir = new File(workingDir, "generated");
-        generatedDir.mkdir();
-        workingDir.deleteOnExit();
         PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
-            .setGeneratedDir(generatedDir)
-            .setPodsDir(podsDir)
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
             .setSpecJson(jsonSpec)
-            .setWorkingDir(workingDir)
+            .setWorkingDir(this.workingDir)
             .setJobContext(this.jobContext)
             .build();
         // create empty files to simulate sources
@@ -242,12 +252,7 @@ public class CocoaPodsServiceTest {
             "PubNub/Network/network2/network22.cpp",
             "PubNub/Network/network2/network2.h"
         };
-        File pubNubFolder = new File(podsDir, "PubNub");
-        for (String f : simulatedFiles) {
-            File emptyF = new File(pubNubFolder, f);
-            emptyF.getParentFile().mkdirs();
-            emptyF.createNewFile();
-        }
+        File pubNubFolder = createEmptyFiles(this.podsDir, "PubNub", simulatedFiles);
 
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
         File[] expectedValues = new File[]{
@@ -277,17 +282,11 @@ public class CocoaPodsServiceTest {
     @Test
     public void testDefaultSubspecs() throws ExtenderException, IOException {
         String jsonSpec = Files.readString(Path.of("test-data/pod_specs/Wilddog.json"));
-        File workingDir = Files.createTempDirectory("sources-spec-test").toFile();
-        File podsDir = new File(workingDir, "pods");
-        podsDir.mkdir();
-        File generatedDir = new File(workingDir, "generated");
-        generatedDir.mkdir();
-        workingDir.deleteOnExit();
         PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
-            .setGeneratedDir(generatedDir)
-            .setPodsDir(podsDir)
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
             .setSpecJson(jsonSpec)
-            .setWorkingDir(workingDir)
+            .setWorkingDir(this.workingDir)
             .setJobContext(this.jobContext)
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
@@ -298,5 +297,39 @@ public class CocoaPodsServiceTest {
             "Core"
         };
         assertArrayEquals(expectedValues, podSpec.defaultSubspecs.toArray());
+    }
+
+    @Test
+    public void testPodResourceFromBundle() throws IOException, ExtenderException {
+        String jsonSpec = Files.readString(Path.of("test-data/pod_specs/AXPracticalHUD.json"));
+        PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
+            .setSpecJson(jsonSpec)
+            .setWorkingDir(this.workingDir)
+            .setJobContext(this.jobContext)
+            .build();
+        String[] simulatedFiles = new String[]{
+            "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_error@2x.png",
+            "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_error@3x.png",
+            "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_success@2x.png",
+            "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_success@3x.png"
+        };
+        File podFolder = createEmptyFiles(this.podsDir, "AXPracticalHUD", simulatedFiles);
+        File[] expectedFiles = new File[]{
+            new File(podFolder, "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_error@2x.png"),
+            new File(podFolder, "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_error@3x.png"),
+            new File(podFolder, "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_success@2x.png"),
+            new File(podFolder, "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_success@3x.png")
+        };
+        PodSpec podSpec = PodSpecParser.createPodSpec(args);
+        ResolvedPods resolvedPods = new ResolvedPods();
+        resolvedPods.pods = List.of(podSpec);
+        resolvedPods.podsDir = this.podsDir;
+        // resolvedPods.frameworksDir = frameworksDir;
+        resolvedPods.generatedDir = this.generatedDir;
+
+        List<File> result = resolvedPods.getAllPodResources("arm64-ios");
+        assertArrayEquals(expectedFiles, result.toArray());
     }
 }

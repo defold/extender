@@ -44,19 +44,21 @@ public class ResolvedPods {
         return new ArrayList<String>(flags);
     }
 
-    private void addPodResources(String platform, PodSpec pod, Set<String> resources) {
-        String podDir = pod.dir.getAbsolutePath();
+    private void addPodResources(String platform, PodSpec pod, Set<File> resources) {
+        File podDir = pod.dir;
         for (String resource : pod.resources.get(platform)) {
-            resources.add(podDir + "/" + resource);
+            resources.addAll(PodUtils.listFilesGlob(podDir, resource));
         }
-        if (pod.parentSpec != null) addPodResources(platform, pod.parentSpec, resources);
+        if (pod.parentSpec != null) {
+            addPodResources(platform, pod.parentSpec, resources);
+        }
     }
-    public List<String> getAllPodResources(String platform) {
-        Set<String> resources = new LinkedHashSet<>();
+    public List<File> getAllPodResources(String platform) {
+        Set<File> resources = new LinkedHashSet<>();
         for (PodSpec pod : pods) {
             addPodResources(platform, pod, resources);
         }
-        return new ArrayList<String>(resources);
+        return new ArrayList<File>(resources);
     }
 
     private void addPodFrameworks(String platform, PodSpec pod, Set<String> frameworks) {

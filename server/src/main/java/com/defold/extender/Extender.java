@@ -1038,8 +1038,8 @@ class Extender {
         LOGGER.info("buildPods - adding framework resource to build output");
         File resourcesBuildDir = new File(buildDirectory, "resources");
         resourcesBuildDir.mkdir();
-        List<String> resources = resolvedPods.getAllPodResources(platform);
-        for (String resource : resources) {
+        List<File> resources = resolvedPods.getAllPodResources(platform);
+        for (File resourceFile : resources) {
             // example:
             // source = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
             // dest   = build/resources/YandexMobileAds/PrivacyInfo.xcprivacy
@@ -1047,7 +1047,6 @@ class Extender {
             // resourceFile = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
             // relativeFile = YandexMobileAds/PrivacyInfo.xcprivacy
             // resourceDestFile = build/resources/YandexMobileAds/PrivacyInfo.xcprivacy
-            File resourceFile = new File(resource);
             File relativeFile = resolvedPods.podsDir.toPath().relativize(resourceFile.toPath()).toFile();
             if (resourceFile.isFile()) {
                 File resourceDestFile = new File(resourcesBuildDir, relativeFile.toString());
