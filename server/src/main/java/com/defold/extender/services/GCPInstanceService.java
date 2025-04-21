@@ -1,9 +1,14 @@
 package com.defold.extender.services;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -165,12 +170,24 @@ public class GCPInstanceService {
     @PostMapping("/maintenance_mode")
     public void maintenanceMode() {
         LOGGER.info("Set maintenance mode");
+        ExecutorService executor = Executors.newFixedThreadPool(10);
+        List<Callable<Void>> operations = new ArrayList<>(instanceState.size());
         for (Map.Entry<String, GCPInstanceState> entry : instanceState.entrySet()) {
-            try {
-                touchInstance(entry.getKey());
-            } catch (Exception exc) {
-                LOGGER.error(Markers.INSTANCE_MANAGER_ERROR, String.format("Exception during touch instance '%s'", entry.getKey()), exc);
-            }
+            operations.add(() -> {
+                try {
+                    touchInstance(entry.getKey());
+                } catch (Exception exc) {
+                    LOGGER.warn(Markers.INSTANCE_MANAGER_ERROR, String.format("Exception during touch instance '%s'", entry.getKey()), exc);
+                }
+                return null;
+            });
+        }
+        try {
+            executor.invokeAll(operations);
+        } catch (InterruptedException e) {
+            LOGGER.warn(Markers.INSTANCE_MANAGER_ERROR, "Maintenance mode finished was interrupted", e);
+        } finally {
+            executor.shutdown();
         }
     }
 }
