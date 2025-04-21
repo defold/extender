@@ -801,6 +801,7 @@ public class ExtenderUtil
 
     public static boolean isWebTarget(String platform) {
         return platform.equals("wasm-web") ||
+               platform.equals("wasm_pthreads-web") ||
                platform.equals("js-web");
     }
 

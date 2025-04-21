@@ -47,6 +47,7 @@ public class WebSecurityConfig {
 				case "html5":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/js-web/**").hasRole("HTML5")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/wasm-web/**").hasRole("HTML5")).httpBasic(withDefaults());
+					http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/wasm_pthreads-web/**").hasRole("HTML5")).httpBasic(withDefaults());
 					break;
 				case "switch":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-nx64/**").hasRole("SWITCH")).httpBasic(withDefaults());

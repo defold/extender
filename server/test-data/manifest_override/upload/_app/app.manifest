@@ -29,3 +29,6 @@ platforms:
     wasm-web:
         context:
             excludeLibs: [profile_null]
+    wasm_pthreads-web:
+        context:
+            excludeLibs: [profile_null]

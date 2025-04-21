@@ -110,7 +110,7 @@ class Extender {
         "osx", "x86-osx", "x86_64-osx","arm64-osx",
         "linux", "x86-linux", "x86_64-linux", "arm64-linux",
         "win32", "x86-win32", "x86_64-win32",
-        "web", "js-web", "wasm-web",
+        "web", "js-web", "wasm-web", "wasm_pthreads-web",
         "nx64", "arm64-nx64",
         "ps4", "x86_64-ps4",
         "ps5", "x86_64-ps5",
