@@ -412,7 +412,7 @@ public class CocoaPodsService {
             // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
             String podnameparts[] = splitPodname(podname);
             // 'GoogleUtilities'
-            String mainpodname = podnameparts[0];
+            String mainpodname = PodUtils.sanitizePodName(podnameparts[0]);
             // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
             String podversion = podname.replaceFirst(".*\\(", "").replace(")", "");
             if (!installedPods.podsMap.containsKey(mainpodname)) {
