@@ -2,6 +2,7 @@ server:
     port: 9010
 
 extender:
+    instance-type: MIXED
     sdk:
         location: /usr/local/extender/sdk
         cache-clear-on-exit: false

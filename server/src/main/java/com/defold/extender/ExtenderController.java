@@ -212,6 +212,7 @@ public class ExtenderController {
             } else {
                 String[] buildEnvDescription = null;
                 try {
+                    // sdk version was removed (dev or beta)
                     buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
                 } catch(ExtenderException exc) {
                     if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
@@ -226,6 +227,7 @@ public class ExtenderController {
                 } else if (instanceType.equals(InstanceType.MIXED)) {
                     asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
                 } else {
+                    // no remote buidler was found and current instance can't build
                     throw new NotSupportedException("Engine version unsupported. Please, update engine to the newer version.");
                 }
             }

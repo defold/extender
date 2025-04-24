@@ -1,5 +1,0 @@
-extender:
-    cache:
-        enabled: true
-        type: LOCAL
-        local.basedir: /var/extender/cache/data

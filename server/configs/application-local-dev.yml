@@ -1,4 +1,5 @@
 extender:
+    instance-type: BUILDER_ONLY
     # sdk.location: /usr/local/extender/sdk
     cache:
         enabled: true

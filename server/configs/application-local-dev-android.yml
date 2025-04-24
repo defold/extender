@@ -1,1 +1,4 @@
-extender.gradle.enabled: true
+extender:
+    instance-type: BUILDER_ONLY
+    gradle:
+        enabled: true
