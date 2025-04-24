@@ -1,13 +1,14 @@
 buildscript {
   repositories {
     maven {
-      url "https://plugins.gradle.org/m2/"              }
+      url "https://plugins.gradle.org/m2/"
     }
-  dependencies {
-    classpath "gradle.plugin.com.google.cloud.artifactregistry:artifactregistry-gradle-plugin:2.2.1"
   }
 }
-apply plugin: "com.google.cloud.artifactregistry.gradle-plugin"
+
+plugins {
+    id 'com.google.cloud.artifactregistry.gradle-plugin' version '2.2.4' apply false
+}
 
 include ":server"
 

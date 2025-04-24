@@ -1,23 +1,23 @@
-plugins {
-    id 'maven-publish'
-}
-
 subprojects {
     repositories {
         mavenCentral()
     }
 }
 
-publishing {
- repositories {
-    maven {
-      name "extenderRepo"
-      url "artifactregistry://europe-west1-maven.pkg.dev/extender-426409/extender-maven/"
+if (project.hasProperty('publishToGar')) {
+    apply plugin: 'maven-publish'
+    apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'
+    publishing {
+        repositories {
+            maven {
+              name "extenderRepo"
+              url "artifactregistry://europe-west1-maven.pkg.dev/extender-426409/extender-maven/"
+            }
+        }
     }
-  }
 }
 
 wrapper {
-    gradleVersion = '8.4'
+    gradleVersion = '8.9'
     distributionType = Wrapper.DistributionType.ALL
 }

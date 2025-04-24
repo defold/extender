@@ -4,7 +4,9 @@ buildscript {
     }
 }
 
-apply plugin: 'java-library'
+plugins {
+    id 'java-library'
+}
 
 ext {
     manifestMergetoolVersion = findProperty('manifestMergetoolVersion') ?: '0.5.0'
@@ -52,15 +54,18 @@ task mainJar(type: Jar) {
     }
 }
 
-publishing {
-  publications {
-    manifestMergeTool(MavenPublication) {
-      artifact mainJar
-      groupId 'com.defold.extender'
-      artifactId 'manifestmergetool'
-      version project.ext.manifestMergetoolVersion
+if (project.hasProperty('publishToGar')) {
+    apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'
+    publishing {
+        publications {
+            manifestMergeTool(MavenPublication) {
+            artifact mainJar
+            groupId 'com.defold.extender'
+            artifactId 'manifestmergetool'
+            version project.ext.manifestMergetoolVersion
+            }
+        }
     }
-  }
 }
 
 repositories {
@@ -73,9 +78,9 @@ dependencies {
     implementation('com.android.tools.build:manifest-merger:31.4.1')
     implementation('com.android.tools:common:31.4.1')
     implementation('org.apache.commons:commons-configuration2:2.11.0')
-    implementation('commons-codec:commons-codec:1.17.2')
+    implementation('commons-codec:commons-codec:1.18.0')
 
-    testImplementation('commons-io:commons-io:2.17.0')
+    testImplementation('commons-io:commons-io:2.18.0')
     testImplementation('org.junit.jupiter:junit-jupiter-engine:5.11.4')
 }
 

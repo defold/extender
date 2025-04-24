@@ -8,13 +8,14 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Optional;
 
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.data.DefoldSdk;
-import com.defold.extender.services.CocoaPodsService;
 
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.io.EofException;
@@ -39,12 +40,12 @@ public class AsyncBuilder {
 
     public AsyncBuilder(DefoldSdkService defoldSdkService,
                         GradleService gradleService,
-                        CocoaPodsService cocoaPodsService,
+                        Optional<CocoaPodsService> cocoaPodsService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
         this.gradleService = gradleService;
-        this.cocoaPodsService = cocoaPodsService;
+        cocoaPodsService.ifPresent(val -> { this.cocoaPodsService = val; });
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
         this.resultLifetime = jobResultLifetime;
@@ -118,12 +119,12 @@ public class AsyncBuilder {
                 }
 
                 // Build engine
-                List<File> outputFiles = extender.build();
+                extender.build();
                 metricsWriter.measureEngineBuild(platform);
 
                 // Zip files
                 String zipFilename = jobDirectory.getAbsolutePath() + File.separator + BuilderConstants.BUILD_RESULT_FILENAME;
-                File zipFile = ZipUtils.zip(outputFiles, buildDirectory, zipFilename);
+                File zipFile = ZipUtils.zip(extender.getOutputFiles(), buildDirectory, zipFilename);
                 metricsWriter.measureZipFiles(zipFile);
 
                 // Write zip file to result directory

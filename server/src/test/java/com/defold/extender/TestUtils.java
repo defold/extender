@@ -1,5 +1,12 @@
 package com.defold.extender;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 import com.defold.extender.cache.CacheEntry;
 
 public class TestUtils {
@@ -15,4 +22,20 @@ public class TestUtils {
             new CacheEntry("7f3b61aeb34a8ea15c675ffddaa6af6a6fbdd031ed9786dcb2b35b351a132b31", "dir2/test2.txt", true)
     };
 
+    public static Map<String, String> envFileToMap(File inputFile) {
+        Map<String, String> result = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(inputFile))) {
+            String line = reader.readLine();
+            while (line != null) {
+                String[] splitted = line.split("=");
+                result.put(splitted[0], splitted[1]);
+                line = reader.readLine();
+            }
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
 }

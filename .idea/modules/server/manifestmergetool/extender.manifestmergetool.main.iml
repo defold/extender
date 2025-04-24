@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module external.linked.project.id=":manifestmergetool:main" external.linked.project.path="$MODULE_DIR$/../../../../server/manifestmergetool" external.root.project.path="$MODULE_DIR$/../../../.." external.system.id="GRADLE" external.system.module.group="extender" external.system.module.type="sourceSet" external.system.module.version="0.5.0" type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_21">
+    <output url="file://$MODULE_DIR$/../../../../server/manifestmergetool/build/classes/java/main" />
+    <exclude-output />
+    <content url="file://$MODULE_DIR$/../../../../server/manifestmergetool/src/main">
+      <sourceFolder url="file://$MODULE_DIR$/../../../../server/manifestmergetool/src/main/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../../../../server/manifestmergetool/src/main/resources" type="java-resource" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="Gradle: org.jsoup:jsoup:1.18.3" level="project" />
+    <orderEntry type="library" name="Gradle: com.android.tools.build:manifest-merger:31.4.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.android.tools:common:31.4.1" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.commons:commons-configuration2:2.11.0" level="project" />
+    <orderEntry type="library" name="Gradle: commons-codec:commons-codec:1.18.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.android.tools:annotations:31.4.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.guava:guava:32.0.1-jre" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.commons:commons-text:1.12.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.apache.commons:commons-lang3:3.14.0" level="project" />
+    <orderEntry type="library" name="Gradle: commons-logging:commons-logging:1.3.2" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.guava:failureaccess:1.0.1" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.code.findbugs:jsr305:3.0.2" level="project" />
+    <orderEntry type="library" name="Gradle: org.checkerframework:checker-qual:3.33.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.errorprone:error_prone_annotations:2.18.0" level="project" />
+    <orderEntry type="library" name="Gradle: com.google.j2objc:j2objc-annotations:2.8" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.android.tools:sdk-common:31.4.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.google.code.gson:gson:2.10.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.20" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: net.sf.kxml:kxml2:2.3.0" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: net.java.dev.jna:jna-platform:5.6.0" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.android.tools.analytics-library:shared:31.4.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.android.tools.ddms:ddmlib:31.4.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.android.tools.layoutlib:layoutlib-api:31.4.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.jetbrains.kotlin:kotlin-reflect:1.9.20" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.android.tools.build:aapt2-proto:8.4.1-11315950" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.google.protobuf:protobuf-java:3.22.3" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: javax.inject:javax.inject:1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.bouncycastle:bcpkix-jdk18on:1.77" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.bouncycastle:bcprov-jdk18on:1.77" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.glassfish.jaxb:jaxb-runtime:2.3.2" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.jetbrains.intellij.deps:trove4j:1.0.20200330" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.20" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib:1.9.20" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: net.java.dev.jna:jna:5.6.0" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.android.tools.analytics-library:protos:31.4.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.jetbrains:annotations:23.0.0" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.bouncycastle:bcutil-jdk18on:1.77" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.jvnet.staxex:stax-ex:1.8.1" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: jakarta.xml.bind:jakarta.xml.bind-api:2.3.2" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: org.glassfish.jaxb:txw2:2.3.2" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.sun.istack:istack-commons-runtime:3.0.8" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: com.sun.xml.fastinfoset:FastInfoset:1.2.16" level="project" />
+    <orderEntry type="library" scope="RUNTIME" name="Gradle: jakarta.activation:jakarta.activation-api:1.2.1" level="project" />
+  </component>
+</module>

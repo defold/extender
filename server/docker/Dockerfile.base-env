@@ -1,4 +1,6 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
+
+ARG TARGETARCH
 
 RUN \
   apt-get update && \
@@ -29,8 +31,11 @@ ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
     LC_ALL=en_US.UTF-8
 
+ENV JDK_ARCH=${TARGETARCH/amd64/x64}
+ENV JDK_ARCH=${JDK_ARCH/arm64/aarch64}
+
 RUN \
-  wget -q -O - https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.5%2B11/OpenJDK21U-jdk_x64_linux_hotspot_21.0.5_11.tar.gz | tar xz -C /usr/local && \
+  wget -q -O - https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.5%2B11/OpenJDK21U-jdk_${JDK_ARCH}_linux_hotspot_21.0.5_11.tar.gz | tar xz -C /usr/local && \
   java -version && \
   javac -version
 
@@ -45,13 +50,14 @@ RUN mkdir $PLATFORMSDK_DIR
 
 ENV ZIG_VERSION=0.11.0
 ENV ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
-ENV ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz
 ENV PATH=${PATH}:${ZIG_PATH_0_11}
+ENV ZIG_ARCH=${TARGETARCH/amd64/x86_64}
+ENV ZIG_ARCH=${ZIG_ARCH/arm64/aarch64}
 
 RUN \
   echo "ZIG" && \
   mkdir -p ${ZIG_PATH_0_11} && \
-  wget -q -O - ${ZIG_URL} | tar xJ -C ${ZIG_PATH_0_11} --strip-components=1 && \
+  wget -q -O - https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz | tar xJ -C ${ZIG_PATH_0_11} --strip-components=1 && \
   zig version
 
 #

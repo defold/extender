@@ -191,9 +191,6 @@ platforms:
         zig-target:     'x86_64-macos'
         swiftFlags:     ["-target", "x86_64-apple-darwin19"]
 
-  x86-osx:
-    # Intentionally left empty to allow users to have old versions in their manifests
-
   ios:
     env:
         PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_16_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"

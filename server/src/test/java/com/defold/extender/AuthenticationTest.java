@@ -4,6 +4,7 @@ import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
 import com.defold.extender.client.FileExtenderResource;
+import com.defold.extender.process.ProcessExecutor;
 import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;

@@ -37,6 +37,8 @@ repositories {
 
 dependencyManagement {
     imports {
+        // DO NOT update higher 5.8.0 because transitive dependencies has opentelemtry version 1.45.0+
+        // which has breaking changes in comparison with 1.43.0
         mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.8.0'
         mavenBom 'org.junit:junit-bom:5.11.4'
     }
@@ -53,7 +55,7 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.59.0')
+    implementation('com.google.cloud:google-cloud-compute:1.67.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
@@ -66,15 +68,15 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
     implementation('io.micrometer:micrometer-core:1.14.3')
-    implementation('io.micrometer:micrometer-tracing:1.4.2')
-    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.2')
+    implementation('io.micrometer:micrometer-tracing:1.4.1')
+    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.1')
 
     implementation('org.projectlombok:lombok:1.18.36')
     annotationProcessor('org.projectlombok:lombok:1.18.36')
 
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
     runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.3')
-    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.14.2') {
+    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.14.3') {
         exclude group: 'org.junit.jupiter'
     }
 
@@ -94,7 +96,7 @@ dependencies {
 
     testImplementation('org.smali:dexlib2:2.5.2')
     testImplementation project(':client')
-    testImplementation('org.wiremock:wiremock-standalone:3.10.0')
+    testImplementation('org.wiremock:wiremock-standalone:3.12.0')
 }
 
 task createVersionFile() {
@@ -163,15 +165,18 @@ jar {
     archiveClassifier = '' // use empty string to avoid the 'plain' suffix
 }
 
-publishing {
-  publications {
-    extender(MavenPublication) {
-      artifact bootJar
-      groupId 'com.defold.extender'
-      artifactId 'server'
-      version project.ext.extenderVersion
+if (project.hasProperty('publishToGar')) {
+    apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'
+    publishing {
+        publications {
+            extender(MavenPublication) {
+            artifact bootJar
+            groupId 'com.defold.extender'
+            artifactId 'server'
+            version project.ext.extenderVersion
+            }
+        }
     }
-  }
 }
 
 task buildStandalone() {

@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import com.defold.extender.client.*;
+import com.defold.extender.process.ProcessExecutor;
 import com.google.common.collect.Lists;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;
@@ -110,18 +111,14 @@ public class IntegrationTest {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 // new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // // 2024-08-20 https://github.com/defold/defold/releases/tag/1.9.1
-                new DefoldVersion("691478c02875b80e76da65d2f5756394e7a906b1", new Version(1, 9, 1), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2024-09-16 https://github.com/defold/defold/releases/tag/1.9.2
-                // new DefoldVersion("3251ca82359cf238a1074e383281e3126547d50b", new Version(1, 9, 2), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // //  2024-10-14 https://github.com/defold/defold/releases/tag/1.9.3
-                new DefoldVersion("e4aaff11f49c941fde1dd93883cf69c6b8abebe4", new Version(1, 9, 3), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2024-10-29 https://github.com/defold/defold/releases/tag/1.9.4
-                // new DefoldVersion("edfdbe31830c1f8aa4d96644569ae87a8ea32672", new Version(1, 9, 4), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("e4aaff11f49c941fde1dd93883cf69c6b8abebe4", new Version(1, 9, 3), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // // 2024-12-05 https://github.com/defold/defold/releases/tag/1.9.5
-                new DefoldVersion("d01194cf0fb576b516a1dca6af6f643e9e590051", new Version(1, 9, 5), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("d01194cf0fb576b516a1dca6af6f643e9e590051", new Version(1, 9, 5), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // // 2024-12-19 https://github.com/defold/defold/releases/tag/1.9.6
-                new DefoldVersion("11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96", new Version(1, 9, 6), new String[] {"armv7-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                new DefoldVersion("11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96", new Version(1, 9, 6), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2025-02-12 https://github.com/defold/defold/releases/tag/1.9.7
+                new DefoldVersion("868769ba7a3458db12d149188bf3be80a339a85c", new Version(1, 9, 7), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
@@ -355,8 +352,8 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/Dummy.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -373,10 +370,10 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge1.jar"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/VeryLarge2.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/Dummy.jar"),
+                new FileExtenderResource("test-data/ext/lib/android/VeryLarge1.jar"),
+                new FileExtenderResource("test-data/ext/lib/android/VeryLarge2.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -394,8 +391,8 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/src/Test.java"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/Dummy.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/Dummy.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -416,8 +413,8 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/src/TestJar.java"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/JarDep.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/JarDep.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -435,9 +432,9 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
                 new FileExtenderResource("test-data/ext/src/TestJar.java"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/JarDep.jar"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/meta-inf.jar"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/JarDep.jar"),
+                new FileExtenderResource("test-data/ext/lib/android/meta-inf.jar"));
 
         File destination = doBuild(sourceFiles, configuration);
         List<String> metaInfFiles = new ArrayList<>();
@@ -466,7 +463,7 @@ public class IntegrationTest {
                 new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
                 new FileExtenderResource("test-data/ext/ext.manifest"),
                 new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
-                new FileExtenderResource("test-data/ext/lib/armv7-android/libalib.a"));
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)));
 
         File destination = doBuild(sourceFiles, configuration);
 
@@ -494,8 +491,8 @@ public class IntegrationTest {
         );
 
         if (isAndroid) {
-            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy1.jar"));
-            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/armv7-android/Dummy2.jar"));
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/android/Dummy1.jar"));
+            sourceFiles.add(new FileExtenderResource("test-data/testproject_appmanifest/ext2/lib/android/Dummy2.jar"));
         }
 
         doBuild(sourceFiles, configuration);

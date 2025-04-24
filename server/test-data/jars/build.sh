@@ -19,7 +19,7 @@ mkdir -p $BUILD
 
 # Dummy.jar
 javac  -source 1.8 -target 1.8  -cp .  com/defold/dummy/Dummy.java
-jar -cvf ../ext/lib/armv7-android/Dummy.jar com
+jar -cvf ../ext/lib/android/Dummy.jar com
 
 # VeryLarge.jar
 
@@ -48,7 +48,7 @@ do
 
     javac  -source 1.8 -target 1.8  -cp . $VERYLARGE_JAVA
     rm $VERYLARGE_JAVA
-    jar -cvf ../../ext/lib/armv7-android/$NAME.jar com
+    jar -cvf ../../ext/lib/android/$NAME.jar com
 
     popd
     rm -rf ./tmp
@@ -56,4 +56,4 @@ done
 
 # meta-inf.jar
 javac -cp .  io/foo/dummy/FooDummy.java
-jar -cvf ../ext/lib/armv7-android/meta-inf.jar io META-INF
+jar -cvf ../ext/lib/android/meta-inf.jar io META-INF

@@ -2,12 +2,14 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
-import com.defold.extender.ProcessExecutor;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.Timer;
 import com.defold.extender.ZipUtils;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.ProcessExecutor;
+import com.defold.extender.process.ProcessUtils;
+
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import java.nio.charset.StandardCharsets;
 
 @Service
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "true")
@@ -87,7 +89,7 @@ public class RealGradleService implements GradleServiceInterface {
     }
 
     @Override
-    public List<File> resolveDependencies(Map<String, Object> env, File cwd, Boolean useJetifier) throws IOException, ExtenderException {
+    public List<File> resolveDependencies(Map<String, Object> env, File cwd, File buildDirectory, Boolean useJetifier, List<File> outputFiles) throws IOException, ExtenderException {
         Map<String, Object> jobEnvContext = createJobEnvContext(env);
         // create build.gradle
         File mainGradleFile = new File(cwd, "build.gradle");
@@ -104,7 +106,18 @@ public class RealGradleService implements GradleServiceInterface {
         File localPropertiesFile = new File(cwd, "local.properties");
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
-        return downloadDependencies(cwd);
+        // download, parse and unpack dependencies
+        List<File> unpackedDependencies = downloadDependencies(cwd);
+        // add gradle lockfile to outputs
+        // configured in template.build.gradle
+        outputFiles.add(new File(buildDirectory, "gradle.lockfile"));
+
+        // write dependency tree and add to outputs
+        File dependencyTreeFile = new File(buildDirectory, "gradle.dependencytree");
+        writeDependencyTree(dependencyTreeFile, cwd);
+        outputFiles.add(dependencyTreeFile);
+
+        return unpackedDependencies;
     }
 
     @Override
@@ -162,26 +175,6 @@ public class RealGradleService implements GradleServiceInterface {
                 }
             }
         }
-    }
-
-    private String execCommand(String command, File cwd) throws ExtenderException {
-        ProcessExecutor pe = new ProcessExecutor();
-
-        pe.putEnv("GRADLE_USER_HOME", this.gradleHome);
-
-        if (cwd != null) {
-            pe.setCwd(cwd);
-        }
-
-        try {
-            if (pe.execute(command) != 0) {
-                throw new ExtenderException(pe.getOutput());
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, pe.getOutput());
-        }
-
-        return pe.getOutput();
     }
 
     private Map<String, String> parseDependencies(String log) {
@@ -261,10 +254,17 @@ public class RealGradleService implements GradleServiceInterface {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving dependencies");
 
-        String log = execCommand("gradle downloadDependencies --stacktrace --info --warning-mode all", cwd);
-
-        // Put it in the log for the end user to see
-        LOGGER.info("\n" + log);
+        // add --info for additional logging
+        String log = ProcessUtils.execCommand(List.of(
+                "gradle",
+                "downloadDependencies",
+                "--write-locks",
+                "--stacktrace",
+                "--warning-mode",
+                "all"
+            ), cwd,
+            Map.of("GRADLE_USER_HOME", this.gradleHome));
+        LOGGER.debug("\n" + log);
 
         Map<String, String> dependencies = parseDependencies(log);
 
@@ -272,6 +272,23 @@ public class RealGradleService implements GradleServiceInterface {
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;
+    }
+
+    private void writeDependencyTree(File out, File cwd) throws IOException, ExtenderException {
+        long methodStart = System.currentTimeMillis();
+        LOGGER.info("Writing dependency tree");
+
+        String treelog = ProcessUtils.execCommand(List.of(
+                "gradle",
+                "dependencies",
+                "--configuration",
+                "releaseCompileClasspath"
+            ), cwd, Map.of("GRADLE_USER_HOME", this.gradleHome));
+        LOGGER.debug("\n" + treelog);
+
+        Files.write(out.toPath(), treelog.getBytes());
+
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.dependencytree", System.currentTimeMillis() - methodStart);
     }
 
 }

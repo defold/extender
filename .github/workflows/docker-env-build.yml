@@ -14,8 +14,6 @@ on:
       - "ps4*"
       - "ps5*"
 
-
-
 env:
   GOOGLE_ARTIFACT_REGISTRY: europe-west1-docker.pkg.dev
   PUBLIC_REGISTRY: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry
@@ -28,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
     - name: Process tag name
       id: name_postprocess
       run: |
@@ -62,6 +60,14 @@ jobs:
             TARGET_REGISTRY=$(echo $PUBLIC_REGISTRY)
           fi
           
+          case $PLATFORM in
+            base|linux)
+              BUILD_PLATFORMS="linux/amd64,linux/arm64"
+            ;;
+            *)
+              BUILD_PLATFORMS="linux/amd64"
+            ;;
+          esac
 
           echo "TAG_NAME $TAG_NAME"
           echo "DOCKERFILE $DOCKERFILE"
@@ -70,6 +76,7 @@ jobs:
           echo "IMAGE_VERSION $IMAGE_VERSION"
           echo "IMAGE_NAME $IMAGE_NAME"
           echo "TARGET_REGISTRY $TARGET_REGISTRY"
+          echo "BUILD_PLATFORMS $BUILD_PLATFORMS"
 
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "dockerfile=$DOCKERFILE" >> $GITHUB_OUTPUT
@@ -78,25 +85,31 @@ jobs:
           echo "image_version=$IMAGE_VERSION" >> $GITHUB_OUTPUT
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "target_registry=$TARGET_REGISTRY" >> $GITHUB_OUTPUT
+          echo "build_platforms=$BUILD_PLATFORMS" >> $GITHUB_OUTPUT
     - name: Login to Google Artifact registry
-      uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
       with:
         registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
         username: _json_key
         password: ${{ secrets.DOCKER_REGISTRY_JSON_KEY }}
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+      with:
+        platforms: amd64,arm64
+        image: tonistiigi/binfmt:qemu-v7.0.0
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
     - name: Build and push
       env:
         DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
-      uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
       with:
         context: ${{ github.workspace }}/server/docker/
         file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
         pull: true
         push: true
         platforms: |
-          linux/amd64
+          ${{ steps.name_postprocess.outputs.build_platforms }}
         secret-envs: |
           DM_PACKAGES_URL=DM_PACKAGES_URL
         tags: |

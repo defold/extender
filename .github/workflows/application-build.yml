@@ -28,25 +28,25 @@ jobs:
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
     - name: Login to Google Artifact registry (Maven)
-      uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+      uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935
       with:
         service_account: ${{ env.MAVEN_SERVICE_ACCOUNT }}
         credentials_json: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
         export_environment_variables: true
         create_credentials_file: true
     - name: Install Java
-      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b
+      uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12
       with:
         java-version: '21.0.5+11.0.LTS'
         distribution: 'temurin'
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6
+      uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244
     - name: Build the extender-client.jar
-      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:jar
+      run: ./gradlew -PpublishToGar -PclientVersion=${{ steps.version.outputs.tag_version }} client:jar
     - name: Test the extender-client.jar
-      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} client:test
+      run: ./gradlew -PpublishToGar -PclientVersion=${{ steps.version.outputs.tag_version }} client:test
     - name: Publish to Google artifact registry
-      run: ./gradlew -PclientVersion=${{ steps.version.outputs.tag_version }} publishExtenderClientPublicationToExtenderRepoRepository
+      run: ./gradlew -PpublishToGar -PclientVersion=${{ steps.version.outputs.tag_version }} publishExtenderClientPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
       run: |
         mkdir -p ${{ github.workspace }}/gh_release
@@ -85,25 +85,25 @@ jobs:
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
     - name: Login to Google Artifact registry (Maven)
-      uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+      uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935
       with:
         service_account: ${{ env.MAVEN_SERVICE_ACCOUNT }}
         credentials_json: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
         export_environment_variables: true
         create_credentials_file: true
     - name: Install Java
-      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b
+      uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12
       with:
         java-version: '21.0.5+11.0.LTS'
         distribution: 'temurin'
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6
+      uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244
     - name: Build manifestmerger
-      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:mainJar
+      run: ./gradlew -PpublishToGar -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:mainJar
     - name: Test manifestmerger
-      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:test
+      run: ./gradlew -PpublishToGar -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} :manifestmergetool:test
     - name: Publish to Google artifact registry
-      run: ./gradlew -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} publishManifestMergeToolPublicationToExtenderRepoRepository
+      run: ./gradlew -PpublishToGar -PmanifestMergetoolVersion=${{ steps.version.outputs.tag_version }} publishManifestMergeToolPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
       run: |
         mkdir -p ${{ github.workspace }}/gh_release
@@ -144,7 +144,7 @@ jobs:
         android: true
         dotnet: true
         haskell: true
-        large-packages: true
+        large-packages: false # to keep gcloud cli
         docker-images: true
         swap-storage: true
     - name: Checkout repo
@@ -158,16 +158,16 @@ jobs:
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
     - name: Install Java
-      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b
+      uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12
       with:
         java-version: '21.0.5+11.0.LTS'
         distribution: 'temurin'
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@0bdd871935719febd78681f197cd39af5b6e16a6
+      uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244
     - name: Build extender
       run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
     - name: Login to Google Artifact registry (Docker)
-      uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
       with:
         registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
         username: _json_key
@@ -180,14 +180,14 @@ jobs:
     - name: Run extender tests
       run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:test -i
     - name: Login to Google Artifact registry (Maven)
-      uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+      uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935
       with:
         service_account: ${{ env.MAVEN_SERVICE_ACCOUNT }}
         credentials_json: ${{ secrets.MAVEN_REGISTRY_JSON_KEY }}
         export_environment_variables: true
         create_credentials_file: true
     - name: Publish to Google artifact registry
-      run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} publishExtenderPublicationToExtenderRepoRepository
+      run: ./gradlew -PpublishToGar -PextenderVersion=${{ steps.version.outputs.tag_version }} publishExtenderPublicationToExtenderRepoRepository
     - name: Prepare jar for GH release
       run: |
         mkdir -p ${{ github.workspace }}/gh_release

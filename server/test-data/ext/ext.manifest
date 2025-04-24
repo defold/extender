@@ -3,7 +3,7 @@ name: Test
 
 
 platforms:
-  x86-osx:
+  arm64-osx:
     context:
         frameworks: ["AVFoundation"]
 

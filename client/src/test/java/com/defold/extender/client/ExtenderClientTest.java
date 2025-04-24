@@ -280,10 +280,10 @@ public class ExtenderClientTest extends Mockito {
         assertEquals(0, files.size());
 
         files = getExtensionSource(new File("../server/test-data/testproject/b"), platform);
-        assertEquals(5, files.size());
+        assertEquals(4, files.size());
 
         files = getExtensionSource(new File("../server/test-data/testproject"), platform);
-        assertEquals(5, files.size());
+        assertEquals(4, files.size());
     }
 
     private static List<ExtenderResource> getExtensionSource(File root, String platform) throws IOException {

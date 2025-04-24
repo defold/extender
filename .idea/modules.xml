@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/client/extender.client.main.iml" filepath="$PROJECT_DIR$/.idea/modules/client/extender.client.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/client/extender.client.test.iml" filepath="$PROJECT_DIR$/.idea/modules/client/extender.client.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/server/manifestmergetool/extender.manifestmergetool.main.iml" filepath="$PROJECT_DIR$/.idea/modules/server/manifestmergetool/extender.manifestmergetool.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/server/manifestmergetool/extender.manifestmergetool.test.iml" filepath="$PROJECT_DIR$/.idea/modules/server/manifestmergetool/extender.manifestmergetool.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/server/extender.server.main.iml" filepath="$PROJECT_DIR$/.idea/modules/server/extender.server.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/server/extender.server.test.iml" filepath="$PROJECT_DIR$/.idea/modules/server/extender.server.test.iml" />
+    </modules>
+  </component>
+</project>

@@ -4,10 +4,10 @@ platforms:
             excludeSymbols: ["FooSymbol"]
             excludeLibs: ["alib", "engine_foo"]
 
-    x86-osx:
+    arm64-osx:
         context:
             excludeLibs: ["alib"]
 
-    armv7-android:
+    android:
         context:
             excludeJars: ["(.*)/Dummy1.jar"]
