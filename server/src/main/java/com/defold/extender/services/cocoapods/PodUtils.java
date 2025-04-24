@@ -24,4 +24,10 @@ public class PodUtils {
         }
         return files;
     }
+
+    static String sanitizePodName(String podName) {
+        String sanitizedName = podName;
+        sanitizedName = sanitizedName.replace("+", "\\+");
+        return sanitizedName;
+    }
 }
