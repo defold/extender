@@ -33,7 +33,7 @@ platforms:
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
             libs: ["record_null","sound_null","graphics_null","hid_null"]
 
-    wasm_pthreads-web:
+    wasm_pthread-web:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
