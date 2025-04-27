@@ -24,6 +24,11 @@ platforms:
             excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
             libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
 
+    wasm_pthread-web:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
+
     x86-win32:
         context:
             excludeLibs: ["libengine", "libengine_service", "libprofile", "libremotery", "libprofilerext", "librecord", "vpx"]

@@ -199,6 +199,9 @@ public class IntegrationTest {
         else if (platform.equals("wasm-web")) {
             return new String[]{"dmengine.js", "dmengine.wasm"};
         }
+        else if (platform.equals("wasm_pthread-web")) {
+            return new String[]{"dmengine.js", "dmengine_pthread.wasm"};
+        }
         else if (platform.endsWith("win32")) {
             return new String[]{"dmengine.exe"};
         }
