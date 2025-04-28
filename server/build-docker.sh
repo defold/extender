@@ -22,7 +22,7 @@ for request in $REQUESTED; do
     INSTALL=""
     case $request in
         web)
-            INSTALL="emsdk-2011 emsdk-3155 emsdk-3165"
+            INSTALL="emsdk-2011 emsdk-3155 emsdk-3165 emsdk-406"
             ;;
         ps4)
             INSTALL="wine ps4-10500 ps4-11000 ps4-12000"
