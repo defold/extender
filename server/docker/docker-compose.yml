@@ -85,6 +85,20 @@ services:
       default:
         aliases:
           - emsdk-3165
+  emscripten_406-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    environment:
+      - INSTANCE_ID=emsdk-406-local
+    profiles:
+      - all
+      - web
+    networks:
+      default:
+        aliases:
+          - emsdk-406
   nssdk_1832-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-1832-env:latest
     extends:
@@ -188,17 +202,6 @@ services:
       default:
         aliases:
           - android-ndk25
-  emscripten_3155-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3155-env:latest
-    extends:
-      file: common-services.yml
-      service: test_remote_builder
-    profiles:
-      - test
-    networks:
-      default:
-        aliases:
-          - emsdk-3155
   emscripten_3165-integration-test:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3165-env:latest
     extends:
@@ -210,6 +213,17 @@ services:
       default:
         aliases:
           - emsdk-3165
+  emscripten_406-integration-test:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
+    extends:
+      file: common-services.yml
+      service: test_remote_builder
+    profiles:
+      - test
+    networks:
+      default:
+        aliases:
+          - emsdk-406
   win_2022-integration-test:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
     extends:
