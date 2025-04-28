@@ -1,10 +1,17 @@
 package com.defold.extender.services.cocoapods;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import org.apache.commons.io.FileUtils;
+
+import com.defold.extender.ExtenderException;
+import com.defold.extender.services.cocoapods.PlistBuddyWrapper.CreateBundlePlistArgs;
 
 public class ResolvedPods {
     public List<PodSpec> pods = new ArrayList<>();
@@ -77,12 +84,50 @@ public class ResolvedPods {
         weakFrameworks.addAll(pod.weakFrameworks.get(platform));
         if (pod.parentSpec != null) addPodWeakFrameworks(platform, pod.parentSpec, weakFrameworks);
     }
+
     public List<String> getAllPodWeakFrameworks(String platform) {
         Set<String> weakFrameworks = new LinkedHashSet<>();
         for (PodSpec pod : pods) {
             addPodWeakFrameworks(platform, pod, weakFrameworks);
         }
         return new ArrayList<String>(weakFrameworks);
+    }
+
+    public List<File> createResourceBundles(File targetDir, String platform) throws IOException, ExtenderException {
+        List<File> result = new ArrayList<>();
+        for (PodSpec spec : pods) {
+            for (Map.Entry<String, List<String>> entry : spec.resourceBundles.entrySet()) {
+                result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue()));
+            }
+        }
+        return result;
+    }
+
+    static File createResourceBundle(File targetDir, String platform, PodSpec pod, String bundleName, List<String> content) throws IOException, ExtenderException {
+        File resultFolder = new File(targetDir, bundleName + ".bundle");
+        resultFolder.mkdirs();
+        for (String contentElement : content) {
+            // contentElement can be regex so expand it
+            for (File f : PodUtils.listFilesGlob(pod.dir, contentElement)) {
+                FileUtils.copyFileToDirectory(f, resultFolder);
+            }
+        }
+        File infoPlist = new File(resultFolder, "Info.plist");
+        PlistBuddyWrapper.CreateBundlePlistArgs args = new CreateBundlePlistArgs();
+        args.bundleId = "com.defold.extender." + bundleName;
+        args.bundleName = bundleName;
+        args.version = "1";
+        args.shortVersion = pod.version;
+        if (platform.contains("ios")) {
+            args.minVersion = pod.iosversion;
+        } else if (platform.contains("osx")) {
+            args.minVersion = pod.osxversion;
+        } else {
+            throw new IllegalArgumentException(String.format("Platform %s is not supported", platform));
+        }
+        args.supportedPlatforms = PodUtils.toPlistPlatforms(new String[] { platform });
+        PlistBuddyWrapper.createBundleInfoPlist(infoPlist, args);
+        return resultFolder;
     }
 
     @Override

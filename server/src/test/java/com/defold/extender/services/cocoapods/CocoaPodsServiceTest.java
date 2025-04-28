@@ -20,6 +20,8 @@ import javax.naming.InvalidNameException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -331,5 +333,51 @@ public class CocoaPodsServiceTest {
 
         List<File> result = resolvedPods.getAllPodResources("arm64-ios");
         assertArrayEquals(expectedFiles, result.toArray());
+    }
+
+    @Test
+    @EnabledOnOs({ OS.MAC })
+    public void testResourceBundleParsing() throws IOException, ExtenderException {
+        String jsonSpec = Files.readString(Path.of("test-data/pod_specs/UnityAds.json"));
+        PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
+            .setSpecJson(jsonSpec)
+            .setWorkingDir(this.workingDir)
+            .setJobContext(this.jobContext)
+            .build();
+
+        String[] simulatedFiles = new String[]{
+            "UnityAds.xcframework/ios-arm64/UnityAds.framework/PrivacyInfo.xcprivacy",
+            "UnityAds.xcframework/ios-arm64/UnityAds.framework/omid-session-client-v1.js",
+            "UnityAds.xcframework/ios-arm64/UnityAds.framework/omsdk-v1.js",
+            "UnityAds.xcframework/ios-arm64/UnityAds.framework/Info.plist"
+        };
+        File podFolder = createEmptyFiles(this.podsDir, "UnityAds", simulatedFiles);
+
+        PodSpec unityAdsSpec = PodSpecParser.createPodSpec(args);
+        ResolvedPods resolvedPods = new ResolvedPods();
+        resolvedPods.pods = List.of(unityAdsSpec);
+        resolvedPods.podsDir = this.podsDir;
+        resolvedPods.generatedDir = this.generatedDir;
+
+        File targetDir = new File(this.workingDir, "result");
+        List<File> result = resolvedPods.createResourceBundles(targetDir, "arm64-ios");
+        assertEquals(result.size(), 1);
+        assertEquals("UnityAdsResources.bundle", result.get(0).getName());
+        List<String> expectedFiles = List.of(
+            "PrivacyInfo.xcprivacy",
+            "omid-session-client-v1.js",
+            "omsdk-v1.js",
+            "Info.plist"
+        );
+
+        File bundleDir = new File(targetDir, "UnityAdsResources.bundle");
+        assertTrue(bundleDir.exists());
+        List<Path> resultContent = Files.list(bundleDir.toPath()).toList();
+        assertEquals(expectedFiles.size(), resultContent.size());
+        for (Path p : resultContent) {
+            assertTrue(expectedFiles.contains(p.getFileName().toString()));
+        }
     }
 }

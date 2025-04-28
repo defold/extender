@@ -2,6 +2,7 @@ package com.defold.extender.services.cocoapods;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ public class PodSpec {
     public List<String> defaultSubspecs = new ArrayList<>();
     public List<PodSpec> subspecs = new ArrayList<>();
     public List<String> dependencies = new ArrayList<>();
+    public Map<String, List<String>> resourceBundles = new HashMap<>();
 
     public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
     public PlatformSet defines = new PlatformSet();
@@ -81,6 +83,9 @@ public class PodSpec {
         sb.append("  default_subspecs: " + defaultSubspecs + "\n");
         for (PodSpec sub : subspecs) {
             sb.append("  subspec: " + sub.name + "\n");
+        }
+        for (Map.Entry<String, List<String>> resourceBundleEntry : resourceBundles.entrySet()) {
+            sb.append("  resourceBundle: "  + resourceBundleEntry.getKey() + " files: " + resourceBundleEntry.getValue() + "\n");
         }
         return sb.toString();
     }
