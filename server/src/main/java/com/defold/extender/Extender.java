@@ -1062,6 +1062,8 @@ class Extender {
             }
         }
 
+        LOGGER.info("buildPods - creating and adding resource bundles");
+        outputFiles.addAll(resolvedPods.createResourceBundles(resourcesBuildDir, platform));
 
         LOGGER.info("buildPods - adding dynamic frameworks to build output");
         File frameworksBuildDir = new File(buildDirectory, "frameworks");
@@ -2627,9 +2629,7 @@ class Extender {
 
         List<File> privacyManifests = new ArrayList<>();
         privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(uploadDirectory, "PrivacyInfo.xcprivacy"));
-        if (resolvedPods != null) {
-            privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
-        }
+        // no need to deal with PrivacyInfo manifests from pods because they will be packed into resource bundle
 
         // do nothing if there are no privacy manifests
         if (privacyManifests.isEmpty()) {
@@ -2637,7 +2637,13 @@ class Extender {
         }
         // use the first privacy manifests as-is if it is the only one
         if (privacyManifests.size() == 1) {
-            outputFiles.add(privacyManifests.get(0));
+            File targetFile = new File(buildDirectory, "PrivacyInfo.xcprivacy");
+            try {
+                FileUtils.copyFile(privacyManifests.get(0), targetFile);
+                outputFiles.add(targetFile);
+            } catch (IOException exc) {
+                LOGGER.warn("Can't copy PrivacyInfo.xcprivacy to build folder", exc);
+            }
             return outputFiles;
         }
 

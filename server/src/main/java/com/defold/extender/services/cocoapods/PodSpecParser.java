@@ -15,6 +15,7 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -224,6 +225,10 @@ public final class PodSpecParser {
         if (osx != null) spec.resources.osx.addAll(getAsList(osx, "resource"));
         if (ios != null) spec.resources.ios.addAll(getAsList(ios, "resources"));
         if (osx != null) spec.resources.osx.addAll(getAsList(osx, "resources"));
+
+        // resource bundles
+        // https://guides.cocoapods.org/syntax/podspec.html#resource_bundles
+        spec.resourceBundles = getAsMapList(specJson, "resource_bundles");
 
         // frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#frameworks
@@ -652,6 +657,20 @@ public final class PodSpecParser {
             }
         } else if (value instanceof String) {
             result.addAll(expandBraces((String)value));
+        }
+        return result;
+    }
+
+    // get value as map. If value contains {} - expand it into separate values
+    static Map<String, List<String>> getAsMapList(JSONObject o, String key) {
+        Map<String, List<String>> result = new HashMap<>();
+        Object value = o.get(key);
+        if (value instanceof JSONObject) {
+            JSONObject tmp = (JSONObject)value;
+            for (Object innerKey : tmp.keySet()) {
+                String innerKeyStr = (String)innerKey;
+                result.put(innerKeyStr, getAsList(tmp, innerKeyStr));
+            }
         }
         return result;
     }

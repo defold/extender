@@ -30,4 +30,19 @@ public class PodUtils {
         sanitizedName = sanitizedName.replace("+", "\\+");
         return sanitizedName;
     }
+
+    static String[] toPlistPlatforms(String[] platforms) {
+        String[] result = new String[platforms.length];
+        for (int idx = 0; idx < platforms.length; ++idx) {
+            String platform = platforms[idx];
+            if (platform.equals("arm64-ios")) {
+                result[idx] = "iPhoneOS";
+            } else if (platform.equals("x86_64-ios")) {
+                result[idx] = "iPhoneSimulator";
+            } else if (platform.contains("macos")) {
+                result[idx] = "MacOSX";
+            }
+        }
+        return result;
+    }
 }
