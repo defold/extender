@@ -2630,6 +2630,10 @@ class Extender {
         List<File> privacyManifests = new ArrayList<>();
         privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(uploadDirectory, "PrivacyInfo.xcprivacy"));
         // no need to deal with PrivacyInfo manifests from pods because they will be packed into resource bundle
+        // bit that functionality saved for the backward compatability with older engine's versions (before 1.10.12)
+        if (resolvedPods != null) {
+            privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
+        }
 
         // do nothing if there are no privacy manifests
         if (privacyManifests.isEmpty()) {
