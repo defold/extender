@@ -12,9 +12,12 @@ DOCKER_PS4_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-ps4-private-registry
 DOCKER_PS5_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-ps5-private-registry
 DOCKER_NINTENDO_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-nintendo-private-registry
 
+MULTI_ARCH="linux/amd64"
+[[ -z "$NO_ARM64" ]] && MULTI_ARCH+=",linux/arm64"
+
 # base images
-echo "Base image"
-DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64,linux/arm64 -t $DOCKER_REGISTRY/extender-base-env:1.4.0 -t $DOCKER_REGISTRY/extender-base-env:latest -f $SCRIPT_DIR/docker/Dockerfile.base-env $SCRIPT_DIR/docker
+echo "Base image with archs: $MULTI_ARCH"
+DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-base-env:1.4.0 -t $DOCKER_REGISTRY/extender-base-env:latest -f $SCRIPT_DIR/docker/Dockerfile.base-env $SCRIPT_DIR/docker
 
 REQUESTED="$@"
 [ -z "$REQUESTED" ] && REQUESTED="android windows web ps4 ps5 nintendo linux"
@@ -71,7 +74,7 @@ for request in $REQUESTED; do
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
             ;;
         linux)
-            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64,linux/arm64 -t $DOCKER_REGISTRY/extender-linux-env:latest -f $SCRIPT_DIR/docker/Dockerfile.linux-env $SCRIPT_DIR/docker
+            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-linux-env:latest -f $SCRIPT_DIR/docker/Dockerfile.linux-env $SCRIPT_DIR/docker
             ;;
         *)
             echo "Unknown"
