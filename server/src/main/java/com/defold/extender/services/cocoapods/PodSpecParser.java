@@ -15,7 +15,6 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -540,6 +539,10 @@ public final class PodSpecParser {
         if (compareString(config, "GCC_ENABLE_ASM_KEYWORD", "NO")) {
             flags.add("-fno-asm");
         }
+        if (compareString(config, "APPLICATION_EXTENSION_API_ONLY", "YES")) {
+            flags.add("-fapplication-extension");
+            flags.swift.add("-application-extension");
+        }
     }
 
     // get values as List in case if value is List or String with ' ' delimeter
@@ -554,6 +557,20 @@ public final class PodSpecParser {
             }
             if (result != null) {
                 result.remove("$(inherited)");
+            }
+
+            Pattern p = Pattern.compile("\\$\\((\\w+)\\)");
+
+            // substitute values if any placeholders are presented
+            for (int idx = 0 ; idx < result.size(); ++idx) {
+                String element = result.get(idx);
+                Matcher matcher = p.matcher(element);
+                if (matcher.find()) {
+                    String replaceKey = matcher.group(1);
+                    String replaceValue = (String)o.get(replaceKey);
+                    element = element.replace(matcher.group(0), replaceValue);
+                    result.set(idx, element);
+                }
             }
             return result;
         }

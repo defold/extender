@@ -9,6 +9,7 @@ public class LanguageSet {
     public Set<String> cpp = new LinkedHashSet<>();
     public Set<String> objc = new LinkedHashSet<>();
     public Set<String> objcpp = new LinkedHashSet<>();
+    public Set<String> swift = new LinkedHashSet<>();
 
     public void add(String value) {
         c.add(value);
@@ -22,11 +23,13 @@ public class LanguageSet {
             add(v);
         }
     }
+
     public void addAll(LanguageSet set) {
         c.addAll(set.c);
         cpp.addAll(set.cpp);
         objc.addAll(set.objc);
         objcpp.addAll(set.objcpp);
+        swift.addAll(set.swift);
     }
 
     public void remove(String value) {
