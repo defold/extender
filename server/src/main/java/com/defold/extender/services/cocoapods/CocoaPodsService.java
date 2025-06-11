@@ -8,7 +8,6 @@ import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessUtils;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.file.PathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,12 +19,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
-import org.apache.commons.text.StringEscapeUtils;
-
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -35,7 +28,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,11 +36,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.Iterator;
 import java.util.Collections;
-import java.lang.StringBuilder;
 
 
 @Service

@@ -898,6 +898,7 @@ class Extender {
             podContextObjC.put("defines", new ArrayList<String>(pod.defines.ios));
             podContextObjCpp.put("flags", new ArrayList<String>(pod.flags.ios.objcpp));
             podContextObjCpp.put("defines", new ArrayList<String>(pod.defines.ios));
+            podContextSwift.put("swiftFlags", new ArrayList<String>(pod.flags.ios.swift));
         }
         else if (platform.contains("osx")) {
             podContextC.put("flags", new ArrayList<String>(pod.flags.osx.c));
@@ -908,6 +909,7 @@ class Extender {
             podContextObjC.put("defines", new ArrayList<String>(pod.defines.osx));
             podContextObjCpp.put("flags", new ArrayList<String>(pod.flags.osx.objcpp));
             podContextObjCpp.put("defines", new ArrayList<String>(pod.defines.osx));
+            podContextSwift.put("swiftFlags", new ArrayList<String>(pod.flags.osx.swift));
         }
 
         // get the final contexts per supported language

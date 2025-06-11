@@ -380,4 +380,36 @@ public class CocoaPodsServiceTest {
             assertTrue(expectedFiles.contains(p.getFileName().toString()));
         }
     }
+
+    @Test
+    public void testValueSubstitution() throws IOException, ExtenderException {
+        String jsonSpec = Files.readString(Path.of("test-data/pod_specs/Sentry.json"));
+        PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
+            .setSpecJson(jsonSpec)
+            .setWorkingDir(this.workingDir)
+            .setJobContext(this.jobContext)
+            .build();
+        PodSpec podSpec = PodSpecParser.createPodSpec(args);
+        assertTrue(podSpec.flags.ios.c.contains("-DAPPLICATION_EXTENSION_API_ONLY_YES"));
+        assertTrue(podSpec.flags.ios.objc.contains("-DAPPLICATION_EXTENSION_API_ONLY_YES"));
+    }
+
+    @Test
+    public void testCompilationFlags() throws IOException, ExtenderException {
+                String jsonSpec = Files.readString(Path.of("test-data/pod_specs/Sentry.json"));
+        PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
+            .setGeneratedDir(this.generatedDir)
+            .setPodsDir(this.podsDir)
+            .setSpecJson(jsonSpec)
+            .setWorkingDir(this.workingDir)
+            .setJobContext(this.jobContext)
+            .build();
+        PodSpec podSpec = PodSpecParser.createPodSpec(args);
+        // check handle APPLICATION_EXTENSION_API_ONLY flag
+        assertTrue(podSpec.flags.ios.c.contains("-fapplication-extension"));
+        assertTrue(podSpec.flags.ios.objc.contains("-fapplication-extension"));
+        assertTrue(podSpec.flags.ios.swift.contains("-application-extension"));
+    }
 }
