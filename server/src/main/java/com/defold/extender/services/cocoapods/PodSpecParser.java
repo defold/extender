@@ -131,6 +131,7 @@ public final class PodSpecParser {
         spec.umbrellaHeaderGenerator = args.umbrellaHeaderGenerator;
         spec.moduleMapGenerator = args.moduleMapGenerator;
         spec.name = (String)specJson.get("name");
+        spec.productModuleName = args.parentSpec == null ? toC99extIdentifier(spec.name) : args.parentSpec.productModuleName;
         spec.moduleName = getModuleName(specJson, args.parentSpec);
         spec.version = (args.parentSpec == null) ? (String)specJson.get("version") : args.parentSpec.version;
         spec.dir = (args.parentSpec == null) ? new File(args.podsDir, spec.name) : args.parentSpec.dir;
@@ -149,7 +150,7 @@ public final class PodSpecParser {
             spec.defines.osx.addAll(args.parentSpec.defines.osx);
             spec.linkflags.ios.addAll(args.parentSpec.linkflags.ios);
             spec.linkflags.ios.addAll(args.parentSpec.linkflags.ios);
-            spec.flags.remove("-fmodule-name=" + args.parentSpec.moduleName);
+            spec.flags.remove("-fmodule-name=" + args.parentSpec.productModuleName);
         }
 
         // platform versions
@@ -209,12 +210,12 @@ public final class PodSpecParser {
         spec.flags.osx.objc.add("-fmodules");
         spec.flags.ios.objcpp.add("-fcxx-modules");
         spec.flags.osx.objcpp.add("-fcxx-modules");
-        spec.flags.ios.c.add("-fmodule-name=" + spec.moduleName);
-        spec.flags.osx.c.add("-fmodule-name=" + spec.moduleName);
-        spec.flags.ios.objc.add("-fmodule-name=" + spec.moduleName);
-        spec.flags.osx.objc.add("-fmodule-name=" + spec.moduleName);
-        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.moduleName);
-        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.moduleName);
+        spec.flags.ios.c.add("-fmodule-name=" + spec.productModuleName);
+        spec.flags.osx.c.add("-fmodule-name=" + spec.productModuleName);
+        spec.flags.ios.objc.add("-fmodule-name=" + spec.productModuleName);
+        spec.flags.osx.objc.add("-fmodule-name=" + spec.productModuleName);
+        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.productModuleName);
+        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.productModuleName);
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
@@ -359,12 +360,14 @@ public final class PodSpecParser {
         else if (spec.iosModuleMap == null && spec.installed) {
             if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()
                 || !spec.swiftSourceFiles.isEmpty()) {
-                spec.iosModuleMap = createIosModuleMap(spec, args.workingDir);
+                spec.iosModuleMap = createIosModuleMap(spec, true);
+                spec.iosSwiftModuleMap = createIosModuleMap(spec, false);
             }
         }
         if (spec.iosModuleMap != null) {
             spec.flags.ios.objc.add("-fmodule-map-file=" + spec.iosModuleMap);
             spec.flags.ios.objcpp.add("-fmodule-map-file=" + spec.iosModuleMap);
+            spec.flags.ios.swift.add("-Xcc -fmodule-map-file=" + spec.iosSwiftModuleMap);
         }
 
         if (spec.osxModuleMap != null && spec.osxModuleMap.toLowerCase().equals("false")) {
@@ -374,12 +377,14 @@ public final class PodSpecParser {
         else if (spec.osxModuleMap == null && spec.installed) {
             if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()
                 || !spec.swiftSourceFiles.isEmpty()) {
-                spec.osxModuleMap = createOsxModuleMap(spec, args.workingDir);
+                spec.osxModuleMap = createOsxModuleMap(spec, true);
+                spec.osxSwiftModuleMap = createOsxModuleMap(spec, false);
             }
         }
         if (spec.osxModuleMap != null) {
             spec.flags.osx.objc.add("-fmodule-map-file=" + spec.osxModuleMap);
             spec.flags.osx.objcpp.add("-fmodule-map-file=" + spec.osxModuleMap);
+            spec.flags.osx.swift.add("-Xcc -fmodule-map-file=" + spec.osxSwiftModuleMap);
         }
 
         return spec;
@@ -738,57 +743,58 @@ public final class PodSpecParser {
         }
     }
 
-    static String createIosModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
-        File moduleMapFile = new File(pod.generatedDir, "module.modulemap");
-        createModuleMap(pod, pod.publicHeaders.ios, pod.iosUmbrellaHeader, moduleMapFile, jobDir);
+    static String createIosModuleMap(PodSpec pod, boolean includeSwiftDefinition) throws ExtenderException {
+        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift." : ""));
+        createModuleMap(pod, pod.iosUmbrellaHeader, moduleMapFile, includeSwiftDefinition);
         return moduleMapFile.getAbsolutePath();
     }
 
-    static String createOsxModuleMap(PodSpec pod, File jobDir) throws ExtenderException {
-        File moduleMapFile = new File(pod.generatedDir, "module.modulemap");
-        createModuleMap(pod, pod.publicHeaders.osx, pod.osxUmbrellaHeader, moduleMapFile, jobDir);
+    static String createOsxModuleMap(PodSpec pod, boolean includeSwiftDefinition) throws ExtenderException {
+        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift." : ""));
+        createModuleMap(pod, pod.osxUmbrellaHeader, moduleMapFile, includeSwiftDefinition);
         return moduleMapFile.getAbsolutePath();
     }
 
     // https://clang.llvm.org/docs/Modules.html#module-declaration
-    static void createModuleMap(PodSpec pod, Set<String> headerPatterns, String umbrellaHeader, File moduleMapFile, File jobDir) throws ExtenderException {
+    static void createModuleMap(PodSpec pod, String umbrellaHeader, File moduleMapFile, boolean includeSwiftDefinition) throws ExtenderException {
         List<String> headers = new ArrayList<>();
 
         // swift source file header
         // generated by the swift compiler if -emit-objc-header flag is set
         if (!pod.swiftSourceFiles.isEmpty()) {
-            File swiftModuleHeader = new File(pod.generatedDir, pod.moduleName + "-Swift.h");
+            File swiftModuleHeader = new File(pod.generatedDir, pod.productModuleName + "-Swift.h");
             pod.swiftModuleHeader = swiftModuleHeader;
             headers.add(swiftModuleHeader.getAbsolutePath());
         }
 
-        // generate final modulemap
-        HashMap<String, Object> envContext = new HashMap<>();
-        envContext.put("FRAMEWORKOPT", pod.containsFramework ? "framework" : "");
-        envContext.put("MODULE_ID", pod.moduleName);
-        envContext.put("HEADERS", headers);
-        envContext.put("UMBRELLA_HEADER", umbrellaHeader);
-        envContext.put("SUBMODULE", pod.containsFramework ? "module * { export * }" : "");
-        
         if (pod.moduleMapGenerator != null) {
+            // generate final modulemap
+            HashMap<String, Object> envContext = new HashMap<>();
+            envContext.put("SWIFT_DEFINITION", includeSwiftDefinition);
+            envContext.put("FRAMEWORKOPT", pod.containsFramework ? "framework" : "");
+            envContext.put("MODULE_ID", pod.productModuleName);
+            envContext.put("HEADERS", headers);
+            envContext.put("UMBRELLA_HEADER", umbrellaHeader);
+            envContext.put("SUBMODULE", pod.containsFramework ? "module * { export * }" : "");
+
             String moduleMap = pod.moduleMapGenerator.apply(envContext);
             try {
                 Files.writeString(moduleMapFile.toPath(), moduleMap);
             }
             catch (IOException e) {
-                throw new ExtenderException(e, "Unable to create modulemap for " + pod.moduleName);
+                throw new ExtenderException(e, "Unable to create modulemap for " + pod.productModuleName);
             }
         }
     }
 
     static String createIosUmbrellaHeader(PodSpec pod, File jobDir) throws ExtenderException {
-        File umbrellaHeaderFile = new File(pod.generatedDir, pod.moduleName + "-umbrella.h");
+        File umbrellaHeaderFile = new File(pod.generatedDir, pod.productModuleName + "-umbrella.h");
         createUmbrellaHeader(pod, pod.publicHeaders.ios, umbrellaHeaderFile, jobDir);
         return umbrellaHeaderFile.getAbsolutePath();
     }
 
     static String createOsxUmbrellaHeader(PodSpec pod, File jobDir) throws ExtenderException {
-        File umbrellaHeaderFile = new File(pod.generatedDir, pod.moduleName + "-umbrella.h");
+        File umbrellaHeaderFile = new File(pod.generatedDir, pod.productModuleName + "-umbrella.h");
         createUmbrellaHeader(pod, pod.publicHeaders.osx, umbrellaHeaderFile, jobDir);
         return umbrellaHeaderFile.getAbsolutePath();
     }
@@ -803,7 +809,7 @@ public final class PodSpecParser {
         }
 
         Map<String, Object> envContext = new HashMap<>();
-        envContext.put("MODULE_ID", pod.moduleName);
+        envContext.put("MODULE_ID", pod.productModuleName);
         envContext.put("HEADERS", headers);
 
         if (pod.umbrellaHeaderGenerator != null) {
@@ -812,8 +818,8 @@ public final class PodSpecParser {
                 Files.writeString(umbrellaHeaderFile.toPath(), umbrellaHeader);
             }
             catch (IOException e) {
-                throw new ExtenderException(e, "Unable to create umbrella header for " + pod.moduleName);
-            }    
+                throw new ExtenderException(e, "Unable to create umbrella header for " + pod.productModuleName);
+            }
         }
     }
 }

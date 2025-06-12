@@ -4,6 +4,7 @@
   {{SUBMODULE}}
 }
 
+{{#SWIFT_DEFINITION}}
 module {{MODULE_ID}}.Swift {
   {{#HEADERS}}
   header "{{{.}}}"
@@ -11,3 +12,4 @@ module {{MODULE_ID}}.Swift {
   export *
   requires objc
 }
+{{/SWIFT_DEFINITION}}

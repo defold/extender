@@ -12,6 +12,8 @@ import java.util.function.Function;
 public class PodSpec {
     public String name = "";
     public String moduleName = "";
+    // https://github.com/CocoaPods/CocoaPods/blob/648ccdcaea2063fe63977a0146e1717aec3efa54/lib/cocoapods/target.rb#L157
+    public String productModuleName = "";
     public String version = "";
     public String iosversion = "";
     public String osxversion = "";
@@ -25,6 +27,8 @@ public class PodSpec {
     // This file is referenced from the modulemap and generated in
     // Extender.java as part of the process when building .swift files
     public File swiftModuleHeader = null;
+    public String iosSwiftModuleMap = null;
+    public String osxSwiftModuleMap = null;
     public Set<String> swiftSourceFilePaths = new LinkedHashSet<>();
     public Set<File> swiftSourceFiles = new LinkedHashSet<>();
     public Set<File> sourceFiles = new LinkedHashSet<>();
@@ -63,6 +67,7 @@ public class PodSpec {
         StringBuilder sb = new StringBuilder();
         sb.append(name + ":" + version + "\n");
         sb.append("  dir: " + dir + "\n");
+        sb.append("  productModuleName" + productModuleName + "\n");
         sb.append("  moduleName: " + moduleName + "\n");
         sb.append("  generated dir: " + generatedDir + "\n");
         sb.append("  installed: " + installed + "\n");
