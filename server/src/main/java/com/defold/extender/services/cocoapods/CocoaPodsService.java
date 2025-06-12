@@ -264,7 +264,7 @@ public class CocoaPodsService {
             for (String framework : pod.vendoredFrameworks) {
                 File frameworkDir = new File(pod.dir, framework);
                 String frameworkName = frameworkDir.getName().replace(".xcframework", "");
-                
+
                 File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
                 File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
                 if (arm64_armv7FrameworkDir.exists()) {

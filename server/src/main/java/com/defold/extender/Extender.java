@@ -636,7 +636,7 @@ class Extender {
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
-        context.put("moduleName", pod.moduleName);
+        context.put("moduleName", pod.productModuleName);
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
         context.put("swiftHeaderPath", pod.swiftModuleHeader);
         context.put("swiftVersion", "5");
@@ -658,9 +658,9 @@ class Extender {
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
-        context.put("moduleName", pod.moduleName);
+        context.put("moduleName", pod.productModuleName);
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
-        context.put("swiftModulePath", new File(pod.generatedDir, pod.moduleName + ".swiftmodule"));
+        context.put("swiftModulePath", new File(pod.generatedDir, pod.productModuleName + ".swiftmodule"));
         context.put("swiftVersion", "5");
         String command = templateExecutor.execute(this.platformConfig.emitSwiftModuleCmd, context);
         // LOGGER.info("swiftc command to emit module: " + command);
@@ -687,7 +687,7 @@ class Extender {
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
-        context.put("moduleName", pod.moduleName);
+        context.put("moduleName", pod.productModuleName);
         context.put("swiftPrimarySourceFile", swiftPrimarySourceFile);
         context.put("swiftSourceFiles", swiftSourceFilePaths);
         context.put("swiftVersion", "5");
