@@ -69,7 +69,7 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-security')
     implementation('io.micrometer:micrometer-core:1.14.3')
     implementation('io.micrometer:micrometer-tracing:1.4.1')
-    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.1')
+    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.5.1')
 
     implementation('org.projectlombok:lombok:1.18.36')
     annotationProcessor('org.projectlombok:lombok:1.18.36')
