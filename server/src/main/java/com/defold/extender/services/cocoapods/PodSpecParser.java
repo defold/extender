@@ -3,6 +3,7 @@ package com.defold.extender.services.cocoapods;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -20,12 +21,14 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 
 public final class PodSpecParser {
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(PodSpecParser.class);
     private static final Pattern BRACE_PATTERN = Pattern.compile("\\{([^{}]*)\\}");
 
     public static class CreatePodSpecArgs {
@@ -275,7 +278,7 @@ public final class PodSpecParser {
 
         // parse subspecs
         // https://guides.cocoapods.org/syntax/podspec.html#subspec
-        List<String> defaultSubSpecs = getStringListValues(specJson, "default_subspecs");
+        List<String> defaultSubSpecs = getStringListValues(spec, specJson, "default_subspecs");
         if (defaultSubSpecs != null) {
             spec.defaultSubspecs.addAll(defaultSubSpecs);
         }
@@ -339,6 +342,10 @@ public final class PodSpecParser {
         spec.publicHeaders.addAll(getAsList(specJson, "public_header_files"));
         if (ios != null) spec.publicHeaders.ios.addAll(getAsList(ios, "public_header_files"));
         if (osx != null) spec.publicHeaders.osx.addAll(getAsList(osx, "public_header_files"));
+
+        spec.privateHeaders.addAll(getAsList(specJson, "private_header_files"));
+        if (ios != null) spec.privateHeaders.ios.addAll(getAsList(ios, "private_header_files"));
+        if (osx != null) spec.privateHeaders.osx.addAll(getAsList(osx, "private_header_files"));
 
         // generate umbrella header
         if (spec.installed) {
@@ -429,48 +436,55 @@ public final class PodSpecParser {
 
     static void parseMultiPlatformConfig(PodSpec spec, JSONObject config) {
         if (config != null) {
-            parseConfig(config, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
-            parseConfig(config, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
+            parseConfig(spec, config, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
+            parseConfig(spec, config, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
             JSONObject iosConfig = (JSONObject)config.get("ios");
             JSONObject osxConfig = (JSONObject)config.get("ios");
-            if (iosConfig != null) parseConfig(iosConfig, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
-            if (osxConfig != null) parseConfig(osxConfig, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
+            if (iosConfig != null) parseConfig(spec, iosConfig, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
+            if (osxConfig != null) parseConfig(spec, osxConfig, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
         }
     }
 
 
-    static void parseConfig(JSONObject config, LanguageSet flags, Set<String> linkflags, Set<String> defines) {
+    static void parseConfig(PodSpec spec, JSONObject config, LanguageSet flags, Set<String> linkflags, Set<String> defines) {
         // https://pewpewthespells.com/blog/buildsettings.html
         // defines
-        List<String> defs = getStringListValues(config, "GCC_PREPROCESSOR_DEFINITIONS");
+        List<String> defs = getStringListValues(spec, config, "GCC_PREPROCESSOR_DEFINITIONS");
         if (defs != null) {
             defines.addAll(unescapeStrings(defs));
         }
         // linker flags
         // https://xcodebuildsettings.com/#other_ldflags
-        List<String> ldFlags = getStringListValues(config, "OTHER_LDFLAGS");
+        List<String> ldFlags = getStringListValues(spec, config, "OTHER_LDFLAGS");
         if (ldFlags != null) {
             linkflags.addAll(ldFlags);
         }
         // compiler flags for c and objc files
         // https://xcodebuildsettings.com/#other_cflags
-        List<String> cFlags = getStringListValues(config, "OTHER_CFLAGS");
+        List<String> cFlags = getStringListValues(spec, config, "OTHER_CFLAGS");
         if (cFlags != null) {
             flags.c.addAll(cFlags);
             flags.objc.addAll(cFlags);
         }
         // compiler flags
+        // https://developer.apple.com/documentation/xcode/build-settings-reference#C++-Language-Dialect
         if (hasString(config, "CLANG_CXX_LANGUAGE_STANDARD")) {
             String cppStandard = getAsString(config, "CLANG_CXX_LANGUAGE_STANDARD", "compiler-default");
             String compilerFlag = "";
             switch (cppStandard) {
                 case "c++98":   compilerFlag = "-std=c++98"; break;
+                case "c++11":
                 case "c++0x":   compilerFlag = "-std=c++11"; break;
+                case "gnu++11":
                 case "gnu++0x": compilerFlag = "-std=gnu++11"; break;
-                case "c++14":   compilerFlag = "-std=c++1y"; break;
-                case "gnu++14": compilerFlag = "-std=gnu++1y"; break;
+                case "c++14":   compilerFlag = "-std=c++14"; break;
+                case "gnu++14": compilerFlag = "-std=gnu++17"; break;
+                case "c++17":   compilerFlag = "-std=c++17"; break;
+                case "gnu++17": compilerFlag = "-std=gnu++17"; break;
+                case "c++20":   compilerFlag = "-std=c++20"; break;
+                case "gnu++20": compilerFlag = "-std=gnu++20"; break;
                 case "gnu++98": 
-                case "compiler-default": 
+                case "compiler-default":
                 default:  compilerFlag = "-std=gnu++98"; break;
             }
             flags.cpp.add(compilerFlag);
@@ -548,10 +562,19 @@ public final class PodSpecParser {
             flags.add("-fapplication-extension");
             flags.swift.add("-application-extension");
         }
+        if (hasString(config, "SWIFT_INCLUDE_PATHS")) {
+            List<String> l = getStringListValues(spec, config, "SWIFT_INCLUDE_PATHS");
+            if (l != null) {
+                for (String path : l) {
+                    flags.swift.add(String.format("-I%s", path));
+                    flags.swift.add(String.format("-Xcc -I%s", path));
+                }
+            }
+        }
     }
 
     // get values as List in case if value is List or String with ' ' delimeter
-    static List<String> getStringListValues(JSONObject o, String key) {
+    static List<String> getStringListValues(PodSpec spec, JSONObject o, String key) {
         if (o.containsKey(key)) {
             Object value = o.get(key);
             List<String> result = null;
@@ -564,6 +587,7 @@ public final class PodSpecParser {
                 result.remove("$(inherited)");
             }
 
+            // check for $(....) pattern
             Pattern p = Pattern.compile("\\$\\((\\w+)\\)");
 
             // substitute values if any placeholders are presented
@@ -572,9 +596,32 @@ public final class PodSpecParser {
                 Matcher matcher = p.matcher(element);
                 if (matcher.find()) {
                     String replaceKey = matcher.group(1);
-                    String replaceValue = (String)o.get(replaceKey);
-                    element = element.replace(matcher.group(0), replaceValue);
-                    result.set(idx, element);
+                    String replaceValue = o.containsKey(replaceKey) ? (String)o.get(replaceKey) : getCommonVariableValue(spec, replaceKey);
+                    if (replaceValue != null) {
+                        element = element.replace(matcher.group(0), replaceValue);
+                        result.set(idx, element);
+                    } else {
+                        LOGGER.warn("Can't find value for substitution for key {}", replaceKey);
+                    }
+                }
+            }
+
+            // check for ${....} pattern
+            p = Pattern.compile("\\$\\{(\\w+)\\}");
+
+            // substitute values if any placeholders are presented
+            for (int idx = 0 ; idx < result.size(); ++idx) {
+                String element = result.get(idx);
+                Matcher matcher = p.matcher(element);
+                if (matcher.find()) {
+                    String replaceKey = matcher.group(1);
+                    String replaceValue = o.containsKey(replaceKey) ? (String)o.get(replaceKey) : getCommonVariableValue(spec, replaceKey);
+                    if (replaceValue != null) {
+                        element = element.replace(matcher.group(0), replaceValue);
+                        result.set(idx, element);
+                    } else {
+                        LOGGER.warn("Can't find value for substitution for key {}", replaceKey);
+                    }
                 }
             }
             return result;
@@ -710,16 +757,16 @@ public final class PodSpecParser {
                 pod.swiftSourceFiles.add(podSrcFile);
                 pod.swiftSourceFilePaths.add(podSrcFile.getAbsolutePath());
             }
-            else if (!isHeaderFile(filename)) {
-                pod.sourceFiles.add(podSrcFile);
+            else {
+                if (!PodUtils.isHeaderFile(filename)) {
+                    pod.sourceFiles.add(podSrcFile);
+                } else {
+                    pod.headerFiles.add(podSrcFile);
+                }
             }
         }
     }
 
-
-    static boolean isHeaderFile(String filename) {
-        return filename.endsWith(".h") || filename.endsWith(".def");
-    }
 
     /**
      * Add a list of include paths matching a pattern to a pod
@@ -730,7 +777,7 @@ public final class PodSpecParser {
         List<File> podSrcFiles = PodUtils.listFilesGlob(pod.dir, pattern);
         for (File podSrcFile : podSrcFiles) {
             final String filename = podSrcFile.getName();
-            if (isHeaderFile(filename)) {
+            if (PodUtils.isHeaderFile(filename)) {
                 File podIncludeDir = podSrcFile.getParentFile();
                 if (podIncludeDir != null) {
                     pod.includePaths.add(podIncludeDir);
@@ -744,13 +791,13 @@ public final class PodSpecParser {
     }
 
     static String createIosModuleMap(PodSpec pod, boolean includeSwiftDefinition) throws ExtenderException {
-        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift." : ""));
+        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift" : "objc"));
         createModuleMap(pod, pod.iosUmbrellaHeader, moduleMapFile, includeSwiftDefinition);
         return moduleMapFile.getAbsolutePath();
     }
 
     static String createOsxModuleMap(PodSpec pod, boolean includeSwiftDefinition) throws ExtenderException {
-        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift." : ""));
+        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift" : "objc"));
         createModuleMap(pod, pod.osxUmbrellaHeader, moduleMapFile, includeSwiftDefinition);
         return moduleMapFile.getAbsolutePath();
     }
@@ -820,6 +867,15 @@ public final class PodSpecParser {
             catch (IOException e) {
                 throw new ExtenderException(e, "Unable to create umbrella header for " + pod.productModuleName);
             }
+        }
+    }
+
+    static String getCommonVariableValue(PodSpec spec, String key) {
+        switch (key) {
+            case "PODS_TARGET_SRCROOT":
+                return spec.dir.toString();
+            default:
+                return null;
         }
     }
 }

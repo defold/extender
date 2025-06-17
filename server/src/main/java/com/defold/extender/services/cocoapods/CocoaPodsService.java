@@ -152,7 +152,6 @@ public class CocoaPodsService {
             jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
         mainPodfile.platform = (platform.contains("ios") ? "ios" : "osx");
 
-
         // Load all Podfiles
         List<String> pods = parsePodfiles(mainPodfile, podFiles);
 
@@ -508,6 +507,7 @@ public class CocoaPodsService {
         resolvedPods.frameworksDir = frameworksDir;
         resolvedPods.generatedDir = generatedDir;
         resolvedPods.podFileLock = new File(workingDir, "Podfile.lock");
+        resolvedPods.createHeadersDirectories(workingDir);
 
         LOGGER.info("Resolved Cocoapod dependencies");
         LOGGER.info(resolvedPods.toString());

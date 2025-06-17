@@ -602,18 +602,13 @@ class Extender {
 
         // Add include folders for resolved pods
         if (resolvedPods != null) {
-            List<String> podIncludes = new ArrayList<>();
+            includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.publicHeadersDir));
+            includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.privateHeadersDir));
             for (PodSpec pod : resolvedPods.pods) {
-                for (File podIncludePath : pod.includePaths) {
-                    String relativePath = ExtenderUtil.getRelativePath(jobDirectory, podIncludePath);
-                    if (!podIncludes.contains(relativePath)) {
-                        podIncludes.add(relativePath);
-                    }
-                }
-                podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.dir) );
-                podIncludes.add( ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir) );
+                File concretePodPrivateDir = new File(resolvedPods.privateHeadersDir, pod.productModuleName);
+                includes.add(ExtenderUtil.getRelativePath(jobDirectory, concretePodPrivateDir));
+                includes.add(ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir));
             }
-            includes.addAll(podIncludes);
             includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
         }
 
@@ -918,18 +913,6 @@ class Extender {
         Map<String, Object> mergedContextWithPodsForObjC = ExtenderUtil.mergeContexts(trimmedContext, podContextObjC);
         Map<String, Object> mergedContextWithPodsForObjCpp = ExtenderUtil.mergeContexts(trimmedContext, podContextObjCpp);
         Map<String, Object> mergedContextWithPodsForSwift = ExtenderUtil.mergeContexts(trimmedContext, podContextSwift);
-
-        // remove systemIncludes from objc and objc++
-        // this is a bit crude but cocoapod builds do not provide any -isystem option and
-        // it seems like the "{{env.SYSROOT}}/usr/include/c++/v1" set in build.yml is
-        // causing problems when building objc code with -fmodules enabled
-        // see https://github.com/defold/extender/issues/308
-        mergedContextWithPodsForObjC.put("systemIncludes", new ArrayList<String>());
-        mergedContextWithPodsForObjCpp.put("systemIncludes", new ArrayList<String>());
-        mergedContextWithPodsForSwift.put("systemIncludes", new ArrayList<String>());
-        // also clearing systemIncludes for c
-        // see https://github.com/defold/extender/issues/389
-        mergedContextWithPodsForC.put("systemIncludes", new ArrayList<String>());
 
         List<String> objs = new ArrayList<>();
 

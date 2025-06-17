@@ -411,5 +411,7 @@ public class CocoaPodsServiceTest {
         assertTrue(podSpec.flags.ios.c.contains("-fapplication-extension"));
         assertTrue(podSpec.flags.ios.objc.contains("-fapplication-extension"));
         assertTrue(podSpec.flags.ios.swift.contains("-application-extension"));
+        // check SWIFT_INCLUDE_PATHS
+        assertTrue(podSpec.flags.ios.swift.contains(String.format("-I%s/Sentry/Sources/Sentry/include", this.podsDir.toString())));
     }
 }

@@ -45,4 +45,13 @@ public class PodUtils {
         }
         return result;
     }
+
+    static boolean isHeaderFile(String filename) {
+        return filename.endsWith(".h")
+            || filename.endsWith(".hh")
+            || filename.endsWith(".hpp")
+            || filename.endsWith(".hxx")
+            || filename.endsWith(".def");
+    }
+
 }

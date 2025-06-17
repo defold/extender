@@ -32,6 +32,7 @@ public class PodSpec {
     public Set<String> swiftSourceFilePaths = new LinkedHashSet<>();
     public Set<File> swiftSourceFiles = new LinkedHashSet<>();
     public Set<File> sourceFiles = new LinkedHashSet<>();
+    public Set<File> headerFiles = new LinkedHashSet<>();
     public Set<File> includePaths = new LinkedHashSet<>();
     public PodSpec parentSpec = null;
     public List<String> defaultSubspecs = new ArrayList<>();
@@ -48,6 +49,7 @@ public class PodSpec {
     public PlatformSet frameworks = new PlatformSet();
     public PlatformSet libraries = new PlatformSet();
     public PlatformSet publicHeaders = new PlatformSet();
+    public PlatformSet privateHeaders = new PlatformSet();
     public File dir;
     public File generatedDir;
     // true if this podspec was installed by Cocoapods

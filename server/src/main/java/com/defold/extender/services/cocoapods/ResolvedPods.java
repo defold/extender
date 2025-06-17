@@ -2,24 +2,35 @@ package com.defold.extender.services.cocoapods;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.ExtenderUtil;
 import com.defold.extender.services.cocoapods.PlistBuddyWrapper.CreateBundlePlistArgs;
 
 public class ResolvedPods {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ResolvedPods.class);
+
     public List<PodSpec> pods = new ArrayList<>();
     public File podsDir;
     public File frameworksDir;
     public File generatedDir;
     public String platformMinVersion;
     public File podFileLock;
+    public File publicHeadersDir;
+    public File privateHeadersDir;
 
     // In the functions below we also get the values from the parent spec
     // if one exists. A parent spec inherits all of its subspecs (unless a 
@@ -128,6 +139,52 @@ public class ResolvedPods {
         args.supportedPlatforms = PodUtils.toPlistPlatforms(new String[] { platform });
         PlistBuddyWrapper.createBundleInfoPlist(infoPlist, args);
         return resultFolder;
+    }
+
+    public void createHeadersDirectories(File workingDir) {
+        this.publicHeadersDir = Path.of(workingDir.toString(), "Headers", "Public").toFile();
+        this.publicHeadersDir.mkdirs();
+        this.privateHeadersDir = Path.of(workingDir.toString(), "Headers", "Private").toFile();
+        this.privateHeadersDir.mkdirs();
+        for (PodSpec pod : this.pods) {
+            File podPublicHeadersDir = new File(this.publicHeadersDir, pod.productModuleName);
+            podPublicHeadersDir.mkdir();
+            File podPrivateHeadersDir = new File(this.privateHeadersDir, pod.productModuleName);
+            podPrivateHeadersDir.mkdir();
+            // iterate all source files
+            Set<File> podHeaders = new HashSet<>(pod.headerFiles);
+            Set<File> publicHeaders = new HashSet<>();
+            if (pod.publicHeaders.ios != null) {
+                for (String pattern : pod.publicHeaders.ios) {
+                    publicHeaders.addAll(ExtenderUtil.filterFilesGlob(podHeaders, pattern));
+                }
+            } else {
+                publicHeaders.addAll(podHeaders);
+            }
+
+            for (String pattern : pod.privateHeaders.ios) {
+                publicHeaders.removeAll(ExtenderUtil.filterFilesGlob(publicHeaders, pattern));
+            }
+
+            LOGGER.info("Create Public headers directory for {}", pod.productModuleName);
+            for (File f : publicHeaders) {
+                try {
+                    Files.createSymbolicLink(Path.of(podPublicHeadersDir.toString(), f.getName()), f.toPath());
+                } catch (IOException exc) {
+                    LOGGER.warn("Unable to create symbolic link to header", exc);
+                }
+            }
+
+            LOGGER.info("Create Private headers directory for {}", pod.productModuleName);
+            podHeaders.removeAll(publicHeaders);
+            for (File f : podHeaders) {
+                try {
+                    Files.createSymbolicLink(Path.of(podPrivateHeadersDir.toString(), f.getName()), f.toPath());
+                } catch (IOException exc) {
+                    LOGGER.warn("Unable to create symbolic link to header", exc);
+                }
+            }
+        }
     }
 
     @Override
