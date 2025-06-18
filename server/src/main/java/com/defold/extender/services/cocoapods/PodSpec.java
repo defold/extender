@@ -13,7 +13,6 @@ public class PodSpec {
     public String name = "";
     public String moduleName = "";
     // https://github.com/CocoaPods/CocoaPods/blob/648ccdcaea2063fe63977a0146e1717aec3efa54/lib/cocoapods/target.rb#L157
-    public String productModuleName = "";
     public String version = "";
     public String iosversion = "";
     public String osxversion = "";
@@ -69,7 +68,6 @@ public class PodSpec {
         StringBuilder sb = new StringBuilder();
         sb.append(name + ":" + version + "\n");
         sb.append("  dir: " + dir + "\n");
-        sb.append("  productModuleName" + productModuleName + "\n");
         sb.append("  moduleName: " + moduleName + "\n");
         sb.append("  generated dir: " + generatedDir + "\n");
         sb.append("  installed: " + installed + "\n");

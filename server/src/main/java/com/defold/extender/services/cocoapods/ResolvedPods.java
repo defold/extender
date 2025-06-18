@@ -147,9 +147,9 @@ public class ResolvedPods {
         this.privateHeadersDir = Path.of(workingDir.toString(), "Headers", "Private").toFile();
         this.privateHeadersDir.mkdirs();
         for (PodSpec pod : this.pods) {
-            File podPublicHeadersDir = new File(this.publicHeadersDir, pod.productModuleName);
+            File podPublicHeadersDir = new File(this.publicHeadersDir, pod.moduleName);
             podPublicHeadersDir.mkdir();
-            File podPrivateHeadersDir = new File(this.privateHeadersDir, pod.productModuleName);
+            File podPrivateHeadersDir = new File(this.privateHeadersDir, pod.moduleName);
             podPrivateHeadersDir.mkdir();
             // iterate all source files
             Set<File> podHeaders = new HashSet<>(pod.headerFiles);
@@ -166,7 +166,7 @@ public class ResolvedPods {
                 publicHeaders.removeAll(ExtenderUtil.filterFilesGlob(publicHeaders, pattern));
             }
 
-            LOGGER.info("Create Public headers directory for {}", pod.productModuleName);
+            LOGGER.info("Create Public headers directory for {}", pod.moduleName);
             for (File f : publicHeaders) {
                 try {
                     Files.createSymbolicLink(Path.of(podPublicHeadersDir.toString(), f.getName()), f.toPath());
@@ -175,7 +175,7 @@ public class ResolvedPods {
                 }
             }
 
-            LOGGER.info("Create Private headers directory for {}", pod.productModuleName);
+            LOGGER.info("Create Private headers directory for {}", pod.moduleName);
             podHeaders.removeAll(publicHeaders);
             for (File f : podHeaders) {
                 try {

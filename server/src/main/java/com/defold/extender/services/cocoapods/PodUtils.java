@@ -54,4 +54,9 @@ public class PodUtils {
             || filename.endsWith(".def");
     }
 
+    // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
+    static String[] splitPodname(String pod) {
+        return pod.replaceFirst(" \\(.*\\)", "").split("/");
+    }
+
 }

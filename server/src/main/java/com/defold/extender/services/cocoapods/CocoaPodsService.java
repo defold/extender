@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -285,11 +286,6 @@ public class CocoaPodsService {
         }
     }
 
-    // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
-    private String[] splitPodname(String pod) {
-        return pod.replaceFirst(" \\(.*\\)", "").split("/");
-    }
-
     /**
      * Get pod spec based on a pod name with optional sub pod (GoogleUtilities/Environment)
      * @param pods Map of pod names to pod specs
@@ -298,7 +294,7 @@ public class CocoaPodsService {
      */
     private PodSpec getPod(Map<String, PodSpec> pods, String podname) throws ExtenderException {
         // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
-        String podnameparts[] = splitPodname(podname);
+        String podnameparts[] = PodUtils.splitPodname(podname);
         // 'GoogleUtilities'
         String mainpodname = podnameparts[0];
         PodSpec current = pods.get(mainpodname);
@@ -398,7 +394,7 @@ public class CocoaPodsService {
         File podsDir = new File(workingDir, "Pods");
         for (String podname : podnames) {
             // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
-            String podnameparts[] = splitPodname(podname);
+            String podnameparts[] = PodUtils.splitPodname(podname);
             // 'GoogleUtilities'
             String mainpodname = PodUtils.sanitizePodName(podnameparts[0]);
             // 'GoogleUtilities/Environment (7.10.0)'  -> '7.10.0'
@@ -436,6 +432,29 @@ public class CocoaPodsService {
         LOGGER.info("Installed pods");
         for (PodSpec pod : installedPods.pods) {
             LOGGER.info("  " + pod.name);
+        }
+
+        // iterate over all pods and enrich compiler flags
+        for (PodSpec pod : installedPods.pods) {
+            Set<String> visitedDeps = new HashSet<>();
+            List<String> depsNames = new ArrayList<>(pod.dependencies);
+            while (!depsNames.isEmpty()) {
+                String podName = depsNames.removeFirst();
+                visitedDeps.add(podName);
+                PodSpec depPod = installedPods.podsMap.get(podName);
+                if (depPod.iosModuleMap != null) {
+                    pod.flags.ios.objc.add("-fmodule-map-file=" + installedPods.podsMap.get(podName).iosModuleMap);
+                    pod.flags.ios.objcpp.add("-fmodule-map-file=" + installedPods.podsMap.get(podName).iosModuleMap);
+                }
+                if (depPod.iosSwiftModuleMap != null) {
+                    pod.flags.ios.swift.add("-Xcc -fmodule-map-file=" + installedPods.podsMap.get(podName).iosSwiftModuleMap);
+                }
+                for (String d : depPod.dependencies) {
+                    if (!visitedDeps.contains(d)) {
+                        depsNames.add(d);
+                    }
+                }
+            }
         }
         return installedPods;
     }
