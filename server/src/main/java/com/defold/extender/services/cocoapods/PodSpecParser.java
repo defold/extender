@@ -3,7 +3,6 @@ package com.defold.extender.services.cocoapods;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -589,41 +588,22 @@ public final class PodSpecParser {
             }
 
             // check for $(....) pattern
-            Pattern p = Pattern.compile("\\$\\((\\w+)\\)");
+            Pattern p = Pattern.compile("\\$[\\(|{](\\w+)[\\)|}]");
 
             // substitute values if any placeholders are presented
             for (int idx = 0 ; idx < result.size(); ++idx) {
                 String element = result.get(idx);
                 Matcher matcher = p.matcher(element);
-                if (matcher.find()) {
+                while (matcher.find()) {
                     String replaceKey = matcher.group(1);
                     String replaceValue = o.containsKey(replaceKey) ? (String)o.get(replaceKey) : getCommonVariableValue(spec, replaceKey);
                     if (replaceValue != null) {
                         element = element.replace(matcher.group(0), replaceValue);
-                        result.set(idx, element);
                     } else {
                         LOGGER.warn("Can't find value for substitution for key {}", replaceKey);
                     }
                 }
-            }
-
-            // check for ${....} pattern
-            p = Pattern.compile("\\$\\{(\\w+)\\}");
-
-            // substitute values if any placeholders are presented
-            for (int idx = 0 ; idx < result.size(); ++idx) {
-                String element = result.get(idx);
-                Matcher matcher = p.matcher(element);
-                if (matcher.find()) {
-                    String replaceKey = matcher.group(1);
-                    String replaceValue = o.containsKey(replaceKey) ? (String)o.get(replaceKey) : getCommonVariableValue(spec, replaceKey);
-                    if (replaceValue != null) {
-                        element = element.replace(matcher.group(0), replaceValue);
-                        result.set(idx, element);
-                    } else {
-                        LOGGER.warn("Can't find value for substitution for key {}", replaceKey);
-                    }
-                }
+                result.set(idx, element);
             }
             return result;
         }
