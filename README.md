@@ -68,6 +68,18 @@ Logs of extender can be found in `./server/app/logs/` folder.
 
 If you want to use other port (not 9010) you can change property `server.port` in `./server/configs/application-standalone-dev.yml`.
 
+### Show the output
+
+The output can be found in `./server/app/logs/stdout.log`
+
+To show the log as it updates:
+
+```sh
+    tail -F server/app/logs/stdout.log
+```
+
+
+
 ### Develop/debug standalone Extender using VSCode
 Note that [Prerequisites](#prerequisites) should be completed and manifestmergetool.jar already downloaded or built.
 
