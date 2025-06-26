@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/usr/bin/env bash
 
 echo "Generate use dynamic environment..."
 
@@ -36,6 +36,7 @@ if [[ -z $1 ]]; then
 else
     echo "Load $1 environment..."
     source ${ENV_DIR}/$1.env
+    APPENDED_PATH=${PATH}
 fi
 
 [ -f "$OUTPUT_FILE" ] && echo "Remove old user.env" && rm "$OUTPUT_FILE"

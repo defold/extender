@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -46,7 +46,7 @@ start_service() {
     echo "Running: java -Xmx4g -XX:MaxDirectMemorySize=2g -Dorg.eclipse.jetty.server.Request.maxFormKeys=1500 -jar ${PATH_TO_JAR} --extender.sdk.location=${EXTENDER_SDK_LOCATION} --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE}${STRUCTURED_LOGGING+,logging} ${STRUCTURED_LOGGING+--logging.config=${SPRING_PROFILES_LOCATION}/extender-logging.xml} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &"
     java -Xmx4g -XX:MaxDirectMemorySize=2g -Dorg.eclipse.jetty.LEVEL=DEBUG -Dorg.eclipse.jetty.server.Request.maxFormKeys=1500 -jar ${PATH_TO_JAR} --extender.sdk.location="${EXTENDER_SDK_LOCATION}" --spring.config.location=classpath:./,file:${SPRING_PROFILES_LOCATION}/ --spring.profiles.active=${PROFILE}${STRUCTURED_LOGGING+,logging} ${STRUCTURED_LOGGING+--logging.config=${SPRING_PROFILES_LOCATION}/extender-logging.xml} >> ${STDOUT_LOG} 2>> ${ERROR_LOG} < /dev/null &
 
-    
+
     echo $! > ${PID_PATH_NAME}
     echo "${SERVICE_NAME} started."
 }
