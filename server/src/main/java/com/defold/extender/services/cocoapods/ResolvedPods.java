@@ -2,26 +2,18 @@ package com.defold.extender.services.cocoapods;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.defold.extender.ExtenderException;
-import com.defold.extender.ExtenderUtil;
 import com.defold.extender.services.cocoapods.PlistBuddyWrapper.CreateBundlePlistArgs;
 
 public class ResolvedPods {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ResolvedPods.class);
-
     public List<PodSpec> pods = new ArrayList<>();
     public File podsDir;
     public File frameworksDir;
@@ -37,68 +29,68 @@ public class ResolvedPods {
     // parent
     // https://guides.cocoapods.org/syntax/podspec.html#subspec
 
-    private void addPodLibs(String platform, PodSpec pod, Set<String> libs) {
-        libs.addAll(pod.libraries.get(platform));
-        if (pod.parentSpec != null) addPodLibs(platform, pod.parentSpec, libs);
+    private void addPodLibs(PodSpec pod, Set<String> libs) {
+        libs.addAll(pod.libraries);
+        if (pod.parentSpec != null) addPodLibs(pod.parentSpec, libs);
     }
-    public List<String> getAllPodLibs(String platform) {
+    public List<String> getAllPodLibs() {
         Set<String> libs = new LinkedHashSet<>();
         for (PodSpec pod : pods) {
-            addPodLibs(platform, pod, libs);
+            addPodLibs(pod, libs);
         }
         return new ArrayList<String>(libs);
     }
 
-    private void addPodLinkFlags(String platform, PodSpec pod, Set<String> flags) {
-        flags.addAll(pod.linkflags.get(platform));
-        if (pod.parentSpec != null) addPodLinkFlags(platform, pod.parentSpec, flags);
+    private void addPodLinkFlags(PodSpec pod, Set<String> flags) {
+        flags.addAll(pod.linkflags);
+        if (pod.parentSpec != null) addPodLinkFlags(pod.parentSpec, flags);
     }
-    public List<String> getAllPodLinkFlags(String platform) {
+    public List<String> getAllPodLinkFlags() {
         Set<String> flags = new LinkedHashSet<>();
         for (PodSpec pod : pods) {
-            addPodLinkFlags(platform, pod, flags);
+            addPodLinkFlags(pod, flags);
         }
         return new ArrayList<String>(flags);
     }
 
-    private void addPodResources(String platform, PodSpec pod, Set<File> resources) {
+    private void addPodResources(PodSpec pod, Set<File> resources) {
         File podDir = pod.dir;
-        for (String resource : pod.resources.get(platform)) {
+        for (String resource : pod.resources) {
             resources.addAll(PodUtils.listFilesGlob(podDir, resource));
         }
         if (pod.parentSpec != null) {
-            addPodResources(platform, pod.parentSpec, resources);
+            addPodResources(pod.parentSpec, resources);
         }
     }
-    public List<File> getAllPodResources(String platform) {
+    public List<File> getAllPodResources() {
         Set<File> resources = new LinkedHashSet<>();
         for (PodSpec pod : pods) {
-            addPodResources(platform, pod, resources);
+            addPodResources(pod, resources);
         }
         return new ArrayList<File>(resources);
     }
 
-    private void addPodFrameworks(String platform, PodSpec pod, Set<String> frameworks) {
-        frameworks.addAll(pod.frameworks.get(platform));
-        if (pod.parentSpec != null) addPodFrameworks(platform, pod.parentSpec, frameworks);
+    private void addPodFrameworks(PodSpec pod, Set<String> frameworks) {
+        frameworks.addAll(pod.frameworks);
+        if (pod.parentSpec != null) addPodFrameworks(pod.parentSpec, frameworks);
     }
-    public List<String> getAllPodFrameworks(String platform) {
+    public List<String> getAllPodFrameworks() {
         Set<String> frameworks = new LinkedHashSet<>();
         for (PodSpec pod : pods) {
-            addPodFrameworks(platform, pod, frameworks);
+            addPodFrameworks(pod, frameworks);
         }
         return new ArrayList<String>(frameworks);
     }
 
-    private void addPodWeakFrameworks(String platform, PodSpec pod, Set<String> weakFrameworks) {
-        weakFrameworks.addAll(pod.weakFrameworks.get(platform));
-        if (pod.parentSpec != null) addPodWeakFrameworks(platform, pod.parentSpec, weakFrameworks);
+    private void addPodWeakFrameworks(PodSpec pod, Set<String> weakFrameworks) {
+        weakFrameworks.addAll(pod.weakFrameworks);
+        if (pod.parentSpec != null) addPodWeakFrameworks(pod.parentSpec, weakFrameworks);
     }
 
-    public List<String> getAllPodWeakFrameworks(String platform) {
+    public List<String> getAllPodWeakFrameworks() {
         Set<String> weakFrameworks = new LinkedHashSet<>();
         for (PodSpec pod : pods) {
-            addPodWeakFrameworks(platform, pod, weakFrameworks);
+            addPodWeakFrameworks(pod, weakFrameworks);
         }
         return new ArrayList<String>(weakFrameworks);
     }
@@ -128,62 +120,11 @@ public class ResolvedPods {
         args.bundleName = bundleName;
         args.version = "1";
         args.shortVersion = pod.version;
-        if (platform.contains("ios")) {
-            args.minVersion = pod.iosversion;
-        } else if (platform.contains("osx")) {
-            args.minVersion = pod.osxversion;
-        } else {
-            throw new IllegalArgumentException(String.format("Platform %s is not supported", platform));
-        }
+        args.minVersion = pod.platformVersion;
+        // TODO: if build several archs we need to merge supported platforms
         args.supportedPlatforms = PodUtils.toPlistPlatforms(new String[] { platform });
         PlistBuddyWrapper.createBundleInfoPlist(infoPlist, args);
         return resultFolder;
-    }
-
-    public void createHeadersDirectories(File workingDir) {
-        this.publicHeadersDir = Path.of(workingDir.toString(), "Headers", "Public").toFile();
-        this.publicHeadersDir.mkdirs();
-        this.privateHeadersDir = Path.of(workingDir.toString(), "Headers", "Private").toFile();
-        this.privateHeadersDir.mkdirs();
-        for (PodSpec pod : this.pods) {
-            File podPublicHeadersDir = new File(this.publicHeadersDir, pod.moduleName);
-            podPublicHeadersDir.mkdir();
-            File podPrivateHeadersDir = new File(this.privateHeadersDir, pod.moduleName);
-            podPrivateHeadersDir.mkdir();
-            // iterate all source files
-            Set<File> podHeaders = new HashSet<>(pod.headerFiles);
-            Set<File> publicHeaders = new HashSet<>();
-            if (pod.publicHeaders.ios != null) {
-                for (String pattern : pod.publicHeaders.ios) {
-                    publicHeaders.addAll(ExtenderUtil.filterFilesGlob(podHeaders, pattern));
-                }
-            } else {
-                publicHeaders.addAll(podHeaders);
-            }
-
-            for (String pattern : pod.privateHeaders.ios) {
-                publicHeaders.removeAll(ExtenderUtil.filterFilesGlob(publicHeaders, pattern));
-            }
-
-            LOGGER.info("Create Public headers directory for {}", pod.moduleName);
-            for (File f : publicHeaders) {
-                try {
-                    Files.createSymbolicLink(Path.of(podPublicHeadersDir.toString(), f.getName()), f.toPath());
-                } catch (IOException exc) {
-                    LOGGER.warn("Unable to create symbolic link to header", exc);
-                }
-            }
-
-            LOGGER.info("Create Private headers directory for {}", pod.moduleName);
-            podHeaders.removeAll(publicHeaders);
-            for (File f : podHeaders) {
-                try {
-                    Files.createSymbolicLink(Path.of(podPrivateHeadersDir.toString(), f.getName()), f.toPath());
-                } catch (IOException exc) {
-                    LOGGER.warn("Unable to create symbolic link to header", exc);
-                }
-            }
-        }
     }
 
     @Override

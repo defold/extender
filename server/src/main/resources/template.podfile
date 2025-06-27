@@ -1,6 +1,6 @@
 platform :{{PLATFORM}}, '{{PLATFORM_VERSION}}'
 install! 'cocoapods', integrate_targets: false, skip_pods_project_generation: false
-use_frameworks!
+#use_frameworks!
 {{#PODS}}
 {{{.}}}
 {{/PODS}}

@@ -34,7 +34,7 @@ public class XCConfigParserTest {
         podsDir.deleteOnExit();
         File workingDir = Files.createTempDirectory("pods-working-dir").toFile();
         workingDir.deleteOnExit();
-        this.parser = new XCConfigParser(workingDir, podsDir, "iphones", "Debug");
+        this.parser = new XCConfigParser(workingDir, podsDir, PodSpecParser.Platform.IPHONEOS.toString().toLowerCase(), "Debug", "arm64");
         this.baseVars = createMockBaseVars();
     }
 
@@ -146,7 +146,7 @@ public class XCConfigParserTest {
     @ParameterizedTest(name = "{index}_testParsing_{0}")
     @MethodSource("parsingData")
     public void testParsing(String podName, File inputSource, Map<String, String> expectedSubset) throws IOException {
-        XCConfigParser parser = new XCConfigParser(new File(PODS_WORKING_DIR), new File(PODS_DIR), "iphones", "Debug");
+        XCConfigParser parser = new XCConfigParser(new File(PODS_WORKING_DIR), new File(PODS_DIR), "iphones", "Debug", "arm64");
         Map<String, String> result = parser.parse(podName, inputSource);
         for (Map.Entry<String, String> entry : expectedSubset.entrySet()) {
             String key = entry.getKey();

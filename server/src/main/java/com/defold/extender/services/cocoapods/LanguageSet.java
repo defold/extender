@@ -1,5 +1,6 @@
 package com.defold.extender.services.cocoapods;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -9,7 +10,7 @@ public class LanguageSet {
     public Set<String> cpp = new LinkedHashSet<>();
     public Set<String> objc = new LinkedHashSet<>();
     public Set<String> objcpp = new LinkedHashSet<>();
-    public Set<String> swift = new LinkedHashSet<>();
+    public List<String> swift = new ArrayList<>();
 
     public void add(String value) {
         c.add(value);

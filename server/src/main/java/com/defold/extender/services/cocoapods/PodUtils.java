@@ -59,4 +59,16 @@ public class PodUtils {
         return pod.replaceFirst(" \\(.*\\)", "").split("/");
     }
 
+    static String getSpecName(String podlockRecord) {
+        return podlockRecord.replaceFirst(" \\(.*\\)", "");
+    }
+
+    static String getSpecVersion(String podlockRecord) {
+        return podlockRecord.replaceFirst(".*\\(", "").replace(")", "");
+    }
+
+    static String getPodName(String podlockRecord) {
+        String podnameparts[] = PodUtils.splitPodname(PodUtils.getSpecName(podlockRecord));
+        return PodUtils.sanitizePodName(podnameparts[0]);
+    }
 }

@@ -17,11 +17,11 @@ import org.slf4j.LoggerFactory;
 
 public class XCConfigParser {
     private static final Logger LOGGER = LoggerFactory.getLogger(XCConfigParser.class);
-    private File workingDir;
+    private File buildDir;
     private File podsDir;
-    private String platform;  //iphonesimulator
+    private String platform;
     private String configuration; //Debug/Release
-
+    private String arch;
 
     enum ParseMode {
         VAR_START,
@@ -32,20 +32,25 @@ public class XCConfigParser {
         VALUE
     }
 
-    public XCConfigParser(File workingDir, File podsDir, String platform, String configuration) {
-        this.workingDir = workingDir;
+    public XCConfigParser(File buildDir, File podsDir, String platform, String configuration, String arch) {
+        this.buildDir = buildDir;
         this.podsDir = podsDir;
         this.platform = platform;
         this.configuration = configuration;
+        this.arch = arch;
     }
 
     Map<String, String> calculateBaseVariables(String podName) {
         Map<String, String> result = new HashMap<>();
-        result.put("BUILD_DIR", new File(this.workingDir, "build").toString());// any folder
+        result.put("BUILD_DIR", this.buildDir.toString());
         result.put("EFFECTIVE_PLATFORM_NAME", this.platform);
         result.put("CONFIGURATION", this.configuration);
         result.put("SRCROOT", this.podsDir.toString());
         result.put("MODULEMAP_FILE", String.format("Headers/Public/%s/%s.modulemap", podName, podName));
+        result.put("DEVELOPMENT_LANGUAGE", "en");
+        result.put("PLATFORM_NAME", this.platform); // iphoneos/iphonesimulator/macosx
+        result.put("TOOLCHAIN_DIR", System.getenv("XCTOOLCHAIN_PATH")); //path to .xctoolchain
+        result.put("ARCHS", this.arch);
         return result;
     }
 
@@ -74,6 +79,7 @@ public class XCConfigParser {
                 String replaceValue = allValues.containsKey(replaceKey) ? allValues.get(replaceKey) : null;
                 if (replaceValue != null) {
                     element = element.replace(matcher.group(0), replaceValue);
+                    element = element.replaceAll("\"", "");
                     // update matcher every time because during replace new values for substitution can be introduced.
                     // For example: ${PODS_ROOT}/Headers (where PODS_ROOT=${SRCROOT}) -> ${SRCROOT}/Headers
                     matcher = p.matcher(element);
@@ -181,10 +187,10 @@ public class XCConfigParser {
         }
         allValues.putAll(result);
         // post-process all values. It can be case when we have transitive reference
-        for (Map.Entry<String, String> entry : result.entrySet()) {
+        for (Map.Entry<String, String> entry : allValues.entrySet()) {
             String value = postProcessValue(entry.getValue(), allValues);
             entry.setValue(value);
         }
-        return result;
+        return allValues;
     }
 }

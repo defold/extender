@@ -19,6 +19,9 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.List;
 import java.util.AbstractMap;
@@ -604,23 +607,26 @@ class Extender {
         if (resolvedPods != null) {
             includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.publicHeadersDir));
             includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.privateHeadersDir));
-            for (PodSpec pod : resolvedPods.pods) {
-                File concretePodPrivateDir = new File(resolvedPods.privateHeadersDir, pod.moduleName);
-                includes.add(ExtenderUtil.getRelativePath(jobDirectory, concretePodPrivateDir));
-                includes.add(ExtenderUtil.getRelativePath(jobDirectory, pod.generatedDir));
-            }
             includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
         }
 
         return pruneNonExisting(includes);
     }
 
+    private List<String> getPodIncludeDir(PodSpec pod) {
+        List<String> result = new ArrayList<>();
+        for (File path : pod.includePaths) {
+            result.add(path.toString().replaceAll("\"", ""));
+        }
+        return result;
+    }
 
     // swiftc: https://gist.github.com/enomoto/7f11d57e4add7e702f9f84f34d3a0f8c
     // swift-frontend: https://gist.github.com/palaniraja/b4de1e64e874b68bda9e5236829cd8a6
 
     private void emitSwiftHeader(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
+        includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(pod.dir));
@@ -633,16 +639,16 @@ class Extender {
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("moduleName", pod.moduleName);
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
-        context.put("swiftHeaderPath", pod.swiftModuleHeader);
+        context.put("swiftHeaderPath", pod.swiftModuleHeader.toString());
         context.put("swiftVersion", "5");
 
         String command = templateExecutor.execute(this.platformConfig.emitSwiftHeaderCmd, context);
-        // LOGGER.info("swiftc command to emit header: " + command);
         commands.add(command);
     }
 
     private void emitSwiftModule(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
+        includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(pod.dir));
@@ -655,11 +661,36 @@ class Extender {
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("moduleName", pod.moduleName);
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
-        context.put("swiftModulePath", new File(pod.generatedDir, pod.moduleName + ".swiftmodule"));
+        context.put("swiftModulePath", new File(pod.buildDir, pod.moduleName + ".swiftmodule"));
         context.put("swiftVersion", "5");
         String command = templateExecutor.execute(this.platformConfig.emitSwiftModuleCmd, context);
-        // LOGGER.info("swiftc command to emit module: " + command);
         commands.add(command);
+    }
+
+    void generateSwiftCompatabilityHeaders(PodSpec spec, File podDir) throws IOException {
+        LOGGER.debug("Generate Swift compatability header and modulemap for {}", spec.moduleName);
+        File podBuildDir = spec.swiftModuleHeader.toPath().getParent().getParent().toFile();
+
+        // copy objc modulemap which Cocopoapods generated
+        Path sourceModuleMap = Path.of(podDir.toString(), "Target Support Files", spec.moduleName, String.format("%s.modulemap", spec.moduleName));
+        Path targetModuleMap = Path.of(podBuildDir.toString(), String.format("%s.modulemap", spec.moduleName));
+        Files.copy(sourceModuleMap, targetModuleMap, StandardCopyOption.REPLACE_EXISTING);
+
+        // copy umbrella header
+        Path sourceUmbrellaHeader = Path.of(podDir.toString(), "Target Support Files", spec.moduleName, String.format("%s-umbrella.h", spec.moduleName));
+        Path targetUmbrellaHeader = Path.of(podBuildDir.toString(), String.format("%s-umbrella.h", spec.moduleName));
+        Files.copy(sourceUmbrellaHeader, targetUmbrellaHeader, StandardCopyOption.REPLACE_EXISTING);
+
+        // append to objc modulemap
+        Files.writeString(targetModuleMap, spec.swiftModuleDefinition, StandardOpenOption.APPEND);
+
+        // COMPATIBILITY_HEADER_PATH="${BUILT_PRODUCTS_DIR}/Swift Compatibility Header/${PRODUCT_MODULE_NAME}-Swift.h"
+        // MODULE_MAP_PATH="${BUILT_PRODUCTS_DIR}/${PRODUCT_MODULE_NAME}.modulemap"
+
+        // ditto "${DERIVED_SOURCES_DIR}/${PRODUCT_MODULE_NAME}-Swift.h" "${COMPATIBILITY_HEADER_PATH}"
+        // ditto "${PODS_ROOT}/Headers/Public/AppMetricaLibraryAdapter/AppMetricaLibraryAdapter.modulemap" "${MODULE_MAP_PATH}"
+        // ditto "${PODS_ROOT}/Headers/Public/AppMetricaLibraryAdapter/AppMetricaLibraryAdapter-umbrella.h" "${BUILT_PRODUCTS_DIR}"
+        // printf "\n\nmodule ${PRODUCT_MODULE_NAME}.Swift {\n  header \"${COMPATIBILITY_HEADER_PATH}\"\n  requires objc\n}\n" >> "${MODULE_MAP_PATH}"
     }
 
     private File addCompileFileSwift(PodSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
@@ -671,6 +702,7 @@ class Extender {
         swiftSourceFilePaths.remove(swiftPrimarySourceFile);
 
         List<String> includes = getIncludeDirs(pod.dir);
+        includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(pod.dir));
@@ -693,8 +725,9 @@ class Extender {
     }
 
 
-    private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private File addCompileFileCpp_Internal(int index, File extDir, File src, Map<String, Object> manifestContext, String cmd, List<String> commands, List<String> additionalIncludes) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(extDir);
+        includes.addAll(additionalIncludes);
 
         File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
 
@@ -716,15 +749,23 @@ class Extender {
     }
 
     private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmd, commands);
+        return addCompileFileCppStatic(index, extDir, src, manifestContext, commands, List.of());
+    }
+
+    private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands, List<String> additionalIncludes) throws IOException, InterruptedException, ExtenderException {
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmd, commands, additionalIncludes);
     }
 
     private File addCompileFileCppShared(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmdCXXSh, commands);
+        return addCompileFileCppShared(index, extDir, src, manifestContext, commands, List.of());
+    }
+
+    private File addCompileFileCppShared(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands, List<String> additionalIncludes) throws IOException, InterruptedException, ExtenderException {
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmdCXXSh, commands, additionalIncludes);
     }
 
     private File addCompileFileZigStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.zigCompileCmd, commands);
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.zigCompileCmd, commands, List.of());
     }
 
     private File linkCppShared(File extBuildDir, List<String> objs, Map<String, Object> manifestContext, String cmd) throws IOException, InterruptedException, ExtenderException {
@@ -884,28 +925,15 @@ class Extender {
         Map<String, Object> podContextObjCpp = new HashMap<>();
         Map<String, Object> podContextSwift = new HashMap<>();
 
-        if (platform.contains("ios")) {
-            podContextC.put("flags", new ArrayList<String>(pod.flags.ios.c));
-            podContextC.put("defines", new ArrayList<String>(pod.defines.ios));
-            podContextCpp.put("flags", new ArrayList<String>(pod.flags.ios.cpp));
-            podContextCpp.put("defines", new ArrayList<String>(pod.defines.ios));
-            podContextObjC.put("flags", new ArrayList<String>(pod.flags.ios.objc));
-            podContextObjC.put("defines", new ArrayList<String>(pod.defines.ios));
-            podContextObjCpp.put("flags", new ArrayList<String>(pod.flags.ios.objcpp));
-            podContextObjCpp.put("defines", new ArrayList<String>(pod.defines.ios));
-            podContextSwift.put("swiftFlags", new ArrayList<String>(pod.flags.ios.swift));
-        }
-        else if (platform.contains("osx")) {
-            podContextC.put("flags", new ArrayList<String>(pod.flags.osx.c));
-            podContextC.put("defines", new ArrayList<String>(pod.defines.osx));
-            podContextCpp.put("flags", new ArrayList<String>(pod.flags.osx.cpp));
-            podContextCpp.put("defines", new ArrayList<String>(pod.defines.osx));
-            podContextObjC.put("flags", new ArrayList<String>(pod.flags.osx.objc));
-            podContextObjC.put("defines", new ArrayList<String>(pod.defines.osx));
-            podContextObjCpp.put("flags", new ArrayList<String>(pod.flags.osx.objcpp));
-            podContextObjCpp.put("defines", new ArrayList<String>(pod.defines.osx));
-            podContextSwift.put("swiftFlags", new ArrayList<String>(pod.flags.osx.swift));
-        }
+        podContextC.put("flags", new ArrayList<String>(pod.flags.c));
+        podContextC.put("defines", new ArrayList<String>(pod.defines));
+        podContextCpp.put("flags", new ArrayList<String>(pod.flags.cpp));
+        podContextCpp.put("defines", new ArrayList<String>(pod.defines));
+        podContextObjC.put("flags", new ArrayList<String>(pod.flags.objc));
+        podContextObjC.put("defines", new ArrayList<String>(pod.defines));
+        podContextObjCpp.put("flags", new ArrayList<String>(pod.flags.objcpp));
+        podContextObjCpp.put("defines", new ArrayList<String>(pod.defines));
+        podContextSwift.put("swiftFlags", new ArrayList<String>(pod.flags.swift));
 
         // get the final contexts per supported language
         Map<String, Object> mergedContextWithPodsForC = ExtenderUtil.mergeContexts(trimmedContext, podContextC);
@@ -952,6 +980,8 @@ class Extender {
             }
             LOGGER.info("compiling {} swift files", compileSwiftCommands.size());
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
+
+            generateSwiftCompatabilityHeaders(pod, resolvedPods.podsDir);
         }
 
         List<String> commands = new ArrayList<>();
@@ -962,16 +992,16 @@ class Extender {
                 File o = null;
                 // use the correct context depending on the source file language
                 if (extension.equals("c")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands);
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands, getPodIncludeDir(pod));
                 }
                 else if (extension.equals("m")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands);
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands, getPodIncludeDir(pod));
                 }
                 else if (extension.equals("mm")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands);
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands, getPodIncludeDir(pod));
                 }
                 else {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands);
+                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands, getPodIncludeDir(pod));
                 }
                 String objPath = ExtenderUtil.getRelativePath(jobDirectory, o);
                 objs.add(objPath);
@@ -1023,7 +1053,7 @@ class Extender {
         LOGGER.info("buildPods - adding framework resource to build output");
         File resourcesBuildDir = new File(buildDirectory, "resources");
         resourcesBuildDir.mkdir();
-        List<File> resources = resolvedPods.getAllPodResources(platform);
+        List<File> resources = resolvedPods.getAllPodResources();
         for (File resourceFile : resources) {
             // example:
             // source = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
@@ -2359,10 +2389,10 @@ class Extender {
 
             Map<String, Object> podAppContext = new HashMap<>();
             if (resolvedPods != null) {
-                podAppContext.put("frameworks", resolvedPods.getAllPodFrameworks(platform));
-                podAppContext.put("weakFrameworks", resolvedPods.getAllPodWeakFrameworks(platform));
-                podAppContext.put("libs", resolvedPods.getAllPodLibs(platform));
-                podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags(platform));
+                podAppContext.put("frameworks", resolvedPods.getAllPodFrameworks());
+                podAppContext.put("weakFrameworks", resolvedPods.getAllPodWeakFrameworks());
+                podAppContext.put("libs", resolvedPods.getAllPodLibs());
+                podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags());
                 podAppContext.put("osMinVersion", resolvedPods.platformMinVersion);
                 podAppContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
             }
