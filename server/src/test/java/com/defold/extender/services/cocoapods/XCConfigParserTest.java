@@ -125,7 +125,7 @@ public class XCConfigParserTest {
 
     @Test
     public void testBaseVariables() {
-        Map<String, String> baseVars = parser.calculateBaseVariables("testPodSDK");
+        Map<String, String> baseVars = parser.calculateBaseVariables(null, "testPodSDK");
     }
 
     @ParameterizedTest
@@ -147,7 +147,7 @@ public class XCConfigParserTest {
     @MethodSource("parsingData")
     public void testParsing(String podName, File inputSource, Map<String, String> expectedSubset) throws IOException {
         XCConfigParser parser = new XCConfigParser(new File(PODS_WORKING_DIR), new File(PODS_DIR), "iphones", "Debug", "arm64");
-        Map<String, String> result = parser.parse(podName, inputSource);
+        Map<String, String> result = parser.parse(null, podName, inputSource);
         for (Map.Entry<String, String> entry : expectedSubset.entrySet()) {
             String key = entry.getKey();
             assertTrue(result.containsKey(key));

@@ -297,7 +297,7 @@ public final class PodSpecParser {
         // parse generated xcconfig
         String configName = (args.parentSpec == null) ? spec.name : spec.parentSpec.name;
         XCConfigParser parser = new XCConfigParser(args.buildDir, args.podsDir, args.selectedPlatform.toString().toLowerCase(), configuration, args.arch);
-        spec.parsedXCConfig = parser.parse(configName, Path.of(args.podsDir.toString(), "Target Support Files", configName, String.format("%s.debug.xcconfig", configName)).toFile());
+        spec.parsedXCConfig = parser.parse(spec.moduleName, configName, Path.of(args.podsDir.toString(), "Target Support Files", configName, String.format("%s.debug.xcconfig", configName)).toFile());
         updateFlagsFromConfig(spec, spec.parsedXCConfig);
 
         // swift compatability header (just path where to store header)

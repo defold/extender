@@ -40,13 +40,13 @@ public class XCConfigParser {
         this.arch = arch;
     }
 
-    Map<String, String> calculateBaseVariables(String podName) {
+    Map<String, String> calculateBaseVariables(String moduleName, String podName) {
         Map<String, String> result = new HashMap<>();
         result.put("BUILD_DIR", this.buildDir.toString());
         result.put("EFFECTIVE_PLATFORM_NAME", this.platform);
         result.put("CONFIGURATION", this.configuration);
         result.put("SRCROOT", this.podsDir.toString());
-        result.put("MODULEMAP_FILE", String.format("Headers/Public/%s/%s.modulemap", podName, podName));
+        result.put("MODULEMAP_FILE", String.format("Headers/Public/%s/%s.modulemap", moduleName, podName));
         result.put("DEVELOPMENT_LANGUAGE", "en");
         result.put("PLATFORM_NAME", this.platform); // iphoneos/iphonesimulator/macosx
         result.put("TOOLCHAIN_DIR", System.getenv("XCTOOLCHAIN_PATH")); //path to .xctoolchain
@@ -113,6 +113,8 @@ public class XCConfigParser {
             parseIncludes(line);
             return null;
         }
+        // replace " to avoid problem with arguments in ProcessBuilder
+        line = line.replaceAll("(?<!\\\\)\"", "");
         char[] charsArray = line.toCharArray();
         ParseMode currentMode = ParseMode.VAR_START;
         StringBuilder varBuilder = new StringBuilder();
@@ -173,9 +175,9 @@ public class XCConfigParser {
         return Pair.of(varBuilder.toString(), valueBuilder.toString());
     }
 
-    public Map<String, String> parse(String podName, File xcconfig) throws IOException {
+    public Map<String, String> parse(String moduleName, String podName, File xcconfig) throws IOException {
         // https://pewpewthespells.com/blog/xcconfig_guide.html
-        Map<String, String> allValues = calculateBaseVariables(podName);
+        Map<String, String> allValues = calculateBaseVariables(moduleName, podName);
 
         Map<String, String> result = new HashMap<>();
         List<String> lines = Files.readAllLines(xcconfig.toPath());
