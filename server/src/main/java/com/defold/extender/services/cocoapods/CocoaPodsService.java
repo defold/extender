@@ -51,7 +51,7 @@ public class CocoaPodsService {
 
     private class InstalledPods {
         public Map<String, PodSpec> podsMap = new HashMap<>();
-        // set of pods to present build order
+        // set of pod's specs to present build order
         public Set<String> pods = new LinkedHashSet<>();
     }
 
@@ -323,15 +323,16 @@ public class CocoaPodsService {
     //     return sortedPodSpecs;
     // }
 
-    private Set<String> getPodDeps(Map<String, List<String>> depsMap, List<String> specNames) throws ExtenderException {
+    private Set<String> getPodDeps(Map<String, List<String>> specDepsMap, List<String> specNames) throws ExtenderException {
         if (specNames == null) {
             return Set.of();
         }
         Set<String> sortedPodSpecs = new LinkedHashSet<>();
         for (String specName : specNames) {
-            sortedPodSpecs.addAll(getPodDeps(depsMap, depsMap.getOrDefault(specName, null)));
-            String podName = PodUtils.getPodName(specName);
-            sortedPodSpecs.add(podName);
+            sortedPodSpecs.addAll(getPodDeps(specDepsMap, specDepsMap.getOrDefault(specName, null)));
+            // String podName = PodUtils.getPodName(specName);
+            // sortedPodSpecs.add(podName);
+            sortedPodSpecs.add(specName);
         }
         return sortedPodSpecs;
     }
@@ -439,6 +440,7 @@ public class CocoaPodsService {
 
         for (Map.Entry<String, List<String>> entry : podsDependencies.entrySet()) {
             installedPods.pods.addAll(getPodDeps(podsDependencies, entry.getValue()));
+            installedPods.pods.add(entry.getKey());
         }
 
         for (File podDir : podsNames) {
@@ -539,8 +541,21 @@ public class CocoaPodsService {
         MainPodfile mainPodfile = createMainPodfile(platformPodfiles, jobDir, workingDir, platform, jobEnvContext);
         InstalledPods installedPods = installPods(selectedPlatform, arch, jobDir, workingDir, generatedDir, jobEnvContext);
         List<PodSpec> pods = new ArrayList<>();
-        for (String podName : installedPods.pods) {
-            pods.add(installedPods.podsMap.get(podName));
+        for (String specName : installedPods.pods) {
+            String podName = PodUtils.getPodName(specName);
+            PodSpec currentSpec = installedPods.podsMap.get(podName);
+            String podnameparts[] = PodUtils.splitPodname(specName);
+            if (podnameparts.length > 1) {
+                for (int i = 1; i < podnameparts.length; i++) {
+                    String subspecname = podnameparts[i];
+                    PodSpec subspec = currentSpec.getSubspec(subspecname);
+                    if (subspec == null) {
+                        throw new ExtenderException(String.format("Unable to find subspec '%s' in pod '%s'", subspecname, podName));
+                    }
+                    currentSpec = subspec;
+                }
+            }
+            pods.add(currentSpec);
         }
         unpackXCFrameworks(pods, podsDir, config);
         generateSwiftCompatabilityModule(pods);
