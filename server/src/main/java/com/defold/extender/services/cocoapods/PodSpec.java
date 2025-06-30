@@ -56,6 +56,13 @@ public class PodSpec {
         return null;
     }
 
+    public String getPodName() {
+        if (parentSpec != null) {
+            return parentSpec.getPodName();
+        }
+        return name;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

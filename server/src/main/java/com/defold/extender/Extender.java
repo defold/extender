@@ -35,7 +35,6 @@ import java.util.HashMap;
 import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -494,9 +493,12 @@ class Extender {
             frameworkPaths.addAll(getFrameworkPaths(resolvedPods.frameworksDir));
             // collect unpacked xcframeworks
             //!TODO: remove hardcode
-            List<Path> p = Files.list(Path.of(jobDirectory.toString(), "build", "Debugiphoneos", "XCFrameworkIntermediates")).toList();
-            for (Path path : p) {
-                frameworkPaths.add(path.toString());
+            Path unpackedFrameworksDir = Path.of(jobDirectory.toString(), "build", "Debugiphoneos", "XCFrameworkIntermediates");
+            if (unpackedFrameworksDir.toFile().exists()) {
+                List<Path> p = Files.list(unpackedFrameworksDir).toList();
+                for (Path path : p) {
+                    frameworkPaths.add(path.toString());
+                }
             }
 
         }
@@ -627,6 +629,9 @@ class Extender {
         for (File path : pod.includePaths) {
             result.add(path.toString());
         }
+        if (pod.swiftModuleHeader != null) {
+            result.add(pod.swiftModuleHeader.toPath().getParent().toString());
+        }
         return result;
     }
 
@@ -681,13 +686,14 @@ class Extender {
         File podBuildDir = spec.swiftModuleHeader.toPath().getParent().getParent().toFile();
 
         // copy objc modulemap which Cocopoapods generated
-        Path sourceModuleMap = Path.of(podDir.toString(), "Target Support Files", spec.name, String.format("%s.modulemap", spec.name));
-        Path targetModuleMap = Path.of(podBuildDir.toString(), String.format("%s.modulemap", spec.moduleName)); // it'snot a bug. Cocoapods installs module map in Target support Files with spec.name but in compiler options it waits spec.moduleName
+        String podName = spec.getPodName();
+        Path sourceModuleMap = Path.of(podDir.toString(), "Target Support Files", podName, String.format("%s.modulemap", podName));
+        Path targetModuleMap = Path.of(podBuildDir.toString(), String.format("%s.modulemap", spec.moduleName)); // it's not a bug. Cocoapods installs module map in Target support Files with spec.name but in compiler options it waits spec.moduleName
         Files.copy(sourceModuleMap, targetModuleMap, StandardCopyOption.REPLACE_EXISTING);
 
         // copy umbrella header
-        Path sourceUmbrellaHeader = Path.of(podDir.toString(), "Target Support Files", spec.name, String.format("%s-umbrella.h", spec.name));
-        Path targetUmbrellaHeader = Path.of(podBuildDir.toString(), String.format("%s-umbrella.h", spec.name));
+        Path sourceUmbrellaHeader = Path.of(podDir.toString(), "Target Support Files", podName, String.format("%s-umbrella.h", podName));
+        Path targetUmbrellaHeader = Path.of(podBuildDir.toString(), String.format("%s-umbrella.h", podName));
         Files.copy(sourceUmbrellaHeader, targetUmbrellaHeader, StandardCopyOption.REPLACE_EXISTING);
 
         // append to objc modulemap

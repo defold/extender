@@ -223,44 +223,6 @@ public class CocoaPodsService {
                 LOGGER.debug("No xcframework unpack script for {}", spec.name);
             }
         }
-
-        // LOGGER.info("Copying pod frameworks");
-        // File libDir = new File(frameworksDir, "lib");
-        // File armLibDir = new File(libDir, "arm64-ios");
-        // File x86LibDir = new File(libDir, "x86_64-ios");
-        // armLibDir.mkdirs();
-        // x86LibDir.mkdirs();
-
-        // File headersDir = new File(frameworksDir, "headers");
-        // File armHeaderDir = new File(headersDir, "arm64-ios");
-        // File x86HeaderDir = new File(headersDir, "x86_64-ios");
-        // armHeaderDir.mkdirs();
-        // x86HeaderDir.mkdirs();
-
-        // for (PodSpec pod : pods) {
-        //     for (String framework : pod.vendoredFrameworks) {
-        //         File frameworkDir = new File(pod.dir, framework);
-        //         String frameworkName = frameworkDir.getName().replace(".xcframework", "");
-
-        //         File arm64_armv7FrameworkDir = new File(frameworkDir, "ios-arm64_armv7");
-        //         File arm64FrameworkDir = new File(frameworkDir, "ios-arm64");
-        //         if (arm64_armv7FrameworkDir.exists()) {
-        //             copyPodFrameworksFromArchitectureDir(arm64_armv7FrameworkDir, armLibDir, armHeaderDir, config);
-        //         }
-        //         else if (arm64FrameworkDir.exists()) {
-        //             copyPodFrameworksFromArchitectureDir(arm64FrameworkDir, armLibDir, armHeaderDir, config);
-        //         }
-                
-        //         File arm64_i386_x86Framework = new File(frameworkDir, "ios-arm64_i386_x86_64-simulator");
-        //         File arm64_x86Framework = new File(frameworkDir, "ios-arm64_x86_64-simulator");
-        //         if (arm64_i386_x86Framework.exists()) {
-        //             copyPodFrameworksFromArchitectureDir(arm64_i386_x86Framework, x86LibDir, x86HeaderDir, config);
-        //         }
-        //         else if (arm64_x86Framework.exists()) {
-        //             copyPodFrameworksFromArchitectureDir(arm64_x86Framework, x86LibDir, x86HeaderDir, config);
-        //         }
-        //     }
-        // }
     }
 
     void generateSwiftCompatabilityModule(List<PodSpec> pods) {
@@ -278,50 +240,6 @@ public class CocoaPodsService {
             spec.swiftModuleDefinition = templateExecutor.execute(modulemapTemplateContents, context);
         }
     }
-
-    // /**
-    //  * Get pod spec based on a pod name with optional sub pod (GoogleUtilities/Environment)
-    //  * @param pods Map of pod names to pod specs
-    //  * @param podname The pod to find
-    //  * @return The pod spec
-    //  */
-    // private PodSpec getPod(Map<String, PodSpec> pods, String podname) throws ExtenderException {
-    //     // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
-    //     String podnameparts[] = PodUtils.splitPodname(podname);
-    //     // 'GoogleUtilities'
-    //     String mainpodname = podnameparts[0];
-    //     PodSpec current = pods.get(mainpodname);
-    //     if (podnameparts.length > 1) {
-    //         for (int i = 1; i < podnameparts.length; i++) {
-    //             String subspecname = podnameparts[i];
-    //             PodSpec subspec = current.getSubspec(subspecname);
-    //             if (subspec == null) {
-    //                 throw new ExtenderException("Unable to find subspec '" + subspecname + "' in pod '" + current.name + "'");
-    //             }
-    //             current = subspec;
-    //         }
-    //     }
-    //     return current;
-    // }
-
-    /**
-     * Get a sorted set of pod specs with dependencies from a list of pod names.
-     * This function will recursively go through all pods and add their
-     * dependencies to the final set of pods. The pod specs will be added to the
-     * set such that the dependencies of a pod are added before their pod itself.
-     * @param specsMap Map with pod specs to search for pods
-     * @param podnames Names of the pods to get
-     * @return Set of pod specs
-     */
-    // private LinkedHashSet<PodSpec> getSpecsAndDependencies(Map<String, PodSpec> specsMap, List<String> podnames) throws ExtenderException {
-    //     LinkedHashSet<PodSpec> sortedPodSpecs = new LinkedHashSet<>();
-    //     for (String podname : podnames) {
-    //         PodSpec spec = getPod(specsMap, podname);
-    //         sortedPodSpecs.addAll(getSpecsAndDependencies(specsMap, spec.dependencies));
-    //         sortedPodSpecs.add(spec);
-    //     }
-    //     return sortedPodSpecs;
-    // }
 
     private Set<String> getPodDeps(Map<String, List<String>> specDepsMap, List<String> specNames) throws ExtenderException {
         if (specNames == null) {

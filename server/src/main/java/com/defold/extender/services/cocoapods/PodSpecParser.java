@@ -122,12 +122,6 @@ public final class PodSpecParser {
         protected Map<String, Object> jobEnvContext;
     }
 
-    // It seems like some exceptions such as KSCrash use a module name
-    // which doesn't separate parent and subspec by an underscore
-    // https://github.com/kstenerud/KSCrash/blob/master/KSCrash.podspec#L21
-    private static Set<String> NAME_EXCEPTIONS = new HashSet<>(Arrays.asList("KSCrash"));
-
-
     // https://guides.cocoapods.org/syntax/podspec.html
     public static PodSpec createPodSpec(CreatePodSpecArgs args) throws ExtenderException, IOException {
         PodSpec spec = new PodSpec();
@@ -337,7 +331,7 @@ public final class PodSpecParser {
             return fixedName;
         }
 
-        return parent.name + (NAME_EXCEPTIONS.contains(parent.name) ? "" : "_") + fixedName;
+        return parent.moduleName;//parent.name + (NAME_EXCEPTIONS.contains(parent.name) ? "" : "_") + fixedName;
     }
     
     static String toC99extIdentifier(String s) {
