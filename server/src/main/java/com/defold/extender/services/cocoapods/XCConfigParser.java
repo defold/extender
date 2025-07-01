@@ -6,8 +6,10 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -72,11 +74,13 @@ public class XCConfigParser {
 
         // substitute values if any placeholders are presented
         for (int idx = 0 ; idx < tmpList.size(); ++idx) {
+            Set<String> visitedKeys = new HashSet<>();
             String element = tmpList.get(idx);
             Matcher matcher = p.matcher(element);
             while (matcher.find()) {
                 String replaceKey = matcher.group(1);
-                String replaceValue = allValues.containsKey(replaceKey) ? allValues.get(replaceKey) : null;
+                String replaceValue = allValues.containsKey(replaceKey) && !visitedKeys.contains(replaceKey) ? allValues.get(replaceKey) : null;
+                visitedKeys.add(replaceKey);
                 if (replaceValue != null) {
                     element = element.replace(matcher.group(0), replaceValue);
                     element = element.replaceAll("\"", "");
@@ -190,8 +194,11 @@ public class XCConfigParser {
         allValues.putAll(result);
         // post-process all values. It can be case when we have transitive reference
         for (Map.Entry<String, String> entry : allValues.entrySet()) {
-            String value = postProcessValue(entry.getValue(), allValues);
-            entry.setValue(value);
+            String value = entry.getValue();
+            if (value != null) {
+                value = postProcessValue(value, allValues);
+                entry.setValue(value);
+            }
         }
         return allValues;
     }
