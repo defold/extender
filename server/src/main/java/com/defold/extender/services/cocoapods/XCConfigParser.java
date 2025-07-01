@@ -53,6 +53,7 @@ public class XCConfigParser {
         result.put("PLATFORM_NAME", this.platform); // iphoneos/iphonesimulator/macosx
         result.put("TOOLCHAIN_DIR", System.getenv("XCTOOLCHAIN_PATH")); //path to .xctoolchain
         result.put("ARCHS", this.arch);
+        // result.put("SDKROOT", );
         return result;
     }
 

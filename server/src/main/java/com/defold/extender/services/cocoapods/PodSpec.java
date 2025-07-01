@@ -27,6 +27,7 @@ public class PodSpec {
     public Set<File> sourceFiles = new LinkedHashSet<>();
     public Set<File> headerFiles = new LinkedHashSet<>();
     public Set<File> includePaths = new LinkedHashSet<>();
+    public Set<File> frameworkSearchPaths = new LinkedHashSet<>();
     public PodSpec parentSpec = null;
     public List<String> defaultSubspecs = new ArrayList<>();
     public List<PodSpec> subspecs = new ArrayList<>();

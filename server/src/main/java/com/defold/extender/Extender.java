@@ -458,12 +458,21 @@ class Extender {
         }
         return frameworks;
     }
-    private List<String> getFrameworks(ResolvedPods resolvedPods) {
-        List<String> frameworks = new ArrayList<>();
+
+    private List<String> getFrameworks(ResolvedPods resolvedPods) throws IOException {
+        Set<String> frameworks = new HashSet<>();
         if (resolvedPods != null) {
-            frameworks.addAll(getFrameworks(resolvedPods.frameworksDir));
+            Pattern pattern = Pattern.compile(FRAMEWORK_RE);
+            Files.walk(resolvedPods.frameworksDir.toPath())
+                .filter(Files::isDirectory)
+                .forEach(path -> {
+                    Matcher m = pattern.matcher(path.getFileName().toString());
+                    if (m.matches()) {
+                        frameworks.add(m.group(1));
+                }
+            });
         }
-        return frameworks;
+        return new ArrayList<>(frameworks);
     }
 
     // Get a list of subfolders matching the current platform
@@ -488,39 +497,32 @@ class Extender {
     }
 
     private List<String> getFrameworkPaths(ResolvedPods resolvedPods) throws IOException {
-        List<String> frameworkPaths = new ArrayList<>();
+        Set<String> frameworkPaths = new HashSet<>();
         if (resolvedPods != null) {
-            frameworkPaths.addAll(getFrameworkPaths(resolvedPods.frameworksDir));
-            // collect unpacked xcframeworks
-            //!TODO: remove hardcode
-            Path unpackedFrameworksDir = Path.of(jobDirectory.toString(), "build", "Debugiphoneos", "XCFrameworkIntermediates");
-            if (unpackedFrameworksDir.toFile().exists()) {
-                List<Path> p = Files.list(unpackedFrameworksDir).toList();
-                for (Path path : p) {
-                    frameworkPaths.add(path.toString());
+            for (PodSpec spec : resolvedPods.pods) {
+                for (File f : spec.frameworkSearchPaths) {
+                    frameworkPaths.add(f.toString());
                 }
             }
-
         }
-        return frameworkPaths;
+        return new ArrayList<>(frameworkPaths);
     }
 
-    private List<String> getFrameworkStaticLibs(ResolvedPods resolvedPods) {
-        List<String> staticLibs = new ArrayList<>();
+    private List<String> getFrameworkStaticLibs(ResolvedPods resolvedPods) throws IOException {
+        Set<String> staticLibs = new HashSet<>();
         if (resolvedPods != null) {
-            final File dir = resolvedPods.frameworksDir;
-            final String[] platformParts = this.platform.split("-");
-            staticLibs.addAll(ExtenderUtil.collectStaticLibsByName(new File(dir, "lib" + File.separator + this.platform))); // e.g. armv64-ios
-            if (platformParts.length == 2) {
-                staticLibs.addAll(ExtenderUtil.collectStaticLibsByName(new File(dir, "lib" + File.separator + platformParts[1]))); // e.g. "ios"
-            }
+            staticLibs.addAll(ExtenderUtil.collectStaticLibsByName(resolvedPods.frameworksDir));
         }
-        return staticLibs;
-    }
-    private List<String> getFrameworkStaticLibPaths(ResolvedPods resolvedPods) {
-        return getPlatformPaths(new File(resolvedPods.frameworksDir, "lib"));
+        return new ArrayList<>(staticLibs);
     }
 
+    private List<String> getFrameworkStaticLibPaths(ResolvedPods resolvedPods) throws IOException {
+        Set<String> staticLibs = new HashSet<>();
+        if (resolvedPods != null) {
+            staticLibs.addAll(ExtenderUtil.collectStaticLibSearchPaths(resolvedPods.frameworksDir));
+        }
+        return new ArrayList<>(staticLibs);
+    }
 
     private List<String> getExtensionLibJars(File extDir) {
         List<String> jars = new ArrayList<>();
@@ -779,8 +781,8 @@ class Extender {
         return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmdCXXSh, commands, additionalIncludes);
     }
 
-    private File addCompileFileZigStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.zigCompileCmd, commands, List.of());
+    private File addCompileFileZigStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands, List<String> additionalIncludes) throws IOException, InterruptedException, ExtenderException {
+        return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.zigCompileCmd, commands, additionalIncludes);
     }
 
     private File linkCppShared(File extBuildDir, List<String> objs, Map<String, Object> manifestContext, String cmd) throws IOException, InterruptedException, ExtenderException {
@@ -904,20 +906,28 @@ class Extender {
     private List<String> compileExtensionSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
-        List<String> sourceCS = new ArrayList<>();
+
+        List<String> additionalIncludes = new ArrayList<>();
+        if (resolvedPods != null) {
+            for (PodSpec spec : resolvedPods.pods) {
+                for (File path : spec.includePaths) {
+                    additionalIncludes.add(path.toString());
+                }
+            }
+        }
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
 
             File o = null;
-            if (ExtenderUtil.matchesFile(src, platformConfig.sourceRe))
-                o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands);
-
+            if (ExtenderUtil.matchesFile(src, platformConfig.sourceRe)) {
+                o = addCompileFileCppStatic(i, extDir, src, manifestContext, commands, additionalIncludes);
+            }
             // Added in 1.4.9
-            else if (platformConfig.zigSourceRe != null && ExtenderUtil.matchesFile(src, platformConfig.zigSourceRe))
-                o = addCompileFileZigStatic(i, extDir, src, manifestContext, commands);
+            else if (platformConfig.zigSourceRe != null && ExtenderUtil.matchesFile(src, platformConfig.zigSourceRe)) {
+                o = addCompileFileZigStatic(i, extDir, src, manifestContext, commands, additionalIncludes);
+            }
 
-            if (o == null)
-            {
+            if (o == null) {
                 throw new ExtenderException(String.format("Source file '%s' didn't match a source builder.", src));
             }
             objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));

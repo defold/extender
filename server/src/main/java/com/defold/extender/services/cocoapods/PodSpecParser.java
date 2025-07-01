@@ -480,6 +480,14 @@ public final class PodSpecParser {
                 }
             }
         }
+        if (hasString(parsedConfig, "FRAMEWORK_SEARCH_PATHS")) {
+            List<String> l = argumentsAsList(parsedConfig.getOrDefault("FRAMEWORK_SEARCH_PATHS", null));
+            if (l != null) {
+                for (String path : l) {
+                    spec.frameworkSearchPaths.add(new File(path));
+                }
+            }
+        }
     }
 
     static List<String> argumentsAsList(String arguments) {

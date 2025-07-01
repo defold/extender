@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -213,14 +214,20 @@ public class CocoaPodsService {
         LOGGER.info("Unpack xcframeworks");
 
         File targetSupportFileDir = new File(podsDir, "Target Support Files");
+        Set<String> handledPods = new HashSet<>();
         for (PodSpec spec : pods) {
-            File unpackScript = Path.of(targetSupportFileDir.toString(), spec.name, String.format("%s-xcframeworks.sh", spec.name)).toFile();
+            String podName = spec.getPodName();
+            if (handledPods.contains(podName)) {
+                continue;
+            }
+            handledPods.add(podName);
+            File unpackScript = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-xcframeworks.sh", podName)).toFile();
             if (unpackScript.exists()) {
                 ProcessUtils.execCommand(List.of(
                     unpackScript.getAbsolutePath()
                 ), null, spec.parsedXCConfig);
             } else {
-                LOGGER.debug("No xcframework unpack script for {}", spec.name);
+                LOGGER.debug("No xcframework unpack script for {}", podName);
             }
         }
     }
@@ -301,7 +308,8 @@ public class CocoaPodsService {
                 return f.isDirectory() 
                     && !filename.equals("Headers")
                     && !filename.equals("Target Support Files")
-                    && !filename.equals("Local Podspecs");
+                    && !filename.equals("Local Podspecs")
+                    && !filename.endsWith(".xcodeproj");
             }
         });
 
@@ -442,7 +450,7 @@ public class CocoaPodsService {
         LOGGER.info("Resolving Cocoapod dependencies");
 
         File workingDir = new File(jobDir, "CocoaPodsService");
-        File frameworksDir = new File(workingDir, "frameworks");
+        File frameworksDir = Path.of(jobDir.toString(), "build", "Debugiphoneos", "XCFrameworkIntermediates").toFile();//new File(workingDir, "frameworks");
         File generatedDir = new File(workingDir, "generated");
         workingDir.mkdirs();
         generatedDir.mkdirs();

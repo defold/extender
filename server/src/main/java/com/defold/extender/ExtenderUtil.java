@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.lang.reflect.Field;
 
 import org.apache.commons.io.comparator.NameFileComparator;
@@ -628,16 +629,14 @@ public class ExtenderUtil
 
     // Find all static libs (*.a) in a dir
     // Returns list of lib names without initial "lib" and ".a" extension
-    static public List<String> collectStaticLibsByName(File dir) {
+    static public List<String> collectStaticLibsByName(File dir) throws IOException {
         List<String> result = new ArrayList<>();
         Pattern p = Pattern.compile("(.+)\\.a");
         if (dir.exists()) {
-            File[] files = dir.listFiles();
-            for (File f : files) {
-                if (f.isDirectory()) {
-                    continue;
-                }
-                Matcher m = p.matcher(f.getName());
+            Files.walk(dir.toPath())
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                Matcher m = p.matcher(path.getFileName().toString());
                 if (m.matches()) {
                     String name = m.group(1);
                     if (name.startsWith("lib")) {
@@ -645,10 +644,26 @@ public class ExtenderUtil
                     }
                     result.add(name);
                 }
-            }
+            });
         }
         Collections.sort(result);
         return result;
+    }
+
+    static public List<String> collectStaticLibSearchPaths(File dir) throws IOException {
+        Set<String> result = new HashSet<>();
+        Pattern p = Pattern.compile("(.+)\\.a");
+        if (dir.exists()) {
+            Files.walk(dir.toPath())
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                Matcher m = p.matcher(path.getFileName().toString());
+                if (m.matches()) {
+                    result.add(path.getParent().toString());
+                }
+            });
+        }
+        return new ArrayList<>(result);
     }
 
     // Does a regexp match on the absolute path for each file found in a directory
