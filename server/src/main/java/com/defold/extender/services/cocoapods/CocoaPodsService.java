@@ -54,6 +54,7 @@ public class CocoaPodsService {
         public Map<String, PodSpec> podsMap = new HashMap<>();
         // set of pod's specs to present build order
         public Set<String> pods = new LinkedHashSet<>();
+        public File podfileLock;
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
@@ -271,7 +272,7 @@ public class CocoaPodsService {
      * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
      * @return An InstalledPods object with installed pods
      */
-    private InstalledPods installPods(PodSpecParser.Platform selectedPlatform, String arch, File jobDir, File workingDir, File generatedDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+    private InstalledPods installPods(PodSpecParser.Platform selectedPlatform, String arch, File jobDir, File workingDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         Path cacheDir;
         // store current cache dir into local variable to use the same value for all 'pod' runs
@@ -293,11 +294,13 @@ public class CocoaPodsService {
             "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)));
         LOGGER.debug("\n" + log);
 
-        File podFileLock = new File(workingDir, "Podfile.lock");
-        if (!podFileLock.exists()) {
+        installedPods.podfileLock = new File(workingDir, "Podfile.lock");
+        if (!installedPods.podfileLock.exists()) {
             throw new ExtenderException("Unable to find Podfile.lock in directory " + dir);
         }
-        LOGGER.info("Podfile.lock:\n{}", FileUtils.readFileToString(podFileLock, Charset.defaultCharset()));
+
+        String podfileLockContent = FileUtils.readFileToString(installedPods.podfileLock, Charset.defaultCharset());
+        LOGGER.info("Podfile.lock:\n{}", podfileLockContent);
 
         File podsDir = new File(workingDir, "Pods");
         // iterate over Pods folder and obtain names of all installed pods
@@ -328,7 +331,7 @@ public class CocoaPodsService {
         Map<String, String> podVersions = new HashMap<>();
         Map<String, List<String>> podsDependencies = new HashMap<>();
         Yaml podfileLockYaml = new Yaml();
-        Map<String, Object> parsedLockfile = podfileLockYaml.load(new FileReader(podFileLock));
+        Map<String, Object> parsedLockfile = podfileLockYaml.load(podfileLockContent);
         List<Object> podsList = (List<Object>)parsedLockfile.get("PODS");
         for (Object podRecord : podsList) {
             // record can be simple String (if pod has no dependecies) or Map (if Pod has dependencies)
@@ -450,10 +453,9 @@ public class CocoaPodsService {
         LOGGER.info("Resolving Cocoapod dependencies");
 
         File workingDir = new File(jobDir, "CocoaPodsService");
-        File frameworksDir = Path.of(jobDir.toString(), "build", "Debugiphoneos", "XCFrameworkIntermediates").toFile();//new File(workingDir, "frameworks");
-        File generatedDir = new File(workingDir, "generated");
+        File frameworksDir = Path.of(jobDir.toString(), "build", "Debugiphoneos", "XCFrameworkIntermediates").toFile();
         workingDir.mkdirs();
-        generatedDir.mkdirs();
+        frameworksDir.mkdirs();
         String[] platformParts = platform.split("-");
         PodSpecParser.Platform selectedPlatform = PodSpecParser.Platform.UNKNOWN;
         String arch = platformParts[0];
@@ -465,7 +467,7 @@ public class CocoaPodsService {
 
         File podsDir = new File(workingDir, "Pods");
         MainPodfile mainPodfile = createMainPodfile(platformPodfiles, jobDir, workingDir, platform, jobEnvContext);
-        InstalledPods installedPods = installPods(selectedPlatform, arch, jobDir, workingDir, generatedDir, jobEnvContext);
+        InstalledPods installedPods = installPods(selectedPlatform, arch, jobDir, workingDir, jobEnvContext);
         List<PodSpec> pods = new ArrayList<>();
         for (String specName : installedPods.pods) {
             String podName = PodUtils.getPodName(specName);
@@ -490,16 +492,7 @@ public class CocoaPodsService {
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
-        ResolvedPods resolvedPods = new ResolvedPods();
-        resolvedPods.pods = pods;
-        resolvedPods.platformMinVersion = mainPodfile.platformMinVersion;
-        resolvedPods.podsDir = podsDir;
-        resolvedPods.frameworksDir = frameworksDir;
-        resolvedPods.generatedDir = generatedDir;
-        resolvedPods.podFileLock = new File(workingDir, "Podfile.lock");
-        resolvedPods.privateHeadersDir = Path.of(podsDir.toString(), "Headers", "Private").toFile();
-        resolvedPods.publicHeadersDir = Path.of(podsDir.toString(), "Headers", "Public").toFile();
-
+        ResolvedPods resolvedPods = new ResolvedPods(podsDir, frameworksDir, pods, installedPods.podfileLock, mainPodfile.platformMinVersion);
         LOGGER.info("Resolved Cocoapod dependencies");
         LOGGER.info(resolvedPods.toString());
 

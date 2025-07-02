@@ -459,22 +459,6 @@ class Extender {
         return frameworks;
     }
 
-    private List<String> getFrameworks(ResolvedPods resolvedPods) throws IOException {
-        Set<String> frameworks = new HashSet<>();
-        if (resolvedPods != null) {
-            Pattern pattern = Pattern.compile(FRAMEWORK_RE);
-            Files.walk(resolvedPods.frameworksDir.toPath())
-                .filter(Files::isDirectory)
-                .forEach(path -> {
-                    Matcher m = pattern.matcher(path.getFileName().toString());
-                    if (m.matches()) {
-                        frameworks.add(m.group(1));
-                }
-            });
-        }
-        return new ArrayList<>(frameworks);
-    }
-
     // Get a list of subfolders matching the current platform
     private List<String> getPlatformPaths(File dir) {
         List<String> paths = new ArrayList<>();
@@ -494,34 +478,6 @@ class Extender {
 
     private List<String> getFrameworkPaths(File dir) {
         return getPlatformPaths(new File(dir, "lib"));
-    }
-
-    private List<String> getFrameworkPaths(ResolvedPods resolvedPods) throws IOException {
-        Set<String> frameworkPaths = new HashSet<>();
-        if (resolvedPods != null) {
-            for (PodSpec spec : resolvedPods.pods) {
-                for (File f : spec.frameworkSearchPaths) {
-                    frameworkPaths.add(f.toString());
-                }
-            }
-        }
-        return new ArrayList<>(frameworkPaths);
-    }
-
-    private List<String> getFrameworkStaticLibs(ResolvedPods resolvedPods) throws IOException {
-        Set<String> staticLibs = new HashSet<>();
-        if (resolvedPods != null) {
-            staticLibs.addAll(ExtenderUtil.collectStaticLibsByName(resolvedPods.frameworksDir));
-        }
-        return new ArrayList<>(staticLibs);
-    }
-
-    private List<String> getFrameworkStaticLibPaths(ResolvedPods resolvedPods) throws IOException {
-        Set<String> staticLibs = new HashSet<>();
-        if (resolvedPods != null) {
-            staticLibs.addAll(ExtenderUtil.collectStaticLibSearchPaths(resolvedPods.frameworksDir));
-        }
-        return new ArrayList<>(staticLibs);
     }
 
     private List<String> getExtensionLibJars(File extDir) {
@@ -590,17 +546,17 @@ class Extender {
         return includes;
     }
 
-    private List<String> getFrameworkStaticLibIncludeDirs(ResolvedPods pods) {
-        List<String> includeDirs = new ArrayList<>();
-        if (resolvedPods != null) {
-            includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + this.platform)));
-            String[] platformParts = this.platform.split("-");
-            if (platformParts.length == 2) {
-                includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + platformParts[1])));
-            }
-        }
-        return includeDirs;
-    }
+    // private List<String> getFrameworkStaticLibIncludeDirs(ResolvedPods pods) {
+    //     List<String> includeDirs = new ArrayList<>();
+    //     if (resolvedPods != null) {
+    //         includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + this.platform)));
+    //         String[] platformParts = this.platform.split("-");
+    //         if (platformParts.length == 2) {
+    //             includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + platformParts[1])));
+    //         }
+    //     }
+    //     return includeDirs;
+    // }
 
     private List<String> getIncludeDirs(File extDir) {
         List<String> includes = getExtLocalIncludeDirs(extDir);
@@ -617,11 +573,11 @@ class Extender {
         }
 
         // Add include folders for resolved pods
-        if (resolvedPods != null) {
-            includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.publicHeadersDir));
-            includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.privateHeadersDir));
-            includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
-        }
+        // if (resolvedPods != null) {
+        //     includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.publicHeadersDir));
+        //     includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.privateHeadersDir));
+        //     includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
+        // }
 
         return pruneNonExisting(includes);
     }
@@ -646,10 +602,10 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(pod.dir));
-        frameworks.addAll(getFrameworks(resolvedPods));
+        frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
-        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -668,10 +624,10 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(pod.dir));
-        frameworks.addAll(getFrameworks(resolvedPods));
+        frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
-        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -723,10 +679,10 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(pod.dir));
-        frameworks.addAll(getFrameworks(resolvedPods));
+        frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
-        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -750,10 +706,10 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(extDir));
-        frameworks.addAll(getFrameworks(resolvedPods));
+        frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(extDir));
-        frameworkPaths.addAll(getFrameworkPaths(resolvedPods));
+        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
@@ -909,7 +865,7 @@ class Extender {
 
         List<String> additionalIncludes = new ArrayList<>();
         if (resolvedPods != null) {
-            for (PodSpec spec : resolvedPods.pods) {
+            for (PodSpec spec : resolvedPods.getPodSpecs()) {
                 for (File path : spec.includePaths) {
                     additionalIncludes.add(path.toString());
                 }
@@ -1006,7 +962,7 @@ class Extender {
             LOGGER.info("compiling {} swift files", compileSwiftCommands.size());
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
 
-            generateSwiftCompatabilityHeaders(pod, resolvedPods.podsDir);
+            generateSwiftCompatabilityHeaders(pod, resolvedPods.getCurrentPodsDirectory());
         }
 
         List<String> commands = new ArrayList<>();
@@ -1049,7 +1005,7 @@ class Extender {
 
         LOGGER.info("buildPods - compiling pod source files");
         Set<File> podSourceLookup = new HashSet<>();
-        for (PodSpec pod : resolvedPods.pods) {
+        for (PodSpec pod : resolvedPods.getPodSpecs()) {
             LOGGER.info("buildPods - compiling pod source files for {}", pod.name);
             // The source files of each pod will be compiled and built as a library.
             // We use the same mechanism as when building the extension and create a
@@ -1059,8 +1015,8 @@ class Extender {
             manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
             manifestContext.put("extension_name", pod.name);
             manifestContext.put("extension_name_upper", pod.name.toUpperCase());
-            manifestContext.put("osMinVersion", resolvedPods.platformMinVersion);
-            manifestContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
+            manifestContext.put("osMinVersion", resolvedPods.getPlatformMinVersion());
+            manifestContext.put("env.IOS_VERSION_MIN", resolvedPods.getPlatformMinVersion());
 
             // Compile pod source files
             List<String> objs = compilePodSourceFiles(pod, manifestContext, podSourceLookup);
@@ -1078,7 +1034,9 @@ class Extender {
         LOGGER.info("buildPods - adding framework resource to build output");
         File resourcesBuildDir = new File(buildDirectory, "resources");
         resourcesBuildDir.mkdir();
+
         List<File> resources = resolvedPods.getAllPodResources();
+        Path currentPodsDirPath = resolvedPods.getCurrentPodsDirectory().toPath();
         for (File resourceFile : resources) {
             // example:
             // source = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
@@ -1087,7 +1045,7 @@ class Extender {
             // resourceFile = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
             // relativeFile = YandexMobileAds/PrivacyInfo.xcprivacy
             // resourceDestFile = build/resources/YandexMobileAds/PrivacyInfo.xcprivacy
-            File relativeFile = resolvedPods.podsDir.toPath().relativize(resourceFile.toPath()).toFile();
+            File relativeFile = currentPodsDirPath.relativize(resourceFile.toPath()).toFile();
             if (resourceFile.isFile()) {
                 File resourceDestFile = new File(resourcesBuildDir, relativeFile.toString());
                 resourceDestFile.getParentFile().mkdirs();
@@ -1109,31 +1067,27 @@ class Extender {
         File frameworksBuildDir = new File(buildDirectory, "frameworks");
         frameworksBuildDir.mkdir();
 
-        List<String> paths = getFrameworkPaths(resolvedPods.frameworksDir);
-        for (String path : paths) {
-            File[] frameworks = new File(path).listFiles();
-            for (File framework : frameworks) {
-                if (FrameworkUtil.isDynamicallyLinked(framework)) {
-                    // copy framework and filter out certain files and folders
-                    LOGGER.info("buildPods - adding " + framework.getName());
-                    File frameworkDestDir = new File(frameworksBuildDir, framework.getName());
-                    FileUtils.copyDirectory(framework, frameworkDestDir, new FileFilter() {
-                        @Override
-                        public boolean accept(File pathname) {
-                            String name = pathname.getName();
-                            return !name.equals("Headers")
-                                && !name.equals("Modules");
-                        }
-                    });
-                    outputFiles.add(frameworkDestDir);
+        List<File> dynamicFrameworks = resolvedPods.getDynamicFrameworks();
+        for (File framework : dynamicFrameworks) {
+            // copy framework and filter out certain files and folders
+            LOGGER.info("buildPods - adding {}", framework.getName());
+            File frameworkDestDir = new File(frameworksBuildDir, framework.getName());
+            FileUtils.copyDirectory(framework, frameworkDestDir, new FileFilter() {
+                @Override
+                public boolean accept(File pathname) {
+                    String name = pathname.getName();
+                    return !name.equals("Headers")
+                        && !name.equals("Modules");
                 }
-            }
+            });
+            outputFiles.add(frameworkDestDir);
         }
 
-        if (resolvedPods.podFileLock != null) {
+        File podfileLock = resolvedPods.getPodfileLock();
+        if (podfileLock != null) {
             LOGGER.info("buildPods - adding Podfile.lock to build output");
             File destPodFileLock = new File(buildDirectory, "Podfile.lock");
-            FileUtils.copyFile(resolvedPods.podFileLock, destPodFileLock);
+            FileUtils.copyFile(podfileLock, destPodFileLock);
             outputFiles.add(destPodFileLock);
         }
 
@@ -1408,10 +1362,10 @@ class Extender {
         extLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.stlibRe));
 
         if (resolvedPods != null) {
-            extFrameworks.addAll(getFrameworks(resolvedPods));
-            extFrameworkPaths.addAll(getFrameworkPaths(resolvedPods));
-            extLibs.addAll(getFrameworkStaticLibs(resolvedPods));
-            extLibPaths.addAll(getFrameworkStaticLibPaths(resolvedPods));
+            extFrameworks.addAll(resolvedPods.getFrameworks());
+            extFrameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
+            extLibs.addAll(resolvedPods.getStaticLibraries());
+            extLibPaths.addAll(resolvedPods.getLibrarySearchPaths());
         }
 
         for (File extDir : this.extDirs) {
@@ -1654,9 +1608,6 @@ class Extender {
         File dir = new File(parent, child);
         dir.mkdirs();
         return dir;
-    }
-    private static File createDir(String parent, String child) throws IOException {
-        return createDir(new File(parent), child);
     }
 
     /**
@@ -2414,12 +2365,12 @@ class Extender {
 
             Map<String, Object> podAppContext = new HashMap<>();
             if (resolvedPods != null) {
-                podAppContext.put("frameworks", resolvedPods.getAllPodFrameworks());
-                podAppContext.put("weakFrameworks", resolvedPods.getAllPodWeakFrameworks());
-                podAppContext.put("libs", resolvedPods.getAllPodLibs());
+                podAppContext.put("frameworks", resolvedPods.getFrameworks());
+                podAppContext.put("weakFrameworks", resolvedPods.getWeakFrameworks());
+                podAppContext.put("libs", resolvedPods.getStaticLibraries());
                 podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags());
-                podAppContext.put("osMinVersion", resolvedPods.platformMinVersion);
-                podAppContext.put("env.IOS_VERSION_MIN", resolvedPods.platformMinVersion);
+                podAppContext.put("osMinVersion", resolvedPods.getPlatformMinVersion());
+                podAppContext.put("env.IOS_VERSION_MIN", resolvedPods.getPlatformMinVersion());
             }
             Map<String, Object> mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
@@ -2672,7 +2623,7 @@ class Extender {
         // no need to deal with PrivacyInfo manifests from pods because they will be packed into resource bundle
         // but that functionality saved for the backward compatability with older engine's versions (before 1.10.12)
         if (resolvedPods != null) {
-            privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(resolvedPods.podsDir, "PrivacyInfo.xcprivacy"));
+            privacyManifests.addAll(resolvedPods.getPodsPrivacyManifests());
         }
 
         // do nothing if there are no privacy manifests

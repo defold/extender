@@ -42,7 +42,7 @@ public class CocoaPodsServiceTest {
     private File workingDir;
     private File buildDir;
     private File podsDir;
-    private File generatedDir;
+    private File frameworksDir;
 
     private static Stream<Arguments> specData() {
         return Stream.of(
@@ -88,8 +88,8 @@ public class CocoaPodsServiceTest {
         this.buildDir.mkdir();
         this.podsDir = new File(this.workingDir, "pods");
         this.podsDir.mkdir();
-        this.generatedDir = new File(this.workingDir, "generated");
-        this.generatedDir.mkdir();
+        this.frameworksDir = Path.of(this.buildDir.toString(), "Debugiphoneos", "XCFrameworkIntermediates").toFile();
+        this.frameworksDir.mkdirs();
         this.workingDir.deleteOnExit();
     }
 
@@ -318,11 +318,7 @@ public class CocoaPodsServiceTest {
             new File(podFolder, "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_success@3x.png")
         };
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
-        ResolvedPods resolvedPods = new ResolvedPods();
-        resolvedPods.pods = List.of(podSpec);
-        resolvedPods.podsDir = this.podsDir;
-        // resolvedPods.frameworksDir = frameworksDir;
-        resolvedPods.generatedDir = this.generatedDir;
+        ResolvedPods resolvedPods = new ResolvedPods(this.podsDir, this.frameworksDir, List.of(podSpec), new File(this.buildDir, "Podfile.lock"), "11.0");
 
         List<File> result = resolvedPods.getAllPodResources();
         assertArrayEquals(expectedFiles, result.toArray());
@@ -350,10 +346,7 @@ public class CocoaPodsServiceTest {
         File podFolder = createEmptyFiles(this.podsDir, "UnityAds", simulatedFiles);
 
         PodSpec unityAdsSpec = PodSpecParser.createPodSpec(args);
-        ResolvedPods resolvedPods = new ResolvedPods();
-        resolvedPods.pods = List.of(unityAdsSpec);
-        resolvedPods.podsDir = this.podsDir;
-        resolvedPods.generatedDir = this.generatedDir;
+        ResolvedPods resolvedPods = new ResolvedPods(this.podsDir, this.frameworksDir, List.of(unityAdsSpec), new File(this.buildDir, "Podfile.lock"), "11.0");
 
         File targetDir = new File(this.workingDir, "result");
         List<File> result = resolvedPods.createResourceBundles(targetDir, "arm64-ios");

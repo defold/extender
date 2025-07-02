@@ -235,7 +235,7 @@ public class ExtenderUtil
         if(!dir.isDirectory()) {
             throw new IllegalArgumentException(dir + " is not a directory.");
         }
-        return new ArrayList(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
+        return new ArrayList<>(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
     }
 
     public static boolean matchesFile(File file, PathMatcher pm) {
