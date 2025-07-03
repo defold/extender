@@ -31,6 +31,7 @@ import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.json.simple.JSONObject;
 import org.springframework.core.io.Resource;
 
@@ -294,6 +295,20 @@ public class ExtenderUtil
     }
     public static List<File> listFilesGlob(File srcDir, String glob) {
         return listFiles(new File[] {srcDir}, FileSystems.getDefault().getPathMatcher("glob:" + glob));
+    }
+
+    public static List<File> listFilesAndDirsGlob(File srcDir, String glob) {
+        PathMatcher pm = FileSystems.getDefault().getPathMatcher("glob:" + glob);
+        List<File> srcFiles = new ArrayList<>();
+        if (srcDir.exists() && srcDir.isDirectory()) {
+            List<File> _srcFiles = new ArrayList<>(FileUtils.listFilesAndDirs(srcDir, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE));
+            _srcFiles = ExtenderUtil.filterFiles(_srcFiles, pm);
+
+            // sorting makes it easier to diff different builds
+            Collections.sort(_srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
+            srcFiles.addAll(_srcFiles);
+        }
+        return srcFiles;
     }
 
 

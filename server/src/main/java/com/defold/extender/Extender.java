@@ -1036,24 +1036,15 @@ class Extender {
         resourcesBuildDir.mkdir();
 
         List<File> resources = resolvedPods.getAllPodResources();
-        Path currentPodsDirPath = resolvedPods.getCurrentPodsDirectory().toPath();
         for (File resourceFile : resources) {
-            // example:
-            // source = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
-            // dest   = build/resources/YandexMobileAds/PrivacyInfo.xcprivacy
-            //
-            // resourceFile = CocoaPodsService/Pods/YandexMobileAds/PrivacyInfo.xcprivacy
-            // relativeFile = YandexMobileAds/PrivacyInfo.xcprivacy
-            // resourceDestFile = build/resources/YandexMobileAds/PrivacyInfo.xcprivacy
-            File relativeFile = currentPodsDirPath.relativize(resourceFile.toPath()).toFile();
             if (resourceFile.isFile()) {
-                File resourceDestFile = new File(resourcesBuildDir, relativeFile.toString());
+                File resourceDestFile = new File(resourcesBuildDir, resourceFile.getName());
                 resourceDestFile.getParentFile().mkdirs();
                 Files.copy(resourceFile.toPath(), resourceDestFile.toPath());
                 outputFiles.add(resourceDestFile);
             }
             else {
-                File resourceDestDir = new File(resourcesBuildDir, relativeFile.toString());
+                File resourceDestDir = new File(resourcesBuildDir, resourceFile.getName());
                 resourceDestDir.mkdirs();
                 FileUtils.copyDirectory(resourceFile, resourceDestDir);
                 outputFiles.add(resourceDestDir);

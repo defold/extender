@@ -85,7 +85,7 @@ public class ResolvedPods {
     void addPodResources(PodSpec pod, Set<File> resources) {
         File podDir = pod.dir;
         for (String resource : pod.resources) {
-            resources.addAll(PodUtils.listFilesGlob(podDir, resource));
+            resources.addAll(PodUtils.listFilesAndDirsGlob(podDir, resource));
         }
         if (pod.parentSpec != null) {
             addPodResources(pod.parentSpec, resources);

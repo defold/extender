@@ -197,6 +197,9 @@ public final class PodSpecParser {
         spec.resources.addAll(getAsList(specJson, "resource"));
         if (platformSettings != null) spec.resources.addAll(getAsList(platformSettings, "resource"));
 
+        spec.resources.addAll(getAsList(specJson, "resources"));
+        if (platformSettings != null) spec.resources.addAll(getAsList(platformSettings, "resources"));
+
         // resource bundles
         // https://guides.cocoapods.org/syntax/podspec.html#resource_bundles
         spec.resourceBundles = getAsMapList(specJson, "resource_bundles");
