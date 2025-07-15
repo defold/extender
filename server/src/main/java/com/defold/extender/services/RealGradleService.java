@@ -7,7 +7,6 @@ import com.defold.extender.Timer;
 import com.defold.extender.ZipUtils;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
-import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessUtils;
 
 import org.apache.commons.io.FileUtils;
@@ -34,7 +33,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.nio.charset.StandardCharsets;
 
 @Service
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "true")

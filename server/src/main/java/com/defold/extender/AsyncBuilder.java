@@ -7,7 +7,6 @@ import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.List;
 import java.util.Optional;
 
 import com.defold.extender.log.Markers;

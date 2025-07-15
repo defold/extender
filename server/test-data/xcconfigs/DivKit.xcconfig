@@ -1,0 +1,15 @@
+CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO
+CONFIGURATION_BUILD_DIR = ${PODS_CONFIGURATION_BUILD_DIR}/DivKit
+GCC_PREPROCESSOR_DEFINITIONS = $(inherited) COCOAPODS=1
+OTHER_CFLAGS = $(inherited) -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/DivKit_LayoutKit/LayoutKit.modulemap" -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/DivKit_LayoutKitInterface/LayoutKitInterface.modulemap" -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/DivKit_Serialization/Serialization.modulemap" -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSL/VGSL.modulemap" -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSLFundamentals/VGSLFundamentals.modulemap" -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSLNetworking/VGSLNetworking.modulemap" -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSLUI/VGSLUI.modulemap"
+OTHER_SWIFT_FLAGS = $(inherited) -D COCOAPODS -Xcc -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/DivKit_LayoutKit/LayoutKit.modulemap" -Xcc -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/DivKit_LayoutKitInterface/LayoutKitInterface.modulemap" -Xcc -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/DivKit_Serialization/Serialization.modulemap" -Xcc -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSL/VGSL.modulemap" -Xcc -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSLFundamentals/VGSLFundamentals.modulemap" -Xcc -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSLNetworking/VGSLNetworking.modulemap" -Xcc -fmodule-map-file="${PODS_CONFIGURATION_BUILD_DIR}/VGSLUI/VGSLUI.modulemap" -import-underlying-module -Xcc -fmodule-map-file="${SRCROOT}/${MODULEMAP_FILE}"
+PODS_BUILD_DIR = ${BUILD_DIR}
+PODS_CONFIGURATION_BUILD_DIR = ${PODS_BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)
+PODS_DEVELOPMENT_LANGUAGE = ${DEVELOPMENT_LANGUAGE}
+PODS_ROOT = ${SRCROOT}
+PODS_TARGET_SRCROOT = ${PODS_ROOT}/DivKit
+PODS_XCFRAMEWORKS_BUILD_DIR = $(PODS_CONFIGURATION_BUILD_DIR)/XCFrameworkIntermediates
+PRODUCT_BUNDLE_IDENTIFIER = org.cocoapods.${PRODUCT_NAME:rfc1034identifier}
+SKIP_INSTALL = YES
+SWIFT_INCLUDE_PATHS = $(inherited) "${PODS_CONFIGURATION_BUILD_DIR}/DivKit_LayoutKit" "${PODS_CONFIGURATION_BUILD_DIR}/DivKit_LayoutKitInterface" "${PODS_CONFIGURATION_BUILD_DIR}/DivKit_Serialization" "${PODS_CONFIGURATION_BUILD_DIR}/VGSL" "${PODS_CONFIGURATION_BUILD_DIR}/VGSLFundamentals" "${PODS_CONFIGURATION_BUILD_DIR}/VGSLNetworking" "${PODS_CONFIGURATION_BUILD_DIR}/VGSLUI"
+USE_RECURSIVE_SCRIPT_INPUTS_IN_SCRIPT_PHASES = YES

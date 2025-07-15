@@ -24,12 +24,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.lang.reflect.Field;
 
 import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.json.simple.JSONObject;
 import org.springframework.core.io.Resource;
 
@@ -234,7 +236,7 @@ public class ExtenderUtil
         if(!dir.isDirectory()) {
             throw new IllegalArgumentException(dir + " is not a directory.");
         }
-        return new ArrayList(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
+        return new ArrayList<>(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
     }
 
     public static boolean matchesFile(File file, PathMatcher pm) {
@@ -293,6 +295,20 @@ public class ExtenderUtil
     }
     public static List<File> listFilesGlob(File srcDir, String glob) {
         return listFiles(new File[] {srcDir}, FileSystems.getDefault().getPathMatcher("glob:" + glob));
+    }
+
+    public static List<File> listFilesAndDirsGlob(File srcDir, String glob) {
+        PathMatcher pm = FileSystems.getDefault().getPathMatcher("glob:" + glob);
+        List<File> srcFiles = new ArrayList<>();
+        if (srcDir.exists() && srcDir.isDirectory()) {
+            List<File> _srcFiles = new ArrayList<>(FileUtils.listFilesAndDirs(srcDir, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE));
+            _srcFiles = ExtenderUtil.filterFiles(_srcFiles, pm);
+
+            // sorting makes it easier to diff different builds
+            Collections.sort(_srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
+            srcFiles.addAll(_srcFiles);
+        }
+        return srcFiles;
     }
 
 
@@ -628,16 +644,14 @@ public class ExtenderUtil
 
     // Find all static libs (*.a) in a dir
     // Returns list of lib names without initial "lib" and ".a" extension
-    static public List<String> collectStaticLibsByName(File dir) {
+    static public List<String> collectStaticLibsByName(File dir) throws IOException {
         List<String> result = new ArrayList<>();
         Pattern p = Pattern.compile("(.+)\\.a");
         if (dir.exists()) {
-            File[] files = dir.listFiles();
-            for (File f : files) {
-                if (f.isDirectory()) {
-                    continue;
-                }
-                Matcher m = p.matcher(f.getName());
+            Files.walk(dir.toPath())
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                Matcher m = p.matcher(path.getFileName().toString());
                 if (m.matches()) {
                     String name = m.group(1);
                     if (name.startsWith("lib")) {
@@ -645,10 +659,26 @@ public class ExtenderUtil
                     }
                     result.add(name);
                 }
-            }
+            });
         }
         Collections.sort(result);
         return result;
+    }
+
+    static public List<String> collectStaticLibSearchPaths(File dir) throws IOException {
+        Set<String> result = new HashSet<>();
+        Pattern p = Pattern.compile("(.+)\\.a");
+        if (dir.exists()) {
+            Files.walk(dir.toPath())
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                Matcher m = p.matcher(path.getFileName().toString());
+                if (m.matches()) {
+                    result.add(path.getParent().toString());
+                }
+            });
+        }
+        return new ArrayList<>(result);
     }
 
     // Does a regexp match on the absolute path for each file found in a directory

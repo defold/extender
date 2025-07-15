@@ -2,16 +2,13 @@ package com.defold.extender.services.cocoapods;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,22 +19,36 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import com.defold.extender.ExtenderException;
-import com.defold.extender.ExtenderUtil;
 
 public final class PodSpecParser {
-
     private static final Pattern BRACE_PATTERN = Pattern.compile("\\{([^{}]*)\\}");
+    // private static final String SWIFT_PARALLEL_FLAG = String.format("-j%d", Runtime.getRuntime().availableProcessors());
+
+    public enum Platform {
+        IPHONEOS,
+        IPHONESIMULATOR,
+        MACOSX,
+        UNKNOWN
+    }
+
+    static boolean isIOS(Platform platform) {
+        return platform == Platform.IPHONEOS || platform == Platform.IPHONESIMULATOR;
+    }
+
+    static boolean isMacOS(Platform platform) {
+        return platform == Platform.MACOSX;
+    }
 
     public static class CreatePodSpecArgs {
         public static class Builder {
             private JSONObject specJson;
             private File podsDir;
-            private File generatedDir;
-            private File workingDir;
+            private File buildDir;
             private PodSpec parentSpec;
+            private Platform selectedPlatform;
+            private String configuration;
             private Map<String, Object> jobEnvContext;
-            private Function<Map<String, Object>, String> umbrellaHeaderGenerator;
-            private Function<Map<String, Object>, String> moduleMapGenerator;
+            private IConfigParser configParser;
 
             public Builder() { }
 
@@ -51,13 +62,8 @@ public final class PodSpecParser {
                 return this;
             }
 
-            public Builder setGeneratedDir(File generatedDir) {
-                this.generatedDir = generatedDir;
-                return this;
-            }
-
-            public Builder setWorkingDir(File workingDir) {
-                this.workingDir = workingDir;
+            public Builder setBuildDir(File buildDir) {
+                this.buildDir = buildDir;
                 return this;
             }
 
@@ -71,13 +77,18 @@ public final class PodSpecParser {
                 return this;
             }
 
-            public Builder setUmbrellaHeaderGenerator(Function<Map<String, Object>, String> generator) {
-                this.umbrellaHeaderGenerator = generator;
+            public Builder setSelectedPlatform(Platform platform) {
+                this.selectedPlatform = platform;
                 return this;
             }
 
-            public Builder setModuleMapGenerator(Function<Map<String, Object>, String> generator) {
-                this.moduleMapGenerator = generator;
+            public Builder setConfigParser(IConfigParser parser) {
+                this.configParser = parser;
+                return this;
+            }
+
+            public Builder setConfiguration(String configuration) {
+                this.configuration = configuration;
                 return this;
             }
 
@@ -89,49 +100,40 @@ public final class PodSpecParser {
         private CreatePodSpecArgs(Builder builder) {
             this.specJson = builder.specJson;
             this.podsDir = builder.podsDir;
-            this.generatedDir = builder.generatedDir;
-            this.workingDir = builder.workingDir;
+            this.buildDir = builder.buildDir;
             this.parentSpec = builder.parentSpec;
             this.jobEnvContext = builder.jobEnvContext;
-            this.umbrellaHeaderGenerator = builder.umbrellaHeaderGenerator;
-            this.moduleMapGenerator = builder.moduleMapGenerator;
+            this.selectedPlatform = builder.selectedPlatform;
+            this.configuration = builder.configuration;
+            this.configParser = builder.configParser;
         }
 
         private CreatePodSpecArgs(CreatePodSpecArgs copy) {
             this.specJson = copy.specJson;
             this.podsDir = copy.podsDir;
-            this.generatedDir = copy.generatedDir;
-            this.workingDir = copy.workingDir;
+            this.buildDir = copy.buildDir;
             this.parentSpec = copy.parentSpec;
             this.jobEnvContext = copy.jobEnvContext;
-            this.umbrellaHeaderGenerator = copy.umbrellaHeaderGenerator;
-            this.moduleMapGenerator = copy.moduleMapGenerator;
+            this.selectedPlatform = copy.selectedPlatform;
+            this.configuration = copy.configuration;
+            this.configParser = copy.configParser;
         }
 
         protected JSONObject specJson;
         protected File podsDir;
-        protected File generatedDir;
-        protected File workingDir;
+        protected File buildDir;
         protected PodSpec parentSpec;
+        protected Platform selectedPlatform;
+        protected String configuration;
         protected Map<String, Object> jobEnvContext;
-        protected Function<Map<String, Object>, String> umbrellaHeaderGenerator;
-        protected Function<Map<String, Object>, String> moduleMapGenerator;
+        protected IConfigParser configParser;
     }
 
-    // It seems like some exceptions such as KSCrash use a module name
-    // which doesn't separate parent and subspec by an underscore
-    // https://github.com/kstenerud/KSCrash/blob/master/KSCrash.podspec#L21
-    private static Set<String> NAME_EXCEPTIONS = new HashSet<>(Arrays.asList("KSCrash"));
-
-
     // https://guides.cocoapods.org/syntax/podspec.html
-    public static PodSpec createPodSpec(CreatePodSpecArgs args) throws ExtenderException {
+    public static PodSpec createPodSpec(CreatePodSpecArgs args) throws ExtenderException, IOException {
         PodSpec spec = new PodSpec();
         JSONObject specJson = args.specJson;
-        spec.umbrellaHeaderGenerator = args.umbrellaHeaderGenerator;
-        spec.moduleMapGenerator = args.moduleMapGenerator;
         spec.name = (String)specJson.get("name");
-        spec.productModuleName = args.parentSpec == null ? toC99extIdentifier(spec.name) : args.parentSpec.productModuleName;
         spec.moduleName = getModuleName(specJson, args.parentSpec);
         spec.version = (args.parentSpec == null) ? (String)specJson.get("version") : args.parentSpec.version;
         spec.dir = (args.parentSpec == null) ? new File(args.podsDir, spec.name) : args.parentSpec.dir;
@@ -139,39 +141,29 @@ public final class PodSpecParser {
 
         // generated files relating to the pod
         // modulemap, swift header etc
-        spec.generatedDir = new File(args.generatedDir, spec.name);
-        spec.generatedDir.mkdirs();
+        spec.buildDir = Path.of(args.buildDir.toString(), String.format("%s%s", args.configuration, args.selectedPlatform.toString().toLowerCase()), spec.name).toFile();
+        spec.buildDir.mkdirs();
 
         // inherit flags and defines from the parent
         if (args.parentSpec != null) {
-            spec.flags.ios.addAll(args.parentSpec.flags.ios);
-            spec.flags.osx.addAll(args.parentSpec.flags.osx);
-            spec.defines.ios.addAll(args.parentSpec.defines.ios);
-            spec.defines.osx.addAll(args.parentSpec.defines.osx);
-            spec.linkflags.ios.addAll(args.parentSpec.linkflags.ios);
-            spec.linkflags.ios.addAll(args.parentSpec.linkflags.ios);
-            spec.flags.remove("-fmodule-name=" + args.parentSpec.productModuleName);
+            spec.flags.addAll(args.parentSpec.flags);
+            spec.defines.addAll(args.parentSpec.defines);
+            spec.linkflags.addAll(args.parentSpec.linkflags);
+            spec.flags.remove("-fmodule-name=" + args.parentSpec.moduleName);
         }
 
         // platform versions
         JSONObject platforms = (JSONObject)specJson.get("platforms");
         if (platforms != null) {
-            spec.iosversion = (String)platforms.getOrDefault("ios", args.jobEnvContext.get("env.IOS_VERSION_MIN"));
-        }
-        if (platforms != null) {
-            spec.osxversion = (String)platforms.getOrDefault("osx", args.jobEnvContext.get("env.MACOS_VERSION_MIN"));
+            if (isIOS(args.selectedPlatform)) {
+                spec.platformVersion = (String)platforms.getOrDefault("ios", args.jobEnvContext.get("env.IOS_VERSION_MIN"));
+            } else if (isMacOS(args.selectedPlatform)) {
+                spec.platformVersion = (String)platforms.getOrDefault("osx", args.jobEnvContext.get("env.MACOS_VERSION_MIN"));
+            }
         }
 
         // for multi platform settings
-        JSONObject ios = (JSONObject)specJson.get("ios");
-        JSONObject osx = (JSONObject)specJson.get("osx");
-
-        // flags and defines
-        // https://guides.cocoapods.org/syntax/podspec.html#pod_target_xcconfig
-        // https://guides.cocoapods.org/syntax/podspec.html#user_target_xcconfig
-        parseMultiPlatformConfig(spec, (JSONObject)specJson.get("pod_target_xcconfig"));
-        parseMultiPlatformConfig(spec, (JSONObject)specJson.get("user_target_xcconfig")); // not recommended for use but we need to handle it
-        parseMultiPlatformConfig(spec, (JSONObject)specJson.get("xcconfig"));  // undocumented but used by some pods
+        JSONObject platformSettings = (JSONObject)specJson.get(isIOS(args.selectedPlatform) ? "ios" : "osx");
 
         // requires_arc flag
         // The 'requires_arc' option can also be a file pattern string or array
@@ -183,48 +175,30 @@ public final class PodSpecParser {
         Boolean requiresArc = true;
         Object requiresArcObject = specJson.get("requires_arc");
         if (requiresArcObject instanceof Boolean) requiresArc = (Boolean)requiresArcObject;
-        spec.flags.ios.objc.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
-        spec.flags.ios.objcpp.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
-        spec.flags.osx.objc.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
-        spec.flags.osx.objcpp.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
-        
+        spec.flags.objc.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+        spec.flags.objcpp.add((requiresArc == null || requiresArc == true) ? "-fobjc-arc" : "-fno-objc-arc");
+
         // compiler flags
         // https://guides.cocoapods.org/syntax/podspec.html#compiler_flags
-        spec.flags.ios.addAll(getAsSplitString(specJson, "compiler_flags"));
-        spec.flags.osx.addAll(getAsSplitString(specJson, "compiler_flags"));
-        if (ios != null) spec.flags.ios.addAll(getAsSplitString(ios, "compiler_flags"));
-        if (osx != null) spec.flags.osx.addAll(getAsSplitString(osx, "compiler_flags"));
-        spec.flags.ios.c.add("--language=c");
-        spec.flags.osx.c.add("--language=c");
-        spec.flags.ios.cpp.add("--language=c++");
-        spec.flags.osx.cpp.add("--language=c++");
-        spec.flags.ios.objc.add("--language=objective-c");
-        spec.flags.osx.objc.add("--language=objective-c");
-        spec.flags.ios.objcpp.add("--language=objective-c++");
-        spec.flags.osx.objcpp.add("--language=objective-c++");
+        spec.flags.addAll(getAsSplitString(specJson, "compiler_flags"));
+        if (platformSettings != null) spec.flags.addAll(getAsSplitString(platformSettings, "compiler_flags"));
+        spec.flags.c.add("--language=c");
+        spec.flags.cpp.add("--language=c++");
+        spec.flags.objc.add("--language=objective-c");
+        spec.flags.objcpp.add("--language=objective-c++");
         // CocoaPods sets CLANG_ENABLE_MODULES when creating an XCode project
         // https://xcodebuildsettings.com/#clang_enable_modules
-        spec.flags.ios.c.add("-fmodules");
-        spec.flags.osx.c.add("-fmodules");
-        spec.flags.ios.objc.add("-fmodules");
-        spec.flags.osx.objc.add("-fmodules");
-        spec.flags.ios.objcpp.add("-fcxx-modules");
-        spec.flags.osx.objcpp.add("-fcxx-modules");
-        spec.flags.ios.c.add("-fmodule-name=" + spec.productModuleName);
-        spec.flags.osx.c.add("-fmodule-name=" + spec.productModuleName);
-        spec.flags.ios.objc.add("-fmodule-name=" + spec.productModuleName);
-        spec.flags.osx.objc.add("-fmodule-name=" + spec.productModuleName);
-        spec.flags.ios.objcpp.add("-fmodule-name=" + spec.productModuleName);
-        spec.flags.osx.objcpp.add("-fmodule-name=" + spec.productModuleName);
+        spec.flags.c.add("-fmodules");
+        spec.flags.objc.add("-fmodules");
+        spec.flags.objcpp.add("-fcxx-modules");
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources
         spec.resources.addAll(getAsList(specJson, "resource"));
+        if (platformSettings != null) spec.resources.addAll(getAsList(platformSettings, "resource"));
+
         spec.resources.addAll(getAsList(specJson, "resources"));
-        if (ios != null) spec.resources.ios.addAll(getAsList(ios, "resource"));
-        if (osx != null) spec.resources.osx.addAll(getAsList(osx, "resource"));
-        if (ios != null) spec.resources.ios.addAll(getAsList(ios, "resources"));
-        if (osx != null) spec.resources.osx.addAll(getAsList(osx, "resources"));
+        if (platformSettings != null) spec.resources.addAll(getAsList(platformSettings, "resources"));
 
         // resource bundles
         // https://guides.cocoapods.org/syntax/podspec.html#resource_bundles
@@ -233,14 +207,12 @@ public final class PodSpecParser {
         // frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#frameworks
         spec.frameworks.addAll(getAsList(specJson, "frameworks"));
-        if (ios != null) spec.frameworks.ios.addAll(getAsList(ios, "frameworks"));
-        if (osx != null) spec.frameworks.osx.addAll(getAsList(osx, "frameworks"));
+        if (platformSettings != null) spec.frameworks.addAll(getAsList(platformSettings, "frameworks"));
 
         // weak frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#weak_frameworks
         spec.weakFrameworks.addAll(getAsList(specJson, "weak_frameworks"));
-        if (ios != null) spec.weakFrameworks.ios.addAll(getAsList(ios, "weak_frameworks"));
-        if (osx != null) spec.weakFrameworks.osx.addAll(getAsList(osx, "weak_frameworks"));
+        if (platformSettings != null) spec.weakFrameworks.addAll(getAsList(platformSettings, "weak_frameworks"));
 
         // vendored frameworks
         // https://guides.cocoapods.org/syntax/podspec.html#vendored_frameworks
@@ -248,29 +220,19 @@ public final class PodSpecParser {
         if (vendored != null) {
             spec.vendoredFrameworks.addAll(vendored);
         }
-        if (ios != null) {
-            List<String> ios_vendored = getAsList(ios, "vendored_frameworks");
+        if (platformSettings != null) {
+            List<String> ios_vendored = getAsList(platformSettings, "vendored_frameworks");
             if (ios_vendored != null) {
                 spec.vendoredFrameworks.addAll(ios_vendored);
-            }
-        }
-        if (osx != null) {
-            List<String> osx_vendored = getAsList(osx, "vendored_frameworks");
-            if (osx_vendored != null) {
-                spec.vendoredFrameworks.addAll(osx_vendored);
             }
         }
 
         // libraries
         // https://guides.cocoapods.org/syntax/podspec.html#libraries
         spec.libraries.addAll(getAsList(specJson, "libraries"));
-        if (ios != null) spec.libraries.ios.addAll(getAsList(ios, "libraries"));
-        if (spec.libraries.ios.contains("c++")) {
-            spec.flags.ios.cpp.add("-std=c++11");
-        }
-        if (osx != null) spec.libraries.osx.addAll(getAsList(osx, "libraries"));
-        if (spec.libraries.osx.contains("c++")) {
-            spec.flags.osx.cpp.add("-std=c++11");
+        if (platformSettings != null) spec.libraries.addAll(getAsList(platformSettings, "libraries"));
+        if (spec.libraries.contains("c++")) {
+            spec.flags.cpp.add("-std=c++11");
         }
 
         // parse subspecs
@@ -313,12 +275,8 @@ public final class PodSpecParser {
                     addPodSourceFiles(spec, path);
                     addPodIncludePaths(spec, path);
                 }
-                else {
-                    spec.containsFramework = true;
-                }
             }
         }
-        spec.installed = spec.containsFramework || !spec.sourceFiles.isEmpty() || !spec.swiftSourceFiles.isEmpty();
 
         // add swift libs to the runtime search path
         if (!spec.swiftSourceFiles.isEmpty()) {
@@ -334,57 +292,14 @@ public final class PodSpecParser {
             }
         }
 
-        // public header files
-        // https://guides.cocoapods.org/syntax/podspec.html#public_header_files
-        spec.publicHeaders.addAll(getAsList(specJson, "public_header_files"));
-        if (ios != null) spec.publicHeaders.ios.addAll(getAsList(ios, "public_header_files"));
-        if (osx != null) spec.publicHeaders.osx.addAll(getAsList(osx, "public_header_files"));
+        // parse generated xcconfig
+        String configName = (args.parentSpec == null) ? spec.name : spec.parentSpec.name;
+        spec.parsedXCConfig = args.configParser.parse(spec.moduleName, configName, Path.of(args.podsDir.toString(), "Target Support Files", configName, String.format("%s.%s.xcconfig", configName, args.configuration.toLowerCase())).toFile());
+        updateFlagsFromConfig(spec, spec.parsedXCConfig);
 
-        // generate umbrella header
-        if (spec.installed) {
-            spec.iosUmbrellaHeader = createIosUmbrellaHeader(spec, args.workingDir);
-            spec.osxUmbrellaHeader = createOsxUmbrellaHeader(spec, args.workingDir);
-        }
-
-        // module map
-        // https://guides.cocoapods.org/syntax/podspec.html#module_map
-        spec.iosModuleMap = (String)specJson.get("module_map");
-        spec.osxModuleMap = (String)specJson.get("module_map");
-        if (ios != null) spec.iosModuleMap = (String)ios.get("module_map");
-        if (osx != null) spec.osxModuleMap = (String)osx.get("module_map");
-
-        if (spec.iosModuleMap != null && spec.iosModuleMap.toLowerCase().equals("false")) {
-            // do not generate a module map
-            spec.iosModuleMap = null;
-        }
-        else if (spec.iosModuleMap == null && spec.installed) {
-            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()
-                || !spec.swiftSourceFiles.isEmpty()) {
-                spec.iosModuleMap = createIosModuleMap(spec, true);
-                spec.iosSwiftModuleMap = createIosModuleMap(spec, false);
-            }
-        }
-        if (spec.iosModuleMap != null) {
-            spec.flags.ios.objc.add("-fmodule-map-file=" + spec.iosModuleMap);
-            spec.flags.ios.objcpp.add("-fmodule-map-file=" + spec.iosModuleMap);
-            spec.flags.ios.swift.add("-Xcc -fmodule-map-file=" + spec.iosSwiftModuleMap);
-        }
-
-        if (spec.osxModuleMap != null && spec.osxModuleMap.toLowerCase().equals("false")) {
-            // do not generate a module map
-            spec.osxModuleMap = null;
-        }
-        else if (spec.osxModuleMap == null && spec.installed) {
-            if (ExtenderUtil.listFilesMatchingRecursive(spec.dir, "module.modulemap").isEmpty()
-                || !spec.swiftSourceFiles.isEmpty()) {
-                spec.osxModuleMap = createOsxModuleMap(spec, true);
-                spec.osxSwiftModuleMap = createOsxModuleMap(spec, false);
-            }
-        }
-        if (spec.osxModuleMap != null) {
-            spec.flags.osx.objc.add("-fmodule-map-file=" + spec.osxModuleMap);
-            spec.flags.osx.objcpp.add("-fmodule-map-file=" + spec.osxModuleMap);
-            spec.flags.osx.swift.add("-Xcc -fmodule-map-file=" + spec.osxSwiftModuleMap);
+        // swift compatability header (just path where to store header)
+        if (!spec.swiftSourceFiles.isEmpty()) {
+            spec.swiftModuleHeader = Path.of(spec.buildDir.toString(), "SwiftCompatibilityHeader", spec.moduleName + "-Swift.h").toFile();
         }
 
         return spec;
@@ -417,7 +332,7 @@ public final class PodSpecParser {
             return fixedName;
         }
 
-        return parent.name + (NAME_EXCEPTIONS.contains(parent.name) ? "" : "_") + fixedName;
+        return parent.moduleName;
     }
     
     static String toC99extIdentifier(String s) {
@@ -427,57 +342,52 @@ public final class PodSpecParser {
             .replaceAll("_+", "_");             // Foo__Bar -> Foo_Bar
     }
 
-    static void parseMultiPlatformConfig(PodSpec spec, JSONObject config) {
-        if (config != null) {
-            parseConfig(config, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
-            parseConfig(config, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
-            JSONObject iosConfig = (JSONObject)config.get("ios");
-            JSONObject osxConfig = (JSONObject)config.get("ios");
-            if (iosConfig != null) parseConfig(iosConfig, spec.flags.ios, spec.linkflags.ios, spec.defines.ios);
-            if (osxConfig != null) parseConfig(osxConfig, spec.flags.osx, spec.linkflags.osx, spec.defines.osx);
-        }
-    }
-
-
-    static void parseConfig(JSONObject config, LanguageSet flags, Set<String> linkflags, Set<String> defines) {
+    static void updateFlagsFromConfig(PodSpec spec, Map<String, String> parsedConfig) {
         // https://pewpewthespells.com/blog/buildsettings.html
         // defines
-        List<String> defs = getStringListValues(config, "GCC_PREPROCESSOR_DEFINITIONS");
+        List<String> defs = argumentsAsList(parsedConfig.getOrDefault("GCC_PREPROCESSOR_DEFINITIONS", null));
         if (defs != null) {
-            defines.addAll(unescapeStrings(defs));
+            spec.defines.addAll(unescapeStrings(defs));
         }
         // linker flags
         // https://xcodebuildsettings.com/#other_ldflags
-        List<String> ldFlags = getStringListValues(config, "OTHER_LDFLAGS");
+        List<String> ldFlags = argumentsAsList(parsedConfig.getOrDefault("OTHER_LDFLAGS", null));
         if (ldFlags != null) {
-            linkflags.addAll(ldFlags);
+            spec.linkflags.addAll(ldFlags);
         }
         // compiler flags for c and objc files
         // https://xcodebuildsettings.com/#other_cflags
-        List<String> cFlags = getStringListValues(config, "OTHER_CFLAGS");
+        List<String> cFlags = argumentsAsList(parsedConfig.getOrDefault("OTHER_CFLAGS", null));
         if (cFlags != null) {
-            flags.c.addAll(cFlags);
-            flags.objc.addAll(cFlags);
+            spec.flags.c.addAll(cFlags);
+            spec.flags.objc.addAll(cFlags);
         }
         // compiler flags
-        if (hasString(config, "CLANG_CXX_LANGUAGE_STANDARD")) {
-            String cppStandard = getAsString(config, "CLANG_CXX_LANGUAGE_STANDARD", "compiler-default");
+        // https://developer.apple.com/documentation/xcode/build-settings-reference#C++-Language-Dialect
+        if (hasString(parsedConfig, "CLANG_CXX_LANGUAGE_STANDARD")) {
+            String cppStandard = parsedConfig.getOrDefault("CLANG_CXX_LANGUAGE_STANDARD", "compiler-default");
             String compilerFlag = "";
             switch (cppStandard) {
                 case "c++98":   compilerFlag = "-std=c++98"; break;
+                case "c++11":
                 case "c++0x":   compilerFlag = "-std=c++11"; break;
+                case "gnu++11":
                 case "gnu++0x": compilerFlag = "-std=gnu++11"; break;
-                case "c++14":   compilerFlag = "-std=c++1y"; break;
-                case "gnu++14": compilerFlag = "-std=gnu++1y"; break;
+                case "c++14":   compilerFlag = "-std=c++14"; break;
+                case "gnu++14": compilerFlag = "-std=gnu++17"; break;
+                case "c++17":   compilerFlag = "-std=c++17"; break;
+                case "gnu++17": compilerFlag = "-std=gnu++17"; break;
+                case "c++20":   compilerFlag = "-std=c++20"; break;
+                case "gnu++20": compilerFlag = "-std=gnu++20"; break;
                 case "gnu++98": 
-                case "compiler-default": 
+                case "compiler-default":
                 default:  compilerFlag = "-std=gnu++98"; break;
             }
-            flags.cpp.add(compilerFlag);
-            flags.objcpp.add(compilerFlag);
+            spec.flags.cpp.add(compilerFlag);
+            spec.flags.objcpp.add(compilerFlag);
         }
-        if (hasString(config, "GCC_C_LANGUAGE_STANDARD")) {
-            String cStandard = getAsString(config, "GCC_C_LANGUAGE_STANDARD", "compiler-default");
+        if (hasString(parsedConfig, "GCC_C_LANGUAGE_STANDARD")) {
+            String cStandard = parsedConfig.getOrDefault("GCC_C_LANGUAGE_STANDARD", "compiler-default");
             String compilerFlag = "";
             switch (cStandard) {
                 case "ansi":  compilerFlag = "-ansi"; break;
@@ -490,10 +400,10 @@ public final class PodSpecParser {
                 case "compiler-default": 
                 default:  compilerFlag = "-std=gnu99"; break;
             }
-            flags.c.add(compilerFlag);
+            spec.flags.c.add(compilerFlag);
         }
-        if (hasString(config, "CLANG_CXX_LIBRARY")) {
-            String stdLib = getAsString(config, "CLANG_CXX_LIBRARY", "compiler-default");
+        if (hasString(parsedConfig, "CLANG_CXX_LIBRARY")) {
+            String stdLib = parsedConfig.getOrDefault("CLANG_CXX_LIBRARY", "compiler-default");
             String stdLibFlag = "";
             switch (stdLib) {
                 case "libc++": stdLibFlag = "-stdlib=libc++"; break;
@@ -501,53 +411,92 @@ public final class PodSpecParser {
                 case "compiler-default":
                 default: stdLibFlag = "-stdlib=libstdlibc++"; break;
             }
-            flags.cpp.add(stdLibFlag);
-            flags.objcpp.add(stdLibFlag);
+            spec.flags.cpp.add(stdLibFlag);
+            spec.flags.objcpp.add(stdLibFlag);
         }
-        if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "YES")) {
-            flags.cpp.add("-fcxx-exceptions");
+        if (compareString(parsedConfig, "GCC_ENABLE_CPP_EXCEPTIONS", "YES")) {
+            spec.flags.cpp.add("-fcxx-exceptions");
         }
-        if (compareString(config, "GCC_ENABLE_CPP_EXCEPTIONS", "NO")) {
-            flags.cpp.add("-fno-cxx-exceptions");
+        if (compareString(parsedConfig, "GCC_ENABLE_CPP_EXCEPTIONS", "NO")) {
+            spec.flags.cpp.add("-fno-cxx-exceptions");
         }
-        if (compareString(config, "GCC_ENABLE_EXCEPTIONS", "YES")) {
-            flags.add("-fexceptions");
+        if (compareString(parsedConfig, "GCC_ENABLE_EXCEPTIONS", "YES")) {
+            spec.flags.add("-fexceptions");
         }
-        if (compareString(config, "GCC_ENABLE_EXCEPTIONS", "NO")) {
-            flags.add("-fno-exceptions");
+        if (compareString(parsedConfig, "GCC_ENABLE_EXCEPTIONS", "NO")) {
+            spec.flags.add("-fno-exceptions");
         }
-        if (compareString(config, "GCC_ENABLE_OBJC_EXCEPTIONS", "YES")) {
-            flags.objc.add("-fobjc-exceptions");
-            flags.objcpp.add("-fobjc-exceptions");
+        if (compareString(parsedConfig, "GCC_ENABLE_OBJC_EXCEPTIONS", "YES")) {
+            spec.flags.objc.add("-fobjc-exceptions");
+            spec.flags.objcpp.add("-fobjc-exceptions");
         }
-        if (compareString(config, "GCC_ENABLE_OBJC_EXCEPTIONS", "NO")) {
-            flags.objc.add("-fno-objc-exceptions");
-            flags.objcpp.add("-fno-objc-exceptions");
+        if (compareString(parsedConfig, "GCC_ENABLE_OBJC_EXCEPTIONS", "NO")) {
+            spec.flags.objc.add("-fno-objc-exceptions");
+            spec.flags.objcpp.add("-fno-objc-exceptions");
         }
-        if (compareString(config, "GCC_ENABLE_CPP_RTTI", "YES")) {
-            flags.cpp.add("-frtti");
+        if (compareString(parsedConfig, "GCC_ENABLE_CPP_RTTI", "YES")) {
+            spec.flags.cpp.add("-frtti");
         }
-        if (compareString(config, "GCC_ENABLE_CPP_RTTI", "NO")) {
-            flags.cpp.add("-fno-rtti");
+        if (compareString(parsedConfig, "GCC_ENABLE_CPP_RTTI", "NO")) {
+            spec.flags.cpp.add("-fno-rtti");
         }
-        if (compareString(config, "GCC_ENABLE_OBJC_GC", "supported")) {
-            flags.objc.add("-fobjc-gc");
-            flags.objcpp.add("-fobjc-gc");
+        if (compareString(parsedConfig, "GCC_ENABLE_OBJC_GC", "supported")) {
+            spec.flags.objc.add("-fobjc-gc");
+            spec.flags.objcpp.add("-fobjc-gc");
         }
-        if (compareString(config, "GCC_ENABLE_OBJC_GC", "required")) {
-            flags.objc.add("-fobjc-gc-only");
-            flags.objcpp.add("-fobjc-gc-only");
+        if (compareString(parsedConfig, "GCC_ENABLE_OBJC_GC", "required")) {
+            spec.flags.objc.add("-fobjc-gc-only");
+            spec.flags.objcpp.add("-fobjc-gc-only");
         }
-        if (compareString(config, "GCC_ENABLE_ASM_KEYWORD", "YES")) {
-            flags.add("-fasm");
+        if (compareString(parsedConfig, "GCC_ENABLE_ASM_KEYWORD", "YES")) {
+            spec.flags.add("-fasm");
         }
-        if (compareString(config, "GCC_ENABLE_ASM_KEYWORD", "NO")) {
-            flags.add("-fno-asm");
+        if (compareString(parsedConfig, "GCC_ENABLE_ASM_KEYWORD", "NO")) {
+            spec.flags.add("-fno-asm");
         }
-        if (compareString(config, "APPLICATION_EXTENSION_API_ONLY", "YES")) {
-            flags.add("-fapplication-extension");
-            flags.swift.add("-application-extension");
+        if (compareString(parsedConfig, "APPLICATION_EXTENSION_API_ONLY", "YES")) {
+            spec.flags.add("-fapplication-extension");
+            spec.flags.swift.add("-application-extension");
         }
+        if (hasString(parsedConfig, "SWIFT_INCLUDE_PATHS")) {
+            List<String> l = argumentsAsList(parsedConfig.getOrDefault("SWIFT_INCLUDE_PATHS", null));
+            if (l != null) {
+                for (String path : l) {
+                    spec.flags.swift.add(String.format("-I%s", path));
+                    spec.flags.swift.add(String.format("-Xcc -I%s", path));
+                }
+            }
+        }
+        if (hasString(parsedConfig, "OTHER_SWIFT_FLAGS")) {
+            List<String> l = argumentsAsList(parsedConfig.getOrDefault("OTHER_SWIFT_FLAGS", null));
+            if (l != null) {
+                spec.flags.swift.addAll(l);
+            }
+        }
+        if (hasString(parsedConfig, "HEADER_SEARCH_PATHS")) {
+            List<String> l = argumentsAsList(parsedConfig.getOrDefault("HEADER_SEARCH_PATHS", null));
+            if (l != null) {
+                for (String path : l) {
+                    spec.includePaths.add(new File(path));
+                }
+            }
+        }
+        if (hasString(parsedConfig, "FRAMEWORK_SEARCH_PATHS")) {
+            List<String> l = argumentsAsList(parsedConfig.getOrDefault("FRAMEWORK_SEARCH_PATHS", null));
+            if (l != null) {
+                for (String path : l) {
+                    spec.frameworkSearchPaths.add(new File(path));
+                }
+            }
+        }
+    }
+
+    static List<String> argumentsAsList(String arguments) {
+        arguments = arguments != null ? arguments.trim() : null;
+        if (arguments == null || arguments.isEmpty()) {
+            return null;
+        }
+        return new ArrayList<>(Arrays.asList(arguments.split(" ")));
     }
 
     // get values as List in case if value is List or String with ' ' delimeter
@@ -582,14 +531,11 @@ public final class PodSpecParser {
         return null;
     }
 
-    // check if a string value on a JSON object exists
+    // check if a string value exists
     // will return false if the value doesn't exist or is an empty string
-    static boolean hasString(JSONObject o, String key) {
-        String value = (String)o.get(key);
-        if (value == null || value.trim().isEmpty()) {
-            return false;
-        }
-        return true;
+    static boolean hasString(Map<String, String> parsedConfig, String key) {
+        String value = parsedConfig.get(key);
+        return value != null && !value.trim().isEmpty();
     }
 
     // get a string value from a JSON object and split it into a list using space character as delimiter
@@ -620,9 +566,9 @@ public final class PodSpecParser {
         return value;
     }
 
-    // check if the value for a specific key on a json object matches an expected value
-    static boolean compareString(JSONObject o, String key, String expected) {
-        String value = (String)o.get(key);
+    // check if the value for a specific key matches an expected value
+    static boolean compareString(Map<String, String> config, String key, String expected) {
+        String value = config.get(key);
         if (value == null || value.trim().isEmpty()) {
             return false;
         }
@@ -710,16 +656,16 @@ public final class PodSpecParser {
                 pod.swiftSourceFiles.add(podSrcFile);
                 pod.swiftSourceFilePaths.add(podSrcFile.getAbsolutePath());
             }
-            else if (!isHeaderFile(filename)) {
-                pod.sourceFiles.add(podSrcFile);
+            else {
+                if (!PodUtils.isHeaderFile(filename)) {
+                    pod.sourceFiles.add(podSrcFile);
+                } else {
+                    pod.headerFiles.add(podSrcFile);
+                }
             }
         }
     }
 
-
-    static boolean isHeaderFile(String filename) {
-        return filename.endsWith(".h") || filename.endsWith(".def");
-    }
 
     /**
      * Add a list of include paths matching a pattern to a pod
@@ -730,7 +676,7 @@ public final class PodSpecParser {
         List<File> podSrcFiles = PodUtils.listFilesGlob(pod.dir, pattern);
         for (File podSrcFile : podSrcFiles) {
             final String filename = podSrcFile.getName();
-            if (isHeaderFile(filename)) {
+            if (PodUtils.isHeaderFile(filename)) {
                 File podIncludeDir = podSrcFile.getParentFile();
                 if (podIncludeDir != null) {
                     pod.includePaths.add(podIncludeDir);
@@ -739,86 +685,6 @@ public final class PodSpecParser {
                         pod.includePaths.add(podIncludeParentDir);
                     }
                 }
-            }
-        }
-    }
-
-    static String createIosModuleMap(PodSpec pod, boolean includeSwiftDefinition) throws ExtenderException {
-        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift." : ""));
-        createModuleMap(pod, pod.iosUmbrellaHeader, moduleMapFile, includeSwiftDefinition);
-        return moduleMapFile.getAbsolutePath();
-    }
-
-    static String createOsxModuleMap(PodSpec pod, boolean includeSwiftDefinition) throws ExtenderException {
-        File moduleMapFile = new File(pod.generatedDir, String.format("%smodule.modulemap", includeSwiftDefinition ? "swift." : ""));
-        createModuleMap(pod, pod.osxUmbrellaHeader, moduleMapFile, includeSwiftDefinition);
-        return moduleMapFile.getAbsolutePath();
-    }
-
-    // https://clang.llvm.org/docs/Modules.html#module-declaration
-    static void createModuleMap(PodSpec pod, String umbrellaHeader, File moduleMapFile, boolean includeSwiftDefinition) throws ExtenderException {
-        List<String> headers = new ArrayList<>();
-
-        // swift source file header
-        // generated by the swift compiler if -emit-objc-header flag is set
-        if (!pod.swiftSourceFiles.isEmpty()) {
-            File swiftModuleHeader = new File(pod.generatedDir, pod.productModuleName + "-Swift.h");
-            pod.swiftModuleHeader = swiftModuleHeader;
-            headers.add(swiftModuleHeader.getAbsolutePath());
-        }
-
-        if (pod.moduleMapGenerator != null) {
-            // generate final modulemap
-            HashMap<String, Object> envContext = new HashMap<>();
-            envContext.put("SWIFT_DEFINITION", includeSwiftDefinition);
-            envContext.put("FRAMEWORKOPT", pod.containsFramework ? "framework" : "");
-            envContext.put("MODULE_ID", pod.productModuleName);
-            envContext.put("HEADERS", headers);
-            envContext.put("UMBRELLA_HEADER", umbrellaHeader);
-            envContext.put("SUBMODULE", pod.containsFramework ? "module * { export * }" : "");
-
-            String moduleMap = pod.moduleMapGenerator.apply(envContext);
-            try {
-                Files.writeString(moduleMapFile.toPath(), moduleMap);
-            }
-            catch (IOException e) {
-                throw new ExtenderException(e, "Unable to create modulemap for " + pod.productModuleName);
-            }
-        }
-    }
-
-    static String createIosUmbrellaHeader(PodSpec pod, File jobDir) throws ExtenderException {
-        File umbrellaHeaderFile = new File(pod.generatedDir, pod.productModuleName + "-umbrella.h");
-        createUmbrellaHeader(pod, pod.publicHeaders.ios, umbrellaHeaderFile, jobDir);
-        return umbrellaHeaderFile.getAbsolutePath();
-    }
-
-    static String createOsxUmbrellaHeader(PodSpec pod, File jobDir) throws ExtenderException {
-        File umbrellaHeaderFile = new File(pod.generatedDir, pod.productModuleName + "-umbrella.h");
-        createUmbrellaHeader(pod, pod.publicHeaders.osx, umbrellaHeaderFile, jobDir);
-        return umbrellaHeaderFile.getAbsolutePath();
-    }
-
-    static void createUmbrellaHeader(PodSpec pod, Set<String> headerPatterns, File umbrellaHeaderFile, File jobDir) throws ExtenderException {
-        List<String> headers = new ArrayList<>();
-        for (String headerPattern : headerPatterns) {
-            List<File> headerFiles = PodUtils.listFilesGlob(pod.dir, headerPattern);
-            for (File headerFile : headerFiles) {
-                headers.add(headerFile.getAbsolutePath());
-            }
-        }
-
-        Map<String, Object> envContext = new HashMap<>();
-        envContext.put("MODULE_ID", pod.productModuleName);
-        envContext.put("HEADERS", headers);
-
-        if (pod.umbrellaHeaderGenerator != null) {
-            String umbrellaHeader = pod.umbrellaHeaderGenerator.apply(envContext);
-            try {
-                Files.writeString(umbrellaHeaderFile.toPath(), umbrellaHeader);
-            }
-            catch (IOException e) {
-                throw new ExtenderException(e, "Unable to create umbrella header for " + pod.productModuleName);
             }
         }
     }

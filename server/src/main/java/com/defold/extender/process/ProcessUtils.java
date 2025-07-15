@@ -23,7 +23,7 @@ public class ProcessUtils {
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
         return execCommand(args, cwd, env);
-    }    
+    }
 
     public static String execCommand(List<String> args, File cwd, Map<String, String> env) throws ExtenderException {
         ProcessExecutor pe = new ProcessExecutor();

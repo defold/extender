@@ -3,26 +3,33 @@ package com.defold.extender.services.cocoapods;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
-
+import java.util.function.BiFunction;
 import com.defold.extender.ExtenderUtil;
 
 public class PodUtils {
 
-    /*
-     * @dir File Directory where files will be searched
-     * @patter String Path pattern
-    */
-    static List<File> listFilesGlob(File dir, String pattern) {
+    static List<File> parametrizedListFileGlob(File dir, String pattern, BiFunction<File, String, List<File>> listFunction) {
         String absPathPattern = Path.of(dir.getAbsolutePath(), pattern).toString();
-        List<File> files = ExtenderUtil.listFilesGlob(dir, absPathPattern);
+        List<File> files = listFunction.apply(dir, absPathPattern);
         // Cocoapods uses Ruby where glob patterns are treated slightly differently:
         // Ruby: foo/**/*.h will find .h files in any subdirectory of foo AND in foo/
         // Java: foo/**/*.h will find .h files in any subdirectory of foo but NOT in foo/
         if (absPathPattern.contains("/**/")) {
             absPathPattern = absPathPattern.replaceFirst("\\/\\*\\*\\/", "/");
-            files.addAll(ExtenderUtil.listFilesGlob(dir, absPathPattern));
+            files.addAll(listFunction.apply(dir, absPathPattern));
         }
         return files;
+    }
+    /*
+     * @dir File Directory where files will be searched
+     * @patter String Path pattern
+    */
+    static List<File> listFilesGlob(File dir, String pattern) {
+        return parametrizedListFileGlob(dir, pattern, ExtenderUtil::listFilesGlob);
+    }
+
+    static List<File> listFilesAndDirsGlob(File dir, String pattern) {
+        return parametrizedListFileGlob(dir, pattern, ExtenderUtil::listFilesAndDirsGlob);
     }
 
     static String sanitizePodName(String podName) {
@@ -44,5 +51,31 @@ public class PodUtils {
             }
         }
         return result;
+    }
+
+    static boolean isHeaderFile(String filename) {
+        return filename.endsWith(".h")
+            || filename.endsWith(".hh")
+            || filename.endsWith(".hpp")
+            || filename.endsWith(".hxx")
+            || filename.endsWith(".def");
+    }
+
+    // 'GoogleUtilities/Environment (7.10.0)'  -> 'GoogleUtilities/Environment' -> ['GoogleUtilities', 'Environment']
+    static String[] splitPodname(String pod) {
+        return pod.replaceFirst(" \\(.*\\)", "").split("/");
+    }
+
+    static String getSpecName(String podlockRecord) {
+        return podlockRecord.replaceFirst(" \\(.*\\)", "");
+    }
+
+    static String getSpecVersion(String podlockRecord) {
+        return podlockRecord.replaceFirst(".*\\(", "").replace(")", "");
+    }
+
+    static String getPodName(String podlockRecord) {
+        String podnameparts[] = PodUtils.splitPodname(PodUtils.getSpecName(podlockRecord));
+        return PodUtils.sanitizePodName(podnameparts[0]);
     }
 }
