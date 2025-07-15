@@ -15,8 +15,6 @@ public class PodSpec {
     // https://github.com/CocoaPods/CocoaPods/blob/648ccdcaea2063fe63977a0146e1717aec3efa54/lib/cocoapods/target.rb#L157
     public String version = "";
     public String platformVersion = "";
-    // public String moduleMap = null;
-    // public String umbrellaHeader = null;
     // The Swift source file header (ModuleName-Swift.h)
     // This file is referenced from the modulemap and generated in
     // Extender.java as part of the process when building .swift files
@@ -45,8 +43,6 @@ public class PodSpec {
     public Map<String, String> parsedXCConfig = null;
     public File dir;
     public File buildDir;
-    // true if this podspec was installed by Cocoapods
-    // public boolean installed;
 
     public PodSpec getSubspec(String name) {
         for (PodSpec spec : subspecs) {
@@ -71,7 +67,6 @@ public class PodSpec {
         sb.append("  dir: " + dir + "\n");
         sb.append("  moduleName: " + moduleName + "\n");
         sb.append("  generated dir: " + buildDir + "\n");
-        // sb.append("  installed: " + installed + "\n");
         sb.append("  src: " + sourceFiles + "\n");
         sb.append("  swift src: " + swiftSourceFiles + "\n");
         sb.append("  swift module header: " + swiftModuleHeader + "\n");
@@ -84,12 +79,7 @@ public class PodSpec {
         sb.append("  frameworks: " + frameworks + "\n");
         sb.append("  vendored_frameworks: " + vendoredFrameworks + "\n");
         sb.append("  libraries: " + libraries + "\n");
-        // sb.append("  dependencies: " + dependencies + "\n");
         sb.append("  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
-        // sb.append("  default_subspecs: " + defaultSubspecs + "\n");
-        // for (PodSpec sub : subspecs) {
-            // sb.append("  subspec: " + sub.name + "\n");
-        // }
         for (Map.Entry<String, List<String>> resourceBundleEntry : resourceBundles.entrySet()) {
             sb.append("  resourceBundle: "  + resourceBundleEntry.getKey() + " files: " + resourceBundleEntry.getValue() + "\n");
         }

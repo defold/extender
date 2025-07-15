@@ -6,11 +6,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,8 +46,9 @@ public final class PodSpecParser {
             private File buildDir;
             private PodSpec parentSpec;
             private Platform selectedPlatform;
-            private String arch;
+            private String configuration;
             private Map<String, Object> jobEnvContext;
+            private IConfigParser configParser;
 
             public Builder() { }
 
@@ -83,8 +82,13 @@ public final class PodSpecParser {
                 return this;
             }
 
-            public Builder setArch(String arch) {
-                this.arch = arch;
+            public Builder setConfigParser(IConfigParser parser) {
+                this.configParser = parser;
+                return this;
+            }
+
+            public Builder setConfiguration(String configuration) {
+                this.configuration = configuration;
                 return this;
             }
 
@@ -100,7 +104,8 @@ public final class PodSpecParser {
             this.parentSpec = builder.parentSpec;
             this.jobEnvContext = builder.jobEnvContext;
             this.selectedPlatform = builder.selectedPlatform;
-            this.arch = builder.arch;
+            this.configuration = builder.configuration;
+            this.configParser = builder.configParser;
         }
 
         private CreatePodSpecArgs(CreatePodSpecArgs copy) {
@@ -110,7 +115,8 @@ public final class PodSpecParser {
             this.parentSpec = copy.parentSpec;
             this.jobEnvContext = copy.jobEnvContext;
             this.selectedPlatform = copy.selectedPlatform;
-            this.arch = copy.arch;
+            this.configuration = copy.configuration;
+            this.configParser = copy.configParser;
         }
 
         protected JSONObject specJson;
@@ -118,16 +124,15 @@ public final class PodSpecParser {
         protected File buildDir;
         protected PodSpec parentSpec;
         protected Platform selectedPlatform;
-        protected String arch;
+        protected String configuration;
         protected Map<String, Object> jobEnvContext;
+        protected IConfigParser configParser;
     }
 
     // https://guides.cocoapods.org/syntax/podspec.html
     public static PodSpec createPodSpec(CreatePodSpecArgs args) throws ExtenderException, IOException {
         PodSpec spec = new PodSpec();
         JSONObject specJson = args.specJson;
-        // spec.umbrellaHeaderGenerator = args.umbrellaHeaderGenerator;
-        // spec.moduleMapGenerator = args.moduleMapGenerator;
         spec.name = (String)specJson.get("name");
         spec.moduleName = getModuleName(specJson, args.parentSpec);
         spec.version = (args.parentSpec == null) ? (String)specJson.get("version") : args.parentSpec.version;
@@ -136,8 +141,7 @@ public final class PodSpecParser {
 
         // generated files relating to the pod
         // modulemap, swift header etc
-        String configuration = "Debug";
-        spec.buildDir = Path.of(args.buildDir.toString(), String.format("%s%s", configuration, args.selectedPlatform.toString().toLowerCase()), spec.name).toFile();
+        spec.buildDir = Path.of(args.buildDir.toString(), String.format("%s%s", args.configuration, args.selectedPlatform.toString().toLowerCase()), spec.name).toFile();
         spec.buildDir.mkdirs();
 
         // inherit flags and defines from the parent
@@ -295,8 +299,7 @@ public final class PodSpecParser {
 
         // parse generated xcconfig
         String configName = (args.parentSpec == null) ? spec.name : spec.parentSpec.name;
-        XCConfigParser parser = new XCConfigParser(args.buildDir, args.podsDir, args.selectedPlatform.toString().toLowerCase(), configuration, args.arch);
-        spec.parsedXCConfig = parser.parse(spec.moduleName, configName, Path.of(args.podsDir.toString(), "Target Support Files", configName, String.format("%s.debug.xcconfig", configName)).toFile());
+        spec.parsedXCConfig = args.configParser.parse(spec.moduleName, configName, Path.of(args.podsDir.toString(), "Target Support Files", configName, String.format("%s.%s.xcconfig", configName, args.configuration.toLowerCase())).toFile());
         updateFlagsFromConfig(spec, spec.parsedXCConfig);
 
         // swift compatability header (just path where to store header)
@@ -334,7 +337,7 @@ public final class PodSpecParser {
             return fixedName;
         }
 
-        return parent.moduleName;//parent.name + (NAME_EXCEPTIONS.contains(parent.name) ? "" : "_") + fixedName;
+        return parent.moduleName;
     }
     
     static String toC99extIdentifier(String s) {

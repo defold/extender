@@ -64,7 +64,6 @@ public class CocoaPodsService {
 
     private final String podfileTemplateContents;
     private final String modulemapTemplateContents;
-    // private final String umbrellaHeaderTemplateContents;
     private @Value("${extender.cocoapods.home-dir-prefix}") String homeDirPrefix;
     private @Value("${extender.cocoapods.cdn-concurrency:10}") int maxPodCDNConcurrency;
     private Path currentCacheDir = Path.of("");
@@ -73,12 +72,10 @@ public class CocoaPodsService {
 
     CocoaPodsService(@Value("classpath:template.podfile") Resource podfileTemplate,
             @Value("classpath:template.modulemap") Resource modulemapTemplate,
-            @Value("classpath:template.umbrella.h") Resource umbrellaHeaderTemplate,
             MeterRegistry meterRegistry) throws IOException {
         this.meterRegistry = meterRegistry;
         this.podfileTemplateContents = ExtenderUtil.readContentFromResource(podfileTemplate);
         this.modulemapTemplateContents = ExtenderUtil.readContentFromResource(modulemapTemplate);
-        // this.umbrellaHeaderTemplateContents = ExtenderUtil.readContentFromResource(umbrellaHeaderTemplate);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -272,7 +269,8 @@ public class CocoaPodsService {
      * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
      * @return An InstalledPods object with installed pods
      */
-    private InstalledPods installPods(PodSpecParser.Platform selectedPlatform, String arch, File jobDir, File workingDir, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+    private InstalledPods installPods(PodSpecParser.Platform selectedPlatform, String arch, File jobDir, 
+        File workingDir, Map<String, Object> jobEnvContext, String configuration) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         Path cacheDir;
         // store current cache dir into local variable to use the same value for all 'pod' runs
@@ -387,13 +385,16 @@ public class CocoaPodsService {
                 //     "dependencies": {
                 //     "GoogleAppMeasurement": [
                 specJson = specJson.substring(specJson.indexOf("{", 0), specJson.length());
+                File buildDir = new File(jobDir, "build");
+                XCConfigParser parser = new XCConfigParser(buildDir, podsDir, selectedPlatform.toString().toLowerCase(), configuration, arch);
                 PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
                     .setSpecJson(specJson)
                     .setPodsDir(podsDir)
-                    .setBuildDir(new File(jobDir, "build"))
+                    .setBuildDir(buildDir)
                     .setJobContext(jobEnvContext)
                     .setSelectedPlatform(selectedPlatform)
-                    .setArch(arch)
+                    .setConfiguration(configuration)
+                    .setConfigParser(parser)
                     .build();
                 installedPods.podsMap.put(podName, PodSpecParser.createPodSpec(args));
             } else {
@@ -421,9 +422,10 @@ public class CocoaPodsService {
      * @param config Platform config 
      * @param jobDir Root directory of the job to resolve
      * @param platform Which platform to resolve pods for
+     * @param configuration Build configuration ("debug", "release", "headless")
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(PlatformConfig config, File jobDir, String platform) throws IOException, ExtenderException {
+    public ResolvedPods resolveDependencies(PlatformConfig config, File jobDir, String platform, String configuration) throws IOException, ExtenderException {
         if (!platform.contains("ios") && !platform.contains("osx")) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
@@ -467,7 +469,7 @@ public class CocoaPodsService {
 
         File podsDir = new File(workingDir, "Pods");
         MainPodfile mainPodfile = createMainPodfile(platformPodfiles, jobDir, workingDir, platform, jobEnvContext);
-        InstalledPods installedPods = installPods(selectedPlatform, arch, jobDir, workingDir, jobEnvContext);
+        InstalledPods installedPods = installPods(selectedPlatform, arch, jobDir, workingDir, jobEnvContext, configuration);
         List<PodSpec> pods = new ArrayList<>();
         for (String specName : installedPods.pods) {
             String podName = PodUtils.getPodName(specName);

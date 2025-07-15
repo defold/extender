@@ -69,6 +69,7 @@ class Extender {
     private final Boolean useJetifier;
     private final String buildArtifacts;
     private final String debugSourcePath;
+    private final String configuration; // debug/release/headless
     private Boolean needsCSLibraries = false;
 
     private Map<String, File>                   manifestFiles;
@@ -206,6 +207,7 @@ class Extender {
 
         AppManifestConfiguration appManifest = null;
         AppManifestConfiguration baseVariantManifest = null;
+        String baseVariant = null;
 
         if (appManifests.isEmpty()) {
             this.appManifestPath = "";
@@ -223,7 +225,7 @@ class Extender {
                 appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
             }
 
-            String baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
+            baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
             if (baseVariant != null)
             {
                 File baseVariantFile = new File(builder.sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
@@ -241,6 +243,12 @@ class Extender {
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
         this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
         this.debugSourcePath = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_DEBUG_SOURCE_PATH, null);
+        // assign configuration names started with upper letter because it used for cocoapods
+        if (baseVariant != null && (baseVariant.equals("release") || baseVariant.equals("headless"))) {
+            this.configuration = "Release";
+        } else {
+            this.configuration = "Debug";
+        }
 
         this.platform = builder.platform;
         this.sdk = builder.sdk;
@@ -546,18 +554,6 @@ class Extender {
         return includes;
     }
 
-    // private List<String> getFrameworkStaticLibIncludeDirs(ResolvedPods pods) {
-    //     List<String> includeDirs = new ArrayList<>();
-    //     if (resolvedPods != null) {
-    //         includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + this.platform)));
-    //         String[] platformParts = this.platform.split("-");
-    //         if (platformParts.length == 2) {
-    //             includeDirs.add(ExtenderUtil.getRelativePath(jobDirectory, new File(resolvedPods.frameworksDir, "headers" + File.separator + platformParts[1])));
-    //         }
-    //     }
-    //     return includeDirs;
-    // }
-
     private List<String> getIncludeDirs(File extDir) {
         List<String> includes = getExtLocalIncludeDirs(extDir);
 
@@ -571,13 +567,6 @@ class Extender {
             }
             includes.addAll(getExtLocalIncludeDirs(otherExtDir));
         }
-
-        // Add include folders for resolved pods
-        // if (resolvedPods != null) {
-        //     includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.publicHeadersDir));
-        //     includes.add(ExtenderUtil.getRelativePath(jobDirectory, resolvedPods.privateHeadersDir));
-        //     includes.addAll(getFrameworkStaticLibIncludeDirs(resolvedPods));
-        // }
 
         return pruneNonExisting(includes);
     }
@@ -656,14 +645,6 @@ class Extender {
 
         // append to objc modulemap
         Files.writeString(targetModuleMap, spec.swiftModuleDefinition, StandardOpenOption.APPEND);
-
-        // COMPATIBILITY_HEADER_PATH="${BUILT_PRODUCTS_DIR}/Swift Compatibility Header/${PRODUCT_MODULE_NAME}-Swift.h"
-        // MODULE_MAP_PATH="${BUILT_PRODUCTS_DIR}/${PRODUCT_MODULE_NAME}.modulemap"
-
-        // ditto "${DERIVED_SOURCES_DIR}/${PRODUCT_MODULE_NAME}-Swift.h" "${COMPATIBILITY_HEADER_PATH}"
-        // ditto "${PODS_ROOT}/Headers/Public/AppMetricaLibraryAdapter/AppMetricaLibraryAdapter.modulemap" "${MODULE_MAP_PATH}"
-        // ditto "${PODS_ROOT}/Headers/Public/AppMetricaLibraryAdapter/AppMetricaLibraryAdapter-umbrella.h" "${BUILT_PRODUCTS_DIR}"
-        // printf "\n\nmodule ${PRODUCT_MODULE_NAME}.Swift {\n  header \"${COMPATIBILITY_HEADER_PATH}\"\n  requires objc\n}\n" >> "${MODULE_MAP_PATH}"
     }
 
     private File addCompileFileSwift(PodSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
@@ -706,10 +687,12 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(extDir));
-        frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(extDir));
-        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
+        if (resolvedPods != null) {
+            frameworks.addAll(resolvedPods.getFrameworks());
+            frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
+        }
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
@@ -2753,7 +2736,7 @@ class Extender {
 
     void resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
         try {
-            resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, jobDirectory, platform);
+            resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, jobDirectory, platform, configuration);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());

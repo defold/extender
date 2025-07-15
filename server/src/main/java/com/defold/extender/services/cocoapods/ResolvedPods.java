@@ -3,7 +3,6 @@ package com.defold.extender.services.cocoapods;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -43,8 +42,6 @@ public class ResolvedPods {
         this.podsDir = podsDir;
         this.frameworksDir = frameworksDir;
         this.podFileLock = podfileLock;
-        // resolvedPods.privateHeadersDir = Path.of(podsDir.toString(), "Headers", "Private").toFile();
-        // resolvedPods.publicHeadersDir = Path.of(podsDir.toString(), "Headers", "Public").toFile();
 
         setPodsSpecs(specs);
     }

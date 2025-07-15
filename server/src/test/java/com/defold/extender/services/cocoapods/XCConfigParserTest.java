@@ -1,6 +1,7 @@
 package com.defold.extender.services.cocoapods;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -160,5 +161,12 @@ public class XCConfigParserTest {
             assertTrue(result.containsKey(key));
             assertEquals(entry.getValue(), result.get(key));
         }
+    }
+
+    @Test
+    public void testIncludeParsing() {
+        XCConfigParser parser = new XCConfigParser(new File(PODS_BUILD_DIR), new File(PODS_DIR), "iphones", "Debug", "arm64");
+        File testFile = new File("test-data/xcconfigs/include_test.xcconfig");
+        assertThrows(UnsupportedOperationException.class, () -> { parser.parse("other", "other", testFile); });
     }
 }

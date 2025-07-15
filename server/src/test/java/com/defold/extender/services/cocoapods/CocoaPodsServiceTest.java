@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,14 @@ public class CocoaPodsServiceTest {
     private File buildDir;
     private File podsDir;
     private File frameworksDir;
+
+    class EmptyConfigParser implements IConfigParser {
+        @Override
+        public Map<String, String> parse(String moduleName, String podName, File xcconfig) throws IOException {
+            return Map.of();
+        }
+
+    }
 
     private static Stream<Arguments> specData() {
         return Stream.of(
@@ -145,7 +154,8 @@ public class CocoaPodsServiceTest {
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(new EmptyConfigParser())
             .build();
         assertDoesNotThrow(() -> PodSpecParser.createPodSpec(args));
     }
@@ -160,7 +170,8 @@ public class CocoaPodsServiceTest {
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(new EmptyConfigParser())
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
         assertFalse(podSpec.linkflags.contains(INHERITED_VALUE));
@@ -189,7 +200,8 @@ public class CocoaPodsServiceTest {
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(new EmptyConfigParser())
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
         String[] expectedValues = new String[]{
@@ -213,7 +225,8 @@ public class CocoaPodsServiceTest {
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(new EmptyConfigParser())
             .build();
         // create empty files to simulate sources
         String[] simulatedFiles = new String[]{
@@ -281,7 +294,8 @@ public class CocoaPodsServiceTest {
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(new EmptyConfigParser())
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
         String[] expectedValues = new String[]{
@@ -302,7 +316,8 @@ public class CocoaPodsServiceTest {
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(new EmptyConfigParser())
             .build();
         String[] simulatedFiles = new String[]{
             "AXPracticalHUD/AXPracticalHUD/AXPracticalHUD.bundle/ax_hud_error@2x.png",
@@ -334,7 +349,8 @@ public class CocoaPodsServiceTest {
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(new EmptyConfigParser())
             .build();
 
         String[] simulatedFiles = new String[]{
@@ -371,13 +387,19 @@ public class CocoaPodsServiceTest {
     @Test
     public void testValueSubstitution() throws IOException, ExtenderException {
         String jsonSpec = Files.readString(Path.of("test-data/pod_specs/Sentry.json"));
+        XCConfigParser parser = new XCConfigParser(this.buildDir, this.podsDir, PodSpecParser.Platform.IPHONEOS.toString().toLowerCase(), "Debug", "arm64");
+        File sentryTargetFolder = Path.of(this.podsDir.toString(), "Target Support Files", "Sentry").toFile();
+        sentryTargetFolder.mkdirs();
+        Files.copy(Path.of("test-data/xcconfigs/Sentry.xcconfig"), Path.of(sentryTargetFolder.toString(), "Sentry.debug.xcconfig"), StandardCopyOption.REPLACE_EXISTING);
+
         PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
             .setBuildDir(this.buildDir)
             .setPodsDir(this.podsDir)
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(parser)
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
         assertTrue(podSpec.flags.c.contains("-DAPPLICATION_EXTENSION_API_ONLY_YES"));
@@ -386,14 +408,20 @@ public class CocoaPodsServiceTest {
 
     @Test
     public void testCompilationFlags() throws IOException, ExtenderException {
-                String jsonSpec = Files.readString(Path.of("test-data/pod_specs/Sentry.json"));
+        String jsonSpec = Files.readString(Path.of("test-data/pod_specs/Sentry.json"));
+        XCConfigParser parser = new XCConfigParser(this.buildDir, this.podsDir, PodSpecParser.Platform.IPHONEOS.toString().toLowerCase(), "Debug", "arm64");
+        File sentryTargetFolder = Path.of(this.podsDir.toString(), "Target Support Files", "Sentry").toFile();
+        sentryTargetFolder.mkdirs();
+        Files.copy(Path.of("test-data/xcconfigs/Sentry.xcconfig"), Path.of(sentryTargetFolder.toString(), "Sentry.debug.xcconfig"), StandardCopyOption.REPLACE_EXISTING);
+
         PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
             .setBuildDir(this.buildDir)
             .setPodsDir(this.podsDir)
             .setSpecJson(jsonSpec)
             .setJobContext(this.jobContext)
             .setSelectedPlatform(PodSpecParser.Platform.IPHONEOS)
-            .setArch("arm64")
+            .setConfiguration("Debug")
+            .setConfigParser(parser)
             .build();
         PodSpec podSpec = PodSpecParser.createPodSpec(args);
         // check handle APPLICATION_EXTENSION_API_ONLY flag

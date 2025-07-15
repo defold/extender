@@ -17,7 +17,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class XCConfigParser {
+public class XCConfigParser implements IConfigParser {
     private static final Logger LOGGER = LoggerFactory.getLogger(XCConfigParser.class);
     private File buildDir;
     private File podsDir;
@@ -58,7 +58,7 @@ public class XCConfigParser {
     }
 
     void parseIncludes(String line) {
-
+        throw new UnsupportedOperationException("Include statement parsing not supported");
     }
 
     /*
@@ -180,6 +180,7 @@ public class XCConfigParser {
         return Pair.of(varBuilder.toString(), valueBuilder.toString());
     }
 
+    @Override
     public Map<String, String> parse(String moduleName, String podName, File xcconfig) throws IOException {
         // https://pewpewthespells.com/blog/xcconfig_guide.html
         Map<String, String> allValues = calculateBaseVariables(moduleName, podName);
