@@ -602,6 +602,7 @@ class Extender {
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
         context.put("swiftHeaderPath", pod.swiftModuleHeader.toString());
         context.put("swiftVersion", "5");
+        context.put("parallelJobs", String.valueOf(Runtime.getRuntime().availableProcessors()));
 
         String command = templateExecutor.execute(this.platformConfig.emitSwiftHeaderCmd, context);
         commands.add(command);
@@ -624,6 +625,8 @@ class Extender {
         context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
         context.put("swiftModulePath", new File(pod.buildDir, pod.moduleName + ".swiftmodule"));
         context.put("swiftVersion", "5");
+        context.put("parallelJobs", String.valueOf(Runtime.getRuntime().availableProcessors()));
+
         String command = templateExecutor.execute(this.platformConfig.emitSwiftModuleCmd, context);
         commands.add(command);
     }
