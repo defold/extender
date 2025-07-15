@@ -596,10 +596,12 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.swiftSourceFilePaths);
+
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("moduleName", pod.moduleName);
-        context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
+        context.put("swiftSourceFiles", String.format("@%s", sourceListFile.getAbsolutePath()));
         context.put("swiftHeaderPath", pod.swiftModuleHeader.toString());
         context.put("swiftVersion", "5");
         context.put("parallelJobs", String.valueOf(Runtime.getRuntime().availableProcessors()));
@@ -619,10 +621,12 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.swiftSourceFilePaths);
+
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("moduleName", pod.moduleName);
-        context.put("swiftSourceFiles", pod.swiftSourceFilePaths);
+        context.put("swiftSourceFiles", String.format("@%s", sourceListFile.getAbsolutePath()));
         context.put("swiftModulePath", new File(pod.buildDir, pod.moduleName + ".swiftmodule"));
         context.put("swiftVersion", "5");
         context.put("parallelJobs", String.valueOf(Runtime.getRuntime().availableProcessors()));
@@ -668,12 +672,14 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
+        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(swiftSourceFilePaths);
+        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(Set.of(swiftPrimarySourceFile));
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
         context.put("moduleName", pod.moduleName);
-        context.put("swiftPrimarySourceFile", swiftPrimarySourceFile);
-        context.put("swiftSourceFiles", swiftSourceFilePaths);
+        context.put("swiftPrimarySourceFile", String.format("@%s", primarySourceFile.getAbsolutePath()));
+        context.put("swiftSourceFiles", String.format("@%s", sourceFileList.getAbsolutePath()));
         context.put("swiftVersion", "5");
         String command = templateExecutor.execute(this.platformConfig.compileSwiftCmd, context);
         // LOGGER.info("swift-frontend command to compile swift source file: " + command);
