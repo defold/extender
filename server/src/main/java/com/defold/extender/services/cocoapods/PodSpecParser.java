@@ -22,7 +22,7 @@ import com.defold.extender.ExtenderException;
 
 public final class PodSpecParser {
     private static final Pattern BRACE_PATTERN = Pattern.compile("\\{([^{}]*)\\}");
-    private static final String SWIFT_PARALLEL_FLAG = String.format("-j%d", Runtime.getRuntime().availableProcessors());
+    // private static final String SWIFT_PARALLEL_FLAG = String.format("-j%d", Runtime.getRuntime().availableProcessors());
 
     public enum Platform {
         IPHONEOS,
@@ -281,7 +281,6 @@ public final class PodSpecParser {
         // add swift libs to the runtime search path
         if (!spec.swiftSourceFiles.isEmpty()) {
             spec.linkflags.add("-Wl,-rpath,/usr/lib/swift");
-            // spec.flags.swift.add(SWIFT_PARALLEL_FLAG);
         }
 
         // add ObjC link flag if pod contains Objective-C code
