@@ -191,10 +191,6 @@ public final class PodSpecParser {
         spec.flags.c.add("-fmodules");
         spec.flags.objc.add("-fmodules");
         spec.flags.objcpp.add("-fcxx-modules");
-        // spec.flags.c.add("-fmodule-name=" + spec.moduleName);
-        // spec.flags.objc.add("-fmodule-name=" + spec.moduleName);
-        // spec.flags.objcpp.add("-fmodule-name=" + spec.moduleName);
-
 
         // resources
         // https://guides.cocoapods.org/syntax/podspec.html#resources

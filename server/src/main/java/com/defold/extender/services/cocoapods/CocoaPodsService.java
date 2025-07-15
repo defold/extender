@@ -189,25 +189,6 @@ public class CocoaPodsService {
         }
     }
 
-    private void stripBitcode(File file, PlatformConfig config) throws ExtenderException {
-        String command = null;
-
-        // bitcodeStripCmd added in 1.8.1
-        if (config.bitcodeStripCmd != null) {
-            Map<String, Object> context = new HashMap<>(config.context);
-            context.put("source", file.getAbsolutePath());
-            context.put("target", file.getAbsolutePath());
-
-            command = templateExecutor.execute(config.bitcodeStripCmd, context);
-        }
-        else {
-            command = String.format("bitcode_strip %s -r -o %s", file.getAbsolutePath(), file.getAbsolutePath());
-        }
-
-        String log = ProcessUtils.execCommand(command);
-        LOGGER.info("\n" + log);
-    }
-
     private void unpackXCFrameworks(List<PodSpec> pods, File podsDir, PlatformConfig config) throws IOException, ExtenderException {
         LOGGER.info("Unpack xcframeworks");
 
