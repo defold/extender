@@ -15,6 +15,11 @@ plugins {
     id 'java'
     id 'idea'
     id 'org.springframework.boot' version '3.3.5'
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = "0.8.13"
 }
 
 apply plugin: 'io.spring.dependency-management'
@@ -206,5 +211,18 @@ task buildStandalone() {
 }
 
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        if (project.hasProperty("excludeTags")) {
+            excludeTags project.getProperty("excludeTags")
+        }
+    }
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test // tests must run before report
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }
