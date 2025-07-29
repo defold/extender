@@ -1,5 +1,6 @@
 package com.defold.extender.services.cocoapods;
 
+import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
@@ -38,16 +39,19 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 
 @Service
 @ConditionalOnProperty(prefix = "extender", name = "cocoapods.enabled", havingValue = "true")
 public class CocoaPodsService {
 
-    static MainPodfile createMainPodfile() {
-        return new MainPodfile();
+    static MainPodfile mainPodfileFromParseResult(PodfileParser.ParseResult parseResult, File workingDir) {
+        MainPodfile res = new MainPodfile();
+        res.file = new File(workingDir, "Podfile");
+        res.platform = parseResult.platform;
+        res.platformMinVersion = parseResult.minVersion;
+        res.podDefinitions = parseResult.podDefinitions;
+        res.useFrameworks = parseResult.useFrameworks;
+        return res;
     }
 
     private class InstalledPods {
@@ -114,24 +118,6 @@ public class CocoaPodsService {
         }
     }
 
-    // https://www.baeldung.com/java-comparing-versions#customSolution
-    private static int compareVersions(String version1, String version2) {
-        int result = 0;
-        String[] parts1 = version1.split("\\.");
-        String[] parts2 = version2.split("\\.");
-        int length = Math.max(parts1.length, parts2.length);
-        for (int i = 0; i < length; i++){
-            Integer v1 = i < parts1.length ? Integer.parseInt(parts1[i]) : 0;
-            Integer v2 = i < parts2.length ? Integer.parseInt(parts2[i]) : 0;
-            int compare = v1.compareTo(v2);
-            if (compare != 0) {
-                result = compare;
-                break;
-            }
-        }
-        return result;
-    }
-
     /**
      * Create the main Podfile with a list of all dependencies for all uploaded extensions
      * @param podFiles List of podfiles to merge into the main Pofile
@@ -139,28 +125,26 @@ public class CocoaPodsService {
      * @param workingDir The working directory where pods should be resolved
      * @param platform For which platform to resolve pods
      * @return Main pod file structure
+     * @throws PodfileParsingException
+     * @throws IOException 
      */
-    private MainPodfile createMainPodfile(List<File> podFiles, File jobDirectory, File workingDir, String platform, Map<String, Object> jobEnvContext) throws IOException {
-        MainPodfile mainPodfile = createMainPodfile();
-
-        mainPodfile.file = new File(workingDir, "Podfile");
-
-        // This file might exist when testing and debugging the extender using a debug job folder
-        podFiles.remove(mainPodfile.file);
-
-        mainPodfile.platformMinVersion = (platform.contains("ios") ? 
+    private MainPodfile createMainPodfile(ExtenderBuildState buildState, CocoaPodsServiceBuildState cocoapodsBuildState, List<File> podFiles, Map<String, Object> jobEnvContext) throws IOException, PodfileParsingException {
+        boolean isIOS = ExtenderUtil.isIOSTarget(buildState.getBuildPlatform());
+        String podPlatform = isIOS ? "ios" : "osx";
+        String defaultMinVersion = (isIOS ? 
             jobEnvContext.get("env.IOS_VERSION_MIN").toString(): 
             jobEnvContext.get("env.MACOS_VERSION_MIN").toString());
-        mainPodfile.platform = (platform.contains("ios") ? "ios" : "osx");
 
         // Load all Podfiles
-        List<String> pods = parsePodfiles(mainPodfile, podFiles);
+        PodfileParser.ParseResult podParseResult = parsePodfiles(podFiles, podPlatform, defaultMinVersion);
+        MainPodfile mainPodfile = mainPodfileFromParseResult(podParseResult, cocoapodsBuildState.getWorkingDir());
 
         // Create main Podfile contents
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("PLATFORM", mainPodfile.platform);
         envContext.put("PLATFORM_VERSION", mainPodfile.platformMinVersion);
-        envContext.put("PODS", pods);
+        envContext.put("PODS", mainPodfile.podDefinitions);
+        envContext.put("USE_FRAMEWORKS", mainPodfile.useFrameworks);
         String mainPodfileContents = templateExecutor.execute(podfileTemplateContents, envContext);
         LOGGER.info("Created main Podfile:\n{}", mainPodfileContents);
 
@@ -189,10 +173,10 @@ public class CocoaPodsService {
         }
     }
 
-    private void unpackXCFrameworks(List<PodSpec> pods, File podsDir, PlatformConfig config) throws IOException, ExtenderException {
+    private void unpackXCFrameworks(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodSpec> pods) throws IOException, ExtenderException {
         LOGGER.info("Unpack xcframeworks");
 
-        File targetSupportFileDir = new File(podsDir, "Target Support Files");
+        // File targetSupportFileDir = new File(podsDir, "Target Support Files");
         Set<String> handledPods = new HashSet<>();
         for (PodSpec spec : pods) {
             String podName = spec.getPodName();
@@ -200,7 +184,7 @@ public class CocoaPodsService {
                 continue;
             }
             handledPods.add(podName);
-            File unpackScript = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-xcframeworks.sh", podName)).toFile();
+            File unpackScript = Path.of(cocoapodsBuildState.getTargetSupportFilesDir().toString(), podName, String.format("%s-xcframeworks.sh", podName)).toFile();
             if (unpackScript.exists()) {
                 ProcessUtils.execCommand(List.of(
                     unpackScript.getAbsolutePath()
@@ -243,15 +227,13 @@ public class CocoaPodsService {
 
     /**
      * Install pods from a podfile and create PodSpec instances for each installed pod.
-     * @param selectedPlatform Platform which build for
-     * @param arch Architecture which build
-     * @param jobDir Directory of entire build job
-     * @param workingDir Directory where to install pods. The directory must contain a valid Podfile
+     * @param buildState Extender's build state
+     * @param cocoapodsBuildState Cocoapod's service build state
      * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
      * @return An InstalledPods object with installed pods
      */
-    private InstalledPods installPods(PodSpecParser.Platform selectedPlatform, String arch, File jobDir, 
-        File workingDir, Map<String, Object> jobEnvContext, String configuration) throws IOException, ExtenderException {
+    private InstalledPods installPods(ExtenderBuildState buildState, CocoaPodsServiceBuildState cocoapodsBuildState,
+        Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         Path cacheDir;
         // store current cache dir into local variable to use the same value for all 'pod' runs
@@ -260,6 +242,7 @@ public class CocoaPodsService {
         }
         InstalledPods installedPods = new InstalledPods();
 
+        File workingDir = cocoapodsBuildState.getWorkingDir();
         File podFile = new File(workingDir, "Podfile");
         if (!podFile.exists()) {
             throw new ExtenderException("Unable to find Podfile " + podFile);
@@ -366,16 +349,13 @@ public class CocoaPodsService {
                 //     "dependencies": {
                 //     "GoogleAppMeasurement": [
                 specJson = specJson.substring(specJson.indexOf("{", 0), specJson.length());
-                File buildDir = new File(jobDir, "build");
-                XCConfigParser parser = new XCConfigParser(buildDir, podsDir, selectedPlatform.toString().toLowerCase(), configuration, arch);
+                XCConfigParser parser = new XCConfigParser(buildState, cocoapodsBuildState);
                 PodSpecParser.CreatePodSpecArgs args = new PodSpecParser.CreatePodSpecArgs.Builder()
                     .setSpecJson(specJson)
-                    .setPodsDir(podsDir)
-                    .setBuildDir(buildDir)
                     .setJobContext(jobEnvContext)
-                    .setSelectedPlatform(selectedPlatform)
-                    .setConfiguration(configuration)
                     .setConfigParser(parser)
+                    .setExtenderBuildState(buildState)
+                    .setCocoapodsBuildState(cocoapodsBuildState)
                     .build();
                 installedPods.podsMap.put(podName, PodSpecParser.createPodSpec(args));
             } else {
@@ -406,12 +386,14 @@ public class CocoaPodsService {
      * @param configuration Build configuration ("debug", "release", "headless")
      * @return ResolvedPods instance with list of pods, install directory etc
      */
-    public ResolvedPods resolveDependencies(PlatformConfig config, File jobDir, String platform, String configuration) throws IOException, ExtenderException {
-        if (!platform.contains("ios") && !platform.contains("osx")) {
+    public ResolvedPods resolveDependencies(PlatformConfig config, ExtenderBuildState buildState) throws IOException, ExtenderException {
+        String platform = buildState.getBuildPlatform();
+        if (!ExtenderUtil.isAppleTarget(platform)) {
             throw new ExtenderException("Unsupported platform " + platform);
         }
 
         Map<String, Object> jobEnvContext = createJobEnvContext(config.context);
+        File jobDir = buildState.getJobDir();
 
         // find all podfiles and filter down to a list of podfiles specifically
         // for the platform we are resolving pods for
@@ -435,22 +417,9 @@ public class CocoaPodsService {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving Cocoapod dependencies");
 
-        File workingDir = new File(jobDir, "CocoaPodsService");
-        File frameworksDir = Path.of(jobDir.toString(), "build", "Debugiphoneos", "XCFrameworkIntermediates").toFile();
-        workingDir.mkdirs();
-        frameworksDir.mkdirs();
-        String[] platformParts = platform.split("-");
-        PodSpecParser.Platform selectedPlatform = PodSpecParser.Platform.UNKNOWN;
-        String arch = platformParts[0];
-        if (platform.contains("ios")) {
-            selectedPlatform = arch.equals("arm64") ? PodSpecParser.Platform.IPHONEOS : PodSpecParser.Platform.IPHONESIMULATOR;
-        } else if (platform.contains("osx")) {
-            selectedPlatform = PodSpecParser.Platform.MACOSX;
-        }
-
-        File podsDir = new File(workingDir, "Pods");
-        MainPodfile mainPodfile = createMainPodfile(platformPodfiles, jobDir, workingDir, platform, jobEnvContext);
-        InstalledPods installedPods = installPods(selectedPlatform, arch, jobDir, workingDir, jobEnvContext, configuration);
+        CocoaPodsServiceBuildState cocoapodsBuildState = new CocoaPodsServiceBuildState(buildState);
+        MainPodfile mainPodfile = createMainPodfile(buildState, cocoapodsBuildState, platformPodfiles, jobEnvContext);
+        InstalledPods installedPods = installPods(buildState, cocoapodsBuildState, jobEnvContext);
         List<PodSpec> pods = new ArrayList<>();
         for (String specName : installedPods.pods) {
             String podName = PodUtils.getPodName(specName);
@@ -468,57 +437,27 @@ public class CocoaPodsService {
             }
             pods.add(currentSpec);
         }
-        unpackXCFrameworks(pods, podsDir, config);
+        unpackXCFrameworks(cocoapodsBuildState,pods);
         generateSwiftCompatabilityModule(pods);
 
         dumpDir(jobDir, 0);
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.cocoapods.get", System.currentTimeMillis() - methodStart);
 
-        ResolvedPods resolvedPods = new ResolvedPods(podsDir, frameworksDir, pods, installedPods.podfileLock, mainPodfile.platformMinVersion);
+        ResolvedPods resolvedPods = new ResolvedPods(cocoapodsBuildState, pods, installedPods.podfileLock, mainPodfile);
         LOGGER.info("Resolved Cocoapod dependencies");
         LOGGER.info(resolvedPods.toString());
 
         return resolvedPods;
     }
 
-    static List<String> parsePodfiles(MainPodfile mainPodfile, List<File> podFiles) throws IOException {
-        // Load all Podfiles
-        Pattern podPattern = Pattern.compile("pod '([\\w|-]+)'.*");
-        List<String> pods = new ArrayList<>();
+    static PodfileParser.ParseResult parsePodfiles(List<File> podFiles, String platform, String defaultMinVersion) throws IOException, PodfileParsingException {
+        PodfileParser.ParseResult result = new PodfileParser.ParseResult(platform, defaultMinVersion);
         for (File podFile : podFiles) {
-            // Split each file into lines and go through them one by one
-            // Search for a Podfile platform and version configuration, examples:
-            //   platform :ios, '9.0'
-            //   platform :osx, '10.2'
-            // Get the version and figure out which is the highest version defined. This
-            // version will be used in the combined Podfile created by this function. 
-            // Treat everything else as pods
-            List<String> lines = Files.readAllLines(podFile.getAbsoluteFile().toPath());
-            for (String line : lines) {
-                if (line.isEmpty()) {
-                    continue;
-                }
-                if (line.startsWith("platform :")) {
-                    String version = line.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
-                    if (!version.isEmpty() && (compareVersions(version, mainPodfile.platformMinVersion) > 0)) {
-                        mainPodfile.platformMinVersion = version;
-                    }
-                }
-                else {
-                    pods.add(line);
-
-                    Matcher matcher = podPattern.matcher(line);
-                    if (matcher.matches()) {
-                        // get the pod name from the line
-                        // example: pod 'KSCrash', '1.17.4' -> KSCrash
-                        String podname = matcher.group(1);
-                        mainPodfile.podnames.add(podname);
-                    }
-                }
-            }
+            PodfileParser.ParseResult res = PodfileParser.parsePodfile(podFile);
+            result.mergeWith(res);
         }
-        return pods;
+        return result;
     }
 
     private Path generateCacheDirPath() {

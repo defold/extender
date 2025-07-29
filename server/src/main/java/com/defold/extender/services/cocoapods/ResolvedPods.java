@@ -27,6 +27,7 @@ public class ResolvedPods {
     private List<PodSpec> pods = new ArrayList<>();
     private File podsDir;
     private File frameworksDir;
+    private File targetSupportFilesDir;
     private String platformMinVersion;
     private File podFileLock;
     private List<String> additionIncludePaths;
@@ -36,12 +37,15 @@ public class ResolvedPods {
     private List<String> frameworks;
     private List<File> dynamicFrameworks;
     private List<String> weakFrameworks;
+    private boolean useFrameworks = false;
 
-    public ResolvedPods(File podsDir, File frameworksDir, List<PodSpec> specs, File podfileLock, String minVersion) throws IOException {
-        platformMinVersion = minVersion;
-        this.podsDir = podsDir;
-        this.frameworksDir = frameworksDir;
+    public ResolvedPods(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodSpec> specs, File podfileLock, MainPodfile mainPodfile) throws IOException {
+        this.platformMinVersion = mainPodfile.platformMinVersion;
+        this.podsDir = cocoapodsBuildState.getPodsDir();
+        this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
+        this.frameworksDir = cocoapodsBuildState.getUnpackedFrameworksDir();
         this.podFileLock = podfileLock;
+        this.useFrameworks = mainPodfile.useFrameworks;
 
         setPodsSpecs(specs);
     }
@@ -79,7 +83,7 @@ public class ResolvedPods {
         return new ArrayList<String>(flags);
     }
 
-    void addPodResources(PodSpec pod, Set<File> resources) {
+    public static void addPodResources(PodSpec pod, Set<File> resources) {
         File podDir = pod.dir;
         for (String resource : pod.resources) {
             resources.addAll(PodUtils.listFilesAndDirsGlob(podDir, resource));
@@ -173,12 +177,18 @@ public class ResolvedPods {
         return new ArrayList<String>(weakFrameworks);
     }
 
+    public static List<File> createPodResourceBundles(PodSpec spec, File targetDir, String platform) throws IOException, ExtenderException {
+        List<File> result = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : spec.resourceBundles.entrySet()) {
+            result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue()));
+        }
+        return result;
+    }
+
     public List<File> createResourceBundles(File targetDir, String platform) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
         for (PodSpec spec : pods) {
-            for (Map.Entry<String, List<String>> entry : spec.resourceBundles.entrySet()) {
-                result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue()));
-            }
+            result.addAll(createPodResourceBundles(spec, targetDir, platform));
         }
         return result;
     }
@@ -259,9 +269,17 @@ public class ResolvedPods {
         return podsDir;
     }
 
+    public boolean useFrameworks() {
+        return useFrameworks;
+    }
+
     @Deprecated
     public List<File> getPodsPrivacyManifests() {
         return ExtenderUtil.listFilesMatchingRecursive(podsDir, "PrivacyInfo.xcprivacy");
+    }
+
+    public File getTargetSupportFilesDir() {
+        return targetSupportFilesDir;
     }
 
     @Override

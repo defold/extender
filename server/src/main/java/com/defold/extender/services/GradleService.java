@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 
 import io.micrometer.core.instrument.Gauge;
@@ -23,9 +24,9 @@ public class GradleService {
         Gauge.builder("extender.job.gradle.cacheSize", this, GradleService::getCacheSize).baseUnit(BaseUnits.BYTES).register(registry);
     }
 
-    public List<File> resolveDependencies(Map<String, Object> env, File cwd, File buildDirectory, Boolean useJetifier, List<File> outputFiles)
+    public List<File> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles)
         throws IOException, ExtenderException {
-        return gradleService.resolveDependencies(env, cwd, buildDirectory, useJetifier, outputFiles);
+        return gradleService.resolveDependencies(buildState, env, outputFiles);
     }
 
     public long getCacheSize() {

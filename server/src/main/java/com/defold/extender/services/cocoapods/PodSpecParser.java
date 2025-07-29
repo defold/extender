@@ -18,6 +18,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 
 public final class PodSpecParser {
@@ -57,16 +58,6 @@ public final class PodSpecParser {
                 return this;
             }
 
-            public Builder setPodsDir(File podsDir) {
-                this.podsDir = podsDir;
-                return this;
-            }
-
-            public Builder setBuildDir(File buildDir) {
-                this.buildDir = buildDir;
-                return this;
-            }
-
             public Builder setParentSpec(PodSpec parent) {
                 this.parentSpec = parent;
                 return this;
@@ -77,18 +68,20 @@ public final class PodSpecParser {
                 return this;
             }
 
-            public Builder setSelectedPlatform(Platform platform) {
-                this.selectedPlatform = platform;
-                return this;
-            }
-
             public Builder setConfigParser(IConfigParser parser) {
                 this.configParser = parser;
                 return this;
             }
 
-            public Builder setConfiguration(String configuration) {
-                this.configuration = configuration;
+            public Builder setExtenderBuildState(ExtenderBuildState buildState) {
+                this.buildDir = buildState.getBuildDir();
+                this.configuration = buildState.getBuildConfiguration();
+                return this;
+            }
+
+            public Builder setCocoapodsBuildState(CocoaPodsServiceBuildState buildState) {
+                this.podsDir = buildState.getPodsDir();
+                this.selectedPlatform = buildState.getSelectedPlatform();
                 return this;
             }
 
@@ -276,6 +269,12 @@ public final class PodSpecParser {
                     addPodIncludePaths(spec, path);
                 }
             }
+        }
+
+        // collect public headers for case when need to build framework
+        List<String> publicHeaders = getAsList(specJson, "public_header_files");
+        for (String pattern : publicHeaders) {
+            spec.publicHeaders.addAll(PodUtils.listFilesGlob(spec.dir, pattern));
         }
 
         // add swift libs to the runtime search path
@@ -656,16 +655,11 @@ public final class PodSpecParser {
                 pod.swiftSourceFiles.add(podSrcFile);
                 pod.swiftSourceFilePaths.add(podSrcFile.getAbsolutePath());
             }
-            else {
-                if (!PodUtils.isHeaderFile(filename)) {
-                    pod.sourceFiles.add(podSrcFile);
-                } else {
-                    pod.headerFiles.add(podSrcFile);
-                }
+            else if (!PodUtils.isHeaderFile(filename)) {
+                pod.sourceFiles.add(podSrcFile);
             }
         }
     }
-
 
     /**
      * Add a list of include paths matching a pattern to a pod

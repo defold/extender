@@ -23,7 +23,7 @@ public class PodSpec {
     public Set<String> swiftSourceFilePaths = new LinkedHashSet<>();
     public Set<File> swiftSourceFiles = new LinkedHashSet<>();
     public Set<File> sourceFiles = new LinkedHashSet<>();
-    public Set<File> headerFiles = new LinkedHashSet<>();
+    public Set<File> publicHeaders = new LinkedHashSet<>();
     public Set<File> includePaths = new LinkedHashSet<>();
     public Set<File> frameworkSearchPaths = new LinkedHashSet<>();
     public PodSpec parentSpec = null;
