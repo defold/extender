@@ -24,12 +24,15 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -38,6 +41,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.util.Iterator;
 import java.util.Base64;
 import java.util.logging.Level;
@@ -47,10 +52,11 @@ public class ExtenderClient {
     private static Logger logger = Logger.getLogger(ExtenderClient.class.getName());
 
     private static final String TRACE_ID_HEADER_NAME = "X-TraceId";
+    static final String SOURCE_CODE_ARCHIVE_MAGIC_NAME = "__source_code__.zip";
+    static final String CACHE_INFO_NAME = "ne-cache-info.json";
 
     private final String extenderBaseUrl;
     private ExtenderClientCache cache;
-    private CookieStore httpCookies;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
     private List<BasicHeader> headers;
@@ -67,18 +73,34 @@ public class ExtenderClient {
      * @param cacheDir        A directory where the cache files are located (it must exist beforehand)
      */
     public ExtenderClient(String extenderBaseUrl, File cacheDir) throws IOException {
+        this(new BasicCookieStore(), extenderBaseUrl, cacheDir);
+    }
+
+    public ExtenderClient(CookieStore cookieStore,
+            String extenderBaseUrl,
+            File cacheDir) throws IOException {
+        this(new ExtenderClientCache(cacheDir), cookieStore,
+        HttpClientBuilder.create()
+            .setDefaultRequestConfig(
+                RequestConfig.custom()
+                .setExpectContinueEnabled(true)
+                .build()
+            )
+            .setDefaultCookieStore(cookieStore)
+            .build()
+        , extenderBaseUrl);
+    }
+
+    public ExtenderClient(ExtenderClientCache cache,
+            CookieStore cookieStore,
+            HttpClient httpClient,
+            String extenderBaseUrl) {
         this.extenderBaseUrl = extenderBaseUrl;
-        this.cache = new ExtenderClientCache(cacheDir);
-        this.httpCookies = new BasicCookieStore();
+        this.cache = cache;
         this.buildSleepTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-sleep-timeout", "5000"));
         this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "1200000"));
         this.headers = new ArrayList<BasicHeader>();
-        RequestConfig requestConfig = RequestConfig.custom()
-            .setExpectContinueEnabled(true).build();
-        HttpClientBuilder clientBuilder = HttpClientBuilder.create()
-                    .setDefaultRequestConfig(requestConfig)
-                    .setDefaultCookieStore(httpCookies);
-        this.httpClient = clientBuilder.build();
+        this.httpClient = httpClient;
     }
 
     private void log(String s, Object... args) {
@@ -174,13 +196,10 @@ public class ExtenderClient {
 
         try {
             String url = String.format("%s/query", extenderBaseUrl);
-            HttpPost request = new HttpPost(url);
+            HttpPost request = createPostRequest(url);
             request.setEntity(new ByteArrayEntity(data.getBytes()));
             request.setHeader("Accept", "application/json");
             request.setHeader("Content-type", "application/json");
-
-            addAuthorizationHeader(request);
-            addHeaders(request);
 
             HttpResponse response = httpClient.execute(request);
 
@@ -196,7 +215,7 @@ public class ExtenderClient {
     }
 
     // Gets a set of files that are currently cached
-    private static Set<String> getCachedFiles(String json) throws ExtenderClientException {
+    static Set<String> getCachedFiles(String json) throws ExtenderClientException {
         Set<String> cachedFiles = new HashSet<>();
 
         JSONObject root = null;
@@ -224,13 +243,10 @@ public class ExtenderClient {
     private void build_async(String platform, String sdkVersion, HttpEntity entity, File destination, File log) throws ExtenderClientException {
         try {
             String url = String.format("%s/build_async/%s/%s", extenderBaseUrl, platform, sdkVersion);
-            HttpPost request = new HttpPost(url);
+            HttpPost request = createPostRequest(url);
             request.setEntity(entity);
 
             log("Sending async build request to %s", url);
-
-            addAuthorizationHeader(request);
-            addHeaders(request);
 
             HttpResponse response = httpClient.execute(request);
 
@@ -284,7 +300,42 @@ public class ExtenderClient {
         } catch (Exception e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
         }
+    }
 
+    HttpEntity createBuildRequestPayload(List<ExtenderResource> sourceResources) throws ExtenderClientException {
+        MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
+        entityBuilder.setStrictMode();
+
+        // // Now, let's ask the server what files it already has
+        String cacheInfoJson = queryCache(sourceResources);
+        final Set<String> cachedFiles = cacheInfoJson != null ? getCachedFiles(cacheInfoJson) : Set.of();
+        if (cacheInfoJson != null) {
+            // add the updated info to the file
+            entityBuilder.addPart(CACHE_INFO_NAME, new ByteArrayBody(cacheInfoJson.getBytes(), CACHE_INFO_NAME)); // Same as specified in DataStoreService.java
+        }
+
+        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        try (ZipOutputStream zipStream = new ZipOutputStream(byteStream)) {
+            sourceResources.stream()
+            .filter(res -> {
+                return !cachedFiles.contains(res.getPath());
+            })
+            .forEach(res -> {
+                Path path = Path.of(res.getPath());
+                try {
+                    if (Files.isRegularFile(path)) {
+                        ZipEntry entry = new ZipEntry(path.toString());
+                        zipStream.putNextEntry(entry);
+                        Files.copy(path, zipStream);
+                        zipStream.closeEntry();
+                    }
+                } catch (IOException e) { }
+            });
+        } catch (IOException exc) {
+            throw new ExtenderClientException("Failed to create source code archive", exc);
+        }
+        entityBuilder.addPart(SOURCE_CODE_ARCHIVE_MAGIC_NAME, new ByteArrayBody(byteStream.toByteArray(), SOURCE_CODE_ARCHIVE_MAGIC_NAME));
+        return entityBuilder.build();
     }
 
     /**
@@ -306,36 +357,8 @@ public class ExtenderClient {
             return;
         }
 
-        MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
-        entityBuilder.setStrictMode();
-
-        // Now, let's ask the server what files it already has
-        String cacheInfoName = "ne-cache-info.json";
-        String cacheInfoJson = queryCache(sourceResources);
-        Set<String> cachedFiles = new HashSet<>();
-        if (cacheInfoJson != null) {
-            cachedFiles = getCachedFiles(cacheInfoJson);
-
-            // add the updated info to the file
-            entityBuilder.addPart(cacheInfoName, new ByteArrayBody(cacheInfoJson.getBytes(), cacheInfoName)); // Same as specified in DataStoreService.java
-        }
-
-        for (ExtenderResource s : sourceResources) {
-            // If the file was already cached, don't upload it
-            if (cachedFiles.contains(s.getPath())) {
-                continue;
-            }
-
-            ByteArrayBody bin;
-            try {
-                bin = new ByteArrayBody(s.getContent(), s.getPath());
-            } catch (IOException e) {
-                throw new ExtenderClientException("Error while getting content for " + s.getPath() + ": " + e.getMessage());
-            }
-            entityBuilder.addPart(s.getPath(), bin);
-        }
-
-        build_async(platform, sdkVersion, entityBuilder.build(), destination, log);
+        HttpEntity payload = createBuildRequestPayload(sourceResources);
+        build_async(platform, sdkVersion, payload, destination, log);
 
         // Store the new build
         cache.put(platform, cacheKey, destination);
@@ -354,14 +377,27 @@ public class ExtenderClient {
     }
 
     public boolean health() throws IOException {
-        HttpGet request = new HttpGet(extenderBaseUrl);
-        addAuthorizationHeader(request);
-        addHeaders(request);
+        HttpGet request = createGetRequest(extenderBaseUrl);
         HttpResponse response = httpClient.execute(request);
         EntityUtils.consumeQuietly(response.getEntity());
         if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
             return true;
         }
         return false;
+    }
+
+    public HttpGet createGetRequest(String url) throws UnsupportedEncodingException {
+        HttpGet request = new HttpGet(extenderBaseUrl);
+        addAuthorizationHeader(request);
+        addHeaders(request);
+        return request;
+    }
+
+    public HttpPost createPostRequest(String url) throws UnsupportedEncodingException {
+        HttpPost request = new HttpPost(url);
+
+        addAuthorizationHeader(request);
+        addHeaders(request);
+        return request;
     }
 }

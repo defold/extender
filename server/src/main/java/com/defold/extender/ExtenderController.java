@@ -56,6 +56,8 @@ public class ExtenderController {
     // Used to verify the uploaded filenames
     private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ](?:[\\w+\\-\\/ @]|(?:\\.[\\w+\\-\\/ ]*))+)$");
 
+    private static final String SOURCE_CODE_ARCHIVE_MAGIC_NAME = "__source_code__.zip";
+
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
     private final MeterRegistry meterRegistry;
@@ -383,6 +385,13 @@ public class ExtenderController {
             if (DM_DEBUG_JOB_UPLOAD != null) {
                 System.out.printf("    %s\n", file.toPath());
             }
+        }
+
+        // check if source code archive presented
+        File sourceCodeArchive = new File(uploadDirectory, SOURCE_CODE_ARCHIVE_MAGIC_NAME);
+        if (sourceCodeArchive.exists()) {
+            LOGGER.debug("Source code archive found. Unarchiving...");
+            ZipUtils.unzip(new FileInputStream(sourceCodeArchive), uploadDirectory.toPath());
         }
     }
 
