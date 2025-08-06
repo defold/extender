@@ -45,6 +45,7 @@ import java.util.zip.ZipFile;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.cocoapods.PodSpec;
+import com.defold.extender.services.cocoapods.PodUtils;
 import com.defold.extender.services.cocoapods.ResolvedPods;
 import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.Markers;
@@ -974,46 +975,56 @@ class Extender {
         // 2. Collect resource bundles
         List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, targetBuildDir, targetPlatform);
 
-        // 1. Compile library
-        File library = buildPodLibrary(spec);
-        if (library != null && library.exists()) {
+        if (PodUtils.hasSourceFiles(spec)) {
             String podName = spec.getPodName();
             // 0. Create output folder and output framework folder
-            File frameworkDir = new File(targetBuildDir, String.format("%s.framework", podName));
+            File frameworkDir = new File(targetBuildDir, String.format("%s.framework", spec.moduleName));
             frameworkDir.mkdirs();
             File frameworkHeaders = new File(frameworkDir, "Headers");
             frameworkHeaders.mkdir();
             File frameworkModules = new File(frameworkDir, "Modules");
             frameworkModules.mkdir();
 
-            FileUtils.copyFile(library, new File(frameworkDir, podName));
             // Collect headers
             for (File header : spec.publicHeaders) {
                 FileUtils.copyFileToDirectory(header, frameworkHeaders);
             }
 
-            File sourceModuleMap = Path.of(targetSupportFileDir.toString(), podName, String.format("%s.modulemap", spec.moduleName)).toFile();
+            // copy first time
+            File sourceModuleMap = Path.of(targetSupportFileDir.toString(), podName, String.format("%s.modulemap", podName)).toFile();
             FileUtils.copyFile(sourceModuleMap, new File(frameworkModules, "module.modulemap"));
 
             File sourceUmbrellaHeader = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-umbrella.h", podName)).toFile();
             FileUtils.copyFileToDirectory(sourceUmbrellaHeader, frameworkHeaders);
+
+            spec.frameworkSearchPaths.add(frameworkDir);
+            // 1. Compile library
+            File library = buildPodLibrary(spec);
+
+            FileUtils.copyFile(library, new File(frameworkDir, podName));
+
             // copy from generateSwiftCompatabilityHeader
             if (spec.swiftModuleHeader != null && spec.swiftModuleHeader.exists()) {
                 FileUtils.copyFileToDirectory(spec.swiftModuleHeader, frameworkHeaders);
+                // copy the second time because during generating swift compatibility header modulemap was updated
+                File updatedModuleMap = new File(targetBuildDir, String.format("%s.modulemap", spec.moduleName));
+                FileUtils.copyFile(updatedModuleMap, new File(frameworkModules, "module.modulemap"), StandardCopyOption.REPLACE_EXISTING);
             }
+
             // umbrella - from target support files
             // swift compatability header - separate step
             // 3. Collect modules
             // 4. Create swift compatability header
             // 4.1. Copy swift module 
+            // builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/yauheni/Library/Developer/Xcode/DerivedData/test-podfile-ezjrhlzobaovdrgjvrmvebofenvg/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/DivKit.build/Objects-normal/arm64/DivKit.swiftmodule /Users/yauheni/Library/Developer/Xcode/DerivedData/test-podfile-ezjrhlzobaovdrgjvrmvebofenvg/Build/Products/Debug-iphonesimulator/DivKit/DivKit.framework/Modules/DivKit.swiftmodule/arm64-apple-ios-simulator.swiftmodule
             File swiftModule = new File(spec.buildDir, spec.moduleName + ".swiftmodule");
             if (swiftModule.exists()) {
                 File targetSwiftModuleDir = new File(frameworkModules, spec.moduleName + ".swiftmodule");
                 targetSwiftModuleDir.mkdir();
-                FileUtils.copyFileToDirectory(swiftModule, targetSwiftModuleDir);
+                File targetSwiftModuleName = new File(targetSwiftModuleDir, String.format("%s.swiftmodule", PodUtils.swiftModuleNameFromPlatform(targetPlatform)));
+                FileUtils.copyFile(swiftModule, targetSwiftModuleName, StandardCopyOption.REPLACE_EXISTING);
             }
             // 4.2. Copy modulemap
-            // builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/yauheni/Library/Developer/Xcode/DerivedData/test-podfile-ezjrhlzobaovdrgjvrmvebofenvg/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/DivKit.build/Objects-normal/arm64/DivKit.swiftmodule /Users/yauheni/Library/Developer/Xcode/DerivedData/test-podfile-ezjrhlzobaovdrgjvrmvebofenvg/Build/Products/Debug-iphonesimulator/DivKit/DivKit.framework/Modules/DivKit.swiftmodule/arm64-apple-ios-simulator.swiftmodule
 
             for (File bundle : resourceBundles) {
                 FileUtils.copyDirectoryToDirectory(bundle, frameworkDir);

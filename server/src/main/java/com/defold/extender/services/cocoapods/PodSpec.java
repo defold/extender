@@ -20,7 +20,7 @@ public class PodSpec {
     // Extender.java as part of the process when building .swift files
     public File swiftModuleHeader = null;
     public String swiftModuleDefinition = null;
-    public Set<String> swiftSourceFilePaths = new LinkedHashSet<>();
+    public Set<String> swiftSourceFilePaths = new LinkedHashSet<>(); // list of absolute file path which used to create temprorary file with paths to include into comile command as @tmp_path
     public Set<File> swiftSourceFiles = new LinkedHashSet<>();
     public Set<File> sourceFiles = new LinkedHashSet<>();
     public Set<File> publicHeaders = new LinkedHashSet<>();
