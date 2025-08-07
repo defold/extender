@@ -134,7 +134,7 @@ public final class PodSpecParser {
 
         // generated files relating to the pod
         // modulemap, swift header etc
-        spec.buildDir = Path.of(args.buildDir.toString(), String.format("%s%s", args.configuration, args.selectedPlatform.toString().toLowerCase()), spec.name).toFile();
+        spec.buildDir = Path.of(args.buildDir.toString(), String.format("%s%s", args.configuration, args.selectedPlatform.toString().toLowerCase()), spec.getPodName()).toFile();
         spec.buildDir.mkdirs();
 
         // inherit flags and defines from the parent

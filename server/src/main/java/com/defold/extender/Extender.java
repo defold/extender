@@ -451,13 +451,14 @@ class Extender {
     }
 
     private List<String> getFrameworks(File dir) {
-        List<String> frameworks = new ArrayList<>();
-        final String[] platformParts = buildState.fullPlatform.split("-");
-        frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + buildState.fullPlatform), FRAMEWORK_RE)); // e.g. armv64-ios
-        if (platformParts.length == 2) {
-            frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
-        }
-        return frameworks;
+        // List<String> frameworks = new ArrayList<>();
+        // final String[] platformParts = buildState.fullPlatform.split("-");
+        // frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + buildState.fullPlatform), FRAMEWORK_RE)); // e.g. armv64-ios
+        // if (platformParts.length == 2) {
+        //     frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
+        // }
+        // return frameworks;
+        return List.of();
     }
 
     // Get a list of subfolders matching the current platform
@@ -971,7 +972,7 @@ class Extender {
     }
 
     void buildPodAsFramework(PodSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
-        File targetBuildDir = Path.of(buildState.buildDir.toString(), "Debugiphoneos", spec.getPodName()).toFile();
+        File targetBuildDir = spec.buildDir;
         // 2. Collect resource bundles
         List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, targetBuildDir, targetPlatform);
 
@@ -1003,7 +1004,7 @@ class Extender {
             // 1. Compile library
             File library = buildPodLibrary(spec);
 
-            FileUtils.copyFile(library, new File(frameworkDir, podName));
+            FileUtils.copyFile(library, new File(frameworkDir, spec.moduleName));
 
             // copy from generateSwiftCompatabilityHeader
             if (spec.swiftModuleHeader != null && spec.swiftModuleHeader.exists()) {
@@ -1076,7 +1077,7 @@ class Extender {
         List<String> objs = compilePodSourceFiles(spec, manifestContext);
         if (!objs.isEmpty()) {
             // Create c++ library
-            File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
+            File lib = new File(spec.buildDir ,String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
             Map<String, Object> context = createContext(manifestContext);
             context.put("tgt", lib);
             context.put("objs", objs);
@@ -1419,12 +1420,12 @@ class Extender {
     }
 
     private void getProjectPaths(Map<String, Object> mainContext, Map<String, Object> env) throws ExtenderException, IOException {
-        List<String> extLibs = new ArrayList<>();
-        List<String> extShLibs = new ArrayList<>();
-        List<String> extLibPaths = new ArrayList<>(Arrays.asList(buildState.buildDir.toString()));
-        List<String> extFrameworks = new ArrayList<>();
-        List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(buildState.buildDir.toString()));
-        List<String> extJsLibs = new ArrayList<>();
+        Collection<String> extLibs = new HashSet<>();
+        Collection<String> extShLibs = new HashSet<>();
+        Collection<String> extLibPaths = new HashSet<>(Arrays.asList(buildState.buildDir.toString()));
+        Collection<String> extFrameworks = new HashSet<>();
+        Collection<String> extFrameworkPaths = new HashSet<>(Arrays.asList(buildState.buildDir.toString()));
+        Collection<String> extJsLibs = new HashSet<>();
 
         extShLibs.addAll(ExtenderUtil.collectFilesByName(buildState.buildDir, platformConfig.shlibRe));
         extLibs.addAll(ExtenderUtil.collectFilesByName(buildState.buildDir, platformConfig.stlibRe));
@@ -1472,7 +1473,9 @@ class Extender {
         extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs"));
 
         // This is a workaround due to a linker crash when the helpshift "Support" library is in front of the Facebook extension (not certain of this though)
-        Collections.sort(extLibs, Collections.reverseOrder());
+
+        // TODO: Check it one more time
+        // Collections.sort(extLibs, Collections.reverseOrder());
 
         env.put("libs", extLibs);
         env.put("dynamicLibs", extShLibs);

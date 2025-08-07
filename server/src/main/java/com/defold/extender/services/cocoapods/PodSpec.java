@@ -34,7 +34,7 @@ public class PodSpec {
 
     public LanguageSet flags = new LanguageSet();
     public Set<String> defines = new HashSet<>();
-    public Set<String> linkflags = new HashSet<>();
+    public List<String> linkflags = new ArrayList<>();
     public Set<String> vendoredFrameworks = new LinkedHashSet<>();
     public Set<String> weakFrameworks = new HashSet<>();
     public Set<String> resources = new HashSet<>();

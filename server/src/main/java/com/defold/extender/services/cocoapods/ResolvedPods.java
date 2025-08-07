@@ -66,17 +66,19 @@ public class ResolvedPods {
         for (PodSpec pod : pods) {
             addPodLibs(pod, libs);
         }
-        libs.addAll(ExtenderUtil.collectStaticLibsByName(frameworksDir));
+        if (!useFrameworks) {
+            libs.addAll(ExtenderUtil.collectStaticLibsByName(frameworksDir));
+        }
         return new ArrayList<>(libs);
     }
 
-    void addPodLinkFlags(PodSpec pod, Set<String> flags) {
+    void addPodLinkFlags(PodSpec pod, List<String> flags) {
         flags.addAll(pod.linkflags);
         if (pod.parentSpec != null) addPodLinkFlags(pod.parentSpec, flags);
     }
 
     public List<String> getAllPodLinkFlags() {
-        Set<String> flags = new LinkedHashSet<>();
+        List<String> flags = new ArrayList<>();
         for (PodSpec pod : pods) {
             addPodLinkFlags(pod, flags);
         }
@@ -229,16 +231,17 @@ public class ResolvedPods {
         return frameworks;
     }
 
-    public List<String> getBuiltFrameworks() {
+    public Set<String> getBuiltFrameworks() {
         if (!useFrameworks) {
-            return List.of();
+            return Set.of();
         }
-        // for (PodSpec spec : pods) {
-        //     if (PodUtils.hasSourceFiles(spec)) {
-                
-        //     }
-        // }
-        return List.of();
+        Set<String> result = new HashSet<>();
+        for (PodSpec spec : pods) {
+            if (PodUtils.hasSourceFiles(spec)) {
+                result.add(spec.moduleName);
+            }
+        }
+        return result;
     }
 
     public List<String> getWeakFrameworks() {
