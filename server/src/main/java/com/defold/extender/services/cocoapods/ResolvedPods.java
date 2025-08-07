@@ -229,6 +229,18 @@ public class ResolvedPods {
         return frameworks;
     }
 
+    public List<String> getBuiltFrameworks() {
+        if (!useFrameworks) {
+            return List.of();
+        }
+        // for (PodSpec spec : pods) {
+        //     if (PodUtils.hasSourceFiles(spec)) {
+                
+        //     }
+        // }
+        return List.of();
+    }
+
     public List<String> getWeakFrameworks() {
         return weakFrameworks;
     }

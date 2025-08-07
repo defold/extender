@@ -977,7 +977,7 @@ class Extender {
 
         if (PodUtils.hasSourceFiles(spec)) {
             String podName = spec.getPodName();
-            // 0. Create output folder and output framework folder
+            // 0.    Create output folder and output framework folder
             File frameworkDir = new File(targetBuildDir, String.format("%s.framework", spec.moduleName));
             frameworkDir.mkdirs();
             File frameworkHeaders = new File(frameworkDir, "Headers");
@@ -998,6 +998,8 @@ class Extender {
             FileUtils.copyFileToDirectory(sourceUmbrellaHeader, frameworkHeaders);
 
             spec.frameworkSearchPaths.add(frameworkDir);
+            // HACK to mimic headermap behaviour
+            spec.includePaths.add(frameworkHeaders);
             // 1. Compile library
             File library = buildPodLibrary(spec);
 
@@ -1429,6 +1431,7 @@ class Extender {
 
         if (resolvedPods != null) {
             extFrameworks.addAll(resolvedPods.getFrameworks());
+            extFrameworks.addAll(resolvedPods.getBuiltFrameworks());
             extFrameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
             extLibs.addAll(resolvedPods.getStaticLibraries());
             extLibPaths.addAll(resolvedPods.getLibrarySearchPaths());
