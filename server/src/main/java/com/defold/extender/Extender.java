@@ -2471,8 +2471,8 @@ class Extender {
     }
 
 
-    private List<File> copyMetaInformationFiles(List<String> allJars) {
-        List<File> result = new ArrayList<>();
+    private Set<File> copyMetaInformationFiles(List<String> allJars) {
+        Set<File> result = new HashSet<>();
         File metaInfDir = new File(buildDirectory, "META-INF");
         metaInfDir.mkdir();
         for (String jarPath : allJars) {
