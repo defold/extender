@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -108,11 +109,14 @@ public class ResolvedPods {
         if (pod.parentSpec != null) addPodFrameworks(pod.parentSpec, frameworks);
     }
 
-    List<String> collectFrameworkPaths() throws IOException {
+    List<String> collectFrameworkPaths() {
         Set<String> frameworkPaths = new HashSet<>();
         for (PodSpec spec : pods) {
             for (File f : spec.frameworkSearchPaths) {
                 frameworkPaths.add(f.toString());
+            }
+            if (useFrameworks) {
+                frameworkPaths.add(spec.buildDir.toString());
             }
         }
         return new ArrayList<>(frameworkPaths);
@@ -164,6 +168,19 @@ public class ResolvedPods {
         });
 
         return new ArrayList<File>(dynamicFrameworks);
+    }
+
+    List<String> collectAdditionalIncludePaths() {
+        if (useFrameworks) {
+            return List.of();
+        }
+        Set<String> includePaths = new HashSet<>();
+        for (PodSpec spec: pods) {
+            for (File path : spec.includePaths) {
+                includePaths.add(path.toString());
+            }
+        }
+        return new ArrayList<String>(includePaths);
     }
 
     void addPodWeakFrameworks(PodSpec pod, Set<String> weakFrameworks) {
@@ -218,13 +235,32 @@ public class ResolvedPods {
     }
 
     public void setPodsSpecs(List<PodSpec> specs) throws IOException {
-        pods = specs;
+        // iterate over all spec selected for build
+        // then we need to union all ubspces with parent spec and build it as one artifact
+
+        // this map we will use for fast access to parent spec
+        Map<String, PodSpec> unitedSpecs = new HashMap<>();
+        pods = new ArrayList<>();
+
+        for (PodSpec spec : specs) {
+            String podName = spec.getPodName();
+            if (!unitedSpecs.containsKey(podName)) {
+                PodSpec s = new PodSpec(spec.parentSpec == null ? spec : spec.parentSpec);
+                unitedSpecs.put(podName, s);
+                pods.add(s);
+            }
+
+            PodSpec parentSpec = unitedSpecs.get(podName);
+            PodSpec.mergeSpecs(parentSpec, spec);
+        }
+
         frameworkSearchPaths = collectFrameworkPaths();
         librarySearchPaths = collectFrameworkStaticLibPaths();
         staticLibraries = collectPodLibs();
         frameworks = collectAllPodFrameworks();
         dynamicFrameworks = collectAllPodsDynamicFrameworks();
         weakFrameworks = collectPodWeakFrameworks();
+        additionIncludePaths = collectAdditionalIncludePaths();
     }
 
     public List<String> getFrameworks() {

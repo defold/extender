@@ -12,6 +12,16 @@ public class LanguageSet {
     public Set<String> objcpp = new LinkedHashSet<>();
     public List<String> swift = new ArrayList<>();
 
+    public LanguageSet() {}
+
+    public LanguageSet(LanguageSet other) {
+        this.c.addAll(other.c);
+        this.cpp.addAll(other.cpp);
+        this.objc.addAll(other.objc);
+        this.objcpp.addAll(other.objcpp);
+        this.swift.addAll(other.swift);
+    }
+
     public void add(String value) {
         c.add(value);
         cpp.add(value);

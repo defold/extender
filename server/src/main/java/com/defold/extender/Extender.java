@@ -570,6 +570,7 @@ class Extender {
         for (File path : pod.includePaths) {
             result.add(path.toString());
         }
+
         if (pod.swiftModuleHeader != null) {
             result.add(pod.swiftModuleHeader.toPath().getParent().toString());
         }
@@ -845,14 +846,7 @@ class Extender {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
 
-        List<String> additionalIncludes = new ArrayList<>();
-        if (resolvedPods != null) {
-            for (PodSpec spec : resolvedPods.getPodSpecs()) {
-                for (File path : spec.includePaths) {
-                    additionalIncludes.add(path.toString());
-                }
-            }
-        }
+        List<String> additionalIncludes = resolvedPods != null ? resolvedPods.getAdditionalIncludePaths() : List.of();
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
 
@@ -972,14 +966,13 @@ class Extender {
     }
 
     void buildPodAsFramework(PodSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
-        File targetBuildDir = spec.buildDir;
         // 2. Collect resource bundles
-        List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, targetBuildDir, targetPlatform);
+        List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform);
 
         if (PodUtils.hasSourceFiles(spec)) {
             String podName = spec.getPodName();
             // 0.    Create output folder and output framework folder
-            File frameworkDir = new File(targetBuildDir, String.format("%s.framework", spec.moduleName));
+            File frameworkDir = new File(spec.buildDir, String.format("%s.framework", spec.moduleName));
             frameworkDir.mkdirs();
             File frameworkHeaders = new File(frameworkDir, "Headers");
             frameworkHeaders.mkdir();
@@ -998,9 +991,8 @@ class Extender {
             File sourceUmbrellaHeader = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-umbrella.h", podName)).toFile();
             FileUtils.copyFileToDirectory(sourceUmbrellaHeader, frameworkHeaders);
 
-            spec.frameworkSearchPaths.add(frameworkDir);
             // HACK to mimic headermap behaviour
-            spec.includePaths.add(frameworkHeaders);
+            // spec.includePaths.add(frameworkHeaders);
             // 1. Compile library
             File library = buildPodLibrary(spec);
 
@@ -1010,7 +1002,7 @@ class Extender {
             if (spec.swiftModuleHeader != null && spec.swiftModuleHeader.exists()) {
                 FileUtils.copyFileToDirectory(spec.swiftModuleHeader, frameworkHeaders);
                 // copy the second time because during generating swift compatibility header modulemap was updated
-                File updatedModuleMap = new File(targetBuildDir, String.format("%s.modulemap", spec.moduleName));
+                File updatedModuleMap = new File(spec.buildDir, String.format("%s.modulemap", spec.moduleName));
                 FileUtils.copyFile(updatedModuleMap, new File(frameworkModules, "module.modulemap"), StandardCopyOption.REPLACE_EXISTING);
             }
 

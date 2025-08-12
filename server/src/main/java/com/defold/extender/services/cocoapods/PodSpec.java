@@ -44,6 +44,36 @@ public class PodSpec {
     public File dir;
     public File buildDir;
 
+    public PodSpec() {}
+
+    public PodSpec(PodSpec spec) {
+        this.name = spec.name;
+        this.moduleName = spec.moduleName;
+        this.version = spec.version;
+        this.platformVersion = spec.platformVersion;
+        this.swiftModuleHeader = spec.swiftModuleHeader;
+        this.swiftModuleDefinition = spec.swiftModuleDefinition;
+        this.swiftSourceFilePaths = new LinkedHashSet<>(spec.swiftSourceFilePaths);
+        this.swiftSourceFiles = new LinkedHashSet<>(spec.swiftSourceFiles);
+        this.sourceFiles = new LinkedHashSet<>(spec.sourceFiles);
+        this.publicHeaders = new LinkedHashSet<>(spec.publicHeaders);
+        this.includePaths = new LinkedHashSet<>(spec.includePaths);
+        this.frameworkSearchPaths = new LinkedHashSet<>(spec.frameworkSearchPaths);
+        this.dependencies = new ArrayList<>(spec.dependencies);
+        this.resourceBundles = new HashMap<>(spec.resourceBundles);
+
+        this.flags = new LanguageSet(spec.flags);
+        this.defines = new HashSet<>(spec.defines);
+        this.linkflags = new ArrayList<>(spec.linkflags);
+        this.vendoredFrameworks = new LinkedHashSet<>(spec.vendoredFrameworks);
+        this.weakFrameworks = new HashSet<>(spec.weakFrameworks);
+        this.resources = new HashSet<>(spec.resources);
+        this.frameworks = new HashSet<>(spec.frameworks);
+        this.libraries = new HashSet<>(spec.libraries);
+        this.dir = spec.dir;
+        this.buildDir = spec.buildDir;
+    }
+
     public PodSpec getSubspec(String name) {
         for (PodSpec spec : subspecs) {
             if (spec.name.equals(name)) {
@@ -58,6 +88,35 @@ public class PodSpec {
             return parentSpec.getPodName();
         }
         return name;
+    }
+
+    // merge specB into specA and return updated specA
+    static PodSpec mergeSpecs(PodSpec specA, PodSpec specB) {
+        specA.swiftSourceFilePaths.addAll(specB.swiftSourceFilePaths);
+        specA.swiftSourceFiles.addAll(specB.swiftSourceFiles);
+        specA.sourceFiles.addAll(specB.sourceFiles);
+        specA.publicHeaders.addAll(specB.publicHeaders);
+        specA.includePaths.addAll(specB.includePaths);
+        specA.frameworkSearchPaths.addAll(specB.frameworkSearchPaths);
+        specA.dependencies.addAll(specB.dependencies);
+        specA.resourceBundles.putAll(specB.resourceBundles);
+
+        specA.flags.addAll(specB.flags);
+        specA.defines.addAll(specB.defines);
+        specA.linkflags.addAll(specB.linkflags);
+        specA.vendoredFrameworks.addAll(specB.vendoredFrameworks);
+        specA.weakFrameworks.addAll(specB.weakFrameworks);
+        specA.resources.addAll(specB.resources);
+        specA.frameworks.addAll(specB.frameworks);
+        specA.libraries.addAll(specB.libraries);
+        if (specA.swiftModuleHeader == null) {
+            specA.swiftModuleHeader = specB.swiftModuleHeader;
+        }
+        if (specA.swiftModuleDefinition == null) {
+            specA.swiftModuleDefinition = specB.swiftModuleDefinition;
+        }
+
+        return specA;
     }
 
     @Override
