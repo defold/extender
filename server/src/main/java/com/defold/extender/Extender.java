@@ -6,6 +6,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,7 @@ import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.cocoapods.PodSpec;
 import com.defold.extender.services.cocoapods.PodUtils;
 import com.defold.extender.services.cocoapods.ResolvedPods;
+import com.defold.extender.utils.PodBuildUtil;
 import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
@@ -970,6 +972,7 @@ class Extender {
         List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform);
 
         if (PodUtils.hasSourceFiles(spec)) {
+            Map<String, Collection<File>> enumeratedFiles = new HashMap<>();
             String podName = spec.getPodName();
             // 0.    Create output folder and output framework folder
             File frameworkDir = new File(spec.buildDir, String.format("%s.framework", spec.moduleName));
@@ -979,18 +982,23 @@ class Extender {
             File frameworkModules = new File(frameworkDir, "Modules");
             frameworkModules.mkdir();
 
+            String frameworkHeadersDirPath = frameworkHeaders.toString();
             // Collect headers
             for (File header : spec.publicHeaders) {
                 FileUtils.copyFileToDirectory(header, frameworkHeaders);
+                PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkHeadersDirPath, header);
             }
 
             // copy first time
             File sourceModuleMap = Path.of(targetSupportFileDir.toString(), podName, String.format("%s.modulemap", podName)).toFile();
             FileUtils.copyFile(sourceModuleMap, new File(frameworkModules, "module.modulemap"));
+            PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkModules.toString(), sourceModuleMap);
 
             File sourceUmbrellaHeader = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-umbrella.h", podName)).toFile();
             FileUtils.copyFileToDirectory(sourceUmbrellaHeader, frameworkHeaders);
+            PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkHeadersDirPath, sourceUmbrellaHeader);
 
+            PodBuildUtil.generateVFSOverlay(spec, enumeratedFiles);
             // 1. Compile library
             File library = buildPodLibrary(spec);
 
@@ -1078,33 +1086,6 @@ class Extender {
         return null;
     }
 
-    File generateHeaderMap(PodSpec spec) throws IOException, ExtenderException {
-        JSONObject root = new JSONObject();
-        String podName = spec.getPodName();
-        for (File header : spec.privateHeaders) {
-            String filename = header.getName();
-            String directory = header.getParent();
-            Map<String, String> data = Map.of("suffix", filename, "prefix", String.format("%s/", directory));
-            root.putAll(Map.of(filename, data));
-            root.putAll(Map.of(String.format("%s/%s", podName, filename), data));
-        }
-        for (File header : spec.publicHeaders) {
-            String filename = header.getName();
-            Map<String, String> data = Map.of("suffix", filename, "prefix", String.format("%s/", podName));
-            root.putAll(Map.of(filename, data));
-        }
-        String serialized = root.toJSONString();
-        File jsonHeaderMap = new File(spec.headerMapFile.getParentFile(), String.format("%s.json", podName));
-        Files.writeString(jsonHeaderMap.toPath(), serialized, StandardCharsets.UTF_8);
-        ProcessUtils.execCommand(List.of(
-            "hmap",
-            "convert",
-            jsonHeaderMap.toString(),
-            spec.headerMapFile.toString()
-        ), null, Map.of());
-        return spec.headerMapFile;
-    }
-
     // build the source files of each resolved pod file into a library
     private List<File> buildPods() throws IOException, InterruptedException, ExtenderException {
         List<File> outputFiles = new ArrayList<>();
@@ -1116,7 +1097,7 @@ class Extender {
         boolean asFramework = resolvedPods.useFrameworks();
         LOGGER.info("buildPods - compiling pod source file as {}", asFramework ? "frameworks" : "libraries");
         for (PodSpec pod : resolvedPods.getPodSpecs()) {
-            generateHeaderMap(pod);
+            PodBuildUtil.generateHeaderMap(pod);
             if (asFramework) {
                 buildPodAsFramework(pod, buildState.fullPlatform, resolvedPods.getTargetSupportFilesDir());
             } else {

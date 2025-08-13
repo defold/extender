@@ -309,6 +309,10 @@ public final class PodSpecParser {
         spec.flags.add(String.format("-iquote %s", spec.headerMapFile.toString()));
         spec.flags.swift.add(String.format("-Xcc -iquote -Xcc %s", spec.headerMapFile.toString()));
 
+        spec.vfsOverlay = new File(spec.intermidiatedDir, "all_files.yaml");
+        spec.flags.add(String.format("-ivfsoverlay %s", spec.vfsOverlay.toString()));
+        spec.flags.swift.add(String.format("-Xcc -ivfsoverlay -Xcc %s", spec.vfsOverlay.toString()));
+
         return spec;
     }
 

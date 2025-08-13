@@ -19,8 +19,8 @@ import org.slf4j.LoggerFactory;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
-import com.defold.extender.FrameworkUtil;
 import com.defold.extender.services.cocoapods.PlistBuddyWrapper.CreateBundlePlistArgs;
+import com.defold.extender.utils.FrameworkUtil;
 
 public class ResolvedPods {
     private static final Logger LOGGER = LoggerFactory.getLogger(ResolvedPods.class);

@@ -17,6 +17,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.io.Resource;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.access.method.P;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
@@ -435,6 +436,11 @@ public class CocoaPodsService {
                     currentSpec = subspec;
                 }
             }
+
+            for (String subSpecName : currentSpec.dependencies) {
+                currentSpec.dependantSpecs.add(installedPods.podsMap.get(PodUtils.getPodName(subSpecName)));
+            }
+
             pods.add(currentSpec);
         }
         unpackXCFrameworks(cocoapodsBuildState,pods);

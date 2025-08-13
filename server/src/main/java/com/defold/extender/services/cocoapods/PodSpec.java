@@ -2,6 +2,7 @@ package com.defold.extender.services.cocoapods;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -46,6 +47,8 @@ public class PodSpec {
     public File buildDir;
     public File intermidiatedDir;
     public File headerMapFile;
+    public File vfsOverlay;
+    public Collection<PodSpec> dependantSpecs = new HashSet<>();
 
     public PodSpec() {}
 
@@ -79,6 +82,8 @@ public class PodSpec {
         this.intermidiatedDir = spec.intermidiatedDir;
 
         this.headerMapFile = spec.headerMapFile;
+        this.vfsOverlay = spec.vfsOverlay;
+        this.dependantSpecs = new HashSet<>(spec.dependantSpecs);
     }
 
     public PodSpec getSubspec(String name) {
@@ -126,6 +131,12 @@ public class PodSpec {
         if (specA.headerMapFile == null) {
             specA.headerMapFile = specB.headerMapFile;
         }
+        if (specA.vfsOverlay == null) {
+            specA.vfsOverlay = specB.vfsOverlay;
+        }
+
+        //! TODO: need make copy of PodSpec here?
+        specA.dependantSpecs.addAll(specB.dependantSpecs);
 
         return specA;
     }
