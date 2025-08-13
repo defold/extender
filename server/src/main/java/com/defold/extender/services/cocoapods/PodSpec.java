@@ -24,6 +24,7 @@ public class PodSpec {
     public Set<File> swiftSourceFiles = new LinkedHashSet<>();
     public Set<File> sourceFiles = new LinkedHashSet<>();
     public Set<File> publicHeaders = new LinkedHashSet<>();
+    public Set<File> privateHeaders = new LinkedHashSet<>();
     public Set<File> includePaths = new LinkedHashSet<>();
     public Set<File> frameworkSearchPaths = new LinkedHashSet<>();
     public PodSpec parentSpec = null;
@@ -43,6 +44,8 @@ public class PodSpec {
     public Map<String, String> parsedXCConfig = null;
     public File dir;
     public File buildDir;
+    public File intermidiatedDir;
+    public File headerMapFile;
 
     public PodSpec() {}
 
@@ -57,6 +60,7 @@ public class PodSpec {
         this.swiftSourceFiles = new LinkedHashSet<>(spec.swiftSourceFiles);
         this.sourceFiles = new LinkedHashSet<>(spec.sourceFiles);
         this.publicHeaders = new LinkedHashSet<>(spec.publicHeaders);
+        this.privateHeaders = new LinkedHashSet<>(spec.privateHeaders);
         this.includePaths = new LinkedHashSet<>(spec.includePaths);
         this.frameworkSearchPaths = new LinkedHashSet<>(spec.frameworkSearchPaths);
         this.dependencies = new ArrayList<>(spec.dependencies);
@@ -72,6 +76,9 @@ public class PodSpec {
         this.libraries = new HashSet<>(spec.libraries);
         this.dir = spec.dir;
         this.buildDir = spec.buildDir;
+        this.intermidiatedDir = spec.intermidiatedDir;
+
+        this.headerMapFile = spec.headerMapFile;
     }
 
     public PodSpec getSubspec(String name) {
@@ -96,6 +103,7 @@ public class PodSpec {
         specA.swiftSourceFiles.addAll(specB.swiftSourceFiles);
         specA.sourceFiles.addAll(specB.sourceFiles);
         specA.publicHeaders.addAll(specB.publicHeaders);
+        specA.privateHeaders.addAll(specB.privateHeaders);
         specA.includePaths.addAll(specB.includePaths);
         specA.frameworkSearchPaths.addAll(specB.frameworkSearchPaths);
         specA.dependencies.addAll(specB.dependencies);
@@ -114,6 +122,9 @@ public class PodSpec {
         }
         if (specA.swiftModuleDefinition == null) {
             specA.swiftModuleDefinition = specB.swiftModuleDefinition;
+        }
+        if (specA.headerMapFile == null) {
+            specA.headerMapFile = specB.headerMapFile;
         }
 
         return specA;

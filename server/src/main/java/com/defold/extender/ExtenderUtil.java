@@ -32,6 +32,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.simple.JSONObject;
 import org.springframework.core.io.Resource;
@@ -918,8 +919,8 @@ public class ExtenderUtil
         return hexString.toString();
     }
 
-    public static File writeSourceFilesListToTmpFile(Set<String> fileList) throws IOException {
-        File resultFile = Files.createTempFile(null, "sourcelist").toFile();
+    public static File writeSourceFilesListToTmpFile(File targetDir, Set<String> fileList) throws IOException {
+        File resultFile = new File(targetDir, String.format("%s.sourcelist", RandomStringUtils.insecure().nextAlphanumeric(30)));
         Set<String> escapedList = new HashSet<>();
         fileList.forEach((elem) -> {
             escapedList.add(StringEscapeUtils.escapeXSI(elem));

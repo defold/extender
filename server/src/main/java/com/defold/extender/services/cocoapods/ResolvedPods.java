@@ -171,14 +171,12 @@ public class ResolvedPods {
     }
 
     List<String> collectAdditionalIncludePaths() {
-        if (useFrameworks) {
-            return List.of();
-        }
         Set<String> includePaths = new HashSet<>();
         for (PodSpec spec: pods) {
             for (File path : spec.includePaths) {
                 includePaths.add(path.toString());
             }
+            includePaths.add(spec.headerMapFile.toString());
         }
         return new ArrayList<String>(includePaths);
     }

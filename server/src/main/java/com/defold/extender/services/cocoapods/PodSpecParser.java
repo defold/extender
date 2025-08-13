@@ -137,6 +137,9 @@ public final class PodSpecParser {
         spec.buildDir = Path.of(args.buildDir.toString(), String.format("%s%s", args.configuration, args.selectedPlatform.toString().toLowerCase()), spec.getPodName()).toFile();
         spec.buildDir.mkdirs();
 
+        spec.intermidiatedDir = new File(spec.buildDir, "intermediate");
+        spec.intermidiatedDir.mkdirs();
+
         // inherit flags and defines from the parent
         if (args.parentSpec != null) {
             spec.flags.addAll(args.parentSpec.flags);
@@ -255,6 +258,12 @@ public final class PodSpecParser {
             }
         }
 
+        // collect public headers for case when need to build framework
+        List<String> publicHeaders = getAsList(specJson, "public_header_files");
+        for (String pattern : publicHeaders) {
+            spec.publicHeaders.addAll(PodUtils.listFilesGlob(spec.dir, pattern));
+        }
+
         // find source and header files
         // https://guides.cocoapods.org/syntax/podspec.html#source_files
         List<String> sourceFiles = getAsList(specJson, "source_files");
@@ -269,12 +278,6 @@ public final class PodSpecParser {
                     addPodIncludePaths(spec, path);
                 }
             }
-        }
-
-        // collect public headers for case when need to build framework
-        List<String> publicHeaders = getAsList(specJson, "public_header_files");
-        for (String pattern : publicHeaders) {
-            spec.publicHeaders.addAll(PodUtils.listFilesGlob(spec.dir, pattern));
         }
 
         // add swift libs to the runtime search path
@@ -300,6 +303,11 @@ public final class PodSpecParser {
         if (!spec.swiftSourceFiles.isEmpty()) {
             spec.swiftModuleHeader = Path.of(spec.buildDir.toString(), "SwiftCompatibilityHeader", spec.moduleName + "-Swift.h").toFile();
         }
+
+        spec.headerMapFile = new File(spec.intermidiatedDir, String.format("%s.hmap", spec.getPodName()));
+
+        spec.flags.add(String.format("-iquote %s", spec.headerMapFile.toString()));
+        spec.flags.swift.add(String.format("-Xcc -iquote -Xcc %s", spec.headerMapFile.toString()));
 
         return spec;
     }
@@ -488,6 +496,8 @@ public final class PodSpecParser {
                 }
             }
         }
+        String compileModuleName = parsedConfig.getOrDefault("PRODUCT_MODULE_NAME", spec.getPodName());
+        spec.flags.add(String.format("-fmodule-name=%s", compileModuleName));
     }
 
     static List<String> argumentsAsList(String arguments) {
@@ -671,14 +681,17 @@ public final class PodSpecParser {
         for (File podSrcFile : podSrcFiles) {
             final String filename = podSrcFile.getName();
             if (PodUtils.isHeaderFile(filename)) {
-                File podIncludeDir = podSrcFile.getParentFile();
-                if (podIncludeDir != null) {
-                    pod.includePaths.add(podIncludeDir);
-                    File podIncludeParentDir = podIncludeDir.getParentFile();
-                    if (podIncludeParentDir != null) {
-                        pod.includePaths.add(podIncludeParentDir);
-                    }
+                if (!pod.publicHeaders.contains(podSrcFile)) {
+                    pod.privateHeaders.add(podSrcFile);
                 }
+                // File podIncludeDir = podSrcFile.getParentFile();
+                // if (podIncludeDir != null) {
+                //     pod.includePaths.add(podIncludeDir);
+                //     File podIncludeParentDir = podIncludeDir.getParentFile();
+                //     if (podIncludeParentDir != null) {
+                //         pod.includePaths.add(podIncludeParentDir);
+                //     }
+                // }
             }
         }
     }

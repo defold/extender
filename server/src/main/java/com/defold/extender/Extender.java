@@ -2,12 +2,11 @@ package com.defold.extender;
 
 import com.google.common.collect.ImmutableMap;
 
-import ch.qos.logback.core.util.FileUtil;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -570,6 +569,7 @@ class Extender {
         for (File path : pod.includePaths) {
             result.add(path.toString());
         }
+        result.add(pod.headerMapFile.toString());
 
         if (pod.swiftModuleHeader != null) {
             result.add(pod.swiftModuleHeader.toPath().getParent().toString());
@@ -591,7 +591,7 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -616,7 +616,7 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -667,8 +667,8 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(swiftSourceFilePaths);
-        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(Set.of(swiftPrimarySourceFile));
+        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, swiftSourceFilePaths);
+        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, Set.of(swiftPrimarySourceFile));
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, o));
@@ -991,8 +991,6 @@ class Extender {
             File sourceUmbrellaHeader = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-umbrella.h", podName)).toFile();
             FileUtils.copyFileToDirectory(sourceUmbrellaHeader, frameworkHeaders);
 
-            // HACK to mimic headermap behaviour
-            // spec.includePaths.add(frameworkHeaders);
             // 1. Compile library
             File library = buildPodLibrary(spec);
 
@@ -1080,8 +1078,31 @@ class Extender {
         return null;
     }
 
-    void buildPodAsLibrary(PodSpec spec) {
-
+    File generateHeaderMap(PodSpec spec) throws IOException, ExtenderException {
+        JSONObject root = new JSONObject();
+        String podName = spec.getPodName();
+        for (File header : spec.privateHeaders) {
+            String filename = header.getName();
+            String directory = header.getParent();
+            Map<String, String> data = Map.of("suffix", filename, "prefix", String.format("%s/", directory));
+            root.putAll(Map.of(filename, data));
+            root.putAll(Map.of(String.format("%s/%s", podName, filename), data));
+        }
+        for (File header : spec.publicHeaders) {
+            String filename = header.getName();
+            Map<String, String> data = Map.of("suffix", filename, "prefix", String.format("%s/", podName));
+            root.putAll(Map.of(filename, data));
+        }
+        String serialized = root.toJSONString();
+        File jsonHeaderMap = new File(spec.headerMapFile.getParentFile(), String.format("%s.json", podName));
+        Files.writeString(jsonHeaderMap.toPath(), serialized, StandardCharsets.UTF_8);
+        ProcessUtils.execCommand(List.of(
+            "hmap",
+            "convert",
+            jsonHeaderMap.toString(),
+            spec.headerMapFile.toString()
+        ), null, Map.of());
+        return spec.headerMapFile;
     }
 
     // build the source files of each resolved pod file into a library
@@ -1095,6 +1116,7 @@ class Extender {
         boolean asFramework = resolvedPods.useFrameworks();
         LOGGER.info("buildPods - compiling pod source file as {}", asFramework ? "frameworks" : "libraries");
         for (PodSpec pod : resolvedPods.getPodSpecs()) {
+            generateHeaderMap(pod);
             if (asFramework) {
                 buildPodAsFramework(pod, buildState.fullPlatform, resolvedPods.getTargetSupportFilesDir());
             } else {
