@@ -323,12 +323,10 @@ public class ExtenderClient {
             .forEach(res -> {
                 Path path = Path.of(res.getPath());
                 try {
-                    if (Files.isRegularFile(path)) {
-                        ZipEntry entry = new ZipEntry(path.toString());
-                        zipStream.putNextEntry(entry);
-                        Files.copy(path, zipStream);
-                        zipStream.closeEntry();
-                    }
+                    ZipEntry entry = new ZipEntry(path.toString());
+                    zipStream.putNextEntry(entry);
+                    zipStream.write(res.getContent());
+                    zipStream.closeEntry();
                 } catch (IOException e) { }
             });
         } catch (IOException exc) {
