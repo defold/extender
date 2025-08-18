@@ -1026,7 +1026,6 @@ class Extender {
                 FileUtils.copyFile(swiftModule, targetSwiftModuleName, StandardCopyOption.REPLACE_EXISTING);
             }
             // 4.2. Copy modulemap
-
             for (File bundle : resourceBundles) {
                 FileUtils.copyDirectoryToDirectory(bundle, frameworkDir);
             }
@@ -1038,7 +1037,14 @@ class Extender {
 
             // copy Info.plist
             File sourceInfoPlist = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-Info.plist", podName)).toFile();
-            FileUtils.copyFile(sourceInfoPlist, new File(frameworkDir, "Info.plist"));
+            PodBuildUtil.generatedInfoPlistFromTemplate(sourceInfoPlist, Map.of(
+                "PODS_DEVELOPMENT_LANGUAGE", "en",
+                "EXECUTABLE_NAME", spec.moduleName,
+                "PRODUCT_BUNDLE_IDENTIFIER", String.format("org.cocoapods.%s", spec.moduleName),
+                "PRODUCT_NAME", spec.moduleName,
+                "CURRENT_PROJECT_VERSION", "1"
+
+            ), new File(frameworkDir, "Info.plist"));
 
             // 5. Sign framework
             // /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der <path_to_framework>
@@ -1051,7 +1057,6 @@ class Extender {
                 "--generate-entitlement-der",
                 frameworkDir.getAbsolutePath()
             ), null, null);
-
         }
     }
 

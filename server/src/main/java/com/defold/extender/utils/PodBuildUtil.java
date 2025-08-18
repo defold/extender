@@ -6,11 +6,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.text.StringSubstitutor;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -102,5 +104,11 @@ public class PodBuildUtil {
 
             }
         return overlayA;
+    }
+
+    public static void generatedInfoPlistFromTemplate(File sourceTemplate, Map<String, String> data, File targetFile) throws IOException {
+        StringSubstitutor substitutor = new StringSubstitutor(data);
+        String template = Files.readString(sourceTemplate.toPath(), StandardCharsets.UTF_8);
+        Files.writeString(targetFile.toPath(), substitutor.replace(template), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
     }
 }
