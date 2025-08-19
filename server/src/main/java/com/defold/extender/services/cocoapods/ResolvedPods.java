@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,7 +24,7 @@ import com.defold.extender.utils.FrameworkUtil;
 public class ResolvedPods {
     private static final Logger LOGGER = LoggerFactory.getLogger(ResolvedPods.class);
     static final String FRAMEWORK_RE = "(.+)\\.framework";
-    private List<PodSpec> pods = new ArrayList<>();
+    private List<PodBuildSpec> pods = new ArrayList<>();
     private File podsDir;
     private File frameworksDir;
     private File targetSupportFilesDir;
@@ -40,7 +39,7 @@ public class ResolvedPods {
     private List<String> weakFrameworks;
     private boolean useFrameworks = false;
 
-    public ResolvedPods(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodSpec> specs, File podfileLock, MainPodfile mainPodfile) throws IOException {
+    public ResolvedPods(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodBuildSpec> specs, File podfileLock, MainPodfile mainPodfile) throws IOException {
         this.platformMinVersion = mainPodfile.platformMinVersion;
         this.podsDir = cocoapodsBuildState.getPodsDir();
         this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
@@ -57,14 +56,13 @@ public class ResolvedPods {
     // parent
     // https://guides.cocoapods.org/syntax/podspec.html#subspec
 
-    void addPodLibs(PodSpec pod, Set<String> libs) {
+    void addPodLibs(PodBuildSpec pod, Set<String> libs) {
         libs.addAll(pod.libraries);
-        if (pod.parentSpec != null) addPodLibs(pod.parentSpec, libs);
     }
 
     List<String> collectPodLibs() throws IOException {
         Set<String> libs = new LinkedHashSet<>();
-        for (PodSpec pod : pods) {
+        for (PodBuildSpec pod : pods) {
             addPodLibs(pod, libs);
         }
         if (!useFrameworks) {
@@ -73,45 +71,40 @@ public class ResolvedPods {
         return new ArrayList<>(libs);
     }
 
-    void addPodLinkFlags(PodSpec pod, List<String> flags) {
+    void addPodLinkFlags(PodBuildSpec pod, List<String> flags) {
         flags.addAll(pod.linkflags);
-        if (pod.parentSpec != null) addPodLinkFlags(pod.parentSpec, flags);
     }
 
     public List<String> getAllPodLinkFlags() {
         List<String> flags = new ArrayList<>();
-        for (PodSpec pod : pods) {
+        for (PodBuildSpec pod : pods) {
             addPodLinkFlags(pod, flags);
         }
         return new ArrayList<String>(flags);
     }
 
-    public static void addPodResources(PodSpec pod, Set<File> resources) {
+    public static void addPodResources(PodBuildSpec pod, Set<File> resources) {
         File podDir = pod.dir;
         for (String resource : pod.resources) {
             resources.addAll(PodUtils.listFilesAndDirsGlob(podDir, resource));
-        }
-        if (pod.parentSpec != null) {
-            addPodResources(pod.parentSpec, resources);
         }
     }
 
     public List<File> getAllPodResources() {
         Set<File> resources = new LinkedHashSet<>();
-        for (PodSpec pod : pods) {
+        for (PodBuildSpec pod : pods) {
             addPodResources(pod, resources);
         }
         return new ArrayList<File>(resources);
     }
 
-    void addPodFrameworks(PodSpec pod, Set<String> frameworks) {
+    void addPodFrameworks(PodBuildSpec pod, Set<String> frameworks) {
         frameworks.addAll(pod.frameworks);
-        if (pod.parentSpec != null) addPodFrameworks(pod.parentSpec, frameworks);
     }
 
     List<String> collectFrameworkPaths() {
         Set<String> frameworkPaths = new HashSet<>();
-        for (PodSpec spec : pods) {
+        for (PodBuildSpec spec : pods) {
             for (File f : spec.frameworkSearchPaths) {
                 frameworkPaths.add(f.toString());
             }
@@ -129,7 +122,7 @@ public class ResolvedPods {
 
     List<String> collectAllPodFrameworks() throws IOException {
         Set<String> frameworks = new LinkedHashSet<>();
-        for (PodSpec pod : pods) {
+        for (PodBuildSpec pod : pods) {
             addPodFrameworks(pod, frameworks);
         }
 
@@ -172,29 +165,31 @@ public class ResolvedPods {
 
     List<String> collectAdditionalIncludePaths() {
         Set<String> includePaths = new HashSet<>();
-        for (PodSpec spec: pods) {
-            for (File path : spec.includePaths) {
-                includePaths.add(path.toString());
+        for (PodBuildSpec spec: pods) {
+            for (File f : spec.includePaths) {
+                includePaths.add(f.toString());
             }
             includePaths.add(spec.headerMapFile.toString());
+            if (spec.swiftModuleHeader != null) {
+                includePaths.add(spec.swiftModuleHeader.toPath().getParent().toString());
+            }
         }
         return new ArrayList<String>(includePaths);
     }
 
-    void addPodWeakFrameworks(PodSpec pod, Set<String> weakFrameworks) {
+    void addPodWeakFrameworks(PodBuildSpec pod, Set<String> weakFrameworks) {
         weakFrameworks.addAll(pod.weakFrameworks);
-        if (pod.parentSpec != null) addPodWeakFrameworks(pod.parentSpec, weakFrameworks);
     }
 
     List<String> collectPodWeakFrameworks() {
         Set<String> weakFrameworks = new LinkedHashSet<>();
-        for (PodSpec pod : pods) {
+        for (PodBuildSpec pod : pods) {
             addPodWeakFrameworks(pod, weakFrameworks);
         }
         return new ArrayList<String>(weakFrameworks);
     }
 
-    public static List<File> createPodResourceBundles(PodSpec spec, File targetDir, String platform) throws IOException, ExtenderException {
+    public static List<File> createPodResourceBundles(PodBuildSpec spec, File targetDir, String platform) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : spec.resourceBundles.entrySet()) {
             result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue()));
@@ -204,13 +199,13 @@ public class ResolvedPods {
 
     public List<File> createResourceBundles(File targetDir, String platform) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
-        for (PodSpec spec : pods) {
+        for (PodBuildSpec spec : pods) {
             result.addAll(createPodResourceBundles(spec, targetDir, platform));
         }
         return result;
     }
 
-    static File createResourceBundle(File targetDir, String platform, PodSpec pod, String bundleName, List<String> content) throws IOException, ExtenderException {
+    static File createResourceBundle(File targetDir, String platform, PodBuildSpec pod, String bundleName, List<String> content) throws IOException, ExtenderException {
         File resultFolder = new File(targetDir, bundleName + ".bundle");
         resultFolder.mkdirs();
         for (String contentElement : content) {
@@ -232,26 +227,8 @@ public class ResolvedPods {
         return resultFolder;
     }
 
-    public void setPodsSpecs(List<PodSpec> specs) throws IOException {
-        // iterate over all spec selected for build
-        // then we need to union all ubspces with parent spec and build it as one artifact
-
-        // this map we will use for fast access to parent spec
-        Map<String, PodSpec> unitedSpecs = new HashMap<>();
-        pods = new ArrayList<>();
-
-        for (PodSpec spec : specs) {
-            String podName = spec.getPodName();
-            if (!unitedSpecs.containsKey(podName)) {
-                PodSpec s = new PodSpec(spec.parentSpec == null ? spec : spec.parentSpec);
-                unitedSpecs.put(podName, s);
-                pods.add(s);
-            }
-
-            PodSpec parentSpec = unitedSpecs.get(podName);
-            PodSpec.mergeSpecs(parentSpec, spec);
-        }
-
+    public void setPodsSpecs(List<PodBuildSpec> specs) throws IOException {
+        pods.addAll(specs);
         frameworkSearchPaths = collectFrameworkPaths();
         librarySearchPaths = collectFrameworkStaticLibPaths();
         staticLibraries = collectPodLibs();
@@ -270,7 +247,7 @@ public class ResolvedPods {
             return Set.of();
         }
         Set<String> result = new HashSet<>();
-        for (PodSpec spec : pods) {
+        for (PodBuildSpec spec : pods) {
             if (PodUtils.hasSourceFiles(spec)) {
                 result.add(spec.moduleName);
             }
@@ -298,7 +275,7 @@ public class ResolvedPods {
         return staticLibraries;
     }
 
-    public List<PodSpec> getPodSpecs() {
+    public List<PodBuildSpec> getPodSpecs() {
         return pods;
     }
 

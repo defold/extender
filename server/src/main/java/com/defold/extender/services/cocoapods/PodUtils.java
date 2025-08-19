@@ -9,6 +9,21 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 
 public class PodUtils {
+    public enum Platform {
+        IPHONEOS,
+        IPHONESIMULATOR,
+        MACOSX,
+        UNKNOWN
+    }
+
+    static boolean isIOS(Platform platform) {
+        return platform == Platform.IPHONEOS || platform == Platform.IPHONESIMULATOR;
+    }
+
+    static boolean isMacOS(Platform platform) {
+        return platform == Platform.MACOSX;
+    }
+
     static List<File> parametrizedListFileGlob(File dir, String pattern, BiFunction<File, String, List<File>> listFunction) {
         String absPathPattern = Path.of(dir.getAbsolutePath(), pattern).toString();
         List<File> files = listFunction.apply(dir, absPathPattern);
@@ -80,7 +95,7 @@ public class PodUtils {
         return PodUtils.sanitizePodName(podnameparts[0]);
     }
 
-    public static boolean hasSourceFiles(PodSpec spec) {
+    public static boolean hasSourceFiles(PodBuildSpec spec) {
         return !spec.sourceFiles.isEmpty() || !spec.swiftSourceFiles.isEmpty();
     }
 

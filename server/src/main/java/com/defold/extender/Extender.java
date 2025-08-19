@@ -42,7 +42,7 @@ import java.util.zip.ZipFile;
 
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
-import com.defold.extender.services.cocoapods.PodSpec;
+import com.defold.extender.services.cocoapods.PodBuildSpec;
 import com.defold.extender.services.cocoapods.PodUtils;
 import com.defold.extender.services.cocoapods.ResolvedPods;
 import com.defold.extender.utils.PodBuildUtil;
@@ -520,10 +520,10 @@ class Extender {
         return pruneNonExisting(includes);
     }
 
-    private List<String> getPodIncludeDir(PodSpec pod) {
+    private List<String> getPodIncludeDir(PodBuildSpec pod) {
         List<String> result = new ArrayList<>();
-        for (File path : pod.includePaths) {
-            result.add(path.toString());
+        for (File f : pod.includePaths) {
+            result.add(f.toString());
         }
         result.add(pod.headerMapFile.toString());
 
@@ -536,7 +536,7 @@ class Extender {
     // swiftc: https://gist.github.com/enomoto/7f11d57e4add7e702f9f84f34d3a0f8c
     // swift-frontend: https://gist.github.com/palaniraja/b4de1e64e874b68bda9e5236829cd8a6
 
-    private void emitSwiftHeader(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private void emitSwiftHeader(PodBuildSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
         includes.addAll(getPodIncludeDir(pod));
 
@@ -546,7 +546,7 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -560,7 +560,7 @@ class Extender {
         commands.add(command);
     }
 
-    private void emitSwiftModule(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private void emitSwiftModule(PodBuildSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
         includes.addAll(getPodIncludeDir(pod));
 
@@ -570,7 +570,7 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -584,12 +584,12 @@ class Extender {
         commands.add(command);
     }
 
-    void generateSwiftCompatabilityHeaders(PodSpec spec, File podDir) throws IOException {
+    void generateSwiftCompatabilityHeaders(PodBuildSpec spec, File podDir) throws IOException {
         LOGGER.debug("Generate Swift compatability header and modulemap for {}", spec.name);
         File podBuildDir = spec.swiftModuleHeader.toPath().getParent().getParent().toFile();
 
         // copy objc modulemap which Cocopoapods generated
-        String podName = spec.getPodName();
+        String podName = spec.name;
         Path sourceModuleMap = Path.of(podDir.toString(), "Target Support Files", podName, String.format("%s.modulemap", podName));
         Path targetModuleMap = Path.of(podBuildDir.toString(), String.format("%s.modulemap", spec.moduleName)); // it's not a bug. Cocoapods installs module map in Target support Files with spec.name but in compiler options it waits spec.moduleName
         Files.copy(sourceModuleMap, targetModuleMap, StandardCopyOption.REPLACE_EXISTING);
@@ -603,7 +603,7 @@ class Extender {
         Files.writeString(targetModuleMap, spec.swiftModuleDefinition, StandardOpenOption.APPEND);
     }
 
-    private File addCompileFileSwift(PodSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private File addCompileFileSwift(PodBuildSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         File o = new File(buildState.buildDir, String.format("%s_%d.o", src.getName(), index));
 
         // remove the primary source file from the set of all source files
@@ -619,8 +619,8 @@ class Extender {
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, swiftSourceFilePaths);
-        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, Set.of(swiftPrimarySourceFile));
+        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, swiftSourceFilePaths);
+        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, Set.of(swiftPrimarySourceFile));
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, o));
@@ -821,7 +821,7 @@ class Extender {
     }
 
     // compile the source files of a pod and return a list of object files
-    private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
+    private List<String> compilePodSourceFiles(PodBuildSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
@@ -917,13 +917,13 @@ class Extender {
         return objs;
     }
 
-    void buildPodAsFramework(PodSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
+    void buildPodAsFramework(PodBuildSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
         // Collect resource bundles
         List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform);
 
         if (PodUtils.hasSourceFiles(spec)) {
             Map<String, Collection<File>> enumeratedFiles = new HashMap<>();
-            String podName = spec.getPodName();
+            String podName = spec.name;
             // Create output folder and output framework folder
             File frameworkDir = new File(spec.buildDir, String.format("%s.framework", spec.moduleName));
             frameworkDir.mkdirs();
@@ -1007,7 +1007,7 @@ class Extender {
     /*
      * @return resultLib File Result static/dynamic library or null is no source files
      */
-    File buildPodLibrary(PodSpec spec) throws ExtenderException, IOException, InterruptedException {
+    File buildPodLibrary(PodBuildSpec spec) throws ExtenderException, IOException, InterruptedException {
         LOGGER.info("buildPods - compiling pod source files for {}", spec.name);
         // The source files of each pod will be compiled and built as a library.
         // We use the same mechanism as when building the extension and create a
@@ -1045,7 +1045,7 @@ class Extender {
 
         boolean asFramework = resolvedPods.useFrameworks();
         LOGGER.info("buildPods - compiling pod source file as {}", asFramework ? "frameworks" : "libraries");
-        for (PodSpec pod : resolvedPods.getPodSpecs()) {
+        for (PodBuildSpec pod : resolvedPods.getPodSpecs()) {
             PodBuildUtil.generateHeaderMap(pod);
             if (asFramework) {
                 buildPodAsFramework(pod, buildState.fullPlatform, resolvedPods.getTargetSupportFilesDir());

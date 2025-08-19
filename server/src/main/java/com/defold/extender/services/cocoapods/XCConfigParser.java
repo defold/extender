@@ -39,7 +39,7 @@ public class XCConfigParser implements IConfigParser {
     public XCConfigParser(ExtenderBuildState buildState, CocoaPodsServiceBuildState cocoapodsBuildState) {
         this.buildDir = buildState.getBuildDir();
         this.podsDir = cocoapodsBuildState.getPodsDir();
-        PodSpecParser.Platform selectedPlatform = cocoapodsBuildState.getSelectedPlatform();
+        PodUtils.Platform selectedPlatform = cocoapodsBuildState.getSelectedPlatform();
         this.platform = selectedPlatform.toString().toLowerCase();
 
         this.configuration = buildState.getBuildConfiguration();

@@ -5,7 +5,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.HashSet;
@@ -20,7 +19,7 @@ import org.json.simple.parser.ParseException;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.process.ProcessUtils;
-import com.defold.extender.services.cocoapods.PodSpec;
+import com.defold.extender.services.cocoapods.PodBuildSpec;
 
 public class PodBuildUtil {
     public static void putFileNameIntoVFS(Map<String, Collection<File>> vfsMap, String section, File file) {
@@ -30,7 +29,7 @@ public class PodBuildUtil {
         vfsMap.get(section).add(file);
     }
 
-    public static File generateHeaderMap(PodSpec spec) throws IOException, ExtenderException {
+    public static File generateHeaderMap(PodBuildSpec spec) throws IOException, ExtenderException {
         JSONObject root = new JSONObject();
         String moduleName = spec.moduleName;
         for (File header : spec.privateHeaders) {
@@ -46,7 +45,7 @@ public class PodBuildUtil {
             root.putAll(Map.of(filename, data));
         }
         String serialized = root.toJSONString();
-        File jsonHeaderMap = new File(spec.headerMapFile.getParentFile(), String.format("%s.json", spec.getPodName()));
+        File jsonHeaderMap = new File(spec.headerMapFile.getParentFile(), String.format("%s.json", spec.name));
         Files.writeString(jsonHeaderMap.toPath(), serialized, StandardCharsets.UTF_8);
         ProcessUtils.execCommand(List.of(
             "hmap",
@@ -57,7 +56,7 @@ public class PodBuildUtil {
         return spec.headerMapFile;
     }
 
-    public static File generateVFSOverlay(PodSpec spec, Map<String, Collection<File>> vfsInfo) throws IOException {
+    public static File generateVFSOverlay(PodBuildSpec spec, Map<String, Collection<File>> vfsInfo) throws IOException {
         JSONArray rootArray = new JSONArray();
         
         for (Map.Entry<String, Collection<File>> entry : vfsInfo.entrySet()) {
@@ -83,7 +82,7 @@ public class PodBuildUtil {
         Files.writeString(spec.vfsOverlay.toPath(), resultDocument.toJSONString(), StandardCharsets.UTF_8);
 
         // 2. Get all dependencies from spec
-        for (PodSpec depSpec : spec.dependantSpecs) {
+        for (PodBuildSpec depSpec : spec.dependantSpecs) {
             mergeVFSOverlays(spec.vfsOverlay, depSpec.vfsOverlay);
         }
 

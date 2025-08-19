@@ -11,27 +11,27 @@ public class CocoaPodsServiceBuildState {
     File podsDir;
     File unpackedFrameworksDir;
     File targetSupportFilesDir;
-    PodSpecParser.Platform selectedPlatform;
+    PodUtils.Platform selectedPlatform;
 
     CocoaPodsServiceBuildState(ExtenderBuildState extenderBuildState) {
         this.workingDir = new File(extenderBuildState.getJobDir(), "CocoaPodsService");
-        this.podsDir = new File(workingDir, "Pods");
         this.workingDir.mkdirs();
-        this.unpackedFrameworksDir.mkdirs();
+        this.podsDir = new File(workingDir, "Pods");
         this.podsDir.mkdirs();
 
-        this.selectedPlatform = PodSpecParser.Platform.UNKNOWN;
+        this.selectedPlatform = PodUtils.Platform.UNKNOWN;
         String platform = extenderBuildState.getBuildPlatform();
         if (ExtenderUtil.isIOSTarget(platform)) {
-            this.selectedPlatform = extenderBuildState.getBuildArch().equals("arm64") ? PodSpecParser.Platform.IPHONEOS : PodSpecParser.Platform.IPHONESIMULATOR;
+            this.selectedPlatform = extenderBuildState.getBuildArch().equals("arm64") ? PodUtils.Platform.IPHONEOS : PodUtils.Platform.IPHONESIMULATOR;
         } else if (ExtenderUtil.isMacOSTarget(platform)) {
-            this.selectedPlatform = PodSpecParser.Platform.MACOSX;
+            this.selectedPlatform = PodUtils.Platform.MACOSX;
         }
         this.unpackedFrameworksDir = Path.of(
             extenderBuildState.getBuildDir().toString(),
              String.format("%s%s", extenderBuildState.getBuildConfiguration(), this.selectedPlatform.toString().toLowerCase()),
             "XCFrameworkIntermediates"
         ).toFile();
+        this.unpackedFrameworksDir.mkdirs();
 
         this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
     }
@@ -48,7 +48,7 @@ public class CocoaPodsServiceBuildState {
         return unpackedFrameworksDir;
     }
 
-    public PodSpecParser.Platform getSelectedPlatform() {
+    public PodUtils.Platform getSelectedPlatform() {
         return selectedPlatform;
     }
 
