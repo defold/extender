@@ -177,7 +177,6 @@ public class CocoaPodsService {
     private void unpackXCFrameworks(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodSpec> pods) throws IOException, ExtenderException {
         LOGGER.info("Unpack xcframeworks");
 
-        // File targetSupportFileDir = new File(podsDir, "Target Support Files");
         Set<String> handledPods = new HashSet<>();
         for (PodSpec spec : pods) {
             String podName = spec.getPodName();

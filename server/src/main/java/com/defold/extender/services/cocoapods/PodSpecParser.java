@@ -688,14 +688,6 @@ public final class PodSpecParser {
                 if (!pod.publicHeaders.contains(podSrcFile)) {
                     pod.privateHeaders.add(podSrcFile);
                 }
-                // File podIncludeDir = podSrcFile.getParentFile();
-                // if (podIncludeDir != null) {
-                //     pod.includePaths.add(podIncludeDir);
-                //     File podIncludeParentDir = podIncludeDir.getParentFile();
-                //     if (podIncludeParentDir != null) {
-                //         pod.includePaths.add(podIncludeParentDir);
-                //     }
-                // }
             }
         }
     }

@@ -15,7 +15,6 @@ public class CocoaPodsServiceBuildState {
 
     CocoaPodsServiceBuildState(ExtenderBuildState extenderBuildState) {
         this.workingDir = new File(extenderBuildState.getJobDir(), "CocoaPodsService");
-        this.unpackedFrameworksDir = Path.of(extenderBuildState.getBuildDir().toString(), "Debugiphoneos", "XCFrameworkIntermediates").toFile();
         this.podsDir = new File(workingDir, "Pods");
         this.workingDir.mkdirs();
         this.unpackedFrameworksDir.mkdirs();
@@ -28,6 +27,11 @@ public class CocoaPodsServiceBuildState {
         } else if (ExtenderUtil.isMacOSTarget(platform)) {
             this.selectedPlatform = PodSpecParser.Platform.MACOSX;
         }
+        this.unpackedFrameworksDir = Path.of(
+            extenderBuildState.getBuildDir().toString(),
+             String.format("%s%s", extenderBuildState.getBuildConfiguration(), this.selectedPlatform.toString().toLowerCase()),
+            "XCFrameworkIntermediates"
+        ).toFile();
 
         this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
     }

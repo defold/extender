@@ -6,8 +6,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -58,12 +56,6 @@ class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
     private final ExtenderBuildState buildState;
     private final String appManifestPath;
-    // private final String platform;
-    // private final String hostPlatform;
-    // private final File sdk;
-    // private final File uploadDirectory;
-    // private final File jobDirectory;
-    // private final File buildDirectory;
     private final Configuration config;                 // build.yml from the defoldsdk
     private final PlatformConfig platformConfig;        // "common", platform, arch-platform from build.yml
     private final PlatformConfig platformVariantConfig; // "common", platform, arch-platform from build_variant.yml
@@ -72,11 +64,6 @@ class Extender {
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private MetricsWriter metricsWriter;
     // context flags
-    // private final Boolean withSymbols;
-    // private final Boolean useJetifier;
-    // private final String buildArtifacts;
-    // private final String debugSourcePath;
-    // private final String configuration; // debug/release/headless
     private Boolean needsCSLibraries = false;
 
     private Map<String, File>                   manifestFiles;
@@ -238,38 +225,6 @@ class Extender {
             }
         }
         this.buildState = new ExtenderBuildState(builder, appManifest);
-
-
-        // this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, builder.platform, APPMANIFEST_JETIFIER_KEYWORD, true);
-        // this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
-        // this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
-        // this.debugSourcePath = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_DEBUG_SOURCE_PATH, null);
-        // // assign configuration names started with upper letter because it used for cocoapods
-        // if (baseVariant != null && (baseVariant.equals("release") || baseVariant.equals("headless"))) {
-        //     this.configuration = "Release";
-        // } else {
-        //     this.configuration = "Debug";
-        // }
-
-        // String os = System.getProperty("os.name");
-        // String arch = System.getProperty("os.arch");
-
-        // // These host names are using the Defold SDK names
-        // if (os.contains("Mac")) {
-        //     if (arch.contains("aarch64")) {
-        //         this.hostPlatform = "arm64-macos";
-        //     } else {
-        //         this.hostPlatform = "x86_64-macos";
-        //     }
-        // } else if (os.contains("Windows")) {
-        //     this.hostPlatform = "x86_64-win32";
-        // } else {
-        //     if (arch.contains("aarch64")) {
-        //         this.hostPlatform = "arm64-linux";
-        //     } else {
-        //         this.hostPlatform = "x86_64-linux";
-        //     }
-        // }
 
         if (config.platforms.get(buildState.fullPlatform) == null) {
             throw new ExtenderException(String.format("Unsupported platform %s by this sdk", buildState.fullPlatform));
@@ -452,14 +407,13 @@ class Extender {
     }
 
     private List<String> getFrameworks(File dir) {
-        // List<String> frameworks = new ArrayList<>();
-        // final String[] platformParts = buildState.fullPlatform.split("-");
-        // frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + buildState.fullPlatform), FRAMEWORK_RE)); // e.g. armv64-ios
-        // if (platformParts.length == 2) {
-        //     frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
-        // }
-        // return frameworks;
-        return List.of();
+        List<String> frameworks = new ArrayList<>();
+        final String[] platformParts = buildState.fullPlatform.split("-");
+        frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + buildState.fullPlatform), FRAMEWORK_RE)); // e.g. armv64-ios
+        if (platformParts.length == 2) {
+            frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
+        }
+        return frameworks;
     }
 
     // Get a list of subfolders matching the current platform
@@ -587,7 +541,6 @@ class Extender {
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(getFrameworks(pod.dir));
         frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
@@ -612,7 +565,6 @@ class Extender {
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(getFrameworks(pod.dir));
         frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
@@ -663,10 +615,8 @@ class Extender {
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(getFrameworks(pod.dir));
         frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
-        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
         File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermidiatedDir, swiftSourceFilePaths);
@@ -968,13 +918,13 @@ class Extender {
     }
 
     void buildPodAsFramework(PodSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
-        // 2. Collect resource bundles
+        // Collect resource bundles
         List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform);
 
         if (PodUtils.hasSourceFiles(spec)) {
             Map<String, Collection<File>> enumeratedFiles = new HashMap<>();
             String podName = spec.getPodName();
-            // 0.    Create output folder and output framework folder
+            // Create output folder and output framework folder
             File frameworkDir = new File(spec.buildDir, String.format("%s.framework", spec.moduleName));
             frameworkDir.mkdirs();
             File frameworkHeaders = new File(frameworkDir, "Headers");
@@ -999,7 +949,7 @@ class Extender {
             PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkHeadersDirPath, sourceUmbrellaHeader);
 
             PodBuildUtil.generateVFSOverlay(spec, enumeratedFiles);
-            // 1. Compile library
+            // Compile library
             File library = buildPodLibrary(spec);
 
             FileUtils.copyFile(library, new File(frameworkDir, spec.moduleName));
@@ -1012,12 +962,7 @@ class Extender {
                 FileUtils.copyFile(updatedModuleMap, new File(frameworkModules, "module.modulemap"), StandardCopyOption.REPLACE_EXISTING);
             }
 
-            // umbrella - from target support files
-            // swift compatability header - separate step
-            // 3. Collect modules
-            // 4. Create swift compatability header
-            // 4.1. Copy swift module 
-            // builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/yauheni/Library/Developer/Xcode/DerivedData/test-podfile-ezjrhlzobaovdrgjvrmvebofenvg/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/DivKit.build/Objects-normal/arm64/DivKit.swiftmodule /Users/yauheni/Library/Developer/Xcode/DerivedData/test-podfile-ezjrhlzobaovdrgjvrmvebofenvg/Build/Products/Debug-iphonesimulator/DivKit/DivKit.framework/Modules/DivKit.swiftmodule/arm64-apple-ios-simulator.swiftmodule
+            // Copy swift module 
             File swiftModule = new File(spec.buildDir, spec.moduleName + ".swiftmodule");
             if (swiftModule.exists()) {
                 File targetSwiftModuleDir = new File(frameworkModules, spec.moduleName + ".swiftmodule");
@@ -1047,7 +992,6 @@ class Extender {
             ), new File(frameworkDir, "Info.plist"));
 
             // 5. Sign framework
-            // /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der <path_to_framework>
             ProcessUtils.execCommand(List.of(
                 "/usr/bin/codesign",
                 "--force",
