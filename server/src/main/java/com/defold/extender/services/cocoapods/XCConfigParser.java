@@ -37,13 +37,16 @@ public class XCConfigParser implements IConfigParser {
     }
 
     public XCConfigParser(ExtenderBuildState buildState, CocoaPodsServiceBuildState cocoapodsBuildState) {
-        this.buildDir = buildState.getBuildDir();
-        this.podsDir = cocoapodsBuildState.getPodsDir();
-        PodUtils.Platform selectedPlatform = cocoapodsBuildState.getSelectedPlatform();
+        this(buildState.getBuildDir(), cocoapodsBuildState.getPodsDir(), cocoapodsBuildState.getSelectedPlatform(), buildState.getBuildConfiguration(), buildState.getBuildArch());
+    }
+
+    XCConfigParser(File buildDir, File podsDir, PodUtils.Platform selectedPlatform, String buildConfiguration, String buildArch) {
+        this.buildDir = buildDir;
+        this.podsDir = podsDir;
         this.platform = selectedPlatform.toString().toLowerCase();
 
-        this.configuration = buildState.getBuildConfiguration();
-        this.arch = buildState.getBuildArch();
+        this.configuration = buildConfiguration;
+        this.arch = buildArch;
     }
 
     Map<String, String> calculateBaseVariables(String moduleName, String podName) {

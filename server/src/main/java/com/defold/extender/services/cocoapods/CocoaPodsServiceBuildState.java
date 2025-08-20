@@ -13,6 +13,8 @@ public class CocoaPodsServiceBuildState {
     File targetSupportFilesDir;
     PodUtils.Platform selectedPlatform;
 
+    CocoaPodsServiceBuildState() { }
+
     CocoaPodsServiceBuildState(ExtenderBuildState extenderBuildState) {
         this.workingDir = new File(extenderBuildState.getJobDir(), "CocoaPodsService");
         this.workingDir.mkdirs();

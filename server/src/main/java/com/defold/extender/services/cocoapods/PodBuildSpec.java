@@ -53,6 +53,8 @@ public class PodBuildSpec {
     public File vfsOverlay;
     public Collection<PodBuildSpec> dependantSpecs = new HashSet<>();
 
+    PodBuildSpec() {}
+
     public PodBuildSpec(CreateBuildSpecArgs args, PodSpec mainSpec) throws IOException {
         this.name = mainSpec.name;
         this.moduleName = mainSpec.moduleName;

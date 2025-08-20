@@ -15,6 +15,7 @@ public class PodfileParser {
         public String platform;
         public boolean useFrameworks = true;
         public Set<String> podDefinitions = new HashSet<>();
+        public Set<String> podNames = new HashSet<>();
 
         public ParseResult() { }
 
@@ -39,6 +40,7 @@ public class PodfileParser {
             useFrameworks = useFrameworks || other.useFrameworks;
 
             podDefinitions.addAll(other.podDefinitions);
+            podNames.addAll(other.podNames);
             return this;
         }
     }
@@ -95,6 +97,7 @@ public class PodfileParser {
                 Matcher matcher = podPattern.matcher(line);
                 if (matcher.matches()) {
                     res.podDefinitions.add(line);
+                    res.podNames.add(matcher.group(1));
                 }
             }
         }
