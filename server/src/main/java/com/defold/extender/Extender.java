@@ -862,18 +862,43 @@ class Extender {
             List<String> updatedSwiftFlags = new ArrayList<String>(swiftFlags);
             updatedSwiftFlags.add("-enable-experimental-feature");
             updatedSwiftFlags.add("AccessLevelOnImport");
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (File path : pod.frameworkSearchPaths) {
+                updatedSwiftFlags.add(String.format("-F%s", path.toString()));
+            }
+            if (resolvedPods.useFrameworks()) {
+                updatedSwiftFlags.add(String.format("-F%s", pod.buildDir.toString()));
+            }
+// ************************************************************************************************************
             mergedContextWithPodsForSwift.put("swiftFlags", updatedSwiftFlags);
 
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
             LOGGER.info("emit swift header");
             emitSwiftHeader(pod, mergedContextWithPodsForSwift, emitSwiftHeaderCommands);
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (int i = 0; i < emitSwiftHeaderCommands.size(); ++i) {
+                String cmd = emitSwiftHeaderCommands.get(i);
+                cmd = cmd.replaceAll("-DSWIFT_PACKAGE", "");
+                emitSwiftHeaderCommands.set(i, cmd);
+            }
+// ************************************************************************************************************
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
             List<String> emitSwiftModuleCommands = new ArrayList<>();
             LOGGER.info("emit swift module");
             emitSwiftModule(pod, mergedContextWithPodsForSwift, emitSwiftModuleCommands);
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (int i = 0; i < emitSwiftModuleCommands.size(); ++i) {
+                String cmd = emitSwiftModuleCommands.get(i);
+                cmd = cmd.replaceAll("-DSWIFT_PACKAGE", "");
+                emitSwiftModuleCommands.set(i, cmd);
+            }
+// ************************************************************************************************************
             ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
 
             // compile swift source files one by one
@@ -885,6 +910,14 @@ class Extender {
                 objs.add(objPath);
             }
             LOGGER.info("compiling {} swift files", compileSwiftCommands.size());
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (int i = 0; i < compileSwiftCommands.size(); ++i) {
+                String cmd = compileSwiftCommands.get(i);
+                cmd = cmd.replaceAll("-DSWIFT_PACKAGE", "");
+                compileSwiftCommands.set(i, cmd);
+            }
+// ************************************************************************************************************
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
 
             generateSwiftCompatabilityHeaders(pod, resolvedPods.getCurrentPodsDirectory());

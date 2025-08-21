@@ -363,6 +363,10 @@ public class PodBuildSpec {
         // add swift libs to the runtime search path
         if (!this.swiftSourceFiles.isEmpty()) {
             this.linkflags.add("-Wl,-rpath,/usr/lib/swift");
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            this.flags.swift.add("-import-underlying-module");
+// ************************************************************************************************************
         }
 
         // add ObjC link flag if pod contains Objective-C code
