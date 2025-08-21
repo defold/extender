@@ -42,10 +42,8 @@ repositories {
 
 dependencyManagement {
     imports {
-        // DO NOT update higher 5.8.0 because transitive dependencies has opentelemtry version 1.45.0+
-        // which has breaking changes in comparison with 1.43.0
-        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.8.0'
-        mavenBom 'org.junit:junit-bom:5.11.4'
+        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:7.1.0'
+        mavenBom 'org.junit:junit-bom:5.13.4'
     }
 }
 
@@ -60,13 +58,14 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.67.0')
+    implementation('com.google.cloud:google-cloud-compute:1.82.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
-    implementation('org.apache.commons:commons-text:1.13.+')
-    implementation('org.apache.commons:commons-compress:1.27.+')
-    implementation('org.apache.commons:commons-lang3:3.17.0')
+    implementation('org.apache.commons:commons-fileupload2-core:2.0.0-M4')
+    implementation('org.apache.commons:commons-text:1.14.0')
+    implementation('org.apache.commons:commons-compress:1.28.0')
+    implementation('org.apache.commons:commons-lang3:3.18.0')
     implementation('org.apache.httpcomponents:httpclient:4.5.14')
     implementation('org.apache.httpcomponents:httpmime:4.5.14')
     implementation('org.springframework.boot:spring-boot-starter-actuator')
@@ -79,7 +78,7 @@ dependencies {
     implementation('org.projectlombok:lombok:1.18.36')
     annotationProcessor('org.projectlombok:lombok:1.18.36')
 
-    runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
+    runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.1')
     runtimeOnly('io.micrometer:micrometer-registry-influx:1.15.3')
     runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.15.3') {
         exclude group: 'org.junit.jupiter'
