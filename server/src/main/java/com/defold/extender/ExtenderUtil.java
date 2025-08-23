@@ -32,6 +32,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.simple.JSONObject;
 import org.springframework.core.io.Resource;
@@ -60,7 +61,7 @@ public class ExtenderUtil
         return Pattern.compile(convertStringToLiteral(expression));
     }
 
-    static private List<String> filterItems(List<String> input, List<String> expressions, boolean keep) {
+    static private List<String> filterItems(Collection<String> input, Collection<String> expressions, boolean keep) {
         List<String> items = new ArrayList<>();
 
         List<Pattern> patterns = new ArrayList<>();
@@ -101,16 +102,16 @@ public class ExtenderUtil
 
 
     // Excludes items from input list that matches an item in the expressions list
-    static List<String> excludeItems(List<String> input, List<String> expressions) {
+    static List<String> excludeItems(Collection<String> input, Collection<String> expressions) {
         return filterItems(input, expressions, false);
     }
 
     // Keeps the matching items from input list that matches an item in the expressions list
-    static private List<String> matchItems(List<String> input, List<String> expressions) {
+    static private List<String> matchItems(Collection<String> input, Collection<String> expressions) {
         return filterItems(input, expressions, true);
     }
 
-    static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns) {
+    static List<String> pruneItems(Collection<String> input, Collection<String> includePatterns, Collection<String> excludePatterns) {
         List<String> includeItems = matchItems(input, includePatterns);
         List<String> items = excludeItems(input, excludePatterns);
         for( String item : includeItems) {
@@ -918,8 +919,8 @@ public class ExtenderUtil
         return hexString.toString();
     }
 
-    public static File writeSourceFilesListToTmpFile(Set<String> fileList) throws IOException {
-        File resultFile = Files.createTempFile(null, "sourcelist").toFile();
+    public static File writeSourceFilesListToTmpFile(File targetDir, Set<String> fileList) throws IOException {
+        File resultFile = new File(targetDir, String.format("%s.sourcelist", RandomStringUtils.insecure().nextAlphanumeric(30)));
         Set<String> escapedList = new HashSet<>();
         fileList.forEach((elem) -> {
             escapedList.add(StringEscapeUtils.escapeXSI(elem));

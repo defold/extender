@@ -186,13 +186,9 @@ if [[ $(uname) == "Darwin" ]]; then
 
     # Keep Apple's naming convention to avoid bugs
     PACKAGES=(
-        iPhoneOS${IOS_17_VERSION}.sdk
         iPhoneOS${IOS_18_VERSION}.sdk
-        iPhoneSimulator${IOS_17_VERSION}.sdk
         iPhoneSimulator${IOS_18_VERSION}.sdk
-        MacOSX${MACOS_14_VERSION}.sdk
         MacOSX${MACOS_15_VERSION}.sdk
-        XcodeDefault${XCODE_15_VERSION}.xctoolchain.darwin
         XcodeDefault${XCODE_16_VERSION}.xctoolchain.darwin
     )
     function download_packages() {
@@ -217,3 +213,6 @@ download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
 
 echo "[setup] Installing dotnet"
 install_dotnet
+
+echo "[setup] Install hmap utility"
+brew install milend/taps/hmap

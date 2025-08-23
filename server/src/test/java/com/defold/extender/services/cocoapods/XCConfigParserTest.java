@@ -24,7 +24,6 @@ public class XCConfigParserTest {
 
     private static final String PODS_BUILD_DIR = "/var/tmp/tmp-dir/build";
     private static final String PODS_DIR = "/var/tmp/tmp-dir/pods-dir";
-    // private static final String POD_CONFIGURATION_DIR = String.format("%s/Target Support Files", PODS_DIR);
 
     XCConfigParser parser;
     Map<String, String> baseVars;
@@ -35,7 +34,7 @@ public class XCConfigParserTest {
         podsDir.deleteOnExit();
         File workingDir = Files.createTempDirectory("pods-working-dir").toFile();
         workingDir.deleteOnExit();
-        this.parser = new XCConfigParser(workingDir, podsDir, PodSpecParser.Platform.IPHONEOS.toString().toLowerCase(), "Debug", "arm64");
+        this.parser = new XCConfigParser(workingDir, podsDir, PodUtils.Platform.IPHONEOS, "Debug", "arm64");
         this.baseVars = createMockBaseVars();
     }
 
@@ -44,7 +43,8 @@ public class XCConfigParserTest {
             "PODS_ROOT", "/Users/test-pod/Pods",
             "PODS_BUILD_DIR", "/var/tmp/tmp-dir/pod-build-dir",
             "CONFIGURATION", "debug",
-            "EFFECTIVE_PLATFORM_NAME","iphones"
+            "EFFECTIVE_PLATFORM_NAME","iphoneos",
+            "TOOLCHAIN_DIR", "/opt/platformsdk/XcodeDefaults16.0.toolchain"
         );
     } 
 
@@ -63,16 +63,16 @@ public class XCConfigParserTest {
         return Stream.of(
             Arguments.of("INHERITED_VALUE = $(inherited) additional_value other_value ", "additional_value other_value"),
             Arguments.of("VALUE_SUBSTITUTION1=$(inherited) ${PODS_ROOT}/Headers/Private ${PODS_ROOT}/Headers/Private/KSCrash ${PODS_ROOT}/Headers/Public ${PODS_ROOT}/Headers/Public/KSCrash", "/Users/test-pod/Pods/Headers/Private /Users/test-pod/Pods/Headers/Private/KSCrash /Users/test-pod/Pods/Headers/Public /Users/test-pod/Pods/Headers/Public/KSCrash"),
-            Arguments.of("VALUE_SUBSTITUTION2=${PODS_BUILD_DIR}/$(CONFIGURATION)/$(EFFECTIVE_PLATFORM_NAME)", "/var/tmp/tmp-dir/pod-build-dir/debug/iphones"),
-            Arguments.of("VALUE_SUBSTITUTION3=${PODS_BUILD_DIR}/${CONFIGURATION}/$(EFFECTIVE_PLATFORM_NAME)", "/var/tmp/tmp-dir/pod-build-dir/debug/iphones"),
+            Arguments.of("VALUE_SUBSTITUTION2=${PODS_BUILD_DIR}/$(CONFIGURATION)/$(EFFECTIVE_PLATFORM_NAME)", "/var/tmp/tmp-dir/pod-build-dir/debug/iphoneos"),
+            Arguments.of("VALUE_SUBSTITUTION3=${PODS_BUILD_DIR}/${CONFIGURATION}/$(EFFECTIVE_PLATFORM_NAME)", "/var/tmp/tmp-dir/pod-build-dir/debug/iphoneos"),
             Arguments.of("POD_VERSION=$(POD_VERSION)", "$(POD_VERSION)"),
             Arguments.of("POD_VERSION=${POD_VERSION}", "${POD_VERSION}")
         );
     }
 
     private static Stream<Arguments> parsingData() {
-        String podsConfigurationBuildDir = String.format("%s/%s%s", PODS_BUILD_DIR, "Debug", "iphones");
-        String podsXCFrameworksBuildDir = String.format("%s/XCFrameworkIntermediates", podsConfigurationBuildDir, "Debug", "iphones");
+        String podsConfigurationBuildDir = String.format("%s/%s%s", PODS_BUILD_DIR, "Debug", "iphoneos");
+        String podsXCFrameworksBuildDir = String.format("%s/XCFrameworkIntermediates", podsConfigurationBuildDir, "Debug", "iphoneos");
         // Arguments struct
         // * Pod name
         // * path to xcconfig
@@ -133,7 +133,14 @@ public class XCConfigParserTest {
 
     @Test
     public void testBaseVariables() {
-        Map<String, String> baseVars = parser.calculateBaseVariables(null, "testPodSDK");
+        Map<String, String> vars = parser.calculateBaseVariables("testPodSDKModule", "testPodSDK");
+        assertEquals(vars, vars);
+        assertEquals("iphoneos", vars.get("EFFECTIVE_PLATFORM_NAME"));
+        assertEquals("Debug", vars.get("CONFIGURATION"));
+        assertEquals("Headers/Public/testPodSDKModule/testPodSDK.modulemap", vars.get("MODULEMAP_FILE"));
+        assertEquals("en", vars.get("DEVELOPMENT_LANGUAGE"));
+        assertEquals("iphoneos", vars.get("PLATFORM_NAME"));
+        assertEquals("arm64", vars.get("ARCHS"));
     }
 
     @ParameterizedTest
@@ -154,7 +161,7 @@ public class XCConfigParserTest {
     @ParameterizedTest(name = "{index}_testParsing_{0}")
     @MethodSource("parsingData")
     public void testParsing(String podName, File inputSource, String moduleName, Map<String, String> expectedSubset) throws IOException {
-        XCConfigParser parser = new XCConfigParser(new File(PODS_BUILD_DIR), new File(PODS_DIR), "iphones", "Debug", "arm64");
+        XCConfigParser parser = new XCConfigParser(new File(PODS_BUILD_DIR), new File(PODS_DIR), PodUtils.Platform.IPHONEOS, "Debug", "arm64");
         Map<String, String> result = parser.parse(moduleName, podName, inputSource);
         for (Map.Entry<String, String> entry : expectedSubset.entrySet()) {
             String key = entry.getKey();
@@ -165,7 +172,7 @@ public class XCConfigParserTest {
 
     @Test
     public void testIncludeParsing() {
-        XCConfigParser parser = new XCConfigParser(new File(PODS_BUILD_DIR), new File(PODS_DIR), "iphones", "Debug", "arm64");
+        XCConfigParser parser = new XCConfigParser(new File(PODS_BUILD_DIR), new File(PODS_DIR), PodUtils.Platform.IPHONEOS, "Debug", "arm64");
         File testFile = new File("test-data/xcconfigs/include_test.xcconfig");
         assertThrows(UnsupportedOperationException.class, () -> { parser.parse("other", "other", testFile); });
     }

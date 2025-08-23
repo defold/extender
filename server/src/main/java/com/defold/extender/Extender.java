@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
@@ -41,22 +42,20 @@ import java.util.zip.ZipFile;
 
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
-import com.defold.extender.services.cocoapods.PodSpec;
+import com.defold.extender.services.cocoapods.PodBuildSpec;
+import com.defold.extender.services.cocoapods.PodUtils;
 import com.defold.extender.services.cocoapods.ResolvedPods;
+import com.defold.extender.utils.PodBuildUtil;
 import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessExecutor;
+import com.defold.extender.process.ProcessUtils;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
+    private final ExtenderBuildState buildState;
     private final String appManifestPath;
-    private final String platform;
-    private final String hostPlatform;
-    private final File sdk;
-    private final File uploadDirectory;
-    private final File jobDirectory;
-    private final File buildDirectory;
     private final Configuration config;                 // build.yml from the defoldsdk
     private final PlatformConfig platformConfig;        // "common", platform, arch-platform from build.yml
     private final PlatformConfig platformVariantConfig; // "common", platform, arch-platform from build_variant.yml
@@ -65,11 +64,6 @@ class Extender {
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private MetricsWriter metricsWriter;
     // context flags
-    private final Boolean withSymbols;
-    private final Boolean useJetifier;
-    private final String buildArtifacts;
-    private final String debugSourcePath;
-    private final String configuration; // debug/release/headless
     private Boolean needsCSLibraries = false;
 
     private Map<String, File>                   manifestFiles;
@@ -89,11 +83,6 @@ class Extender {
     static final String FOLDER_COMMON_SRC = "commonsrc";// common source shared between both types
 
     static final String APPMANIFEST_FILENAME = "app.manifest";
-    static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
-    static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
-    static final String APPMANIFEST_BUILD_ARTIFACTS_KEYWORD = "buildArtifacts";
-    static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
-    static final String APPMANIFEST_DEBUG_SOURCE_PATH = "debugSourcePath";
     static final String FRAMEWORK_RE = "(.+)\\.framework";
     static final String JAR_RE = "(.+\\.jar)";
     static final String JS_RE = "(.+\\.js)";
@@ -137,13 +126,13 @@ class Extender {
     private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
 
     static public class Builder {
-        private String platform;
-        private File sdk;
-        private File jobDirectory;
-        private File buildDirectory;
-        private File uploadDirectory;
-        private Map<String, String> env = new HashMap<String, String>();
-        private MetricsWriter metricsWriter;
+        String platform;
+        File sdk;
+        File jobDirectory;
+        File buildDirectory;
+        File uploadDirectory;
+        Map<String, String> env = new HashMap<String, String>();
+        MetricsWriter metricsWriter;
 
         public Builder() { }
 
@@ -188,18 +177,15 @@ class Extender {
     };
 
     private Extender(Builder builder) throws IOException, ExtenderException {
-        this.jobDirectory = builder.jobDirectory;
-        this.uploadDirectory = builder.uploadDirectory;
-        this.buildDirectory = builder.buildDirectory;
         this.metricsWriter = builder.metricsWriter;
         this.gradlePackages = new ArrayList<>();
         this.outputFiles = new ArrayList<>();
 
         // Read config from SDK
-        this.config = Extender.loadYaml(this.jobDirectory, new File(builder.sdk.getPath() + "/extender/build.yml"), Configuration.class);
+        this.config = Extender.loadYaml(builder.jobDirectory, new File(builder.sdk.getPath() + "/extender/build.yml"), Configuration.class);
 
         // Read the app manifest from the upload folder
-        Collection<File> allFiles = FileUtils.listFiles(uploadDirectory, null, true);
+        Collection<File> allFiles = FileUtils.listFiles(builder.uploadDirectory, null, true);
         List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals(APPMANIFEST_FILENAME)).collect(Collectors.toList());
         if (appManifests.size() > 1 ) {
             throw new ExtenderException("Only one app.manifest allowed!");
@@ -213,8 +199,8 @@ class Extender {
             this.appManifestPath = "";
             appManifest = new AppManifestConfiguration();
         } else {
-            this.appManifestPath = ExtenderUtil.getRelativePath(this.uploadDirectory, appManifests.get(0));
-            appManifest = Extender.loadYaml(this.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
+            this.appManifestPath = ExtenderUtil.getRelativePath(builder.uploadDirectory, appManifests.get(0));
+            appManifest = Extender.loadYaml(builder.jobDirectory, appManifests.get(0), AppManifestConfiguration.class);
 
             // An completely empty manifest will yield a null pointer in result from Extender.loadYaml
             appManifest = (appManifest != null) ? appManifest : new AppManifestConfiguration();
@@ -225,7 +211,7 @@ class Extender {
                 appManifest.platforms = new HashMap<String, AppManifestPlatformConfig>();
             }
 
-            baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
+            baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, ExtenderBuildState.APPMANIFEST_BASE_VARIANT_KEYWORD, null);
             if (baseVariant != null)
             {
                 File baseVariantFile = new File(builder.sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
@@ -235,53 +221,20 @@ class Extender {
                 }
                 LOGGER.info("Using base variant: " + baseVariant);
 
-                baseVariantManifest = Extender.loadYaml(this.jobDirectory, baseVariantFile, AppManifestConfiguration.class);
+                baseVariantManifest = Extender.loadYaml(builder.jobDirectory, baseVariantFile, AppManifestConfiguration.class);
             }
         }
+        this.buildState = new ExtenderBuildState(builder, appManifest);
 
-        this.useJetifier = ExtenderUtil.getAppManifestBoolean(appManifest, builder.platform, APPMANIFEST_JETIFIER_KEYWORD, true);
-        this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
-        this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
-        this.debugSourcePath = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_DEBUG_SOURCE_PATH, null);
-        // assign configuration names started with upper letter because it used for cocoapods
-        if (baseVariant != null && (baseVariant.equals("release") || baseVariant.equals("headless"))) {
-            this.configuration = "Release";
-        } else {
-            this.configuration = "Debug";
-        }
-
-        this.platform = builder.platform;
-        this.sdk = builder.sdk;
-
-        String os = System.getProperty("os.name");
-        String arch = System.getProperty("os.arch");
-
-        // These host names are using the Defold SDK names
-        if (os.contains("Mac")) {
-            if (arch.contains("aarch64")) {
-                this.hostPlatform = "arm64-macos";
-            } else {
-                this.hostPlatform = "x86_64-macos";
-            }
-        } else if (os.contains("Windows")) {
-            this.hostPlatform = "x86_64-win32";
-        } else {
-            if (arch.contains("aarch64")) {
-                this.hostPlatform = "arm64-linux";
-            } else {
-                this.hostPlatform = "x86_64-linux";
-            }
-        }
-
-        if (config.platforms.get(platform) == null) {
-            throw new ExtenderException(String.format("Unsupported platform %s by this sdk", platform));
+        if (config.platforms.get(buildState.fullPlatform) == null) {
+            throw new ExtenderException(String.format("Unsupported platform %s by this sdk", buildState.fullPlatform));
         }
 
         // Merge the platform configs from build.yml into a single instance: common -> platform -> arch-platform
         this.platformConfig = new PlatformConfig();
         this.platformConfig.context = new HashMap<>(config.context); // the context from build.yml
 
-        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
             PlatformConfig platformConfigAlt = config.platforms.get(platformAlt);
             if (platformConfigAlt == null)
                 continue;
@@ -292,7 +245,7 @@ class Extender {
         // Merge the variant info into a single config
         this.platformVariantConfig = new PlatformConfig();
         if (baseVariantManifest != null) {
-            for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+            for (String platformAlt : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 AppManifestPlatformConfig configAlt = baseVariantManifest.platforms.get(platformAlt);
                 if (configAlt == null)
                     continue;
@@ -303,7 +256,7 @@ class Extender {
 
         // Merge the app manifest info into a single config
         this.platformAppConfig = new PlatformConfig();
-        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
             AppManifestPlatformConfig configAlt = appManifest.platforms.get(platformAlt);
             if (configAlt == null) {
                 continue;
@@ -313,17 +266,17 @@ class Extender {
             ExtenderUtil.mergeObjects(this.platformAppConfig, platformConfigAlt);
         }
 
-        LOGGER.info("Using context for platform: " + platform);
+        LOGGER.info("Using context for platform: {}", buildState.fullPlatform);
 
-        processExecutor.setCwd(jobDirectory);
+        processExecutor.setCwd(buildState.jobDir);
 
         {
             HashMap<String, Object> envContext = new HashMap<>();
-            envContext.put("build_folder", buildDirectory);
-            envContext.put("dynamo_home", sdk);
+            envContext.put("build_folder", buildState.buildDir);
+            envContext.put("dynamo_home", buildState.sdk);
             envContext.put("env.LD_LIBRARY_PATH", "."); // Easier when running a standalone local without such a variable
 
-            processExecutor.putEnv("DYNAMO_HOME", sdk.getAbsolutePath());
+            processExecutor.putEnv("DYNAMO_HOME", buildState.sdk.getAbsolutePath());
             String java_home = System.getenv("JAVA_HOME");
             if (java_home != null)
             {
@@ -360,7 +313,7 @@ class Extender {
         ExtensionManifestValidator manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
 
         // Make sure the user hasn't input anything invalid in the manifest
-        manifestValidator.validate(this.appManifestPath, this.uploadDirectory, this.platformAppConfig.context);
+        manifestValidator.validate(this.appManifestPath, buildState.uploadDir, this.platformAppConfig.context);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -380,15 +333,11 @@ class Extender {
     }
 
     private File createBuildFile(String name) {
-        return new File(buildDirectory, name);
+        return new File(buildState.buildDir, name);
     }
 
     private File uniqueTmpFile(String prefix, String suffix) {
         return createBuildFile(prefix + getNameUUID() + suffix);
-    }
-
-    private File uniqueTmpFile(String pattern) {
-        return createBuildFile(String.format(pattern, getNameUUID()));
     }
 
     private String executeCommand(String template, Map<String, Object> context) throws ExtenderException {
@@ -449,9 +398,9 @@ class Extender {
         Map<String, Object> context = new HashMap<>(src); // TODO: Create deep copy
 
         // Should not be allowed to be overridden by manifests
-        context.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
-        context.put("platform", this.platform);
-        context.put("host_platform", this.hostPlatform);
+        context.put("dynamo_home", ExtenderUtil.getRelativePath(buildState.jobDir, buildState.sdk));
+        context.put("platform", buildState.fullPlatform);
+        context.put("host_platform", buildState.hostPlatform);
 
         resolveVariables(context);
         return context;
@@ -459,8 +408,8 @@ class Extender {
 
     private List<String> getFrameworks(File dir) {
         List<String> frameworks = new ArrayList<>();
-        final String[] platformParts = this.platform.split("-");
-        frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + this.platform), FRAMEWORK_RE)); // e.g. armv64-ios
+        final String[] platformParts = buildState.fullPlatform.split("-");
+        frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + buildState.fullPlatform), FRAMEWORK_RE)); // e.g. armv64-ios
         if (platformParts.length == 2) {
             frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
         }
@@ -470,8 +419,8 @@ class Extender {
     // Get a list of subfolders matching the current platform
     private List<String> getPlatformPaths(File dir) {
         List<String> paths = new ArrayList<>();
-        final String[] platformParts = this.platform.split("-");
-        File libDir = new File(dir, this.platform);
+        final String[] platformParts = buildState.fullPlatform.split("-");
+        File libDir = new File(dir, buildState.fullPlatform);
         if (libDir.exists()) {
             paths.add(libDir.getAbsolutePath());
         }
@@ -490,8 +439,8 @@ class Extender {
 
     private List<String> getExtensionLibJars(File extDir) {
         List<String> jars = new ArrayList<>();
-        jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + this.platform), JAR_RE)); // e.g. armv7-android
-        String[] platformParts = this.platform.split("-");
+        jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + buildState.fullPlatform), JAR_RE)); // e.g. armv7-android
+        String[] platformParts = buildState.fullPlatform.split("-");
         if (platformParts.length == 2) {
             jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + platformParts[1]), JAR_RE)); // e.g. "android"
         }
@@ -533,7 +482,7 @@ class Extender {
     private List<String> pruneNonExisting(List<String> paths) {
         List<String> existing = new ArrayList<>();
         for (String path : paths) {
-            File f = new File(jobDirectory + File.separator + path);
+            File f = new File(buildState.jobDir + File.separator + path);
             if (f.exists())
                 existing.add(path);
         }
@@ -543,22 +492,22 @@ class Extender {
     private List<String> getExtLocalIncludeDirs(File dir) {
         List<String> includes = new ArrayList<>();
 
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(dir, "include" + File.separator + this.platform) ) );
+        includes.add( ExtenderUtil.getRelativePath(buildState.jobDir, new File(dir, "include" + File.separator + buildState.fullPlatform) ) );
 
-        String[] platformParts = this.platform.split("-");
+        String[] platformParts = buildState.fullPlatform.split("-");
         if (platformParts.length == 2) {
-            includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(dir, "include" + File.separator + platformParts[1])));
+            includes.add( ExtenderUtil.getRelativePath(buildState.jobDir, new File(dir, "include" + File.separator + platformParts[1])));
         }
 
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(dir, "include") ) );
+        includes.add( ExtenderUtil.getRelativePath(buildState.jobDir, new File(dir, "include") ) );
         return includes;
     }
 
     private List<String> getIncludeDirs(File extDir) {
         List<String> includes = getExtLocalIncludeDirs(extDir);
 
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, new File(buildDirectory, extDir.getName())) ); // where we generate source from protobuf files
-        includes.add( ExtenderUtil.getRelativePath(jobDirectory, uploadDirectory) ); //TODO: Do we ever put stuff here? Isn't it more useful to include the build folder?
+        includes.add( ExtenderUtil.getRelativePath(buildState.jobDir, new File(buildState.buildDir, extDir.getName())) ); // where we generate source from protobuf files
+        includes.add( ExtenderUtil.getRelativePath(buildState.jobDir, buildState.uploadDir) ); //TODO: Do we ever put stuff here? Isn't it more useful to include the build folder?
 
         // Add the other extensions include folders
         for (File otherExtDir : this.getExtensionFolders()) {
@@ -571,11 +520,13 @@ class Extender {
         return pruneNonExisting(includes);
     }
 
-    private List<String> getPodIncludeDir(PodSpec pod) {
+    private List<String> getPodIncludeDir(PodBuildSpec pod) {
         List<String> result = new ArrayList<>();
-        for (File path : pod.includePaths) {
-            result.add(path.toString());
+        for (File f : pod.includePaths) {
+            result.add(f.toString());
         }
+        result.add(pod.headerMapFile.toString());
+
         if (pod.swiftModuleHeader != null) {
             result.add(pod.swiftModuleHeader.toPath().getParent().toString());
         }
@@ -585,18 +536,17 @@ class Extender {
     // swiftc: https://gist.github.com/enomoto/7f11d57e4add7e702f9f84f34d3a0f8c
     // swift-frontend: https://gist.github.com/palaniraja/b4de1e64e874b68bda9e5236829cd8a6
 
-    private void emitSwiftHeader(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private void emitSwiftHeader(PodBuildSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(getFrameworks(pod.dir));
         frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -610,18 +560,17 @@ class Extender {
         commands.add(command);
     }
 
-    private void emitSwiftModule(PodSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+    private void emitSwiftModule(PodBuildSpec pod, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         List<String> includes = getIncludeDirs(pod.dir);
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(getFrameworks(pod.dir));
         frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -635,12 +584,12 @@ class Extender {
         commands.add(command);
     }
 
-    void generateSwiftCompatabilityHeaders(PodSpec spec, File podDir) throws IOException {
+    void generateSwiftCompatabilityHeaders(PodBuildSpec spec, File podDir) throws IOException {
         LOGGER.debug("Generate Swift compatability header and modulemap for {}", spec.name);
         File podBuildDir = spec.swiftModuleHeader.toPath().getParent().getParent().toFile();
 
         // copy objc modulemap which Cocopoapods generated
-        String podName = spec.getPodName();
+        String podName = spec.name;
         Path sourceModuleMap = Path.of(podDir.toString(), "Target Support Files", podName, String.format("%s.modulemap", podName));
         Path targetModuleMap = Path.of(podBuildDir.toString(), String.format("%s.modulemap", spec.moduleName)); // it's not a bug. Cocoapods installs module map in Target support Files with spec.name but in compiler options it waits spec.moduleName
         Files.copy(sourceModuleMap, targetModuleMap, StandardCopyOption.REPLACE_EXISTING);
@@ -654,8 +603,8 @@ class Extender {
         Files.writeString(targetModuleMap, spec.swiftModuleDefinition, StandardOpenOption.APPEND);
     }
 
-    private File addCompileFileSwift(PodSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
+    private File addCompileFileSwift(PodBuildSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        File o = new File(buildState.buildDir, String.format("%s_%d.o", src.getName(), index));
 
         // remove the primary source file from the set of all source files
         String swiftPrimarySourceFile = src.getAbsolutePath();
@@ -666,17 +615,15 @@ class Extender {
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(getFrameworks(pod.dir));
         frameworks.addAll(resolvedPods.getFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
-        frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
 
-        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(swiftSourceFilePaths);
-        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(Set.of(swiftPrimarySourceFile));
+        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, swiftSourceFilePaths);
+        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, Set.of(swiftPrimarySourceFile));
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
-        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
+        context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, o));
         context.put("moduleName", pod.moduleName);
         context.put("swiftPrimarySourceFile", String.format("@%s", primarySourceFile.getAbsolutePath()));
         context.put("swiftSourceFiles", String.format("@%s", sourceFileList.getAbsolutePath()));
@@ -692,7 +639,7 @@ class Extender {
         List<String> includes = getIncludeDirs(extDir);
         includes.addAll(additionalIncludes);
 
-        File o = new File(buildDirectory, String.format("%s_%d.o", src.getName(), index));
+        File o = new File(buildState.buildDir, String.format("%s_%d.o", src.getName(), index));
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(extDir));
@@ -704,8 +651,8 @@ class Extender {
         }
 
         Map<String, Object> context = createContext(manifestContext);
-        context.put("src", ExtenderUtil.getRelativePath(jobDirectory, src));
-        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
+        context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, src));
+        context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, o));
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
 
         String command = templateExecutor.execute(cmd, context);
@@ -744,7 +691,7 @@ class Extender {
 
         context.put("ext", env);
         context.put("src", objs);
-        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, output));
+        context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, output));
 
         executeCommand(cmd, context);
 
@@ -756,8 +703,8 @@ class Extender {
         Map<String, Object> context = createContext(manifestContext);
         context.put("extension_name", "ENGINE_MAIN");
         context.put("extension_name_upper", "ENGINE_MAIN");
-        context.put("src", ExtenderUtil.getRelativePath(jobDirectory, maincpp));
-        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, o));
+        context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, maincpp));
+        context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, o));
         executeCommand(platformConfig.compileCmd, context);
         return o;
     }
@@ -773,8 +720,6 @@ class Extender {
     private List<File> generateProtoCxxForEngine(File extDir, Map<String, Object> manifestContext, List<File> protoFiles) throws IOException, InterruptedException, ExtenderException {
         List<File> generated = new ArrayList<>();
 
-        Map<String, Object> tmpcontext = createContext(manifestContext);
-
         if (platformConfig.protoEngineCxxCmd == null) {
             LOGGER.info("Not supporting .proto files");
             return generated;
@@ -782,7 +727,7 @@ class Extender {
 
         LOGGER.info("Converting .proto to engine .cpp files for extension {}", extDir.getName());
 
-        File extBuildDir = createDir(buildDirectory, extDir.getName());
+        File extBuildDir = createDir(buildState.buildDir, extDir.getName());
 
         List<String> includes = getIncludeDirs(extDir);
 
@@ -793,7 +738,7 @@ class Extender {
 
             Map<String, Object> context = createContext(manifestContext);
 
-            context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
+            context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, protoFile));
             context.put("ext", ImmutableMap.of("includes", includes));
             context.put("out_dir", extBuildDir);
             executeCommand(platformConfig.protoEngineCxxCmd, context);
@@ -808,9 +753,7 @@ class Extender {
     private List<File> generateProtoSrcForPlugin(File extDir, Map<String, Object> manifestContext, List<File> protoFiles, String language) throws IOException, InterruptedException, ExtenderException {
         List<File> generated = new ArrayList<>();
 
-        Map<String, Object> tmpcontext = createContext(manifestContext);
-
-        File extBuildDir = createDir(buildDirectory, extDir.getName());
+        File extBuildDir = createDir(buildState.buildDir, extDir.getName());
         List<String> includes = getIncludeDirs(extDir);
 
         LOGGER.info("Converting .proto to plugin {} files for extension {}", language, extDir.getName());
@@ -831,13 +774,13 @@ class Extender {
             File tgtFile = new File(extBuildDir, name);
 
             Map<String, Object> context = createContext(manifestContext);
-            context.put("src", ExtenderUtil.getRelativePath(jobDirectory, protoFile));
+            context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, protoFile));
             context.put("ext", ImmutableMap.of("includes", includes));
             context.put("out_dir", extBuildDir);
             context.put("language", language);
 
             // Adding the source folderpath, so the output relative path gets stripped and the output becomes "extBuildDir/proto_file_name.pb.cc"
-            context.put("proto_path", ExtenderUtil.getRelativePath(jobDirectory, protoFile.getParentFile()));
+            context.put("proto_path", ExtenderUtil.getRelativePath(buildState.jobDir, protoFile.getParentFile()));
 
             executeCommand(platformConfig.protoPipelineCmd, context);
 
@@ -855,14 +798,7 @@ class Extender {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
 
-        List<String> additionalIncludes = new ArrayList<>();
-        if (resolvedPods != null) {
-            for (PodSpec spec : resolvedPods.getPodSpecs()) {
-                for (File path : spec.includePaths) {
-                    additionalIncludes.add(path.toString());
-                }
-            }
-        }
+        List<String> additionalIncludes = resolvedPods != null ? resolvedPods.getAdditionalIncludePaths() : List.of();
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
 
@@ -878,14 +814,14 @@ class Extender {
             if (o == null) {
                 throw new ExtenderException(String.format("Source file '%s' didn't match a source builder.", src));
             }
-            objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+            objs.add(ExtenderUtil.getRelativePath(buildState.jobDir, o));
         }
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
         return objs;
     }
 
     // compile the source files of a pod and return a list of object files
-    private List<String> compilePodSourceFiles(PodSpec pod, Map<String, Object> manifestContext, Set<File> podSourceLookup) throws IOException, InterruptedException, ExtenderException {
+    private List<String> compilePodSourceFiles(PodBuildSpec pod, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
@@ -926,32 +862,62 @@ class Extender {
             List<String> updatedSwiftFlags = new ArrayList<String>(swiftFlags);
             updatedSwiftFlags.add("-enable-experimental-feature");
             updatedSwiftFlags.add("AccessLevelOnImport");
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (File path : pod.frameworkSearchPaths) {
+                updatedSwiftFlags.add(String.format("-F%s", path.toString()));
+            }
+            if (resolvedPods.useFrameworks()) {
+                updatedSwiftFlags.add(String.format("-F%s", pod.buildDir.toString()));
+            }
+// ************************************************************************************************************
             mergedContextWithPodsForSwift.put("swiftFlags", updatedSwiftFlags);
 
             // generate headers from swift files
             List<String> emitSwiftHeaderCommands = new ArrayList<>();
             LOGGER.info("emit swift header");
             emitSwiftHeader(pod, mergedContextWithPodsForSwift, emitSwiftHeaderCommands);
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (int i = 0; i < emitSwiftHeaderCommands.size(); ++i) {
+                String cmd = emitSwiftHeaderCommands.get(i);
+                cmd = cmd.replaceAll("-DSWIFT_PACKAGE", "");
+                emitSwiftHeaderCommands.set(i, cmd);
+            }
+// ************************************************************************************************************
             ProcessExecutor.executeCommands(processExecutor, emitSwiftHeaderCommands); // in parallel
 
             // generate swift module from swift files
             List<String> emitSwiftModuleCommands = new ArrayList<>();
             LOGGER.info("emit swift module");
             emitSwiftModule(pod, mergedContextWithPodsForSwift, emitSwiftModuleCommands);
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (int i = 0; i < emitSwiftModuleCommands.size(); ++i) {
+                String cmd = emitSwiftModuleCommands.get(i);
+                cmd = cmd.replaceAll("-DSWIFT_PACKAGE", "");
+                emitSwiftModuleCommands.set(i, cmd);
+            }
+// ************************************************************************************************************
             ProcessExecutor.executeCommands(processExecutor, emitSwiftModuleCommands); // in parallel
 
             // compile swift source files one by one
             List<String> compileSwiftCommands = new ArrayList<>();
             for (File src : pod.swiftSourceFiles) {
-                if (!podSourceLookup.contains(src)) {
-                    final int i = getAndIncreaseNameCount();
-                    File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForSwift, compileSwiftCommands);
-                    String objPath = ExtenderUtil.getRelativePath(jobDirectory, o);
-                    objs.add(objPath);
-                    podSourceLookup.add(src);
-                }
+                final int i = getAndIncreaseNameCount();
+                File o = addCompileFileSwift(pod, i, src, mergedContextWithPodsForSwift, compileSwiftCommands);
+                String objPath = ExtenderUtil.getRelativePath(buildState.jobDir, o);
+                objs.add(objPath);
             }
             LOGGER.info("compiling {} swift files", compileSwiftCommands.size());
+// ******************************** Added for backward comapatibility *****************************************
+// ******************************** Remove after 6 month ******************************************************
+            for (int i = 0; i < compileSwiftCommands.size(); ++i) {
+                String cmd = compileSwiftCommands.get(i);
+                cmd = cmd.replaceAll("-DSWIFT_PACKAGE", "");
+                compileSwiftCommands.set(i, cmd);
+            }
+// ************************************************************************************************************
             ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
 
             generateSwiftCompatabilityHeaders(pod, resolvedPods.getCurrentPodsDirectory());
@@ -959,32 +925,147 @@ class Extender {
 
         List<String> commands = new ArrayList<>();
         for (File src : pod.sourceFiles) {
-            if (!podSourceLookup.contains(src)) {
-                String extension = FilenameUtils.getExtension(src.getAbsolutePath());
-                final int i = getAndIncreaseNameCount();
-                File o = null;
-                // use the correct context depending on the source file language
-                if (extension.equals("c")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands, getPodIncludeDir(pod));
-                }
-                else if (extension.equals("m")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands, getPodIncludeDir(pod));
-                }
-                else if (extension.equals("mm")) {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands, getPodIncludeDir(pod));
-                }
-                else {
-                    o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands, getPodIncludeDir(pod));
-                }
-                String objPath = ExtenderUtil.getRelativePath(jobDirectory, o);
-                objs.add(objPath);
-                podSourceLookup.add(src);
+            String extension = FilenameUtils.getExtension(src.getAbsolutePath());
+            final int i = getAndIncreaseNameCount();
+            File o = null;
+            // use the correct context depending on the source file language
+            if (extension.equals("c")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForC, commands, getPodIncludeDir(pod));
             }
+            else if (extension.equals("m")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjC, commands, getPodIncludeDir(pod));
+            }
+            else if (extension.equals("mm")) {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForObjCpp, commands, getPodIncludeDir(pod));
+            }
+            else {
+                o = addCompileFileCppStatic(i, pod.dir, src, mergedContextWithPodsForCpp, commands, getPodIncludeDir(pod));
+            }
+            String objPath = ExtenderUtil.getRelativePath(buildState.jobDir, o);
+            objs.add(objPath);
         }
         LOGGER.info("compiling {} source files", commands.size());
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
         return objs;
+    }
+
+    void buildPodAsFramework(PodBuildSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
+        // Collect resource bundles
+        List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform);
+
+        if (PodUtils.hasSourceFiles(spec)) {
+            Map<String, Collection<File>> enumeratedFiles = new HashMap<>();
+            String podName = spec.name;
+            // Create output folder and output framework folder
+            File frameworkDir = new File(spec.buildDir, String.format("%s.framework", spec.moduleName));
+            frameworkDir.mkdirs();
+            File frameworkHeaders = new File(frameworkDir, "Headers");
+            frameworkHeaders.mkdir();
+            File frameworkModules = new File(frameworkDir, "Modules");
+            frameworkModules.mkdir();
+
+            String frameworkHeadersDirPath = frameworkHeaders.toString();
+            // Collect headers
+            for (File header : spec.publicHeaders) {
+                FileUtils.copyFileToDirectory(header, frameworkHeaders);
+                PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkHeadersDirPath, header);
+            }
+
+            // copy first time
+            File sourceModuleMap = Path.of(targetSupportFileDir.toString(), podName, String.format("%s.modulemap", podName)).toFile();
+            FileUtils.copyFile(sourceModuleMap, new File(frameworkModules, "module.modulemap"));
+            PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkModules.toString(), sourceModuleMap);
+
+            File sourceUmbrellaHeader = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-umbrella.h", podName)).toFile();
+            FileUtils.copyFileToDirectory(sourceUmbrellaHeader, frameworkHeaders);
+            PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkHeadersDirPath, sourceUmbrellaHeader);
+
+            PodBuildUtil.generateVFSOverlay(spec, enumeratedFiles);
+            // Compile library
+            File library = buildPodLibrary(spec);
+
+            FileUtils.copyFile(library, new File(frameworkDir, spec.moduleName));
+
+            // copy from generateSwiftCompatabilityHeader
+            if (spec.swiftModuleHeader != null && spec.swiftModuleHeader.exists()) {
+                FileUtils.copyFileToDirectory(spec.swiftModuleHeader, frameworkHeaders);
+                // copy the second time because during generating swift compatibility header modulemap was updated
+                File updatedModuleMap = new File(spec.buildDir, String.format("%s.modulemap", spec.moduleName));
+                FileUtils.copyFile(updatedModuleMap, new File(frameworkModules, "module.modulemap"), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            // Copy swift module 
+            File swiftModule = new File(spec.buildDir, spec.moduleName + ".swiftmodule");
+            if (swiftModule.exists()) {
+                File targetSwiftModuleDir = new File(frameworkModules, spec.moduleName + ".swiftmodule");
+                targetSwiftModuleDir.mkdir();
+                File targetSwiftModuleName = new File(targetSwiftModuleDir, String.format("%s.swiftmodule", PodUtils.swiftModuleNameFromPlatform(targetPlatform)));
+                FileUtils.copyFile(swiftModule, targetSwiftModuleName, StandardCopyOption.REPLACE_EXISTING);
+            }
+            // 4.2. Copy modulemap
+            for (File bundle : resourceBundles) {
+                FileUtils.copyDirectoryToDirectory(bundle, frameworkDir);
+            }
+            Set<File> resources = new HashSet<>();
+            ResolvedPods.addPodResources(spec, resources);
+            for (File res : resources) {
+                FileUtils.copyFileToDirectory(res, frameworkDir);
+            }
+
+            // copy Info.plist
+            File sourceInfoPlist = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-Info.plist", podName)).toFile();
+            PodBuildUtil.generatedInfoPlistFromTemplate(sourceInfoPlist, Map.of(
+                "PODS_DEVELOPMENT_LANGUAGE", "en",
+                "EXECUTABLE_NAME", spec.moduleName,
+                "PRODUCT_BUNDLE_IDENTIFIER", String.format("org.cocoapods.%s", spec.moduleName),
+                "PRODUCT_NAME", spec.moduleName,
+                "CURRENT_PROJECT_VERSION", "1"
+
+            ), new File(frameworkDir, "Info.plist"));
+
+            // 5. Sign framework
+            ProcessUtils.execCommand(List.of(
+                "/usr/bin/codesign",
+                "--force",
+                "--sign",
+                "-",
+                "--timestamp=none",
+                "--generate-entitlement-der",
+                frameworkDir.getAbsolutePath()
+            ), null, null);
+        }
+    }
+
+    /*
+     * @return resultLib File Result static/dynamic library or null is no source files
+     */
+    File buildPodLibrary(PodBuildSpec spec) throws ExtenderException, IOException, InterruptedException {
+        LOGGER.info("buildPods - compiling pod source files for {}", spec.name);
+        // The source files of each pod will be compiled and built as a library.
+        // We use the same mechanism as when building the extension and create a
+        // manifest context for each pod
+        Map<String, Object> manifestContext = new HashMap<>();
+        manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformConfig.context);
+        manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
+        manifestContext.put("extension_name", spec.name);
+        manifestContext.put("extension_name_upper", spec.name.toUpperCase());
+        manifestContext.put("osMinVersion", resolvedPods.getPlatformMinVersion());
+        manifestContext.put("env.IOS_VERSION_MIN", resolvedPods.getPlatformMinVersion());
+
+        // Compile pod source files
+        List<String> objs = compilePodSourceFiles(spec, manifestContext);
+        if (!objs.isEmpty()) {
+            // Create c++ library
+            File lib = new File(spec.buildDir ,String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
+            Map<String, Object> context = createContext(manifestContext);
+            context.put("tgt", lib);
+            context.put("objs", objs);
+            LOGGER.info("creating library {} from {} objects", lib.getName(), objs.size());
+            executeCommand(platformConfig.libCmd, context);
+            return lib;
+        }
+        return null;
     }
 
     // build the source files of each resolved pod file into a library
@@ -995,36 +1076,19 @@ class Extender {
             return outputFiles;
         }
 
-        LOGGER.info("buildPods - compiling pod source files");
-        Set<File> podSourceLookup = new HashSet<>();
-        for (PodSpec pod : resolvedPods.getPodSpecs()) {
-            LOGGER.info("buildPods - compiling pod source files for {}", pod.name);
-            // The source files of each pod will be compiled and built as a library.
-            // We use the same mechanism as when building the extension and create a
-            // manifest context for each pod
-            Map<String, Object> manifestContext = new HashMap<>();
-            manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformConfig.context);
-            manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
-            manifestContext.put("extension_name", pod.name);
-            manifestContext.put("extension_name_upper", pod.name.toUpperCase());
-            manifestContext.put("osMinVersion", resolvedPods.getPlatformMinVersion());
-            manifestContext.put("env.IOS_VERSION_MIN", resolvedPods.getPlatformMinVersion());
-
-            // Compile pod source files
-            List<String> objs = compilePodSourceFiles(pod, manifestContext, podSourceLookup);
-            if (!objs.isEmpty()) {
-                // Create c++ library
-                File lib = createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
-                Map<String, Object> context = createContext(manifestContext);
-                context.put("tgt", lib);
-                context.put("objs", objs);
-                LOGGER.info("creating library {} from {} objects", lib.getName(), objs.size());
-                executeCommand(platformConfig.libCmd, context);
+        boolean asFramework = resolvedPods.useFrameworks();
+        LOGGER.info("buildPods - compiling pod source file as {}", asFramework ? "frameworks" : "libraries");
+        for (PodBuildSpec pod : resolvedPods.getPodSpecs()) {
+            PodBuildUtil.generateHeaderMap(pod);
+            if (asFramework) {
+                buildPodAsFramework(pod, buildState.fullPlatform, resolvedPods.getTargetSupportFilesDir());
+            } else {
+                buildPodLibrary(pod);
             }
         }
 
         LOGGER.info("buildPods - adding framework resource to build output");
-        File resourcesBuildDir = new File(buildDirectory, "resources");
+        File resourcesBuildDir = new File(buildState.buildDir, "resources");
         resourcesBuildDir.mkdir();
 
         List<File> resources = resolvedPods.getAllPodResources();
@@ -1034,8 +1098,7 @@ class Extender {
                 resourceDestFile.getParentFile().mkdirs();
                 Files.copy(resourceFile.toPath(), resourceDestFile.toPath());
                 outputFiles.add(resourceDestFile);
-            }
-            else {
+            } else {
                 File resourceDestDir = new File(resourcesBuildDir, resourceFile.getName());
                 resourceDestDir.mkdirs();
                 FileUtils.copyDirectory(resourceFile, resourceDestDir);
@@ -1044,10 +1107,10 @@ class Extender {
         }
 
         LOGGER.info("buildPods - creating and adding resource bundles");
-        outputFiles.addAll(resolvedPods.createResourceBundles(resourcesBuildDir, platform));
+        outputFiles.addAll(resolvedPods.createResourceBundles(resourcesBuildDir, buildState.fullPlatform));
 
         LOGGER.info("buildPods - adding dynamic frameworks to build output");
-        File frameworksBuildDir = new File(buildDirectory, "frameworks");
+        File frameworksBuildDir = new File(buildState.buildDir, "frameworks");
         frameworksBuildDir.mkdir();
 
         List<File> dynamicFrameworks = resolvedPods.getDynamicFrameworks();
@@ -1069,7 +1132,7 @@ class Extender {
         File podfileLock = resolvedPods.getPodfileLock();
         if (podfileLock != null) {
             LOGGER.info("buildPods - adding Podfile.lock to build output");
-            File destPodFileLock = new File(buildDirectory, "Podfile.lock");
+            File destPodFileLock = new File(buildState.buildDir, "Podfile.lock");
             FileUtils.copyFile(podfileLock, destPodFileLock);
             outputFiles.add(destPodFileLock);
         }
@@ -1112,7 +1175,7 @@ class Extender {
 
         if (libraryOut != null) {
             // TODO: Allow to set the actual output artifact path or name (i.e. libCpp.getAbsolutePath())
-            throw new ExtenderException(String.format("%s:1: error: We currently don't support merging or building two library files at the same time!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest)));
+            throw new ExtenderException(String.format("%s:1: error: We currently don't support merging or building two library files at the same time!", ExtenderUtil.getRelativePath(buildState.uploadDir, manifest)));
         }
 
         // Create static library
@@ -1122,7 +1185,7 @@ class Extender {
 
         File extDir = manifest.getParentFile();
 
-        File sdkDir = new File(sdk, "sdk");
+        File sdkDir = new File(buildState.sdk, "sdk");
         File sdkCsDir = new File(sdkDir, "cs");
         File sdkCsdmSDKDir = new File(sdkCsDir, "dmsdk");
         File sdkProject = new File(sdkCsdmSDKDir, "dmsdk.csproj");
@@ -1131,7 +1194,7 @@ class Extender {
 
         // Make sure the engine libraries aren't starting with "lib" (i.e. "libextension" -> "extension")
         List<String> libs = (List<String>)context.get("engineLibs");
-        if (ExtenderUtil.isWindowsTarget(this.platform))
+        if (ExtenderUtil.isWindowsTarget(buildState.fullPlatform))
         {
             libs = new ArrayList<>();
             for (String lib : (List<String>)context.get("engineLibs")) {
@@ -1144,11 +1207,11 @@ class Extender {
         CSharpBuilder csBuilder = new CSharpBuilder(processExecutor, templateExecutor, context);
         csBuilder.setSdkProject(sdkProject);
         csBuilder.setSourceDirectory(extDir);
-        csBuilder.setOutputDirectory(new File(buildDirectory, extDir.getName()));
+        csBuilder.setOutputDirectory(new File(buildState.buildDir, extDir.getName()));
         csBuilder.setEngineLibraries(libs);
         csBuilder.setOutputFile(library);
         csBuilder.setOutputName(name);
-        csBuilder.setPlatform(this.platform);
+        csBuilder.setPlatform(buildState.fullPlatform);
         out.addAll(csBuilder.build());
         return out;
     }
@@ -1169,7 +1232,7 @@ class Extender {
         List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, PROTO_RE);
         List<File> generated = generateProtoCxxForEngine(extDir, manifestContext, protoFiles);
         if (!protoFiles.isEmpty() && generated.isEmpty()) {
-            throw new ExtenderException(String.format("%s:1: error: Protofiles didn't generate any output engine cpp files!", ExtenderUtil.getRelativePath(this.uploadDirectory, protoFiles.get(0)) ));
+            throw new ExtenderException(String.format("%s:1: error: Protofiles didn't generate any output engine cpp files!", ExtenderUtil.getRelativePath(buildState.uploadDir, protoFiles.get(0)) ));
         }
         srcFiles.addAll(generated);
 
@@ -1180,7 +1243,7 @@ class Extender {
         }
 
         if (srcFiles.isEmpty() && srcCSFiles.isEmpty()) {
-            throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(this.uploadDirectory, manifest) ));
+            throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(buildState.uploadDir, manifest) ));
         }
 
         List<File> outputFiles = new ArrayList<>();
@@ -1206,9 +1269,9 @@ class Extender {
     private List<File> buildLibrary(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildLibrary");
         List<File> srcDirs = new ArrayList<>();
-        srcDirs.add(uploadDirectory);
+        srcDirs.add(buildState.uploadDir);
         String libName = String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name"));
-        return buildExtensionInternal(manifest, manifestContext, srcDirs, new File(buildDirectory, libName));
+        return buildExtensionInternal(manifest, manifestContext, srcDirs, new File(buildState.buildDir, libName));
     }
 
     private List<File> buildPipelineExtension(File manifest, Map<String, Object> manifestContext) throws IOException, InterruptedException, ExtenderException {
@@ -1218,7 +1281,7 @@ class Extender {
         }
 
         File extDir = manifest.getParentFile();
-        File extBuildDir = createDir(buildDirectory, extDir.getName());
+        File extBuildDir = createDir(buildState.buildDir, extDir.getName());
         extBuildDir.mkdir();
         File[] srcDirs = { new File(extDir, FOLDER_COMMON_SRC), new File(extDir, FOLDER_PLUGIN_SRC) };
 
@@ -1248,7 +1311,7 @@ class Extender {
                 int i = getAndIncreaseNameCount();
                 for (File src : srcFiles) {
                     File o = addCompileFileCppShared(i, extDir, src, manifestContext, commands);
-                    objs.add(ExtenderUtil.getRelativePath(jobDirectory, o));
+                    objs.add(ExtenderUtil.getRelativePath(buildState.jobDir, o));
                     i++;
                 }
                 ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
@@ -1334,25 +1397,26 @@ class Extender {
     }
 
     private void getProjectPaths(Map<String, Object> mainContext, Map<String, Object> env) throws ExtenderException, IOException {
-        List<String> extLibs = new ArrayList<>();
-        List<String> extShLibs = new ArrayList<>();
-        List<String> extLibPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
-        List<String> extFrameworks = new ArrayList<>();
-        List<String> extFrameworkPaths = new ArrayList<>(Arrays.asList(buildDirectory.toString()));
-        List<String> extJsLibs = new ArrayList<>();
+        Collection<String> extLibs = new HashSet<>();
+        Collection<String> extShLibs = new HashSet<>();
+        Collection<String> extLibPaths = new HashSet<>(Arrays.asList(buildState.buildDir.toString()));
+        Collection<String> extFrameworks = new HashSet<>();
+        Collection<String> extFrameworkPaths = new HashSet<>(Arrays.asList(buildState.buildDir.toString()));
+        Collection<String> extJsLibs = new HashSet<>();
 
-        extShLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.shlibRe));
-        extLibs.addAll(ExtenderUtil.collectFilesByName(buildDirectory, platformConfig.stlibRe));
+        extShLibs.addAll(ExtenderUtil.collectFilesByName(buildState.buildDir, platformConfig.shlibRe));
+        extLibs.addAll(ExtenderUtil.collectFilesByName(buildState.buildDir, platformConfig.stlibRe));
 
         if (resolvedPods != null) {
             extFrameworks.addAll(resolvedPods.getFrameworks());
+            extFrameworks.addAll(resolvedPods.getBuiltFrameworks());
             extFrameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
             extLibs.addAll(resolvedPods.getStaticLibraries());
             extLibPaths.addAll(resolvedPods.getLibrarySearchPaths());
         }
 
         for (File extDir : this.extDirs) {
-            File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
+            File libDir = new File(extDir, "lib" + File.separator + buildState.fullPlatform); // e.g. arm64-ios
 
             if (libDir.exists()) {
                 extLibPaths.add(libDir.toString());
@@ -1365,7 +1429,7 @@ class Extender {
 
             extFrameworks.addAll(getFrameworks(extDir));
 
-            String[] platformParts = this.platform.split("-");
+            String[] platformParts = buildState.fullPlatform.split("-");
             if (platformParts.length == 2) {
                 File libCommonDir = new File(extDir, "lib" + File.separator + platformParts[1]); // e.g. ios
 
@@ -1386,18 +1450,20 @@ class Extender {
         extJsLibs = ExtenderUtil.pruneItems( extJsLibs, ExtenderUtil.getStringList(mainContext, "includeJsLibs"), ExtenderUtil.getStringList(mainContext, "excludeJsLibs"));
 
         // This is a workaround due to a linker crash when the helpshift "Support" library is in front of the Facebook extension (not certain of this though)
-        Collections.sort(extLibs, Collections.reverseOrder());
+
+        // TODO: Check it one more time
+        // Collections.sort(extLibs, Collections.reverseOrder());
 
         env.put("libs", extLibs);
         env.put("dynamicLibs", extShLibs);
         env.put("libPaths", extLibPaths);
 
-        if (ExtenderUtil.isAppleTarget(this.platform)) {
+        if (ExtenderUtil.isAppleTarget(buildState.fullPlatform)) {
             env.put("frameworks", extFrameworks);
             env.put("frameworkPaths", extFrameworkPaths);
         }
 
-        if (ExtenderUtil.isWebTarget(this.platform)) {
+        if (ExtenderUtil.isWebTarget(buildState.fullPlatform)) {
             env.put("jsLibs", extJsLibs);
         }
     }
@@ -1405,7 +1471,7 @@ class Extender {
     private List<File> linkEngine(List<String> symbols, Map<String, Object> linkContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("Linking engine");
 
-        File maincpp = new File(buildDirectory , "main.cpp");
+        File maincpp = new File(buildState.buildDir , "main.cpp");
 
         List<String> extSymbols = new ArrayList<>();
         extSymbols.addAll(symbols);
@@ -1424,12 +1490,12 @@ class Extender {
         File mainObject = compileMain(maincpp, linkContext);
 
         String writeExePattern = platformConfig.writeExePattern;
-        File exe = new File(buildDirectory, writeExePattern);
+        File exe = new File(buildState.buildDir, writeExePattern);
 
         List<String> objects = new ArrayList<>();
-        objects.add(ExtenderUtil.getRelativePath(jobDirectory, mainObject));
+        objects.add(ExtenderUtil.getRelativePath(buildState.jobDir, mainObject));
         if (resourceFile != null) { // For Win32 targets
-            objects.add(ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
+            objects.add(ExtenderUtil.getRelativePath(buildState.jobDir, resourceFile));
         }
 
         Map<String, Object> env = new HashMap<>();
@@ -1437,7 +1503,7 @@ class Extender {
 
         Map<String, Object> context = createContext(linkContext);
         context.put("src", objects);
-        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, exe));
+        context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, exe));
         context.put("ext", env);
 
         // WINE->clang transition pt1: in the transition period from link.exe -> lld, we want to make sure we can write "foo" as opposed to "foo.lib"
@@ -1446,7 +1512,7 @@ class Extender {
         context.put("engineLibs", patchLibs((List<String>) context.get("engineLibs")));
 
         if (this.needsCSLibraries) {
-            CSharpBuilder.updateContext(platform, this.buildDirectory, context);
+            CSharpBuilder.updateContext(buildState.fullPlatform, buildState.buildDir, context);
         }
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
@@ -1467,12 +1533,12 @@ class Extender {
         }
 
         // Extract symbols
-        if (this.withSymbols) {
+        if (buildState.isNeedSymbols()) {
             LOGGER.info("Extracting symbols");
             String symbolCmd = platformConfig.symbolCmd;
             if (symbolCmd != null && !symbolCmd.isBlank()) {
                 Map<String, Object> symbolContext = createContext(linkContext);
-                symbolContext.put("src", ExtenderUtil.getRelativePath(jobDirectory, exe));
+                symbolContext.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, exe));
 
                 executeCommand(symbolCmd, symbolContext);
             }
@@ -1484,10 +1550,10 @@ class Extender {
         // collect dynamic libraries and copy to result folder
         List<String> dynamicLibsPathes = new ArrayList<>();
         for (File extDir : this.extDirs) {
-            File libDir = new File(extDir, "lib" + File.separator + this.platform); // e.g. arm64-ios
+            File libDir = new File(extDir, "lib" + File.separator + buildState.fullPlatform); // e.g. arm64-ios
             dynamicLibsPathes.addAll(ExtenderUtil.collectFilePathesByName(libDir, platformConfig.shlibRe));
 
-            String[] platformParts = this.platform.split("-");
+            String[] platformParts = buildState.fullPlatform.split("-");
             if (platformParts.length == 2) {
                 File libCommonDir = new File(extDir, "lib" + File.separator + platformParts[1]); // e.g. ios
 
@@ -1496,7 +1562,7 @@ class Extender {
         }
 
         for (String filepath : dynamicLibsPathes) {
-            FileUtils.copyFileToDirectory(new File(filepath), buildDirectory);
+            FileUtils.copyFileToDirectory(new File(filepath), buildState.buildDir);
         }
 
         // Collect output/binaries
@@ -1506,7 +1572,7 @@ class Extender {
         }
 
         // If we wish to grab the symbols, prepend the pattern (E.g. to "(.*dSYM)|(dmengine)")
-        if (this.withSymbols) {
+        if (buildState.isNeedSymbols()) {
             String symbolsPattern = platformConfig.symbolsPattern;
             if (symbolsPattern != null && !symbolsPattern.isBlank()) {
                 zipContentPattern = symbolsPattern + "|" + zipContentPattern;
@@ -1516,7 +1582,7 @@ class Extender {
         zipContentPattern = zipContentPattern + "|" + platformConfig.shlibRe;
 
         final Pattern p = Pattern.compile(zipContentPattern);
-        List<File> outputFiles = Arrays.asList(buildDirectory.listFiles(new FileFilter(){
+        List<File> outputFiles = Arrays.asList(buildState.buildDir.listFiles(new FileFilter(){
             @Override
             public boolean accept(File file) {
                 return p.matcher(file.getName()).matches();
@@ -1548,7 +1614,7 @@ class Extender {
 
     private List<String> getAndroidResourceFolders(String platform) {
         // New feature from 1.2.165
-        File packageDir = new File(uploadDirectory, "packages");
+        File packageDir = new File(buildState.uploadDir, "packages");
         if (!packageDir.exists()) {
             return new ArrayList<>();
         }
@@ -1600,7 +1666,7 @@ class Extender {
     private File compileAndroidResources(List<String> resourceDirectories, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Compiling Android resources");
 
-        File outputDirectory = new File(buildDirectory, "compiledResources");
+        File outputDirectory = new File(buildState.buildDir, "compiledResources");
         outputDirectory.mkdirs();
         try {
             Map<String, Object> context = createContext(mergedAppContext);
@@ -1647,7 +1713,7 @@ class Extender {
                     }
                 }
             }
-            File resourceList = new File(buildDirectory, "compiledresources.txt");
+            File resourceList = new File(buildState.buildDir, "compiledresources.txt");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(resourceList))) {
                 writer.write(sb.toString());
             }
@@ -1664,16 +1730,16 @@ class Extender {
                 LOGGER.info("Extra packages {}", extraPackagesString);
             }
 
-            File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
+            File manifestFile = new File(buildState.buildDir, MANIFEST_ANDROID);
             context.put("manifestFile", manifestFile.getAbsolutePath());
 
-            File resourceIdsFile = new File(buildDirectory, "resource_ids.txt");
+            File resourceIdsFile = new File(buildState.buildDir, "resource_ids.txt");
             context.put("resourceIdsFile", resourceIdsFile.getAbsolutePath());
 
-            File outputJavaDirectory = createDir(buildDirectory, "out_java");
+            File outputJavaDirectory = createDir(buildState.buildDir, "out_java");
             context.put("outJavaDirectory", outputJavaDirectory.getAbsolutePath());
 
-            File outApkFile = new File(buildDirectory, "compiledresources.apk");
+            File outApkFile = new File(buildState.buildDir, "compiledresources.apk");
             context.put("outApkFile", outApkFile.getAbsolutePath());
 
             files.put("resourceIdsFile", resourceIdsFile);
@@ -1690,7 +1756,7 @@ class Extender {
 
     // https://manpages.debian.org/jessie/aapt/aapt.1.en.html
     private File generateRJava(List<String> resourceDirectories, Map<String, Object> mergedAppContext) throws ExtenderException {
-        File rJavaDir = new File(uploadDirectory, "_app/rjava");
+        File rJavaDir = new File(buildState.uploadDir, "_app/rjava");
         if (rJavaDir.exists()) {
             LOGGER.info("Using pre-existing R.java files");
             return rJavaDir;
@@ -1699,7 +1765,7 @@ class Extender {
         LOGGER.info("Generating R.java files");
 
         // From 1.2.165
-        rJavaDir = new File(buildDirectory, "rjava");
+        rJavaDir = new File(buildState.buildDir, "rjava");
         rJavaDir.mkdir();
 
         if (platformConfig.rjavaCmd == null) {
@@ -1713,7 +1779,7 @@ class Extender {
         }
 
         // Use the merged manifest
-        File manifestFile = new File(buildDirectory, MANIFEST_ANDROID);
+        File manifestFile = new File(buildState.buildDir, MANIFEST_ANDROID);
         context.put("manifestFile", manifestFile.getAbsolutePath());
         context.put("outputDirectory", rJavaDir.getAbsolutePath());
         context.put("resourceDirectories", resourceDirectories);
@@ -1802,7 +1868,7 @@ class Extender {
                 return null;
             }
 
-            LOGGER.info("Building Java sources with extension source {}", uploadDirectory);
+            LOGGER.info("Building Java sources with extension source {}", buildState.uploadDir);
 
             ProGuardContext proGuardContext = new ProGuardContext();
 
@@ -1990,13 +2056,13 @@ class Extender {
             return null;
         }
 
-        File appPro = new File(uploadDirectory, "/_app/app.pro");
+        File appPro = new File(buildState.uploadDir, "/_app/app.pro");
         if (!appPro.exists()) {
             LOGGER.info("No .pro file present. Skipping ProGuard step.");
             return null;
         }
 
-        LOGGER.info("Building using ProGuard {}", uploadDirectory);
+        LOGGER.info("Building using ProGuard {}", buildState.uploadDir);
 
         String appProPath = appPro.getAbsolutePath();
         Map<String,ProGuardContext> allJarsMap = getProGuardMapping(allJars, extensionJarMap);
@@ -2004,8 +2070,8 @@ class Extender {
         List<String> allPro = new ArrayList<>();
         allPro.add(appProPath);
 
-        File targetFile  = new File(buildDirectory, "dmengine.jar");
-        File mappingFile = new File(buildDirectory, "mapping.txt");
+        File targetFile  = new File(buildState.buildDir, "dmengine.jar");
+        File mappingFile = new File(buildState.buildDir, "mapping.txt");
 
         List<String> jarList          = new ArrayList<>();
         List<String> jarLibrariesList = new ArrayList<>();
@@ -2096,7 +2162,7 @@ class Extender {
         // Only keep the .class files
         mainClassNames = ExtenderUtil.filterStrings(mainClassNames, "(?:.*)\\.class$");
 
-        File mainList = new File(buildDirectory, "main_dex_list.txt");
+        File mainList = new File(buildState.buildDir, "main_dex_list.txt");
 
         try {
             mainList.createNewFile();
@@ -2112,13 +2178,13 @@ class Extender {
     }
 
     private File[] buildClassesDex(List<String> jars, File mainDexList) throws ExtenderException {
-        LOGGER.info("Building classes.dex with extension source {}", uploadDirectory);
+        LOGGER.info("Building classes.dex with extension source {}", buildState.uploadDir);
 
         // The empty list is also present for backwards compatability with older build.yml
         List<String> empty_list = new ArrayList<>();
 
         Map<String, Object> context = createContext(mergedAppContext);
-        context.put("classes_dex_dir", buildDirectory.getAbsolutePath());
+        context.put("classes_dex_dir", buildState.buildDir.getAbsolutePath());
         context.put("jars", jars);
         context.put("engineJars", empty_list);
         context.put("mainDexList", mainDexList.getAbsolutePath());
@@ -2129,14 +2195,14 @@ class Extender {
         platformConfig.dxCmd = platformConfig.dxCmd.replace("--main-dex-list", "--main-dex-rules");
         executeCommand(platformConfig.dxCmd, context);
 
-        File[] classes = ExtenderUtil.listFilesMatching(buildDirectory, "^classes(|[0-9]+)\\.dex$");
+        File[] classes = ExtenderUtil.listFilesMatching(buildState.buildDir, "^classes(|[0-9]+)\\.dex$");
         return classes;
     }
 
     private File buildWin32Resources(Map<String, Object> mergedAppContext) throws ExtenderException {
         Map<String, Object> context = createContext(mergedAppContext);
-        File resourceFile = new File(buildDirectory, "dmengine.res");
-        context.put("tgt", ExtenderUtil.getRelativePath(jobDirectory, resourceFile));
+        File resourceFile = new File(buildState.buildDir, "dmengine.res");
+        context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, resourceFile));
 
         String command = templateExecutor.execute(platformConfig.windresCmd, context);
         if (command.equals("")) {
@@ -2161,9 +2227,10 @@ class Extender {
         manifestFiles = new HashMap<>();
 
         Map<String, Object> debugContext = new HashMap<>();
-        if (this.debugSourcePath != null && !this.debugSourcePath.isEmpty()) {
+        String debugSourcePath = buildState.getDebugSourcePath();
+        if (debugSourcePath != null && !debugSourcePath.isEmpty()) {
             List<String> flags = new ArrayList<>(List.of(
-                String.format("-fdebug-compilation-dir=%s", this.debugSourcePath),
+                String.format("-fdebug-compilation-dir=%s", debugSourcePath),
                 "-fdebug-prefix-map=upload=extensions",
                 "-fdebug-prefix-map=build=generated"
             ));
@@ -2172,7 +2239,7 @@ class Extender {
 
         HashMap<String, ManifestConfiguration> _manifestConfigs = new HashMap<>();
         for (File manifest : this.manifests) {
-            ManifestConfiguration manifestConfig = Extender.loadYaml(this.jobDirectory, manifest, ManifestConfiguration.class);
+            ManifestConfiguration manifestConfig = Extender.loadYaml(buildState.jobDir, manifest, ManifestConfiguration.class);
 
             if (manifestConfig == null) {
                 throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
@@ -2185,7 +2252,7 @@ class Extender {
         List<String> symbols = getSortedKeys(_manifestConfigs.keySet());
         for (String extensionSymbol : symbols) {
             File manifest = manifestFiles.get(extensionSymbol);
-            String relativePath = ExtenderUtil.getRelativePath(this.uploadDirectory, manifest);
+            String relativePath = ExtenderUtil.getRelativePath(buildState.uploadDir, manifest);
 
             ManifestConfiguration manifestConfig = _manifestConfigs.get(extensionSymbol);
 
@@ -2193,7 +2260,7 @@ class Extender {
             manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformConfig.context);
             manifestContext = ExtenderUtil.mergeContexts(manifestContext, this.platformVariantConfig.context);
 
-            for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(platform)) {
+            for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
                 validator.validate(relativePath, manifest.getParentFile(), ctx);
 
@@ -2218,7 +2285,7 @@ class Extender {
 
         for (String extensionSymbol : symbols) {
             ManifestConfiguration manifestConfig = _manifestConfigs.get(extensionSymbol);
-            for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(platform)) {
+            for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
                 mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, ctx);
             }
@@ -2232,9 +2299,9 @@ class Extender {
         mergedAppContext.put("extension_name", "unknown");
         mergedAppContext.put("extension_name_upper", "UNKNOWN");
 
-        mergedAppContext.put("dynamo_home", ExtenderUtil.getRelativePath(jobDirectory, sdk));
-        mergedAppContext.put("platform", this.platform);
-        mergedAppContext.put("host_platform", this.hostPlatform);
+        mergedAppContext.put("dynamo_home", ExtenderUtil.getRelativePath(buildState.jobDir, buildState.sdk));
+        mergedAppContext.put("platform", buildState.fullPlatform);
+        mergedAppContext.put("host_platform", buildState.getHostPlatform());
 
         //exclude fake `jar` path for extensions without java code
         List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
@@ -2271,12 +2338,12 @@ class Extender {
     }
 
     private boolean shouldBuildArtifact(String artifact) {
-        List<String> artifacts = Arrays.asList(this.buildArtifacts.split(","));
+        List<String> artifacts = Arrays.asList(buildState.getBuildArtifacts().split(","));
         return artifacts.contains(artifact);
     }
 
     private boolean shouldBuildEngine() {
-        return this.buildArtifacts.equals("") || shouldBuildArtifact("engine");
+        return buildState.getBuildArtifacts().equals("") || shouldBuildArtifact("engine");
     }
     private boolean shouldBuildPlugins() {
         return shouldBuildArtifact("plugins");
@@ -2291,7 +2358,7 @@ class Extender {
         if (!shouldBuildLibrary()) {
             return new ArrayList<>();
         }
-        LOGGER.info("Building library for platform {} with extension source {}", platform, uploadDirectory);
+        LOGGER.info("Building library for platform {} with extension source {}", buildState.fullPlatform, buildState.uploadDir);
 
         List<File> outputFiles = new ArrayList<>();
         try {
@@ -2315,7 +2382,7 @@ class Extender {
         if (!shouldBuildEngine()) {
             return new ArrayList<>();
         }
-        LOGGER.info("Building engine for platform {} with extension source {}", platform, uploadDirectory);
+        LOGGER.info("Building engine for platform {} with extension source {}", buildState.fullPlatform, buildState.uploadDir);
 
         List<File> outputFiles = new ArrayList<>();
         try {
@@ -2342,7 +2409,7 @@ class Extender {
             }
 
             File resourceFile = null;
-            if (platform.endsWith("win32")) {
+            if (buildState.fullPlatform.endsWith("win32")) {
                 resourceFile = buildWin32Resources(mergedAppContext);
             }
 
@@ -2375,7 +2442,7 @@ class Extender {
     // Supported from 1.2.186
     private List<File> buildPipelinePlugin() throws ExtenderException {
 
-        if (!isDesktopPlatform(platform)) {
+        if (!isDesktopPlatform(buildState.fullPlatform)) {
             return new ArrayList<>();
         }
         if (!shouldBuildPlugins()) {
@@ -2385,7 +2452,7 @@ class Extender {
             throw new ExtenderException("Trying to build plugins with an old sdk");
         }
 
-        LOGGER.info("Building pipeline plugin for platform {} with extension source {}", platform, uploadDirectory);
+        LOGGER.info("Building pipeline plugin for platform {} with extension source {}", buildState.fullPlatform, buildState.uploadDir);
 
         try {
             List<File> output = new ArrayList<>();
@@ -2410,7 +2477,7 @@ class Extender {
         if (jniFolders.isEmpty()) {
             return new ArrayList<>();
         }
-        File targetDir = new File(buildDirectory, "jni");
+        File targetDir = new File(buildState.buildDir, "jni");
         targetDir.mkdir();
 
         try {
@@ -2429,7 +2496,7 @@ class Extender {
         if (assets.isEmpty()) {
             return new ArrayList<>();
         }
-        File targetDir = new File(buildDirectory, "assets");
+        File targetDir = new File(buildState.buildDir, "assets");
         targetDir.mkdir();
 
         try {
@@ -2447,7 +2514,7 @@ class Extender {
         if (androidResourceFolders.isEmpty()) {
             return new ArrayList<>();
         }
-        File packagesDir = new File(buildDirectory, "packages");
+        File packagesDir = new File(buildState.buildDir, "packages");
         packagesDir.mkdir();
 
         List<String> packagesList = new ArrayList<>();
@@ -2473,7 +2540,7 @@ class Extender {
 
     private Set<File> copyMetaInformationFiles(List<String> allJars) {
         Set<File> result = new HashSet<>();
-        File metaInfDir = new File(buildDirectory, "META-INF");
+        File metaInfDir = new File(buildState.buildDir, "META-INF");
         metaInfDir.mkdir();
         for (String jarPath : allJars) {
             try (ZipFile jarFile = new ZipFile(jarPath)) {
@@ -2486,7 +2553,7 @@ class Extender {
                     if (ExtenderUtil.isMetaInfEntryValuable(entry)) {
                         // Extract the file
                         LOGGER.info(String.format("Extracting file: %s", entry.getName()));
-                        result.add(ExtenderUtil.extractFile(jarFile, entry, buildDirectory));
+                        result.add(ExtenderUtil.extractFile(jarFile, entry, buildState.buildDir));
                     }
                 }
             } catch (IOException exc) {
@@ -2597,12 +2664,12 @@ class Extender {
         LOGGER.info("Building Apple specific code");
         List<File> outputFiles = new ArrayList<>();
 
-        File resourceDirectory = new File(buildDirectory, "resources");
+        File resourceDirectory = new File(buildState.buildDir, "resources");
         List<File> resources = ExtenderUtil.listFiles(resourceDirectory, ".*");
         outputFiles.addAll(resources);
 
         List<File> privacyManifests = new ArrayList<>();
-        privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(uploadDirectory, "PrivacyInfo.xcprivacy"));
+        privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(buildState.uploadDir, "PrivacyInfo.xcprivacy"));
         // no need to deal with PrivacyInfo manifests from pods because they will be packed into resource bundle
         // but that functionality saved for the backward compatability with older engine's versions (before 1.10.12)
         if (resolvedPods != null) {
@@ -2615,7 +2682,7 @@ class Extender {
         }
         // use the first privacy manifests as-is if it is the only one
         if (privacyManifests.size() == 1) {
-            File targetFile = new File(buildDirectory, "PrivacyInfo.xcprivacy");
+            File targetFile = new File(buildState.buildDir, "PrivacyInfo.xcprivacy");
             try {
                 FileUtils.copyFile(privacyManifests.get(0), targetFile);
                 outputFiles.add(targetFile);
@@ -2628,7 +2695,7 @@ class Extender {
         // use the first privacy manifest as the base and merge the rest into
         // it (and save it as a new final 'PrivacyInfo.xcprivacy' file)
         File mainManifest = privacyManifests.remove(0);
-        File targetManifest = new File(buildDirectory, "PrivacyInfo.xcprivacy");
+        File targetManifest = new File(buildState.buildDir, "PrivacyInfo.xcprivacy");
         outputFiles.add(targetManifest);
 
         // Merge the files
@@ -2644,7 +2711,7 @@ class Extender {
     }
 
     private String getBasePlatform(String platform) {
-        String[] platformParts = this.platform.split("-");
+        String[] platformParts = buildState.fullPlatform.split("-");
         return platformParts[1];
     }
 
@@ -2667,10 +2734,10 @@ class Extender {
         }
 
         // The merged output will end up here
-        File targetManifest = new File(buildDirectory, manifestName);
+        File targetManifest = new File(buildState.buildDir, manifestName);
         out.add(targetManifest);
 
-        File mainManifest = new File(uploadDirectory, manifestName);
+        File mainManifest = new File(buildState.uploadDir, manifestName);
 
         // Make sure they're in the "<extension>/manifests/<platform>/<manifest name>"
         List<File> allManifests = new ArrayList<>();
@@ -2724,7 +2791,7 @@ class Extender {
     }
 
     File writeLog() {
-        File logFile = new File(buildDirectory, "log.txt");
+        File logFile = new File(buildState.buildDir, "log.txt");
         try {
             LOGGER.info("Writing log file");
             processExecutor.writeLog(logFile);
@@ -2736,7 +2803,7 @@ class Extender {
 
     void resolve(GradleService gradleService) throws ExtenderException {
         try {
-            gradlePackages = gradleService.resolveDependencies(this.platformConfig.context, jobDirectory, buildDirectory, useJetifier, outputFiles);
+            gradlePackages = gradleService.resolveDependencies(this.buildState, this.platformConfig.context, outputFiles);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
@@ -2745,7 +2812,7 @@ class Extender {
 
     void resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
         try {
-            resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, jobDirectory, platform, configuration);
+            resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, buildState);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());
@@ -2753,7 +2820,7 @@ class Extender {
     }
 
     void build() throws ExtenderException {
-        outputFiles.addAll(buildManifests(platform));
+        outputFiles.addAll(buildManifests(buildState.fullPlatform));
 
         if (shouldBuildLibrary())
         {
@@ -2762,11 +2829,11 @@ class Extender {
         else
         {
             // TODO: Thread this step
-            if (platform.endsWith("android")) {
-                outputFiles.addAll(buildAndroid(platform));
+            if (ExtenderUtil.isAndroidTarget(buildState.fullPlatform)) {
+                outputFiles.addAll(buildAndroid(buildState.fullPlatform));
             }
-            else if (platform.endsWith("ios") || platform.endsWith("macos")) {
-                outputFiles.addAll(buildApple(platform));
+            else if (ExtenderUtil.isAppleTarget(buildState.fullPlatform)) {
+                outputFiles.addAll(buildApple(buildState.fullPlatform));
             }
 
             outputFiles.addAll(buildEngine());

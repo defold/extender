@@ -1,5 +1,6 @@
 package com.defold.extender.services;
 
+import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
@@ -87,32 +88,35 @@ public class RealGradleService implements GradleServiceInterface {
     }
 
     @Override
-    public List<File> resolveDependencies(Map<String, Object> env, File cwd, File buildDirectory, Boolean useJetifier, List<File> outputFiles) throws IOException, ExtenderException {
+    public List<File> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles) throws IOException, ExtenderException {
+        // cwd -> jobDir
+        File workDir = buildState.getJobDir();
+        File buildDir = buildState.getBuildDir();
         Map<String, Object> jobEnvContext = createJobEnvContext(env);
         // create build.gradle
-        File mainGradleFile = new File(cwd, "build.gradle");
-        List<File> gradleFiles = ExtenderUtil.listFilesMatchingRecursive(cwd, "build\\.gradle");
+        File mainGradleFile = new File(workDir, "build.gradle");
+        List<File> gradleFiles = ExtenderUtil.listFilesMatchingRecursive(workDir, "build\\.gradle");
         // This file might exist when testing and debugging the extender using a debug job folder
         gradleFiles.remove(mainGradleFile);
         createBuildGradleFile(mainGradleFile, gradleFiles, jobEnvContext);
 
         // create gradle.properties
-        File gradlePropertiesFile = new File(cwd, "gradle.properties");
-        createGradlePropertiesFile(gradlePropertiesFile, useJetifier);
+        File gradlePropertiesFile = new File(workDir, "gradle.properties");
+        createGradlePropertiesFile(gradlePropertiesFile, buildState.isUsedJetifier());
 
         // create local.properties
-        File localPropertiesFile = new File(cwd, "local.properties");
+        File localPropertiesFile = new File(workDir, "local.properties");
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
         // download, parse and unpack dependencies
-        List<File> unpackedDependencies = downloadDependencies(cwd);
+        List<File> unpackedDependencies = downloadDependencies(workDir);
         // add gradle lockfile to outputs
         // configured in template.build.gradle
-        outputFiles.add(new File(buildDirectory, "gradle.lockfile"));
+        outputFiles.add(new File(buildDir, "gradle.lockfile"));
 
         // write dependency tree and add to outputs
-        File dependencyTreeFile = new File(buildDirectory, "gradle.dependencytree");
-        writeDependencyTree(dependencyTreeFile, cwd);
+        File dependencyTreeFile = new File(buildDir, "gradle.dependencytree");
+        writeDependencyTree(dependencyTreeFile, workDir);
         outputFiles.add(dependencyTreeFile);
 
         return unpackedDependencies;

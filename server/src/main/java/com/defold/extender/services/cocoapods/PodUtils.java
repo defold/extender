@@ -4,9 +4,25 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.BiFunction;
+
+import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 
 public class PodUtils {
+    public enum Platform {
+        IPHONEOS,
+        IPHONESIMULATOR,
+        MACOSX,
+        UNKNOWN
+    }
+
+    static boolean isIOS(Platform platform) {
+        return platform == Platform.IPHONEOS || platform == Platform.IPHONESIMULATOR;
+    }
+
+    static boolean isMacOS(Platform platform) {
+        return platform == Platform.MACOSX;
+    }
 
     static List<File> parametrizedListFileGlob(File dir, String pattern, BiFunction<File, String, List<File>> listFunction) {
         String absPathPattern = Path.of(dir.getAbsolutePath(), pattern).toString();
@@ -77,5 +93,20 @@ public class PodUtils {
     static String getPodName(String podlockRecord) {
         String podnameparts[] = PodUtils.splitPodname(PodUtils.getSpecName(podlockRecord));
         return PodUtils.sanitizePodName(podnameparts[0]);
+    }
+
+    public static boolean hasSourceFiles(PodBuildSpec spec) {
+        return !spec.sourceFiles.isEmpty() || !spec.swiftSourceFiles.isEmpty();
+    }
+
+    public static String swiftModuleNameFromPlatform(String extenderTargetPlatform) throws ExtenderException {
+        switch(extenderTargetPlatform) {
+            case "arm64-ios": return "arm64-apple-ios";
+            case "x86_64-ios": return "x86_64-apple-ios-simulator";
+            case "arm64-macos": return "arm64-apple-macos";
+            case "x86_64-macos": return "x86_64-apple-macos";
+            default:
+                throw new ExtenderException(String.format("Invalid platform input for swift module name %s", extenderTargetPlatform));
+        }
     }
 }

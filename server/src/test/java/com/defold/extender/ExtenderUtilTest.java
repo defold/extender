@@ -301,6 +301,7 @@ public class ExtenderUtilTest {
 
     @Test
     public void testWriteSourceListToTempFile() throws IOException {
+        File tmpDir = Files.createTempDirectory("test-source-list").toFile();
         Set<String> sources = Set.of("/path/path1/path2/path3/source1.swift",
             "/path/path4/path2/path3/source2.swift",
             "/path/path1 space/path8/path3 space/source3.swift",
@@ -312,7 +313,7 @@ public class ExtenderUtilTest {
             "/path/path1\\ space/path8/path3\\ space/source3.swift",
             "/path/path4/path2/path/source4\\ space.swift",
             "/path/path6/path7\\ space/path3/source5.swift");
-        File resFile = ExtenderUtil.writeSourceFilesListToTmpFile(sources);
+        File resFile = ExtenderUtil.writeSourceFilesListToTmpFile(tmpDir, sources);
         assertTrue(resFile.exists());
         List<String> writtenLines = FileUtils.readLines(resFile, StandardCharsets.UTF_8);
         assertEquals(expected.size(), writtenLines.size());

@@ -222,7 +222,7 @@ public class IntegrationTest {
         private String getDynamicLibName(String platform, String lib) {
         if (platform.endsWith("win32")) {
             return String.format("%s.dll", lib);
-        } else if (platform.endsWith("osx") || platform.endsWith("ios")) {
+        } else if (ExtenderUtil.isAppleTarget(platform)) {
             return String.format("%s.dylib", lib);
         }
         return String.format("lib%s.so", lib);

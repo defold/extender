@@ -462,7 +462,7 @@ public class ExtenderTest {
         Map<String, Object> platforms = new HashMap<>();
         map.put("context", context);
         map.put("platforms", platforms);
-        context.put(Extender.APPMANIFEST_BASE_VARIANT_KEYWORD, variant);
+        context.put(ExtenderBuildState.APPMANIFEST_BASE_VARIANT_KEYWORD, variant);
 
         writeYaml(new File(appDir, Extender.APPMANIFEST_FILENAME), map);
         return jobDir;

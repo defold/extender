@@ -17,6 +17,8 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.extender.ExtenderBuildState;
+
 public class XCConfigParser implements IConfigParser {
     private static final Logger LOGGER = LoggerFactory.getLogger(XCConfigParser.class);
     private File buildDir;
@@ -34,12 +36,17 @@ public class XCConfigParser implements IConfigParser {
         VALUE
     }
 
-    public XCConfigParser(File buildDir, File podsDir, String platform, String configuration, String arch) {
+    public XCConfigParser(ExtenderBuildState buildState, CocoaPodsServiceBuildState cocoapodsBuildState) {
+        this(buildState.getBuildDir(), cocoapodsBuildState.getPodsDir(), cocoapodsBuildState.getSelectedPlatform(), buildState.getBuildConfiguration(), buildState.getBuildArch());
+    }
+
+    XCConfigParser(File buildDir, File podsDir, PodUtils.Platform selectedPlatform, String buildConfiguration, String buildArch) {
         this.buildDir = buildDir;
         this.podsDir = podsDir;
-        this.platform = platform;
-        this.configuration = configuration;
-        this.arch = arch;
+        this.platform = selectedPlatform.toString().toLowerCase();
+
+        this.configuration = buildConfiguration;
+        this.arch = buildArch;
     }
 
     Map<String, String> calculateBaseVariables(String moduleName, String podName) {
