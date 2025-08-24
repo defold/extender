@@ -7,14 +7,14 @@ buildscript {
     }
     dependencies {
         classpath 'io.spring.gradle:dependency-management-plugin:1.1.7'
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.5.4'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.5.5'
     }
 }
 
 plugins {
     id 'java'
     id 'idea'
-    id 'org.springframework.boot' version '3.5.4'
+    id 'org.springframework.boot' version '3.5.5'
     id 'jacoco'
 }
 
