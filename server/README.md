@@ -195,3 +195,6 @@ Keys in `extender.remote-builder.platform` should be formed in the following way
 3. Frontend instance looks into `platform.sdks.json` for information according to requested platform. For example, user try to build engine for platform `js-web`. In that case frontend instance found `["emsdk", "3155"]`.
 4. Frontend instance search through `extender.remote-builder.platforms` using the keys: `<platform>-<sdk_version>` and `<platform>-latest`. If no mappings was found - frontend instance starts local build (which highly likely will fail because no appropriate environment was configured). For our example frontend instance search for `emsdk-3155` and `emsdk-latest`. 
 5. Frontend instance sends a build request to the found server url.
+
+# Testing notes
+When runs integration tests on Macos at arm chips - check docker engine configuration. It's better to use `Virtual Machine option` -> `Apple Virtualization framework` with checked `Use Rosetta for x86_64/amd64 emulation on Apple Silicon` checkbox.
