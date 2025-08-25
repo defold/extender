@@ -100,7 +100,7 @@ dependencies {
 
     testImplementation('org.smali:dexlib2:2.5.2')
     testImplementation project(':client')
-    testImplementation('org.wiremock:wiremock-standalone:3.12.0')
+    testImplementation('org.wiremock:wiremock-standalone:3.13.1')
 }
 
 task createVersionFile() {
