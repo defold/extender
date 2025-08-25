@@ -83,11 +83,6 @@ class Extender {
     static final String FOLDER_COMMON_SRC = "commonsrc";// common source shared between both types
 
     static final String APPMANIFEST_FILENAME = "app.manifest";
-    static final String FRAMEWORK_RE = "(.+)\\.framework";
-    static final String JAR_RE = "(.+\\.jar)";
-    static final String JS_RE = "(.+\\.js)";
-    static final String PROTO_RE = "(?i).*(\\.proto)";
-    static final String ENGINE_JAR_RE = "(?:.*)\\/share\\/java\\/[\\w\\-\\.]*\\.jar$";
 
     private static final String MANIFEST_IOS    = "Info.plist";
     private static final String MANIFEST_OSX    = "Info.plist";
@@ -409,9 +404,9 @@ class Extender {
     private List<String> getFrameworks(File dir) {
         List<String> frameworks = new ArrayList<>();
         final String[] platformParts = buildState.fullPlatform.split("-");
-        frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + buildState.fullPlatform), FRAMEWORK_RE)); // e.g. armv64-ios
+        frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + buildState.fullPlatform), ExtenderConst.FRAMEWORK_RE)); // e.g. armv64-ios
         if (platformParts.length == 2) {
-            frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), FRAMEWORK_RE)); // e.g. "ios"
+            frameworks.addAll(ExtenderUtil.collectDirsByName(new File(dir, "lib" + File.separator + platformParts[1]), ExtenderConst.FRAMEWORK_RE)); // e.g. "ios"
         }
         return frameworks;
     }
@@ -439,10 +434,10 @@ class Extender {
 
     private List<String> getExtensionLibJars(File extDir) {
         List<String> jars = new ArrayList<>();
-        jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + buildState.fullPlatform), JAR_RE)); // e.g. armv7-android
+        jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + buildState.fullPlatform), ExtenderConst.JAR_RE)); // e.g. armv7-android
         String[] platformParts = buildState.fullPlatform.split("-");
         if (platformParts.length == 2) {
-            jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + platformParts[1]), JAR_RE)); // e.g. "android"
+            jars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + platformParts[1]), ExtenderConst.JAR_RE)); // e.g. "android"
         }
         return jars;
     }
@@ -1229,7 +1224,7 @@ class Extender {
             srcFiles.addAll(ExtenderUtil.listFiles(srcDirs, platformConfig.zigSourceRe));
 
         // Generate C++ files first (output into the source folder)
-        List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, PROTO_RE);
+        List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, ExtenderConst.PROTO_RE);
         List<File> generated = generateProtoCxxForEngine(extDir, manifestContext, protoFiles);
         if (!protoFiles.isEmpty() && generated.isEmpty()) {
             throw new ExtenderException(String.format("%s:1: error: Protofiles didn't generate any output engine cpp files!", ExtenderUtil.getRelativePath(buildState.uploadDir, protoFiles.get(0)) ));
@@ -1285,7 +1280,7 @@ class Extender {
         extBuildDir.mkdir();
         File[] srcDirs = { new File(extDir, FOLDER_COMMON_SRC), new File(extDir, FOLDER_PLUGIN_SRC) };
 
-        List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, PROTO_RE);
+        List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, ExtenderConst.PROTO_RE);
 
         List<File> outputFiles = new ArrayList<>();
 
@@ -1425,7 +1420,7 @@ class Extender {
 
             extShLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.shlibRe));
             extLibs.addAll(ExtenderUtil.collectFilesByName(libDir, platformConfig.stlibRe));
-            extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libDir, JS_RE));
+            extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libDir, ExtenderConst.JS_RE));
 
             extFrameworks.addAll(getFrameworks(extDir));
 
@@ -1440,7 +1435,7 @@ class Extender {
 
                 extShLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.shlibRe));
                 extLibs.addAll(ExtenderUtil.collectFilesByName(libCommonDir, platformConfig.stlibRe));
-                extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libCommonDir, JS_RE));
+                extJsLibs.addAll(ExtenderUtil.collectFilesByPath(libCommonDir, ExtenderConst.JS_RE));
                 extFrameworkPaths.addAll(getFrameworkPaths(extDir));
             }
         }
@@ -2140,10 +2135,10 @@ class Extender {
     private File buildMainDexList(List<String> jars) throws ExtenderException {
 
         // Find the engine libraries (**/share/java/*.jar)
-        List<String> mainListJars = ExtenderUtil.filterStrings(jars, ENGINE_JAR_RE);
+        List<String> mainListJars = ExtenderUtil.filterStrings(jars, ExtenderConst.ENGINE_JAR_RE);
 
         if (mainListJars.isEmpty()) {
-            throw new ExtenderException("Regex failed to find any engine jars: " + ENGINE_JAR_RE);
+            throw new ExtenderException("Regex failed to find any engine jars: " + ExtenderConst.ENGINE_JAR_RE);
         }
 
         List<String> mainClassNames = new ArrayList<String>();

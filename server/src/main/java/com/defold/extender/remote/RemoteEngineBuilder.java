@@ -1,7 +1,10 @@
 package com.defold.extender.remote;
 
 import com.defold.extender.BuilderConstants;
+import com.defold.extender.ExtenderConst;
+import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GCPInstanceService;
 import com.defold.extender.tracing.ExtenderTracerInterceptor;
 
@@ -19,10 +22,8 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.entity.mime.content.FileBody;
-import org.apache.http.entity.mime.content.AbstractContentBody;
+import org.apache.http.entity.mime.content.ByteArrayBody;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
@@ -34,13 +35,17 @@ import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.nio.charset.Charset;
 
 @Service
@@ -91,7 +96,7 @@ public class RemoteEngineBuilder {
 
         try {
             httpEntity = buildHttpEntity(projectDirectory);
-        } catch(IllegalStateException|IOException e) {
+        } catch(IllegalStateException | IOException | ExtenderException e) {
             throw new RemoteBuildException("Failed to add files to multipart request", e);
         }
 
@@ -176,19 +181,34 @@ public class RemoteEngineBuilder {
         }
     }
 
-    HttpEntity buildHttpEntity(final File projectDirectory) throws IOException {
-        final MultipartEntityBuilder builder = MultipartEntityBuilder.create()
-                .setContentType(ContentType.MULTIPART_FORM_DATA);
+    HttpEntity buildHttpEntity(final File projectDirectory) throws IOException, ExtenderException {
+        MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
+        entityBuilder.setStrictMode();
 
-        Files.walk(projectDirectory.toPath())
-                .filter(Files::isRegularFile)
-                .forEach(path -> {
-                    String relativePath = path.toFile().getAbsolutePath().substring(projectDirectory.getAbsolutePath().length() + 1);
-                    AbstractContentBody body = new FileBody(path.toFile(), ContentType.DEFAULT_BINARY, relativePath);
-                    builder.addPart(relativePath, body);
-                });
-
-        return builder.build();
+        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        try (ZipOutputStream zipStream = new ZipOutputStream(byteStream)) {
+            Path projectDirectoryPath = projectDirectory.toPath();
+            Files.walk(projectDirectoryPath)
+            .filter(Files::isRegularFile)
+            .filter(path -> { return !path.getFileName().toString().equals(ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME); })
+            .filter(path -> { return !path.getFileName().toString().equals(DataCacheService.FILE_CACHE_INFO_FILE); })
+            .forEach(res -> {
+                Path path = projectDirectoryPath.relativize(res);
+                LOGGER.warn(path.toString());
+                try {
+                    ZipEntry entry = new ZipEntry(path.toString());
+                    zipStream.putNextEntry(entry);
+                    zipStream.write(Files.readAllBytes(res));
+                    zipStream.closeEntry();
+                } catch (IOException e) {
+                    LOGGER.warn("Exception during add entry to source code archive", e);
+                }
+            });
+        } catch (IOException exc) {
+            throw new ExtenderException(exc, "Failed to create source code archive");
+        }
+        entityBuilder.addPart(ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME, new ByteArrayBody(byteStream.toByteArray(), ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME));
+        return entityBuilder.build();
     }
 
     private void touchInstance(String instanceId) {

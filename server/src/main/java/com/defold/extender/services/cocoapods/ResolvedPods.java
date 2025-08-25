@@ -16,6 +16,7 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.services.cocoapods.PlistBuddyWrapper.CreateBundlePlistArgs;
@@ -23,7 +24,6 @@ import com.defold.extender.utils.FrameworkUtil;
 
 public class ResolvedPods {
     private static final Logger LOGGER = LoggerFactory.getLogger(ResolvedPods.class);
-    static final String FRAMEWORK_RE = "(.+)\\.framework";
     private List<PodBuildSpec> pods = new ArrayList<>();
     private File podsDir;
     private File frameworksDir;
@@ -127,7 +127,7 @@ public class ResolvedPods {
         }
 
         // collect unpacked xcframeworks
-        Pattern pattern = Pattern.compile(FRAMEWORK_RE);
+        Pattern pattern = Pattern.compile(ExtenderConst.FRAMEWORK_RE);
         Files.walk(frameworksDir.toPath())
             .filter(Files::isDirectory)
             .forEach(path -> {
@@ -143,7 +143,7 @@ public class ResolvedPods {
     List<File> collectAllPodsDynamicFrameworks() throws IOException {
         Set<File> dynamicFrameworks = new HashSet<>();
         // collect unpacked xcframeworks
-        Pattern pattern = Pattern.compile(FRAMEWORK_RE);
+        Pattern pattern = Pattern.compile(ExtenderConst.FRAMEWORK_RE);
         Files.walk(frameworksDir.toPath())
             .filter(Files::isDirectory)
             .forEach(path -> {
