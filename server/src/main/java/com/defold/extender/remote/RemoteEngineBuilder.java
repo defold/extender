@@ -194,7 +194,6 @@ public class RemoteEngineBuilder {
             .filter(path -> { return !path.getFileName().toString().equals(DataCacheService.FILE_CACHE_INFO_FILE); })
             .forEach(res -> {
                 Path path = projectDirectoryPath.relativize(res);
-                LOGGER.warn(path.toString());
                 try {
                     ZipEntry entry = new ZipEntry(path.toString());
                     zipStream.putNextEntry(entry);
