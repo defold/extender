@@ -3,6 +3,7 @@ package com.defold.extender.remote;
 import com.defold.extender.BuilderConstants;
 import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
+import com.defold.extender.ExtenderUtil;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GCPInstanceService;
@@ -22,8 +23,10 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.ByteArrayBody;
+import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
@@ -40,6 +43,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -94,9 +98,15 @@ public class RemoteEngineBuilder {
         Timer buildTimer = new Timer();
         buildTimer.start();
 
+        File tmpDirectory = new File(jobDirectory, "tmp");
+        tmpDirectory.mkdir();
+
+        File tmpUploadArchive = new File(tmpDirectory, String.format("__remote_upload_%s.zip", ExtenderUtil.generateRandomFileName()));
+        tmpUploadArchive.createNewFile();
         try {
-            httpEntity = buildHttpEntity(projectDirectory);
+            httpEntity = buildHttpEntity(projectDirectory, tmpUploadArchive);
         } catch(IllegalStateException | IOException | ExtenderException e) {
+            tmpUploadArchive.delete();
             throw new RemoteBuildException("Failed to add files to multipart request", e);
         }
 
@@ -167,6 +177,7 @@ public class RemoteEngineBuilder {
             e.printStackTrace(writer);
             writer.close();
         } finally {
+            tmpUploadArchive.delete();
             metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
             // Delete temporary upload directory
             if (!keepJobDirectory) {
@@ -181,33 +192,40 @@ public class RemoteEngineBuilder {
         }
     }
 
-    HttpEntity buildHttpEntity(final File projectDirectory) throws IOException, ExtenderException {
+    HttpEntity buildHttpEntity(final File projectDirectory, File tmpUploadArchive) throws IOException, ExtenderException {
         MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
         entityBuilder.setStrictMode();
 
-        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        try (ZipOutputStream zipStream = new ZipOutputStream(byteStream)) {
+        try (OutputStream fileOut = Files.newOutputStream(tmpUploadArchive.toPath()); ZipOutputStream zipStream = new ZipOutputStream(fileOut)) {
             Path projectDirectoryPath = projectDirectory.toPath();
             Files.walk(projectDirectoryPath)
-            .filter(Files::isRegularFile)
-            .filter(path -> { return !path.getFileName().toString().equals(ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME); })
-            .filter(path -> { return !path.getFileName().toString().equals(DataCacheService.FILE_CACHE_INFO_FILE); })
-            .forEach(res -> {
-                Path path = projectDirectoryPath.relativize(res);
-                LOGGER.warn(path.toString());
-                try {
-                    ZipEntry entry = new ZipEntry(path.toString());
-                    zipStream.putNextEntry(entry);
-                    zipStream.write(Files.readAllBytes(res));
-                    zipStream.closeEntry();
-                } catch (IOException e) {
-                    LOGGER.warn("Exception during add entry to source code archive", e);
-                }
+                .filter(Files::isRegularFile)
+                .filter(path -> !path.getFileName().toString().equals(ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME))
+                .filter(path -> !path.getFileName().toString().equals(DataCacheService.FILE_CACHE_INFO_FILE))
+                .forEach(res -> {
+                    Path relativePath = projectDirectoryPath.relativize(res);
+                    try (InputStream in = Files.newInputStream(res)) {
+                        ZipEntry entry = new ZipEntry(relativePath.toString());
+                        zipStream.putNextEntry(entry);
+                        byte[] buffer = new byte[8192]; // stream in chunks
+                        int len;
+                        while ((len = in.read(buffer)) != -1) {
+                            zipStream.write(buffer, 0, len);
+                        }
+                        zipStream.closeEntry();
+                    } catch (IOException e) {
+                        LOGGER.warn("Exception during add entry to source code archive", e);
+                    }
             });
         } catch (IOException exc) {
             throw new ExtenderException(exc, "Failed to create source code archive");
         }
-        entityBuilder.addPart(ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME, new ByteArrayBody(byteStream.toByteArray(), ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME));
+
+        entityBuilder.addPart(
+            ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME,
+            new FileBody(tmpUploadArchive, ContentType.DEFAULT_BINARY, ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME)
+        );
+
         return entityBuilder.build();
     }
 

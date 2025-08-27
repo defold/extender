@@ -919,8 +919,12 @@ public class ExtenderUtil
         return hexString.toString();
     }
 
+    public static String generateRandomFileName() {
+        return RandomStringUtils.insecure().nextAlphanumeric(30);
+    }
+
     public static File writeSourceFilesListToTmpFile(File targetDir, Set<String> fileList) throws IOException {
-        File resultFile = new File(targetDir, String.format("%s.sourcelist", RandomStringUtils.insecure().nextAlphanumeric(30)));
+        File resultFile = new File(targetDir, String.format("%s.sourcelist", generateRandomFileName()));
         Set<String> escapedList = new HashSet<>();
         fileList.forEach((elem) -> {
             escapedList.add(StringEscapeUtils.escapeXSI(elem));
