@@ -214,5 +214,7 @@ download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
 echo "[setup] Installing dotnet"
 install_dotnet
 
-echo "[setup] Install hmap utility"
-brew install milend/taps/hmap
+if [[ $(uname) == "Darwin" ]]; then
+    echo "[setup] Install hmap utility"
+    brew install milend/taps/hmap
+fi
