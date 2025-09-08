@@ -75,8 +75,8 @@ dependencies {
     implementation('io.micrometer:micrometer-tracing:1.5.3')
     implementation('io.micrometer:micrometer-tracing-bridge-otel:1.5.3')
 
-    implementation('org.projectlombok:lombok:1.18.36')
-    annotationProcessor('org.projectlombok:lombok:1.18.36')
+    implementation('org.projectlombok:lombok:1.18.40')
+    annotationProcessor('org.projectlombok:lombok:1.18.40')
 
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.1')
     runtimeOnly('io.micrometer:micrometer-registry-influx:1.15.3')
