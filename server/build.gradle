@@ -58,7 +58,7 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.82.0')
+    implementation('com.google.cloud:google-cloud-compute:1.85.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
