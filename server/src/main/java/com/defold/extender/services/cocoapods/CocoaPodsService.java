@@ -421,7 +421,11 @@ public class CocoaPodsService {
 
             PodBuildSpec buildSpec = null;
             if (!tmpRegistry.containsKey(podName)) {
-                buildSpec = new PodBuildSpec(args, podSpec.parentSpec != null ? podSpec.parentSpec : podSpec);
+                PodSpec mainSpec = podSpec;
+                while (mainSpec.parentSpec != null) {
+                    mainSpec = mainSpec.parentSpec;
+                }
+                buildSpec = new PodBuildSpec(args, mainSpec);
                 tmpRegistry.put(podName, buildSpec);
                 pods.add(buildSpec);
             } else {
