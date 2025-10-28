@@ -1,5 +1,6 @@
 package com.defold.extender.services.cocoapods;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -102,4 +103,29 @@ public class PodBuildSpecTest {
         assertTrue(buildSpec.flags.swift.contains(String.format("-I%s/Sentry/Sources/Sentry/include", this.podsDir.toString())));
     }
 
+    @Test
+    public void testNestedPodSpecName() throws IOException, ExtenderException {
+        String jsonSpec = Files.readString(Path.of("test-data/pod_specs/YandexMobileMetrica.json"));
+        XCConfigParser parser = new XCConfigParser(this.buildDir, this.podsDir, PodUtils.Platform.IPHONEOS, "Debug", "arm64");
+        File sentryTargetFolder = Path.of(this.podsDir.toString(), "Target Support Files", "YandexMobileMetrica").toFile();
+        sentryTargetFolder.mkdirs();
+        Files.copy(Path.of("test-data/xcconfigs/YandexMobileMetrica.xcconfig"), Path.of(sentryTargetFolder.toString(), "YandexMobileMetrica.debug.xcconfig"), StandardCopyOption.REPLACE_EXISTING);
+
+        PodSpec podSpec = PodSpecParser.createPodSpec(PodSpecParser.parseJson(jsonSpec), PodUtils.Platform.IPHONEOS, null);
+        CocoaPodsServiceBuildState cocoapodsState = new CocoaPodsServiceBuildState();
+        cocoapodsState.workingDir = this.workingDir;
+        cocoapodsState.podsDir = this.podsDir;
+        cocoapodsState.selectedPlatform = PodUtils.Platform.IPHONEOS;
+
+        CreateBuildSpecArgs args = new CreateBuildSpecArgs.Builder()
+            .setConfigParser(parser)
+            .setCocoapodsBuildState(cocoapodsState)
+            .setJobContext(this.jobContext)
+            .build();
+        args.buildDir = this.buildDir;
+        args.configuration = "Debug";
+
+        PodBuildSpec buildSpec = new PodBuildSpec(args, podSpec);
+        assertEquals(buildSpec.name, "YandexMobileMetrica");
+    }
 }
