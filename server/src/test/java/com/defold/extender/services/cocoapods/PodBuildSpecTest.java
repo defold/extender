@@ -104,7 +104,7 @@ public class PodBuildSpecTest {
     }
 
     @Test
-    public void testNesptedPodSpecName() throws IOException, ExtenderException {
+    public void testNestedPodSpecName() throws IOException, ExtenderException {
         String jsonSpec = Files.readString(Path.of("test-data/pod_specs/YandexMobileMetrica.json"));
         XCConfigParser parser = new XCConfigParser(this.buildDir, this.podsDir, PodUtils.Platform.IPHONEOS, "Debug", "arm64");
         File sentryTargetFolder = Path.of(this.podsDir.toString(), "Target Support Files", "YandexMobileMetrica").toFile();
