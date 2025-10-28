@@ -23,7 +23,7 @@ RUN \
 #
 # Java
 #
-ENV JAVA_HOME=/usr/local/jdk-21.0.5+11
+ENV JAVA_HOME=/usr/local/jdk-25+36
 ENV PATH=${JAVA_HOME}/bin:${PATH}
 
 RUN locale-gen en_US.UTF-8
@@ -35,7 +35,7 @@ ENV JDK_ARCH=${TARGETARCH/amd64/x64}
 ENV JDK_ARCH=${JDK_ARCH/arm64/aarch64}
 
 RUN \
-  wget -q -O - https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.5%2B11/OpenJDK21U-jdk_${JDK_ARCH}_linux_hotspot_21.0.5_11.tar.gz | tar xz -C /usr/local && \
+  wget -q -O - https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25%2B36/OpenJDK25U-jdk_${JDK_ARCH}_linux_hotspot_25_36.tar.gz | tar xz -C /usr/local && \
   java -version && \
   javac -version
 

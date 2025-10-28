@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.4.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.5.0
 
 ENV EMSCRIPTEN_SDK_4_0_6=${PLATFORMSDK_DIR}/emsdk-4.0.6
 ENV EMSCRIPTEN_HOME_4_0_6=${EMSCRIPTEN_SDK_4_0_6}
