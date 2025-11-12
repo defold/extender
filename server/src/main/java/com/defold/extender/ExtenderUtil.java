@@ -567,7 +567,10 @@ public class ExtenderUtil
         new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"),
         new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"),
         new PruneMapping("symbols", "includeSymbols", "excludeSymbols"),
-        new PruneMapping("jars", "includeJars", "excludeJars"),
+        // if applied manifest contains 'symbols' which were excluded before - need update 'excludeSymbols' list
+        // because depends on that list we defined which extension to build and which symbols should be included into
+        // result binary
+        new PruneMapping("excludeSymbols", "", "symbols"),
         new PruneMapping("frameworks", "includeFrameworks", "excludeFrameworks")
     );
 

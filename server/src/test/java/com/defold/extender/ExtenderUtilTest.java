@@ -331,6 +331,7 @@ public class ExtenderUtilTest {
         res = ExtenderUtil.mergeContexts(res, appManifest.platforms.get("linux").context);
         List<String> libs = (List<String>)res.get("libs");
         List<String> symbols = (List<String>)res.get("symbols");
+        List<String> excludeSymbols = (List<String>)res.get("excludeSymbols");
         assertTrue(libs.contains("profile"));
         assertTrue(libs.contains("profilerext"));
         assertTrue(libs.contains("profiler_remotery"));
@@ -342,5 +343,9 @@ public class ExtenderUtilTest {
         assertTrue(symbols.contains("ProfilerExt"));
         assertTrue(symbols.contains("ProfilerBasic"));
         assertTrue(symbols.contains("ProfilerRemotery"));
+
+        assertFalse(excludeSymbols.contains("ProfilerExt"));
+        assertFalse(excludeSymbols.contains("ProfilerBasic"));
+        assertFalse(excludeSymbols.contains("ProfilerRemotery"));
     }
 }
