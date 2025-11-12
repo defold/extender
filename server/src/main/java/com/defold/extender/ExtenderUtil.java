@@ -566,7 +566,9 @@ public class ExtenderUtil
         new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"),
         new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"),
         new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"),
-        new PruneMapping("symbols", "includeSymbols", "excludeSymbols")
+        new PruneMapping("symbols", "includeSymbols", "excludeSymbols"),
+        new PruneMapping("jars", "includeJars", "excludeJars"),
+        new PruneMapping("frameworks", "includeFrameworks", "excludeFrameworks")
     );
 
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
@@ -574,13 +576,15 @@ public class ExtenderUtil
         Map<String, Object> context = mergeMaps(a, b);
 
         for (PruneMapping mapping : MAPPINGS) {
+            context.remove(mapping.includeName);
+            context.remove(mapping.excludeName);
             List<String> srcList = ExtenderUtil.getStringList(context, mapping.targetName);
             if (srcList.isEmpty())
                 continue;
             context.put(mapping.targetName,
                 ExtenderUtil.pruneItems(srcList,
-                                        ExtenderUtil.getStringList(context, mapping.includeName),
-                                        ExtenderUtil.getStringList(context, mapping.excludeName)) );
+                                        ExtenderUtil.getStringList(b, mapping.includeName),
+                                        ExtenderUtil.getStringList(b, mapping.excludeName)) );
         }
         return context;
     }
