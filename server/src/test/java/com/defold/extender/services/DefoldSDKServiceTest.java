@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 
 public class DefoldSDKServiceTest {
     private static DefoldSdkServiceConfiguration configuration;
@@ -108,6 +109,20 @@ public class DefoldSDKServiceTest {
                         .withBodyFile("test_sdk_invalid.sha256")
                         .withHeader("Content-Type", "text/plain")));
 
+        // first call should fail; second - should be successful
+        stubFor(get(urlEqualTo("/unstable_sdk_mapping.json"))
+                .inScenario("request_chain")
+                .whenScenarioStateIs(STARTED)
+                .willReturn(aResponse()
+                        .withStatus(404))
+                .willSetStateTo("not_found"));
+        stubFor(get(urlEqualTo("/unstable_sdk_mapping.json"))
+                .inScenario("request_chain")
+                .whenScenarioStateIs("not_found")
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBody("{}")
+                ));
     }
 
     @AfterAll
@@ -305,7 +320,7 @@ public class DefoldSDKServiceTest {
         DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
             .location(Path.of("/tmp/defoldsdk"))
             .cacheSize(1)
-            .sdkUrls(new String[] {"http://localhost:8090/%s.zip"})
+            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
             .enableSdkVerification(true)
             .maxVerificationRetryCount(3)
             .build();
@@ -318,7 +333,7 @@ public class DefoldSDKServiceTest {
         DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
             .location(Path.of("/tmp/defoldsdk"))
             .cacheSize(0)
-            .sdkUrls(new String[] {"http://localhost:8090/%s.zip"})
+            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
             .enableSdkVerification(false)
             .maxVerificationRetryCount(3)
             .build();
@@ -328,7 +343,7 @@ public class DefoldSDKServiceTest {
         DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
             .location(Path.of("/tmp/defoldsdk"))
             .cacheSize(0)
-            .sdkUrls(new String[] {"http://localhost:8090/%s.zip"})
+            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
             .enableSdkVerification(true)
             .maxVerificationRetryCount(3)
             .build();
@@ -340,5 +355,20 @@ public class DefoldSDKServiceTest {
 
         ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid"));
         assertTrue(exc.getMessage().contains("Sdk verification failed"));
+    }
+
+    @Test
+    public void testUnstableAccessSdkMappings() throws IOException {
+        DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
+            .location(Path.of("/tmp/defoldsdk"))
+            .cacheSize(0)
+            .mappingsUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.json"})
+            .enableSdkVerification(false)
+            .maxVerificationRetryCount(1)
+            .build();
+        DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
+        assertThrows(ExtenderException.class, () -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping"));
+
+        assertDoesNotThrow(() -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping"));
     }
 }
