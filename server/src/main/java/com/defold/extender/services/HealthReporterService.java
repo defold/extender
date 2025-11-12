@@ -32,7 +32,7 @@ import io.micrometer.tracing.propagation.Propagator;
 @Service
 public class HealthReporterService {
 
-    @Value("${extender.health-reporter.connection-timeout:1500}") int connectionTimeout;
+    @Value("${extender.health-reporter.connection-timeout:5000}") int connectionTimeout;
     public enum OperationalStatus {
         Unreachable,
         NotFullyOperational,
@@ -59,27 +59,30 @@ public class HealthReporterService {
             // we collect information by platform. If one of the builder is unreachable - set status to "not fully operational"
             Map<String, OperationalStatus> platformOperationalStatus = new HashMap<>();
             JSONObject result = new JSONObject();
-            JSONParser parser = new JSONParser();
             Map<String, CompletableFuture<Boolean>> reportResults = new HashMap<>(remoteBuilderPlatformMappings.size());
             List<HttpGet> runningRequests = new ArrayList<>();
             for (Map.Entry<String, RemoteInstanceConfig> entry : remoteBuilderPlatformMappings.entrySet()) {
-                CompletableFuture<Boolean> statusRequest = CompletableFuture.supplyAsync(() -> {
-                    String instanceId = entry.getValue().getInstanceId();
-                    // if instance controlled by instanceService and is currently suspended or suspending - mark it as 'operational'
-                    if (instanceService != null && instanceService.isInstanceControlled(instanceId)) {
-                        if (instanceService.isInstanceSuspended(instanceId)
-                        || instanceService.isInstanceSuspending(instanceId)
-                        || instanceService.isInstanceStarting(instanceId)) {
-                            return Boolean.TRUE;
-                        } else if (!instanceService.isInstanceRunning(instanceId)) {
-                            return Boolean.FALSE;
-                        }
+                String instanceId = entry.getValue().getInstanceId();
+                String platform = getPlatform(entry.getKey());
+                // if instance controlled by instanceService and is currently suspended or suspending - mark it as 'operational'
+                if (instanceService != null && instanceService.isInstanceControlled(instanceId)) {
+                    if (instanceService.isInstanceSuspended(instanceId)
+                    || instanceService.isInstanceSuspending(instanceId)
+                    || instanceService.isInstanceStarting(instanceId)) {
+                        updateOperationalStatus(platformOperationalStatus, platform, true);
+                        continue;
+                    } else if (!instanceService.isInstanceRunning(instanceId)) {
+                        updateOperationalStatus(platformOperationalStatus, platform, false);
+                        continue;
                     }
-                    final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
-                    final HttpGet request = new HttpGet(healthUrl);
-                    synchronized(runningRequests) {
-                        runningRequests.add(request);
-                    }
+                }
+
+                // if instance is not located in GCP - make http request to it asynchronously
+                final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
+                final HttpGet request = new HttpGet(healthUrl);
+                runningRequests.add(request);
+                CompletableFuture<Boolean> innerRequest = CompletableFuture.supplyAsync(() -> {
+                    JSONParser parser = new JSONParser();
                     try {
                         HttpResponse response = httpClient.execute(request);
                         if (response.getStatusLine().getStatusCode() == org.apache.http.HttpStatus.SC_OK) {
@@ -97,9 +100,8 @@ public class HealthReporterService {
                     } catch(Exception exc) {
                         return Boolean.FALSE;
                     }
-                });
-                statusRequest.completeOnTimeout(Boolean.FALSE, this.connectionTimeout, TimeUnit.MILLISECONDS);
-                reportResults.put(entry.getKey(), statusRequest);
+                }).completeOnTimeout(Boolean.FALSE, this.connectionTimeout, TimeUnit.MILLISECONDS);
+                reportResults.put(entry.getKey(), innerRequest);
             }
             for (Map.Entry<String, CompletableFuture<Boolean>> status : reportResults.entrySet()) {
                 String platform = getPlatform(status.getKey());
