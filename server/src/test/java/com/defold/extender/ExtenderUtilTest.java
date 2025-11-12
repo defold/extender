@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -319,5 +320,27 @@ public class ExtenderUtilTest {
         assertEquals(expected.size(), writtenLines.size());
         assertTrue(expected.containsAll(writtenLines));
         assertTrue(writtenLines.containsAll(expected));
+    }
+
+    @Test
+    public void testMergeManifests() throws IOException, ExtenderException {
+        AppManifestConfiguration appManifest = Extender.loadYaml(null, new File("test-data/appmanifests/app.appmanifest"), AppManifestConfiguration.class);
+        ManifestConfiguration ext1 = Extender.loadYaml(null, new File("test-data/appmanifests/ext1.manifest"), ManifestConfiguration.class);
+        ManifestConfiguration ext2 = Extender.loadYaml(null, new File("test-data/appmanifests/ext2.manifest"), ManifestConfiguration.class);
+        Map<String, Object> res = ExtenderUtil.mergeContexts(ext1.platforms.get("linux").context, ext2.platforms.get("linux").context);
+        res = ExtenderUtil.mergeContexts(res, appManifest.platforms.get("linux").context);
+        List<String> libs = (List<String>)res.get("libs");
+        List<String> symbols = (List<String>)res.get("symbols");
+        assertTrue(libs.contains("profile"));
+        assertTrue(libs.contains("profilerext"));
+        assertTrue(libs.contains("profiler_remotery"));
+
+        assertFalse(libs.contains("profile_null"));
+        assertFalse(libs.contains("profilerext_null"));
+        assertFalse(libs.contains("record_null"));
+
+        assertTrue(symbols.contains("ProfilerExt"));
+        assertTrue(symbols.contains("ProfilerBasic"));
+        assertTrue(symbols.contains("ProfilerRemotery"));
     }
 }

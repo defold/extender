@@ -560,19 +560,20 @@ public class ExtenderUtil
         }
     };
 
+    private static List<PruneMapping> MAPPINGS = List.of(
+        new PruneMapping("libs", "includeLibs", "excludeLibs"),
+        new PruneMapping("engineLibs", "includeLibs", "excludeLibs"),
+        new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"),
+        new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"),
+        new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"),
+        new PruneMapping("symbols", "includeSymbols", "excludeSymbols")
+    );
+
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
     static public Map<String, Object> mergeContexts(Map<String, Object> a, Map<String, Object> b) throws ExtenderException {
         Map<String, Object> context = mergeMaps(a, b);
 
-        List<PruneMapping> mappings = new ArrayList<>();
-        mappings.add(new PruneMapping("libs", "includeLibs", "excludeLibs"));
-        mappings.add(new PruneMapping("engineLibs", "includeLibs", "excludeLibs"));
-        mappings.add(new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"));
-        mappings.add(new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"));
-        mappings.add(new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"));
-        mappings.add(new PruneMapping("symbols", "includeSymbols", "excludeSymbols"));
-
-        for (PruneMapping mapping : mappings) {
+        for (PruneMapping mapping : MAPPINGS) {
             List<String> srcList = ExtenderUtil.getStringList(context, mapping.targetName);
             if (srcList.isEmpty())
                 continue;
