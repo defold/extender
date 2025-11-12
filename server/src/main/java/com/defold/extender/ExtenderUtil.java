@@ -576,8 +576,6 @@ public class ExtenderUtil
         Map<String, Object> context = mergeMaps(a, b);
 
         for (PruneMapping mapping : MAPPINGS) {
-            context.remove(mapping.includeName);
-            context.remove(mapping.excludeName);
             List<String> srcList = ExtenderUtil.getStringList(context, mapping.targetName);
             if (srcList.isEmpty())
                 continue;
