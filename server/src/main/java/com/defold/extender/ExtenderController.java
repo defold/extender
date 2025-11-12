@@ -16,6 +16,7 @@ import org.apache.commons.fileupload2.jakarta.JakartaServletFileUpload;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.io.EofException;
+import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +34,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.transaction.NotSupportedException;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -156,7 +156,7 @@ public class ExtenderController {
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, ParseException {
+            throws ExtenderException, IOException, ParseException, VersionNotSupportedException, PlatformNotSupportedException {
 
         boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
@@ -212,11 +212,12 @@ public class ExtenderController {
             } else {
                 String[] buildEnvDescription = null;
                 try {
-                    // sdk version was removed (dev or beta)
-                    buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
+                    JSONObject mappings = defoldSdkService.getPlatformSdkMappings(sdkVersion);
+                    buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, mappings);
                 } catch(ExtenderException exc) {
                     if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
-                        throw new NotSupportedException("Engine version unsupported. Please, update engine to the newer version.");
+                        LOGGER.error("Unsupported engine version {}", sdkVersion);
+                        throw new VersionNotSupportedException(sdkVersion);
                     }
                 }
                 // Build engine locally or on remote builder
@@ -227,8 +228,9 @@ public class ExtenderController {
                 } else if (instanceType.equals(InstanceType.MIXED)) {
                     asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
                 } else {
-                    // no remote buidler was found and current instance can't build
-                    throw new NotSupportedException("Engine version unsupported. Please, update engine to the newer version.");
+                    // no remote builder was found and current instance can't build
+                    LOGGER.error("Unsupported build platform {}", platform);
+                    throw new PlatformNotSupportedException(platform);
                 }
             }
             response.getWriter().write(jobDirectory.getName());
@@ -240,9 +242,8 @@ public class ExtenderController {
             throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
             throw new ExtenderException(e, "Bad request: " + e.getMessage());
-        } catch(NotSupportedException e) {
-            LOGGER.error("Unsupported engine version {}", sdkVersionString);
-            throw new ExtenderException("Unsupported engine version. Please, update engine to the newer version");
+        } catch(VersionNotSupportedException|PlatformNotSupportedException exc) {
+            throw exc;
         } catch(Exception e) {
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion));
             throw e;
