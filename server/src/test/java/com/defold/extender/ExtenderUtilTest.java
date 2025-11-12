@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ExtenderUtilTest {
 
@@ -296,5 +297,27 @@ public class ExtenderUtilTest {
         assertEquals(expectedSha, calculatedSha);
 
         assertThrows(FileNotFoundException.class, () -> ExtenderUtil.calculateSHA256(new FileInputStream("test-data/checksum_sdk/non-exist.zip")));
+    }
+
+    @Test
+    public void testWriteSourceListToTempFile() throws IOException {
+        File tmpDir = Files.createTempDirectory("test-source-list").toFile();
+        Set<String> sources = Set.of("/path/path1/path2/path3/source1.swift",
+            "/path/path4/path2/path3/source2.swift",
+            "/path/path1 space/path8/path3 space/source3.swift",
+            "/path/path4/path2/path/source4 space.swift",
+            "/path/path6/path7 space/path3/source5.swift");
+
+        Set<String> expected = Set.of("/path/path1/path2/path3/source1.swift",
+            "/path/path4/path2/path3/source2.swift",
+            "/path/path1\\ space/path8/path3\\ space/source3.swift",
+            "/path/path4/path2/path/source4\\ space.swift",
+            "/path/path6/path7\\ space/path3/source5.swift");
+        File resFile = ExtenderUtil.writeSourceFilesListToTmpFile(tmpDir, sources);
+        assertTrue(resFile.exists());
+        List<String> writtenLines = FileUtils.readLines(resFile, StandardCharsets.UTF_8);
+        assertEquals(expected.size(), writtenLines.size());
+        assertTrue(expected.containsAll(writtenLines));
+        assertTrue(writtenLines.containsAll(expected));
     }
 }

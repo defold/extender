@@ -2,50 +2,39 @@ package com.defold.extender.services.cocoapods;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 public class PodSpec {
     public String name = "";
     public String moduleName = "";
     public String version = "";
-    public String iosversion = "";
-    public String osxversion = "";
-    public String iosModuleMap = null;
-    public String osxModuleMap = null;
-    public String iosUmbrellaHeader = null;
-    public String osxUmbrellaHeader = null;
-    // Set to true if this Pod contains at least one .xcframework
-    public Boolean containsFramework = false;
-    // The Swift source file header (ModuleName-Swift.h)
-    // This file is referenced from the modulemap and generated in
-    // Extender.java as part of the process when building .swift files
-    public File swiftModuleHeader = null;
-    public Set<String> swiftSourceFilePaths = new LinkedHashSet<>();
-    public Set<File> swiftSourceFiles = new LinkedHashSet<>();
-    public Set<File> sourceFiles = new LinkedHashSet<>();
-    public Set<File> includePaths = new LinkedHashSet<>();
+    public String platformVersion = "";
+    public Map<String, String> platforms = new HashMap<>();
+    public Set<String> publicHeadersPatterns = new LinkedHashSet<>();
+    public Set<String> sourceFilesPatterns = new LinkedHashSet<>();
+    public Set<File> frameworkSearchPaths = new LinkedHashSet<>();
     public PodSpec parentSpec = null;
     public List<String> defaultSubspecs = new ArrayList<>();
     public List<PodSpec> subspecs = new ArrayList<>();
     public List<String> dependencies = new ArrayList<>();
+    public Map<String, List<String>> resourceBundles = new HashMap<>();
 
-    public PlatformAndLanguageSet flags = new PlatformAndLanguageSet();
-    public PlatformSet defines = new PlatformSet();
-    public PlatformSet linkflags = new PlatformSet();
+    public LanguageSet flags = new LanguageSet();
+    public Set<String> defines = new HashSet<>();
+    public List<String> linkflags = new ArrayList<>();
     public Set<String> vendoredFrameworks = new LinkedHashSet<>();
-    public PlatformSet weakFrameworks = new PlatformSet();
-    public PlatformSet resources = new PlatformSet();
-    public PlatformSet frameworks = new PlatformSet();
-    public PlatformSet libraries = new PlatformSet();
-    public PlatformSet publicHeaders = new PlatformSet();
-    public File dir;
-    public File generatedDir;
-    // true if this podspec was installed by Cocoapods
-    public boolean installed;
+    public Set<String> weakFrameworks = new HashSet<>();
+    public Set<String> resources = new HashSet<>();
+    public Set<String> frameworks = new HashSet<>();
+    public Set<String> libraries = new HashSet<>();
+    public Map<String, String> parsedXCConfig = null;
+
+    public PodSpec() {}
 
     public PodSpec getSubspec(String name) {
         for (PodSpec spec : subspecs) {
@@ -56,18 +45,19 @@ public class PodSpec {
         return null;
     }
 
+    public String getPodName() {
+        if (parentSpec != null) {
+            return parentSpec.getPodName();
+        }
+        return name;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(name + ":" + version + "\n");
-        sb.append("  dir: " + dir + "\n");
         sb.append("  moduleName: " + moduleName + "\n");
-        sb.append("  generated dir: " + generatedDir + "\n");
-        sb.append("  installed: " + installed + "\n");
-        sb.append("  src: " + sourceFiles + "\n");
-        sb.append("  swift src: " + swiftSourceFiles + "\n");
-        sb.append("  swift module header: " + swiftModuleHeader + "\n");
-        sb.append("  includes: " + includePaths + "\n");
+        sb.append("  src: " + sourceFilesPatterns + "\n");
         sb.append("  defines: " + defines + "\n");
         sb.append("  flags: " + flags + "\n");
         sb.append("  linkflags: " + linkflags + "\n");
@@ -76,15 +66,10 @@ public class PodSpec {
         sb.append("  frameworks: " + frameworks + "\n");
         sb.append("  vendored_frameworks: " + vendoredFrameworks + "\n");
         sb.append("  libraries: " + libraries + "\n");
-        sb.append("  dependencies: " + dependencies + "\n");
         sb.append("  parentSpec: " + ((parentSpec != null) ? parentSpec.name : "null") + "\n");
-        sb.append("  default_subspecs: " + defaultSubspecs + "\n");
-        for (PodSpec sub : subspecs) {
-            sb.append("  subspec: " + sub.name + "\n");
+        for (Map.Entry<String, List<String>> resourceBundleEntry : resourceBundles.entrySet()) {
+            sb.append("  resourceBundle: "  + resourceBundleEntry.getKey() + " files: " + resourceBundleEntry.getValue() + "\n");
         }
         return sb.toString();
     }
-
-    public Function<Map<String, Object>, String> umbrellaHeaderGenerator = null;
-    public Function<Map<String, Object>, String> moduleMapGenerator = null;
 }

@@ -1,5 +1,6 @@
 package com.defold.extender.services.cocoapods;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -9,6 +10,17 @@ public class LanguageSet {
     public Set<String> cpp = new LinkedHashSet<>();
     public Set<String> objc = new LinkedHashSet<>();
     public Set<String> objcpp = new LinkedHashSet<>();
+    public List<String> swift = new ArrayList<>();
+
+    public LanguageSet() {}
+
+    public LanguageSet(LanguageSet other) {
+        this.c.addAll(other.c);
+        this.cpp.addAll(other.cpp);
+        this.objc.addAll(other.objc);
+        this.objcpp.addAll(other.objcpp);
+        this.swift.addAll(other.swift);
+    }
 
     public void add(String value) {
         c.add(value);
@@ -22,11 +34,13 @@ public class LanguageSet {
             add(v);
         }
     }
+
     public void addAll(LanguageSet set) {
         c.addAll(set.c);
         cpp.addAll(set.cpp);
         objc.addAll(set.objc);
         objcpp.addAll(set.objcpp);
+        swift.addAll(set.swift);
     }
 
     public void remove(String value) {

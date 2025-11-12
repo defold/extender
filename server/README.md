@@ -43,6 +43,11 @@ It's mandatory to provide a `DM_PACKAGES_URL` variable. Otherwise most of contai
 If you don't have all platform sdks (for example, you don't have consoles sdks) you can customize `build-docker.sh` script and remove all unused parts.
 By default all built images tagged with `latest` version.
 
+By default for base and Linux docker images used 2 architectures: **linux/amd64** and **linux/arm64**. If you don't want to build arm64 image you can pass `NO_ARM64=1` as part of command to skip it. Example
+```sh
+NO_ARM64=1 DM_PACKAGES_URL=<url_to_packages> ./server/build-docker.sh
+```
+
 ## How to add new Docker image with new environment
 1. Place new Dockerfile in `server/docker` folder. Docker file should have name in format `Dockerfile.<platform>[.<version>]-env` (version can be optional if Dockerfile contains some common stuff for other images).
 2. Depends on plaform choose right base image (for `FROM` instruction):
@@ -190,3 +195,6 @@ Keys in `extender.remote-builder.platform` should be formed in the following way
 3. Frontend instance looks into `platform.sdks.json` for information according to requested platform. For example, user try to build engine for platform `js-web`. In that case frontend instance found `["emsdk", "3155"]`.
 4. Frontend instance search through `extender.remote-builder.platforms` using the keys: `<platform>-<sdk_version>` and `<platform>-latest`. If no mappings was found - frontend instance starts local build (which highly likely will fail because no appropriate environment was configured). For our example frontend instance search for `emsdk-3155` and `emsdk-latest`. 
 5. Frontend instance sends a build request to the found server url.
+
+# Testing notes
+When runs integration tests on Macos at arm chips - check docker engine configuration. It's better to use `Virtual Machine option` -> `Apple Virtualization framework` with checked `Use Rosetta for x86_64/amd64 emulation on Apple Silicon` checkbox.

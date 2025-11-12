@@ -11,16 +11,16 @@ Extender is a build server that builds native extensions of the Defold engine. T
 The stand-alone server is currently used on a machine runing macOS. The server is used to build darwin targets (macOS+iOS) using the Apple tools (XCode+Apple Clang). It is also possible to use this setup when developing on macOS.
 
 ### Prerequisites
+Ensure that on host is installed:
+* brew
+* curl
+
 Before running Extender you need to have prepackaged toolchains and sdks. Full instruction how it can be done you can find [here](https://github.com/defold/defold/tree/dev/scripts/package).
 
 Ensure that you have the following tools packaged:
-* iPhoneOS17.5.sdk
 * iPhoneOS18.2.sdk
-* iPhoneSimulator17.5.sdk
 * iPhoneSimulator18.2.sdk
-* MacOSX14.5.sdk
 * MacOSX15.2.sdk
-* XcodeDefault15.4.xctoolchain.darwin
 * XcodeDefault16.2.xctoolchain.darwin
 
 NOTE: Complete list of needed packages see [link](./server/scripts/standalone/setup-standalone-env.sh)
@@ -67,6 +67,18 @@ As a result Extender should start and start listening 9010 port (that port set b
 Logs of extender can be found in `./server/app/logs/` folder.
 
 If you want to use other port (not 9010) you can change property `server.port` in `./server/configs/application-standalone-dev.yml`.
+
+### Show the output
+
+The output can be found in `./server/app/logs/stdout.log`
+
+To show the log as it updates:
+
+```sh
+    tail -F server/app/logs/stdout.log
+```
+
+
 
 ### Develop/debug standalone Extender using VSCode
 Note that [Prerequisites](#prerequisites) should be completed and manifestmergetool.jar already downloaded or built.

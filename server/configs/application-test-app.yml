@@ -7,12 +7,12 @@ extender:
                 url: http://android-ndk25:9000
                 instanceId: android-ndk25
                 alwaysOn: true
-            emsdk-3155:
-                url: http://emsdk-3155:9000
-                instanceId: emsdk-3155
             emsdk-3165:
                 url: http://emsdk-3165:9000
                 instanceId: emsdk-3165
+            emsdk-406:
+                url: http://emsdk-406:9000
+                instanceId: emsdk-406
             linux-latest:
                 url: http://linux:9000
                 instanceId: linux

@@ -24,12 +24,16 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.lang.reflect.Field;
 
 import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.json.simple.JSONObject;
 import org.springframework.core.io.Resource;
 
@@ -57,7 +61,7 @@ public class ExtenderUtil
         return Pattern.compile(convertStringToLiteral(expression));
     }
 
-    static private List<String> filterItems(List<String> input, List<String> expressions, boolean keep) {
+    static private List<String> filterItems(Collection<String> input, Collection<String> expressions, boolean keep) {
         List<String> items = new ArrayList<>();
 
         List<Pattern> patterns = new ArrayList<>();
@@ -98,16 +102,16 @@ public class ExtenderUtil
 
 
     // Excludes items from input list that matches an item in the expressions list
-    static List<String> excludeItems(List<String> input, List<String> expressions) {
+    static List<String> excludeItems(Collection<String> input, Collection<String> expressions) {
         return filterItems(input, expressions, false);
     }
 
     // Keeps the matching items from input list that matches an item in the expressions list
-    static private List<String> matchItems(List<String> input, List<String> expressions) {
+    static private List<String> matchItems(Collection<String> input, Collection<String> expressions) {
         return filterItems(input, expressions, true);
     }
 
-    static List<String> pruneItems(List<String> input, List<String> includePatterns, List<String> excludePatterns) {
+    static List<String> pruneItems(Collection<String> input, Collection<String> includePatterns, Collection<String> excludePatterns) {
         List<String> includeItems = matchItems(input, includePatterns);
         List<String> items = excludeItems(input, excludePatterns);
         for( String item : includeItems) {
@@ -234,7 +238,7 @@ public class ExtenderUtil
         if(!dir.isDirectory()) {
             throw new IllegalArgumentException(dir + " is not a directory.");
         }
-        return new ArrayList(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
+        return new ArrayList<>(FileUtils.listFiles(dir, new RegexFileFilter(regex), DirectoryFileFilter.DIRECTORY));
     }
 
     public static boolean matchesFile(File file, PathMatcher pm) {
@@ -293,6 +297,20 @@ public class ExtenderUtil
     }
     public static List<File> listFilesGlob(File srcDir, String glob) {
         return listFiles(new File[] {srcDir}, FileSystems.getDefault().getPathMatcher("glob:" + glob));
+    }
+
+    public static List<File> listFilesAndDirsGlob(File srcDir, String glob) {
+        PathMatcher pm = FileSystems.getDefault().getPathMatcher("glob:" + glob);
+        List<File> srcFiles = new ArrayList<>();
+        if (srcDir.exists() && srcDir.isDirectory()) {
+            List<File> _srcFiles = new ArrayList<>(FileUtils.listFilesAndDirs(srcDir, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE));
+            _srcFiles = ExtenderUtil.filterFiles(_srcFiles, pm);
+
+            // sorting makes it easier to diff different builds
+            Collections.sort(_srcFiles, NameFileComparator.NAME_INSENSITIVE_COMPARATOR);
+            srcFiles.addAll(_srcFiles);
+        }
+        return srcFiles;
     }
 
 
@@ -628,16 +646,14 @@ public class ExtenderUtil
 
     // Find all static libs (*.a) in a dir
     // Returns list of lib names without initial "lib" and ".a" extension
-    static public List<String> collectStaticLibsByName(File dir) {
+    static public List<String> collectStaticLibsByName(File dir) throws IOException {
         List<String> result = new ArrayList<>();
         Pattern p = Pattern.compile("(.+)\\.a");
         if (dir.exists()) {
-            File[] files = dir.listFiles();
-            for (File f : files) {
-                if (f.isDirectory()) {
-                    continue;
-                }
-                Matcher m = p.matcher(f.getName());
+            Files.walk(dir.toPath())
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                Matcher m = p.matcher(path.getFileName().toString());
                 if (m.matches()) {
                     String name = m.group(1);
                     if (name.startsWith("lib")) {
@@ -645,10 +661,26 @@ public class ExtenderUtil
                     }
                     result.add(name);
                 }
-            }
+            });
         }
         Collections.sort(result);
         return result;
+    }
+
+    static public List<String> collectStaticLibSearchPaths(File dir) throws IOException {
+        Set<String> result = new HashSet<>();
+        Pattern p = Pattern.compile("(.+)\\.a");
+        if (dir.exists()) {
+            Files.walk(dir.toPath())
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                Matcher m = p.matcher(path.getFileName().toString());
+                if (m.matches()) {
+                    result.add(path.getParent().toString());
+                }
+            });
+        }
+        return new ArrayList<>(result);
     }
 
     // Does a regexp match on the absolute path for each file found in a directory
@@ -801,6 +833,7 @@ public class ExtenderUtil
 
     public static boolean isWebTarget(String platform) {
         return platform.equals("wasm-web") ||
+               platform.equals("wasm_pthread-web") ||
                platform.equals("js-web");
     }
 
@@ -884,5 +917,19 @@ public class ExtenderUtil
             hexString.append(String.format("%02x", b));
         }
         return hexString.toString();
+    }
+
+    public static String generateRandomFileName() {
+        return RandomStringUtils.insecure().nextAlphanumeric(30);
+    }
+
+    public static File writeSourceFilesListToTmpFile(File targetDir, Set<String> fileList) throws IOException {
+        File resultFile = new File(targetDir, String.format("%s.sourcelist", generateRandomFileName()));
+        Set<String> escapedList = new HashSet<>();
+        fileList.forEach((elem) -> {
+            escapedList.add(StringEscapeUtils.escapeXSI(elem));
+        });
+        FileUtils.writeLines(resultFile, escapedList);
+        return resultFile;
     }
 }

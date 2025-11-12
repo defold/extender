@@ -7,14 +7,19 @@ buildscript {
     }
     dependencies {
         classpath 'io.spring.gradle:dependency-management-plugin:1.1.7'
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.4.1'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.5.5'
     }
 }
 
 plugins {
     id 'java'
     id 'idea'
-    id 'org.springframework.boot' version '3.3.5'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'jacoco'
+}
+
+jacoco {
+    toolVersion = "0.8.13"
 }
 
 apply plugin: 'io.spring.dependency-management'
@@ -37,10 +42,8 @@ repositories {
 
 dependencyManagement {
     imports {
-        // DO NOT update higher 5.8.0 because transitive dependencies has opentelemtry version 1.45.0+
-        // which has breaking changes in comparison with 1.43.0
-        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:5.8.0'
-        mavenBom 'org.junit:junit-bom:5.11.4'
+        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:7.4.0'
+        mavenBom 'org.junit:junit-bom:5.13.4'
     }
 }
 
@@ -55,28 +58,29 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.67.0')
+    implementation('com.google.cloud:google-cloud-compute:1.88.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
-    implementation('org.apache.commons:commons-text:1.13.+')
-    implementation('org.apache.commons:commons-compress:1.27.+')
-    implementation('org.apache.commons:commons-lang3:3.17.0')
+    implementation('org.apache.commons:commons-fileupload2-core:2.0.0-M4')
+    implementation('org.apache.commons:commons-text:1.14.0')
+    implementation('org.apache.commons:commons-compress:1.28.0')
+    implementation('org.apache.commons:commons-lang3:3.18.0')
     implementation('org.apache.httpcomponents:httpclient:4.5.14')
     implementation('org.apache.httpcomponents:httpmime:4.5.14')
     implementation('org.springframework.boot:spring-boot-starter-actuator')
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
-    implementation('io.micrometer:micrometer-core:1.14.3')
-    implementation('io.micrometer:micrometer-tracing:1.4.1')
-    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.4.1')
+    implementation('io.micrometer:micrometer-core:1.15.3')
+    implementation('io.micrometer:micrometer-tracing:1.5.3')
+    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.5.3')
 
-    implementation('org.projectlombok:lombok:1.18.36')
-    annotationProcessor('org.projectlombok:lombok:1.18.36')
+    implementation('org.projectlombok:lombok:1.18.42')
+    annotationProcessor('org.projectlombok:lombok:1.18.42')
 
-    runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.0')
-    runtimeOnly('io.micrometer:micrometer-registry-influx:1.14.3')
-    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.14.3') {
+    runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.1')
+    runtimeOnly('io.micrometer:micrometer-registry-influx:1.15.3')
+    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.15.3') {
         exclude group: 'org.junit.jupiter'
     }
 
@@ -96,7 +100,7 @@ dependencies {
 
     testImplementation('org.smali:dexlib2:2.5.2')
     testImplementation project(':client')
-    testImplementation('org.wiremock:wiremock-standalone:3.12.0')
+    testImplementation('org.wiremock:wiremock-standalone:3.13.1')
 }
 
 task createVersionFile() {
@@ -206,5 +210,18 @@ task buildStandalone() {
 }
 
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        if (project.hasProperty("excludeTags")) {
+            excludeTags project.getProperty("excludeTags")
+        }
+    }
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test // tests must run before report
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }

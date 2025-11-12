@@ -30,7 +30,7 @@ public class DataCacheService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DataCacheService.class);
 
-    static final String FILE_CACHE_INFO_FILE = "ne-cache-info.json";
+    public static final String FILE_CACHE_INFO_FILE = "ne-cache-info.json";
     static final String FILE_CACHE_INFO_HASH_TYPE = "sha256";
     static final int    FILE_CACHE_INFO_VERSION = 1;
 

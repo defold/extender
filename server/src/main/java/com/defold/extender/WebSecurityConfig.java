@@ -14,51 +14,52 @@ import org.springframework.beans.factory.annotation.Value;
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig {
-	@Value("${extender.authentication.platforms}")
-	String[] authenticatedPlatforms;
+    @Value("${extender.authentication.platforms}")
+    String[] authenticatedPlatforms;
 
-	private InMemoryUserDetailsManager userDetailsManager = new InMemoryUserDetailsManager();
+    private InMemoryUserDetailsManager userDetailsManager = new InMemoryUserDetailsManager();
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-		for(String platform : authenticatedPlatforms) {
-			switch(platform) {
-				case "android":
+        for(String platform : authenticatedPlatforms) {
+            switch(platform) {
+                case "android":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/armv7-android/**").hasRole("ANDROID")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-android/**").hasRole("ANDROID")).httpBasic(withDefaults());
-					break;
-				case "ios":
+                    break;
+                case "ios":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/armv7-ios/**").hasRole("IOS")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-ios/**").hasRole("IOS")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-ios/**").hasRole("IOS")).httpBasic(withDefaults());
-					break;
-				case "linux":
+                    break;
+                case "linux":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-linux/**").hasRole("LINUX")).httpBasic(withDefaults());
-					http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-linux/**").hasRole("LINUX")).httpBasic(withDefaults());
-					break;
-				case "macos":
+                    http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-linux/**").hasRole("LINUX")).httpBasic(withDefaults());
+                    break;
+                case "macos":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-osx/**").hasRole("MACOS")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-osx/**").hasRole("MACOS")).httpBasic(withDefaults());
-					break;
-				case "windows":
+                    break;
+                case "windows":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-win32/**").hasRole("WINDOWS")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86-win32/**").hasRole("WINDOWS")).httpBasic(withDefaults());
-					break;
-				case "html5":
+                    break;
+                case "html5":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/js-web/**").hasRole("HTML5")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/wasm-web/**").hasRole("HTML5")).httpBasic(withDefaults());
-					break;
-				case "switch":
+                    http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/wasm_pthread-web/**").hasRole("HTML5")).httpBasic(withDefaults());
+                    break;
+                case "switch":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-nx64/**").hasRole("SWITCH")).httpBasic(withDefaults());
-					break;
-				case "ps4":
+                    break;
+                case "ps4":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-ps4/**").hasRole("PS4")).httpBasic(withDefaults());
-					break;
-				case "ps5":
+                    break;
+                case "ps5":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-ps5/**").hasRole("PS5")).httpBasic(withDefaults());
-					break;
-			}
-		}
+                    break;
+            }
+        }
         // if (authenticatedPlatforms.length > 0) {
         // 	http.authorizeRequests().requestMatchers("/").hasRole("WATCHER").and().httpBasic();
         // 	http.authorizeRequests().requestMatchers("/query").hasRole("CACHE").and().httpBasic();
@@ -67,10 +68,10 @@ public class WebSecurityConfig {
         http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.anyRequest().permitAll())
             .csrf(csrf -> csrf.disable());
         return http.build();
-	}
+    }
 
-	@Bean
-	InMemoryUserDetailsManager userDetailsManagerBean() {
-		return userDetailsManager;
-	}
+    @Bean
+    InMemoryUserDetailsManager userDetailsManagerBean() {
+        return userDetailsManager;
+    }
 }

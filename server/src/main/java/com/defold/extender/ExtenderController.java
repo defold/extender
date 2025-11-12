@@ -409,6 +409,13 @@ public class ExtenderController {
                 System.out.printf("    %s\n", file.toPath());
             }
         }
+
+        // check if source code archive presented
+        File sourceCodeArchive = new File(uploadDirectory, ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME);
+        if (sourceCodeArchive.exists()) {
+            LOGGER.debug("Source code archive found. Unarchiving...");
+            ZipUtils.unzip(new FileInputStream(sourceCodeArchive), uploadDirectory.toPath());
+        }
     }
 
     private boolean isRemotePlatform(final String platform, String platformVersion) {

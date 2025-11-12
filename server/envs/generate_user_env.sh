@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/usr/bin/env bash
 
 echo "Generate use dynamic environment..."
 
@@ -36,6 +36,7 @@ if [[ -z $1 ]]; then
 else
     echo "Load $1 environment..."
     source ${ENV_DIR}/$1.env
+    APPENDED_PATH=${PATH}
 fi
 
 [ -f "$OUTPUT_FILE" ] && echo "Remove old user.env" && rm "$OUTPUT_FILE"
@@ -62,6 +63,7 @@ echo "DOTNET_VERSION_FILE=${DOTNET_VERSION_FILE}" >> $OUTPUT_FILE
 echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $OUTPUT_FILE
 # Added 1.4.9
 echo "ZIG_PATH_0_11=${ZIG_PATH_0_11}" >> $OUTPUT_FILE
+echo "XCTOOLCHAIN_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_16_VERSION}.xctoolchain" >> $OUTPUT_FILE
 
 echo "PATH=\"${APPENDED_PATH}\"" >> $OUTPUT_FILE
 

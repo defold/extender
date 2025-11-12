@@ -10,6 +10,7 @@ import org.jf.dexlib2.iface.DexFile;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+@Tag("integration")
 public class IntegrationTest {
     private static final int EXTENDER_PORT = 9000;
 
@@ -112,15 +114,17 @@ public class IntegrationTest {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 // new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
 
-                // //  2024-10-14 https://github.com/defold/defold/releases/tag/1.9.3
-                new DefoldVersion("e4aaff11f49c941fde1dd93883cf69c6b8abebe4", new Version(1, 9, 3), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2024-12-05 https://github.com/defold/defold/releases/tag/1.9.5
-                new DefoldVersion("d01194cf0fb576b516a1dca6af6f643e9e590051", new Version(1, 9, 5), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2024-12-19 https://github.com/defold/defold/releases/tag/1.9.6
-                new DefoldVersion("11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96", new Version(1, 9, 6), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2025-02-12 https://github.com/defold/defold/releases/tag/1.9.7
-                new DefoldVersion("868769ba7a3458db12d149188bf3be80a339a85c", new Version(1, 9, 7), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2025-04-14 https://github.com/defold/defold/releases/tag/1.10.0
+                new DefoldVersion("591eb496d52f4140bc2c7de547131f1b9408b9b4", new Version(1, 10, 0), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
 
+                // // 2024-05-14 https://github.com/defold/defold/releases/tag/1.10.1
+                new DefoldVersion("d8e6e73a8efac6b9a72783027867e547b6a363e4", new Version(1, 10, 1), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2024-06-11 https://github.com/defold/defold/releases/tag/1.10.2
+                new DefoldVersion("7a0e23b3fcab4c5db82f2b32f5d8ac5df9467c9d", new Version(1, 10, 2), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2025-07-07 https://github.com/defold/defold/releases/tag/1.10.3
+                new DefoldVersion("1c76521bb8b08c63ef619aa8a5ab563dddf7b3cf", new Version(1, 10, 3), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // 2025-08-04 https://github.com/defold/defold/releases/tag/1.10.4
+                new DefoldVersion("1aafd0a262ff40214ed7f51302d92fa587c607ef", new Version(1, 10, 4), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
                 //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),
@@ -200,6 +204,9 @@ public class IntegrationTest {
         else if (platform.equals("wasm-web")) {
             return new String[]{"dmengine.js", "dmengine.wasm"};
         }
+        else if (platform.equals("wasm_pthread-web")) {
+            return new String[]{"dmengine.js", "dmengine_pthread.wasm"};
+        }
         else if (platform.endsWith("win32")) {
             return new String[]{"dmengine.exe"};
         }
@@ -216,7 +223,7 @@ public class IntegrationTest {
         private String getDynamicLibName(String platform, String lib) {
         if (platform.endsWith("win32")) {
             return String.format("%s.dll", lib);
-        } else if (platform.endsWith("osx") || platform.endsWith("ios")) {
+        } else if (ExtenderUtil.isAppleTarget(platform)) {
             return String.format("%s.dylib", lib);
         }
         return String.format("lib%s.so", lib);
@@ -449,8 +456,8 @@ public class IntegrationTest {
                 }
             }
         }
-        String[] expected = {"META-INF/inner.folder/com.inner", "META-INF/inner.folder/io.foo.service.HTTPClient"};
-        assertArrayEquals(expected, metaInfFiles.toArray());
+        List<String> expected = List.of("META-INF/inner.folder/com.inner", "META-INF/inner.folder/io.foo.service.HTTPClient");
+        assertTrue(expected.containsAll(metaInfFiles) &&  metaInfFiles.containsAll(expected));
     }
 
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")

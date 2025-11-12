@@ -1,8 +1,9 @@
-package com.defold.extender;
+package com.defold.extender.utils;
 
 import java.io.File;
 import java.util.List;
 
+import com.defold.extender.ExtenderException;
 import com.defold.extender.process.ProcessUtils;
 
 public class FrameworkUtil {

@@ -363,6 +363,8 @@ public class DefoldSdkService {
             return result;
         } catch (InterruptedException|ExecutionException exc) {
             LOGGER.error(String.format("Mappings downloading %s was interrupted", hash), exc);
+        } finally {
+            mappingsDownloadOperationCache.remove(hash);
         }
         throw new ExtenderException(String.format("Cannot find platform sdks mappings for hash: %s", hash));
     }

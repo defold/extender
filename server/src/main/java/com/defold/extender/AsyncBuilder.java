@@ -7,7 +7,6 @@ import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.List;
 import java.util.Optional;
 
 import com.defold.extender.log.Markers;
@@ -86,7 +85,7 @@ public class AsyncBuilder {
             File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException {
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
-        File resultDir = new File(jobResultLocation.getAbsolutePath(), jobName);
+        File resultDir = new File(jobResultLocation, jobName);
         resultDir.mkdir();
         Extender extender = null;
         Boolean isSuccefull = true;
@@ -113,7 +112,7 @@ public class AsyncBuilder {
                 }
 
                 // Resolve CocoaPods dependencies
-                if (platform.contains("ios") || platform.contains("osx")) {
+                if (ExtenderUtil.isAppleTarget(platform)) {
                     extender.resolve(cocoaPodsService);
                     metricsWriter.measureCocoaPodsInstallation();
                 }

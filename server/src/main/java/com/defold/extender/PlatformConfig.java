@@ -28,7 +28,7 @@ public class PlatformConfig {
     public String rjavaCmd;
     public String manifestName;
     public String manifestMergeCmd;
-    public String bitcodeStripCmd;
+    public String bitcodeStripCmd;  // deprecated
     public String proGuardSourceRe;
     public String proGuardCmd;
     public String windresCmd;

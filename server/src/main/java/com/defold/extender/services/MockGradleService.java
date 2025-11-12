@@ -8,13 +8,14 @@ import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 
 @Service
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "false", matchIfMissing = true)
 public class MockGradleService implements GradleServiceInterface {
     @Override
-    public List<File> resolveDependencies(Map<String, Object> env, File cwd, File buildDirectory, Boolean useJetifier, List<File> outputFiles)
+    public List<File> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles)
             throws IOException, ExtenderException {
         return List.of();
     }

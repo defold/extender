@@ -78,10 +78,10 @@ dependencies {
     implementation('com.android.tools.build:manifest-merger:31.4.1')
     implementation('com.android.tools:common:31.4.1')
     implementation('org.apache.commons:commons-configuration2:2.11.0')
-    implementation('commons-codec:commons-codec:1.18.0')
+    implementation('commons-codec:commons-codec:1.19.0')
 
-    testImplementation('commons-io:commons-io:2.18.0')
-    testImplementation('org.junit.jupiter:junit-jupiter-engine:5.11.4')
+    testImplementation('commons-io:commons-io:2.20.0')
+    testImplementation('org.junit.jupiter:junit-jupiter-engine:5.13.4')
 }
 
 allprojects {

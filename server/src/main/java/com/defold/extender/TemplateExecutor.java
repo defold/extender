@@ -29,16 +29,16 @@ public class TemplateExecutor {
     }
 
     public List<String> execute(List<String> templates, Map<String, Object> context) {
-    	List<String> out = new ArrayList<>();
-    	for (String template : templates) {
-        	try {
-    			out.add(this.execute(template, context));
+        List<String> out = new ArrayList<>();
+        for (String template : templates) {
+            try {
+                out.add(this.execute(template, context));
             } catch (Exception e) {
                 LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string in list [..., '%s', ...]", (String)template));
                 ExtenderUtil.debugPrint(context, 0);
                 throw e;
-	        }
-    	}
+           }
+        }
         return out;
     }
 }
