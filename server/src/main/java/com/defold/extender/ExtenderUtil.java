@@ -560,26 +560,32 @@ public class ExtenderUtil
         }
     };
 
+    private static List<PruneMapping> MAPPINGS = List.of(
+        new PruneMapping("libs", "includeLibs", "excludeLibs"),
+        new PruneMapping("engineLibs", "includeLibs", "excludeLibs"),
+        new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"),
+        new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"),
+        new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"),
+        new PruneMapping("symbols", "includeSymbols", "excludeSymbols"),
+        // if applied manifest contains 'symbols' which were excluded before - need update 'excludeSymbols' list
+        // because depends on that list we defined which extension to build and which symbols should be included into
+        // result binary
+        new PruneMapping("excludeSymbols", "", "symbols"),
+        new PruneMapping("frameworks", "includeFrameworks", "excludeFrameworks")
+    );
+
     // Copies the original context, and appends the extra context's elements, if the keys and types are valid
     static public Map<String, Object> mergeContexts(Map<String, Object> a, Map<String, Object> b) throws ExtenderException {
         Map<String, Object> context = mergeMaps(a, b);
 
-        List<PruneMapping> mappings = new ArrayList<>();
-        mappings.add(new PruneMapping("libs", "includeLibs", "excludeLibs"));
-        mappings.add(new PruneMapping("engineLibs", "includeLibs", "excludeLibs"));
-        mappings.add(new PruneMapping("engineJsLibs", "includeJsLibs", "excludeJsLibs"));
-        mappings.add(new PruneMapping("objectFiles", "includeObjectFiles", "excludeObjectFiles"));
-        mappings.add(new PruneMapping("dynamicLibs", "includeDynamicLibs", "excludeDynamicLibs"));
-        mappings.add(new PruneMapping("symbols", "includeSymbols", "excludeSymbols"));
-
-        for (PruneMapping mapping : mappings) {
+        for (PruneMapping mapping : MAPPINGS) {
             List<String> srcList = ExtenderUtil.getStringList(context, mapping.targetName);
             if (srcList.isEmpty())
                 continue;
             context.put(mapping.targetName,
                 ExtenderUtil.pruneItems(srcList,
-                                        ExtenderUtil.getStringList(context, mapping.includeName),
-                                        ExtenderUtil.getStringList(context, mapping.excludeName)) );
+                                        ExtenderUtil.getStringList(b, mapping.includeName),
+                                        ExtenderUtil.getStringList(b, mapping.excludeName)) );
         }
         return context;
     }

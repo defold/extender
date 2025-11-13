@@ -1,0 +1,5 @@
+platforms:
+    linux:
+        context:
+            libs: ["profile", "profilerext", "profiler_remotery"]
+            symbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']

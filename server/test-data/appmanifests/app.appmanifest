@@ -1,0 +1,6 @@
+platforms:
+    linux:
+        context:
+            excludeLibs: ["profile_null", "profilerext_null", "record_null"]
+            libs: ["profile", "profilerext", "profiler_remotery"]
+            symbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']

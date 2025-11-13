@@ -67,4 +67,8 @@ echo "XCTOOLCHAIN_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_16_VERSION}.xctool
 
 echo "PATH=\"${APPENDED_PATH}\"" >> $OUTPUT_FILE
 
+echo ";DM_DEBUG_COMMANDS=1" >> $OUTPUT_FILE
+echo ";DYNAMO_HOME=" >> $OUTPUT_FILE
+echo ";DM_DEBUG_KEEP_JOB_FOLDER=1" >> $OUTPUT_FILE
+
 echo "Generation completed."
