@@ -50,6 +50,9 @@ extender:
         location: /tmp/results
         cleanup-period: 20000
         lifetime: 1200000
+    # see ExtenderController.InstanceType enum
+    # FRONTEND_ONLY, BUILDER_ONLY, MIXED
+    instance-type: MIXED
 
 spring:
     application:

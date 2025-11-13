@@ -356,7 +356,9 @@ public class DefoldSdkService {
         try {
             JSONObject result = operation.get();
             if (result == null) {
-                throw new ExtenderException(String.format("Cannot find or parse platform sdks mappings for hash: %s", hash));
+                String msg = String.format("Cannot find or parse platform sdks mappings for hash: %s", hash);
+                LOGGER.error(msg);
+                throw new ExtenderException(msg);
             }
             return result;
         } catch (InterruptedException|ExecutionException exc) {

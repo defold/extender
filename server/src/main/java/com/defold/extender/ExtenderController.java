@@ -16,6 +16,7 @@ import org.apache.commons.fileupload2.jakarta.JakartaServletFileUpload;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.io.EofException;
+import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,9 +47,14 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 @RestController
 public class ExtenderController {
+    public enum InstanceType {
+        MIXED,
+        FRONTEND_ONLY,
+        BUILDER_ONLY
+    };
+
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
 
     private static final String LATEST = "latest";
@@ -65,6 +71,8 @@ public class ExtenderController {
 
     private final RemoteEngineBuilder remoteEngineBuilder;
     private Map<String, RemoteInstanceConfig> remoteBuilderPlatformMappings;
+    @Value("${extender.instance-type:MIXED}")
+    private InstanceType instanceType;
     private final boolean remoteBuilderEnabled;
 
     private static long maxPackageSize = 1024*1024*1024;
@@ -148,7 +156,7 @@ public class ExtenderController {
                             HttpServletResponse response,
                             @PathVariable("platform") String platform,
                             @PathVariable("sdkVersion") String sdkVersionString)
-            throws ExtenderException, IOException, ParseException {
+            throws ExtenderException, IOException, ParseException, VersionNotSupportedException, PlatformNotSupportedException {
 
         boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
@@ -198,17 +206,33 @@ public class ExtenderController {
             // Regardless of success/fail status, we want to cache the uploaded files
             DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
-            
-            String[] buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, defoldSdkService.getPlatformSdkMappings(sdkVersion));
-            // Build engine locally or on remote builder
-            if (remoteBuilderEnabled && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
-                LOGGER.info("Building engine on remote builder");
-                RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
-                this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
-            } else {
-                asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
-            }
 
+            if (instanceType.equals(InstanceType.BUILDER_ONLY)) {
+                asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
+            } else {
+                String[] buildEnvDescription = null;
+                try {
+                    JSONObject mappings = defoldSdkService.getPlatformSdkMappings(sdkVersion);
+                    buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, mappings);
+                } catch(ExtenderException exc) {
+                    if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
+                        LOGGER.error("Unsupported engine version {}", sdkVersion);
+                        throw new VersionNotSupportedException(sdkVersion);
+                    }
+                }
+                // Build engine locally or on remote builder
+                if (remoteBuilderEnabled && buildEnvDescription != null && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
+                    LOGGER.info("Building engine on remote builder");
+                    RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
+                    this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, jobDirectory, buildDirectory, metricsWriter);
+                } else if (instanceType.equals(InstanceType.MIXED)) {
+                    asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
+                } else {
+                    // no remote builder was found and current instance can't build
+                    LOGGER.error("Unsupported build platform {}", platform);
+                    throw new PlatformNotSupportedException(platform);
+                }
+            }
             response.getWriter().write(jobDirectory.getName());
             response.getWriter().flush();
             response.getWriter().close();
@@ -218,6 +242,8 @@ public class ExtenderController {
             throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
             throw new ExtenderException(e, "Bad request: " + e.getMessage());
+        } catch(VersionNotSupportedException|PlatformNotSupportedException exc) {
+            throw exc;
         } catch(Exception e) {
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion));
             throw e;
