@@ -872,7 +872,7 @@ public class ExtenderUtil
 
     // return a list of two string: platform name like "emsdk" and platform version like "3155"
     @SuppressWarnings("unchecked")
-    public static String[] getSdksForPlatform(String platform, JSONObject mappings) {
+    public static String[] getSdksForPlatform(String platform, JSONObject mappings) throws NullPointerException {
         return ((List<String>) mappings.get(platform)).toArray(new String[2]);
     }
 

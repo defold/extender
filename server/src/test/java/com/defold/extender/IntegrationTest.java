@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggingSystem;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -589,6 +588,19 @@ public class IntegrationTest {
         );
 
         ExtenderClientException exc = assertThrows(ExtenderClientException.class, () -> doBuild(sourceFiles, configuration));
-        assertTrue(exc.getMessage().contains("Unsupported engine version"));
+        assertTrue(exc.getMessage().contains("Engine version 'non-exist' is not supported on the current server"));
+    }
+
+    @Test
+    public void testUnsupportedPlatform() throws IOException, ExtenderClientException {
+        TestConfiguration configuration = new TestConfiguration(new DefoldVersion("1aafd0a262ff40214ed7f51302d92fa587c607ef", new Version(1, 10, 4), new String[]{ "x86_64-platform" }) , "x86_64-platform");
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+            new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+            new FileExtenderResource("test-data/ext2/ext.manifest"),
+            new FileExtenderResource("test-data/ext2/src/test_ext.cpp")
+        );
+
+        ExtenderClientException exc = assertThrows(ExtenderClientException.class, () -> doBuild(sourceFiles, configuration));
+        assertTrue(exc.getMessage().contains("Platform 'x86_64-platform' is not supported on the current server"));
     }
 }
