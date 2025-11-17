@@ -288,7 +288,17 @@ public class ExtenderClient {
                     os.close();
                     throw new ExtenderClientException(String.format("Failed to build source: jobId - %s, traceId - %s", jobId, traceId == null ? "null" : traceId));
                 }
-            } else {
+            } else if (statusCode == HttpStatus.SC_NOT_IMPLEMENTED) {
+                String traceId = response.getFirstHeader(TRACE_ID_HEADER_NAME).getValue();
+                HttpEntity responseBody = response.getEntity();
+                String body = responseBody != null ? EntityUtils.toString(responseBody) : "(unknown)";
+                String error = String.format("%s (trace id - %s)", body, traceId == null ? "null" : traceId);
+                log(error);
+                OutputStream os = new FileOutputStream(log);
+                os.write(error.getBytes());
+                os.close();
+                throw new ExtenderClientException(error);
+            } else{
                 String result = String.format("Async build request failed with status code %d %s", statusCode, statusLine.getReasonPhrase());
                 log(result);
                 OutputStream os = new FileOutputStream(log);
@@ -297,7 +307,10 @@ public class ExtenderClient {
                 os.close();
                 throw new ExtenderClientException("Failed to build source.");
             }
-        } catch (Exception e) {
+        } catch (ExtenderClientException exc) {
+            throw exc;
+        }
+        catch (Exception e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
         }
     }

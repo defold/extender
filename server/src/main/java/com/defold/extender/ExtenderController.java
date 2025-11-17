@@ -138,6 +138,14 @@ public class ExtenderController {
         return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
+    @ExceptionHandler({PlatformNotSupportedException.class, VersionNotSupportedException.class})
+    public ResponseEntity<String> handleUsupportedExceptions(Exception exc) {
+        LOGGER.error(Markers.SERVER_ERROR, exc.getMessage(), exc);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        return new ResponseEntity<>(exc.getMessage(), headers, HttpStatus.NOT_IMPLEMENTED);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleException(Exception ex) {
         LOGGER.error(Markers.SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), ex);
@@ -216,9 +224,12 @@ public class ExtenderController {
                     buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, mappings);
                 } catch(ExtenderException exc) {
                     if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
-                        LOGGER.error("Unsupported engine version {}", sdkVersion);
+                        LOGGER.error("Unsupported engine version '{}'", sdkVersion);
                         throw new VersionNotSupportedException(sdkVersion);
                     }
+                } catch (NullPointerException exc) {
+                    LOGGER.error("Unsupported build platform '{}'", platform);
+                    throw new PlatformNotSupportedException(platform);
                 }
                 // Build engine locally or on remote builder
                 if (remoteBuilderEnabled && buildEnvDescription != null && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
@@ -229,7 +240,7 @@ public class ExtenderController {
                     asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
                 } else {
                     // no remote builder was found and current instance can't build
-                    LOGGER.error("Unsupported build platform {}", platform);
+                    LOGGER.error("Unsupported build platform '{}'", platform);
                     throw new PlatformNotSupportedException(platform);
                 }
             }
