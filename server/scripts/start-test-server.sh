@@ -40,7 +40,7 @@ if [ "$GITHUB_ACTION" != "" ]; then
 	chmod -R a+xrw ${DIR}/../test-data || true
 fi
 
-docker compose -p $APPLICATION -f ${DIR}/../docker/docker-compose.yml --profile $COMPOSE_PROFILE up -d
+docker compose -p $APPLICATION -f ${DIR}/../docker/docker-compose.yml --profile $COMPOSE_PROFILE up -d --pull never
 
 # Retry configuration
 max_retries=10

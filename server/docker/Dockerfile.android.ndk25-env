@@ -7,31 +7,29 @@ FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extend
 ENV ANDROID_ROOT=${PLATFORMSDK_DIR}/android
 # ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
 ENV ANDROID_HOME=${ANDROID_ROOT}/android-sdk-linux
-ENV ANDROID_SDK_ROOT=${ANDROID_HOME}
+ENV ANDROID_SDK_ROOT=${ANDROID_HOME} \
 # ANDROID_SDK_HOME is the location of the .android folder
-ENV ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
+    ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
 
 #
 # SDK 34 (Defold 1.9.0):
 #
 
-ENV ANDROID_BUILD_TOOLS_VERSION_34=34.0.0
-ENV ANDROID_SDK_VERSION_34=34
-ENV ANDROID_SDK_FILENAME_34=android-sdk-linux-android-${ANDROID_SDK_VERSION_34}-${ANDROID_BUILD_TOOLS_VERSION_34}.tar.gz
-
-ENV ANDROID_SDK_BUILD_TOOLS_PATH_34=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34}
-ENV ANDROID_LIBRARYJAR_34=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_34}/android.jar
+ENV ANDROID_BUILD_TOOLS_VERSION_34=34.0.0 \
+    ANDROID_SDK_VERSION_34=34
+ENV ANDROID_SDK_FILENAME_34=android-sdk-linux-android-${ANDROID_SDK_VERSION_34}-${ANDROID_BUILD_TOOLS_VERSION_34}.tar.gz \
+    ANDROID_SDK_BUILD_TOOLS_PATH_34=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34} \
+    ANDROID_LIBRARYJAR_34=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_34}/android.jar
 
 #
 # SDK 35 (Defold 1.9.8):
 #
 
-ENV ANDROID_BUILD_TOOLS_VERSION_35=35.0.1
-ENV ANDROID_SDK_VERSION_35=35
-ENV ANDROID_SDK_FILENAME_35=android-sdk-linux-android-${ANDROID_SDK_VERSION_35}-${ANDROID_BUILD_TOOLS_VERSION_35}.tar.gz
-
-ENV ANDROID_SDK_BUILD_TOOLS_PATH_35=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_35}
-ENV ANDROID_LIBRARYJAR_35=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_35}/android.jar
+ENV ANDROID_BUILD_TOOLS_VERSION_35=35.0.1 \
+    ANDROID_SDK_VERSION_35=35
+ENV ANDROID_SDK_FILENAME_35=android-sdk-linux-android-${ANDROID_SDK_VERSION_35}-${ANDROID_BUILD_TOOLS_VERSION_35}.tar.gz \
+    ANDROID_SDK_BUILD_TOOLS_PATH_35=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_35} \
+    ANDROID_LIBRARYJAR_35=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_35}/android.jar
 
 # We specify it in build_input.yml by setting it the first in PATH for new SDK
 # But at least one SDK should be specified by default in Dockerfile
@@ -43,18 +41,24 @@ ENV ANDROID_SDK_VERSION=${ANDROID_SDK_VERSION_35}
 # NDK25b (Defold 1.4.3):
 #
 
-ENV ANDROID_NDK25_VERSION=25b
-ENV ANDROID_NDK25_API_VERSION=19
-ENV ANDROID_64_NDK25_API_VERSION=21
+ENV ANDROID_NDK25_VERSION=25b \
+    ANDROID_NDK_VERSION=25b \
+    ANDROID_NDK25_API_VERSION=19 \
+    ANDROID_NDK_API_VERSION=19 \
+    ANDROID_64_NDK25_API_VERSION=21 \
+    ANDROID_64_NDK_API_VERSION=21
 
 # These paths are the same for both the 32 and 64 bit toolchains
-ENV ANDROID_NDK25_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION}
-ENV ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
-ENV ANDROID_NDK25_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-ENV ANDROID_NDK25_FILENAME=android-ndk-r${ANDROID_NDK25_VERSION}-linux.tar.gz
+ENV ANDROID_NDK25_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} \
+    ANDROID_NDK_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
+ENV ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin \
+    ANDROID_NDK_BIN_PATH=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin \
+    ANDROID_NDK25_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
+    ANDROID_NDK_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
+    ANDROID_NDK_FILENAME=android-ndk-r${ANDROID_NDK_VERSION}-linux.tar.gz
 
 # We specify it in build_input.yml by setting it the first in PATH
-ENV PATH=${PATH}:${ANDROID_NDK25_BIN_PATH}
+ENV PATH=${PATH}:${ANDROID_NDK_BIN_PATH}
 
 # android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
 RUN \
@@ -67,21 +71,21 @@ ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
     echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
-    wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_NDK_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_SDK_FILENAME_34} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_SDK_FILENAME_35} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
     rm -rf ${ANDROID_HOME}/extras && \
-    rm -rf ${ANDROID_NDK25_PATH}/prebuilt && \
-    rm -rf ${ANDROID_NDK25_PATH}/simpleperf && \
-    rm -rf ${ANDROID_NDK25_PATH}/shader-tools && \
-    rm -rf ${ANDROID_NDK25_PATH}/sources/third_party && \
-    rm -rf ${ANDROID_NDK25_PATH}/sources/cxx-stl && \
-    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
-    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
-    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
-    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
-    rm -rf ${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+    rm -rf ${ANDROID_NDK_PATH}/prebuilt && \
+    rm -rf ${ANDROID_NDK_PATH}/simpleperf && \
+    rm -rf ${ANDROID_NDK_PATH}/shader-tools && \
+    rm -rf ${ANDROID_NDK_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK_PATH}/sources/cxx-stl && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
 # create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
 # It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
     mkdir ${ANDROID_SDK_HOME} && \
@@ -89,12 +93,12 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
 # fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
     chmod +w -R ${ANDROID_SDK_ROOT} && \
-    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} && \
 # check that dx installed properly
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_34}/d8 && \
     ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_35}/d8 && \
-    which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
-    which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
+    which ${ANDROID_NDK_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK_API_VERSION}-clang++ && \
+    which ${ANDROID_NDK_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++ && \
 # check that aapt installed correctly
     aapt v  && \
     aapt2 version
