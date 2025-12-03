@@ -20,9 +20,11 @@ jar {
 
 
 configurations {
-    // A configuration meant for consumers that need the API of this component
-    implementation {
+    // Resolvable configuration for shading contents into the fat jar
+    implementationResolved {
         canBeResolved = true
+        canBeConsumed = false
+        extendsFrom implementation
     }
     all*.exclude group: 'com.android.tools', module: 'repository'
     all*.exclude group: 'com.android.tools', module: 'sdklib'
@@ -35,13 +37,13 @@ task mainJar(type: Jar) {
         attributes 'Main-Class': 'com.defold.manifestmergetool.ManifestMergeTool'
     }
     from {
-        configurations.implementation.collect { it.isDirectory() ? it : zipTree(it) }
+        configurations.implementationResolved.collect { it.isDirectory() ? it : zipTree(it) }
     } {
         exclude "META-INF/*.SF"
         exclude "META-INF/*.DSA"
         exclude "META-INF/*.RSA"
     }
-    duplicatesStrategy DuplicatesStrategy.WARN
+    duplicatesStrategy = DuplicatesStrategy.WARN
     with jar
         doLast {
         copy {
@@ -60,9 +62,9 @@ if (project.hasProperty('publishToGar')) {
         publications {
             manifestMergeTool(MavenPublication) {
             artifact mainJar
-            groupId 'com.defold.extender'
-            artifactId 'manifestmergetool'
-            version project.ext.manifestMergetoolVersion
+            groupId = 'com.defold.extender'
+            artifactId = 'manifestmergetool'
+            version = project.ext.manifestMergetoolVersion
             }
         }
     }
@@ -70,7 +72,7 @@ if (project.hasProperty('publishToGar')) {
 
 repositories {
     mavenCentral()
-    maven { url "https://maven.google.com" }
+    maven { url = uri("https://maven.google.com") }
 }
 
 dependencies {

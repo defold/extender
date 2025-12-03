@@ -6,7 +6,6 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'io.spring.gradle:dependency-management-plugin:1.1.7'
         classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.5.5'
     }
 }
@@ -29,10 +28,6 @@ ext {
 }
 
 configurations {
-    // A configuration meant for consumers that need the API of this component
-    implementation {
-        canBeResolved = true
-    }
     all*.exclude group: 'commons-logging', module: 'commons-logging'
 }
 
@@ -40,14 +35,10 @@ repositories {
     mavenCentral()
 }
 
-dependencyManagement {
-    imports {
-        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:7.4.0'
-        mavenBom 'org.junit:junit-bom:5.13.4'
-    }
-}
-
 dependencies {
+    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:7.4.0"))
+    testImplementation(platform("org.junit:junit-bom:5.13.4"))
+
     implementation('org.springframework.boot:spring-boot-starter-web') {
         exclude module: 'spring-boot-starter-tomcat'
     }
@@ -175,9 +166,9 @@ if (project.hasProperty('publishToGar')) {
         publications {
             extender(MavenPublication) {
             artifact bootJar
-            groupId 'com.defold.extender'
-            artifactId 'server'
-            version project.ext.extenderVersion
+            groupId = 'com.defold.extender'
+            artifactId = 'server'
+            version = project.ext.extenderVersion
             }
         }
     }

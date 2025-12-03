@@ -10,14 +10,14 @@ if (project.hasProperty('publishToGar')) {
     publishing {
         repositories {
             maven {
-              name "extenderRepo"
-              url "artifactregistry://europe-west1-maven.pkg.dev/extender-426409/extender-maven/"
+              name = "extenderRepo"
+              url = uri("artifactregistry://europe-west1-maven.pkg.dev/extender-426409/extender-maven/")
             }
         }
     }
 }
 
 wrapper {
-    gradleVersion = '8.9'
+    gradleVersion = '9.1'
     distributionType = Wrapper.DistributionType.ALL
 }

@@ -2,7 +2,10 @@ plugins {
     id 'java'
 }
 
-sourceCompatibility = 1.8
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
 
 repositories {
     mavenCentral()
@@ -18,9 +21,9 @@ if (project.hasProperty('publishToGar')) {
         publications {
             extenderClient(MavenPublication) {
             artifact jar
-            groupId 'com.defold.extender'
-            artifactId 'client'
-            version project.ext.clientVersion
+            groupId = 'com.defold.extender'
+            artifactId = 'client'
+            version = project.ext.clientVersion
             }
         }
     }
