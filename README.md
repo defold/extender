@@ -18,10 +18,10 @@ Ensure that on host is installed:
 Before running Extender you need to have prepackaged toolchains and sdks. Full instruction how it can be done you can find [here](https://github.com/defold/defold/tree/dev/scripts/package).
 
 Ensure that you have the following tools packaged:
-* iPhoneOS18.2.sdk
-* iPhoneSimulator18.2.sdk
-* MacOSX15.2.sdk
-* XcodeDefault16.2.xctoolchain.darwin
+* iPhoneOS26.2.sdk
+* iPhoneSimulator26.2.sdk
+* MacOSX26.2.sdk
+* XcodeDefault26.2.xctoolchain.darwin
 
 NOTE: Complete list of needed packages see [link](./server/scripts/standalone/setup-standalone-env.sh)
 
