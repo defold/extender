@@ -186,10 +186,10 @@ if [[ $(uname) == "Darwin" ]]; then
 
     # Keep Apple's naming convention to avoid bugs
     PACKAGES=(
-        iPhoneOS${IOS_18_VERSION}.sdk
-        iPhoneSimulator${IOS_18_VERSION}.sdk
-        MacOSX${MACOS_15_VERSION}.sdk
-        XcodeDefault${XCODE_16_VERSION}.xctoolchain.darwin
+        iPhoneOS${IOS_26_VERSION}.sdk
+        iPhoneSimulator${IOS_26_VERSION}.sdk
+        MacOSX${MACOS_26_VERSION}.sdk
+        XcodeDefault${XCODE_26_VERSION}.xctoolchain.darwin
     )
     function download_packages() {
         for package_name in ${PACKAGES[@]}; do
