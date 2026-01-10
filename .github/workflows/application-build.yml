@@ -204,7 +204,7 @@ jobs:
             ${{ github.workspace }}/gh_release/*.jar
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6.0.0
       with:
         name: test-result
         path: ${{ github.workspace }}/server/build/reports/tests/

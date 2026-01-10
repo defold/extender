@@ -48,13 +48,13 @@ jobs:
         toolpath: 'reportgeneratortool' # Default directory for installing the dotnet tool.
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: test-result
         path: ${{ github.workspace }}/server/build/reports/tests/
         retention-days: 10
     - name: Upload coverage report artifact
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: CoverageReport # Artifact name
         path: coveragereport # Directory containing files to upload
