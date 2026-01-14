@@ -32,6 +32,15 @@ After obtain packages with sdks and toolchains you make it available via HTTP. T
 ```
 It starts local web server that available at `http://localhost:8000`.
 
+(**Macos only supported**)
+Generate file with environment variables via
+```sh
+    ./server/envs/generate_user_env.sh
+```
+It produces file with environemnt variables (`user.env`) which contains specific to your host pathes.
+
+You should run those script every time when JDK verison are updated.
+
 Setup all needed packages via
 ```sh
     DM_PACKAGES_URL=<url_where_package_located> ./server/scripts/standalone/setup-standalone-env.sh
