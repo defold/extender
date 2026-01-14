@@ -37,7 +37,7 @@ for request in $REQUESTED; do
             INSTALL="wine nssdk-1832"
             ;;
         android)
-            INSTALL="android android-ndk25"
+            INSTALL="android android-ndk25 android-ndk25_sdk36"
             ;;
         android-ndk-*)
             INSTALL="android $request"
