@@ -137,8 +137,7 @@ public class ExtenderClientTest extends Mockito {
             Arguments.of(null, List.of("build/a", "build/b", "build/c"))
         );
     }
-
-    @ParameterizedTest()
+    @ParameterizedTest
     @MethodSource("uploadData")
     public void testUploadStructure(String cacheResponse, List<String> expectedFilenames) throws Exception {
         try {
@@ -149,23 +148,27 @@ public class ExtenderClientTest extends Mockito {
             File a = new File("build/a");
             File b = new File("build/b");
             File c = new File("build/c");
+            File e = new File("build/.DS_Store");
             FileExtenderResource aRes = new FileExtenderResource(a);
             FileExtenderResource bRes = new FileExtenderResource(b);
             FileExtenderResource cRes = new FileExtenderResource(c);
+            FileExtenderResource eRes = new FileExtenderResource(e);
 
             a.deleteOnExit();
             b.deleteOnExit();
             c.deleteOnExit();
+            e.deleteOnExit();
 
             TestUtils.writeToFile("build/a", "a");
             TestUtils.writeToFile("build/b", "b");
             TestUtils.writeToFile("build/c", "c");
+            TestUtils.writeToFile("build/e", "e");
 
             List<ExtenderResource> inputFiles = new ArrayList<>();
             inputFiles.add(aRes);
             inputFiles.add(bRes);
             inputFiles.add(cRes);
-
+            inputFiles.add(eRes);
 
             HttpEntity entity = extenderClient.createBuildRequestPayload(inputFiles);
             assertNotNull(entity);
