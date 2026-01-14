@@ -1,0 +1,93 @@
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.6.0
+
+#
+# Android SDK/NDK
+# https://developer.android.com/studio/command-line/variables
+#
+ENV ANDROID_ROOT=${PLATFORMSDK_DIR}/android
+# ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
+ENV ANDROID_HOME=${ANDROID_ROOT}/android-sdk-linux
+ENV ANDROID_SDK_ROOT=${ANDROID_HOME}
+# ANDROID_SDK_HOME is the location of the .android folder
+ENV ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
+
+ENV ANDROID_BUILD_TOOLS_VERSION=36.1.0
+ENV ANDROID_SDK_VERSION=36
+ENV ANDROID_SDK_FILENAME=android-sdk-linux-android-${ANDROID_SDK_VERSION}-${ANDROID_BUILD_TOOLS_VERSION}.tar.gz
+
+ENV ANDROID_SDK_BUILD_TOOLS_PATH=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
+ENV ANDROID_LIBRARYJAR=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION}/android.jar
+
+# We specify it in build_input.yml by setting it the first in PATH for new SDK
+# But at least one SDK should be specified by default in Dockerfile
+ENV PATH=${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}
+# ANDROID_SDK_VERSION used in Java code, default should be specified in Dockerfile as well:
+ENV ANDROID_SDK_VERSION=${ANDROID_SDK_VERSION}
+
+ENV ANDROID_NDK_VERSION=25b
+ENV ANDROID_NDK_API_VERSION=19
+ENV ANDROID_64_NDK_API_VERSION=21
+
+# These paths are the same for both the 32 and 64 bit toolchains
+ENV ANDROID_NDK_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
+ENV ANDROID_NDK_BIN_PATH=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
+ENV ANDROID_NDK_SYSROOT=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+ENV ANDROID_NDK_FILENAME=android-ndk-r${ANDROID_NDK_VERSION}-linux.tar.gz
+
+# We specify it in build_input.yml by setting it the first in PATH
+ENV PATH=${PATH}:${ANDROID_NDK_BIN_PATH}
+
+# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends proguard && \
+  ls -la /usr/share/java/proguard.jar
+
+ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+    echo "Android SDK" && \
+    mkdir -p ${ANDROID_HOME} && \
+    wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_NDK_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
+    wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_SDK_FILENAME} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
+    rm -rf ${ANDROID_HOME}/extras && \
+    rm -rf ${ANDROID_NDK_PATH}/prebuilt && \
+    rm -rf ${ANDROID_NDK_PATH}/simpleperf && \
+    rm -rf ${ANDROID_NDK_PATH}/shader-tools && \
+    rm -rf ${ANDROID_NDK_PATH}/sources/third_party && \
+    rm -rf ${ANDROID_NDK_PATH}/sources/cxx-stl && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-* && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-* && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android && \
+    rm -rf ${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android && \
+# create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
+# It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
+    mkdir ${ANDROID_SDK_HOME} && \
+    chmod ugo+rw -R ${ANDROID_SDK_HOME} && \
+# fix permissions
+    chmod +r -R ${ANDROID_ROOT} && \
+    chmod +w -R ${ANDROID_SDK_ROOT} && \
+    chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION} && \
+# check that dx installed properly
+    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH}/d8 && \
+    which ${ANDROID_NDK_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK_API_VERSION}-clang++ && \
+    which ${ANDROID_NDK_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++ && \
+# check that aapt installed correctly
+    aapt v  && \
+    aapt2 version
+
+# download and install R8 utility separatly. It's done in that way because
+# R8/D8 received fixes from time to time which not populated with build tools
+# It's ok that R8.jar downloaded but saved to D8.jar. Can't find D8 as separate utility.
+# R8 contains all classes of D8.
+ENV R8_VERSION=8.13.19
+RUN wget -O ${ANDROID_SDK_BUILD_TOOLS_PATH}/lib/d8.jar https://storage.googleapis.com/r8-releases/raw/${R8_VERSION}/r8.jar
+
+# Since dotnet cannot really cross compile, we need to create a "ar" shim for "llvm-ar"
+# As long as it's in the path, it will be picked up
+RUN \
+  echo '#!/usr/bin/env bash' > /usr/bin/ar && \
+  find /opt/platformsdk/android -iname "llvm-ar" | tail -1 | xargs xargs printf "%s \$*\n" $1 >> /usr/bin/ar && \
+  chmod +x /usr/bin/ar

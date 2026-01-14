@@ -63,7 +63,7 @@ services:
       service: common_builder
     command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
     environment:
-      - INSTANCE_ID=emsdk-2011-local
+      - INSTANCE_ID=android-ndk25-local
     profiles:
       - all
       - android
@@ -71,6 +71,21 @@ services:
       default:
         aliases:
           - android-ndk25
+  android_ndk25_sdk36-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25_sdk36-env:latest
+    extends:
+      file: common-services.yml
+      service: common_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
+    environment:
+      - INSTANCE_ID=android-ndk25_sdk36-local
+    profiles:
+      - all
+      - android
+    networks:
+      default:
+        aliases:
+          - android-ndk25_sdk36
   emscripten_3165-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3165-env:latest
     extends:
@@ -202,6 +217,19 @@ services:
       default:
         aliases:
           - android-ndk25
+  android_ndk25_sdk36-integration-test:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25_sdk36-env:latest
+    extends:
+      file: common-services.yml
+      service: test_builder
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
+    profiles:
+      - test
+      - auth-test
+    networks:
+      default:
+        aliases:
+          - android-ndk25_sdk35
   emscripten_3165-integration-test:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3165-env:latest
     extends:
