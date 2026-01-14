@@ -331,7 +331,8 @@ public class ExtenderClient {
         try (ZipOutputStream zipStream = new ZipOutputStream(byteStream)) {
             sourceResources.stream()
             .filter(res -> {
-                return !cachedFiles.contains(res.getPath());
+                return !cachedFiles.contains(res.getPath())
+                    && !res.getPath().endsWith(".DS_Store");
             })
             .forEach(res -> {
                 Path path = Path.of(res.getPath());
