@@ -27,6 +27,7 @@ jobs:
           TAG_VERSION="${TAG_NAME#*-v}"
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "COMMIT_SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
     - name: Login to Google Artifact registry (Maven)
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
       with:
@@ -84,6 +85,7 @@ jobs:
           TAG_VERSION="${TAG_NAME#*-v}"
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "COMMIT_SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
     - name: Login to Google Artifact registry (Maven)
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
       with:
@@ -157,6 +159,7 @@ jobs:
           TAG_VERSION="${TAG_NAME#*-v}"
 
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "COMMIT_SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
     - name: Install Java
       uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e
       with:
