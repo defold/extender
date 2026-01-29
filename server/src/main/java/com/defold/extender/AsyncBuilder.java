@@ -167,7 +167,7 @@ public class AsyncBuilder {
         try {
             if (jobResultLocation.exists())
             {
-                Files.walk(jobResultLocation.toPath())
+                Files.list(jobResultLocation.toPath())
                         .filter(Files::isDirectory)
                         .filter(path -> ! jobResultLocation.toPath().equals(path))
                         .forEach(path -> {
