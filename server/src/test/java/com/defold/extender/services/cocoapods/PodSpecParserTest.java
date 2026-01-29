@@ -103,4 +103,20 @@ public class PodSpecParserTest {
         };
         assertArrayEquals(expectedValues, podSpec.defaultSubspecs.toArray());
     }
+
+    @Test
+    public void testSourceFlesFromPlatform() throws IOException, ExtenderException {
+        String jsonSpec = Files.readString(Path.of("test-data/pod_specs/AppAuth.json"));
+        PodSpec podSpec = PodSpecParser.createPodSpec(PodSpecParser.parseJson(jsonSpec), PodUtils.Platform.IPHONEOS, null);
+
+        PodSpec subSpec = podSpec.getSubspec("ExternalUserAgent");
+        String[] expectedPatterns = new String[]{
+            "Sources/AppAuth.h",
+            "Sources/AppAuth/*.h",
+            "Sources/AppAuth/*.m",
+            "Sources/AppAuth/iOS/**/*.h",
+            "Sources/AppAuth/iOS/**/*.m"
+        };
+        assertArrayEquals(expectedPatterns, subSpec.sourceFilesPatterns.toArray());
+    }
 }
