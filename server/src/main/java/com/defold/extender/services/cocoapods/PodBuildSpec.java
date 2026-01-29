@@ -345,8 +345,16 @@ public class PodBuildSpec {
     }
 
     void collectSourceFilesFromSpec(PodSpec spec) {
-        for (String pattern : spec.publicHeadersPatterns) {
-            this.publicHeaders.addAll(PodUtils.listFilesGlob(this.dir, pattern));
+        // if no public_header_files specified treat source headers as public
+        if (!spec.publicHeadersPatterns.isEmpty()) {
+            for (String pattern : spec.publicHeadersPatterns) {
+                this.publicHeaders.addAll(PodUtils.listFilesGlob(this.dir, pattern));
+            }
+        } else {
+            for (String pattern : spec.sourceFilesPatterns) {
+                List<File> src = PodUtils.listFilesGlob(this.dir, pattern);
+                this.publicHeaders.addAll(src.stream().filter(f -> { return PodUtils.isHeaderFile(f.getName()); }).toList());
+            }
         }
 
         Iterator<String> it = spec.sourceFilesPatterns.iterator();
