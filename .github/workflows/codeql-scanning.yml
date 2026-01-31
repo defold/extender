@@ -1,7 +1,6 @@
 name: CodeQL
 
 on:
-  push:
   pull_request:
     branches:
         - "dev"
@@ -14,15 +13,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
+      - name: Install Java
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
+        with:
+          java-version: '25'
+          distribution: 'temurin'
       - name: Initialize CodeQL
         uses: github/codeql-action/init@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4.32.0
         with:
           languages: java
           queries: security-and-quality
-
       - name: Autobuild
         uses: github/codeql-action/autobuild@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4.32.0
-
       - name: Perform analysis
         uses: github/codeql-action/analyze@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4.32.0
