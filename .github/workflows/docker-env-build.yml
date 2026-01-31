@@ -118,7 +118,7 @@ jobs:
           ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:latest
 
     - name: Notify if tests failed
-      uses: homoluctus/slatify@master
+      uses: lazy-actions/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
       if: failure()
       with:
         type: ${{ job.status }}
