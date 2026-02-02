@@ -141,6 +141,7 @@ public final class PodSpecParser {
         // find source and header files
         // https://guides.cocoapods.org/syntax/podspec.html#source_files
         spec.sourceFilesPatterns.addAll(getAsList(specJson, "source_files"));
+        if (platformSettings != null) spec.sourceFilesPatterns.addAll(getAsList(platformSettings, "source_files"));
 
         return spec;
     }
