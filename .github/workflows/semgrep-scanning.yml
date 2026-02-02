@@ -1,0 +1,31 @@
+name: Semgrep Code Scanning
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * MON"
+
+jobs:
+  semgrep_scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Semgrep
+        run: |
+          python3 -m pip install semgrep
+
+      - name: Run Semgrep Scan
+        run: |
+          semgrep scan \
+            --config p/java \
+            --config p/security-audit \
+            --sarif \
+            --output semgrep-java-scan.sarif
+
+      - name: Upload SARIF to Code Scanning
+        uses: github/codeql-action/upload-sarif@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # 4.32.0
+        with:
+          sarif_file: semgrep-java-scan.sarif
