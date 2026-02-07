@@ -45,6 +45,12 @@ for request in $REQUESTED; do
         windows)
             INSTALL="wine winsdk-2022"
             ;;
+        xbox)
+            INSTALL="wine winsdk-2022 xbox-251001"
+            ;;
+        xbox-*)
+            INSTALL="wine winsdk-2022 $request"
+            ;;
         linux)
             INSTALL="linux"
             ;;
@@ -70,7 +76,7 @@ for request in $REQUESTED; do
         android)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-android-env:1.6.0 -f $SCRIPT_DIR/docker/Dockerfile.android-env $SCRIPT_DIR/docker
             ;;
-        android-ndk*|winsdk-*|emsdk-*)
+        android-ndk*|winsdk-*|emsdk-*|xbox-*)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
             ;;
         linux)

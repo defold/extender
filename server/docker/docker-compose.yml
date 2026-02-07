@@ -20,6 +20,7 @@ services:
       - linux
       - windows
       - consoles
+      - xbox
       - nintendo
       - playstation
     networks:
@@ -173,6 +174,21 @@ services:
       default:
         aliases:
           - winsdk-2022
+  xbox_251001-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-xbox-251001-env:latest
+    extends:
+      file: common-services.yml
+      service: remote_builder
+    environment:
+      - INSTANCE_ID=xbox-251001-local
+    profiles:
+      - all
+      - consoles
+      - xbox
+    networks:
+      default:
+        aliases:
+          - xbox-251001
 
 # services for integration testing
   frontend-integration-test:
