@@ -35,5 +35,8 @@ extender:
             winsdk-2022:
                 url: http://winsdk-2022:9000
                 instanceId: winsdk-2022
+            xbox-251001:
+                url: http://xbox-251001:9000
+                instanceId: xbox-251001
 
 logging.pattern.level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
