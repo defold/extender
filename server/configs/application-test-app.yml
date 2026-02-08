@@ -22,12 +22,12 @@ extender:
             nssdk-1832:
                 url: http://nssdk-1832:9000
                 instanceId: nssdk-1832
-            ps4-12000:
-                url: http://ps4-12000:9000
-                instanceId: ps4-12000
-            ps5-10000:
-                url: http://ps5-10000:9000
-                instanceId: ps5-10000
+            ps4-12500:
+                url: http://ps4-12500:9000
+                instanceId: ps4-12500
+            ps5-12000:
+                url: http://ps5-12000:9000
+                instanceId: ps5-12000
             winsdk-2022:
                 url: http://winsdk-2022:9000
                 instanceId: winsdk-2022

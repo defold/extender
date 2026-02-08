@@ -129,13 +129,13 @@ services:
       default:
         aliases:
           - nssdk-1832
-  ps4_12000-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-12000-env:latest
+  ps4_12500-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-12500-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
     environment:
-      - INSTANCE_ID=ps4-12000-local
+      - INSTANCE_ID=ps4-12500-local
     profiles:
       - all
       - consoles
@@ -143,14 +143,14 @@ services:
     networks:
       default:
         aliases:
-          - ps4-12000
-  ps5_10000-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-10000-env:latest
+          - ps4-12500
+  ps5_12000-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-12000-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
     environment:
-      - INSTANCE_ID=ps5-10000-local
+      - INSTANCE_ID=ps5-12000-local
     profiles:
       - all
       - consoles
@@ -158,7 +158,7 @@ services:
     networks:
       default:
         aliases:
-          - ps5-10000
+          - ps5-12000
   win_2022-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
     extends:
