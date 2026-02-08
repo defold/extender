@@ -114,13 +114,13 @@ services:
       default:
         aliases:
           - emsdk-406
-  nssdk_1832-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-1832-env:latest
+  nssdk_2143-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-2143-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
     environment:
-      - INSTANCE_ID=nssdk-1832-local
+      - INSTANCE_ID=nssdk-2143-local
     profiles:
       - all
       - consoles
@@ -128,7 +128,7 @@ services:
     networks:
       default:
         aliases:
-          - nssdk-1832
+          - nssdk-2143
   ps4_12000-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-12000-env:latest
     extends:
