@@ -5,13 +5,13 @@ ENV XBOX_SDK=${PLATFORMSDK_DIR}/xbox-sdk-${XBOX_SDK_VERSION}
 
 ENV XBOX_SDK_FILENAME=xbox-gdk-${XBOX_SDK_VERSION}.tar.gz
 
-RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
-  echo "XBox ${XBOX_SDK_FILENAME}" && \
-  mkdir -p ${XBOX_SDK} && \
-  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${XBOX_SDK_FILENAME} | tar xz -C ${XBOX_SDK} --strip-components=1
-
 ENV GameDKCoreLatest=${XBOX_SDK}
 ENV GameDKLatest=${XBOX_SDK}
 ENV GameDKXboxLatest=${XBOX_SDK}
 ENV GRDKLatest=${XBOX_SDK}/GRDK
 ENV GXDKLatest=${XBOX_SDK}/GXDK
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+  echo "XBox ${XBOX_SDK_FILENAME}" && \
+  mkdir -p ${XBOX_SDK} && \
+  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${XBOX_SDK_FILENAME} | tar xz -C ${XBOX_SDK} --strip-components=1
