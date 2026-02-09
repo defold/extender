@@ -175,7 +175,7 @@ services:
         aliases:
           - winsdk-2022
   xbox_251001-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-private-registry/extender-xbox-251001-env:latest
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-xbox-private-registry/extender-xbox-251001-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
