@@ -31,6 +31,6 @@ jobs:
             --output semgrep-java-scan.sarif
 
       - name: Upload SARIF to Code Scanning
-        uses: github/codeql-action/upload-sarif@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # 4.32.0
+        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2 # 4.32.2
         with:
           sarif_file: semgrep-java-scan.sarif
