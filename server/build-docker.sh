@@ -11,6 +11,7 @@ DOCKER_REGISTRY=$REGISTRY_PREFIX/extender-public-registry
 DOCKER_PS4_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-ps4-private-registry
 DOCKER_PS5_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-ps5-private-registry
 DOCKER_NINTENDO_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-nintendo-private-registry
+DOCKER_XBOX_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-xbox-private-registry
 
 MULTI_ARCH="linux/amd64"
 [[ -z "$NO_ARM64" ]] && MULTI_ARCH+=",linux/arm64"
@@ -45,6 +46,9 @@ for request in $REQUESTED; do
         windows)
             INSTALL="wine winsdk-2022"
             ;;
+        xbox)
+            INSTALL="wine winsdk-2022 xbox-251001"
+            ;;
         linux)
             INSTALL="linux"
             ;;
@@ -63,6 +67,9 @@ for request in $REQUESTED; do
             ;;
         nssdk-*)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_NINTENDO_PRIVATE_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
+            ;;
+        xbox-*)
+            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_XBOX_PRIVATE_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
             ;;
         wine)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-wine-env:1.5.0 -t $DOCKER_REGISTRY/extender-wine-env:latest -f $SCRIPT_DIR/docker/Dockerfile.wine-env $SCRIPT_DIR/docker
