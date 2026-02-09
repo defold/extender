@@ -20,7 +20,8 @@ env:
   PRIVATE_REGISTRY_PS4: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry
   PRIVATE_REGISTRY_PS5: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry
   PRIVATE_REGISTRY_NINTENDO: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry
-  PRIVATE_PLATFORMS: "nssdk ps4 ps5"
+  PRIVATE_REGISTRY_XBOX: europe-west1-docker.pkg.dev/extender-426409/extender-xbox-private-registry
+  PRIVATE_PLATFORMS: "nssdk ps4 ps5 xbox"
 
 jobs:
   build:
@@ -35,6 +36,7 @@ jobs:
           PRIVATE_REGISTRY_PS4="${{ env.PRIVATE_REGISTRY_PS4 }}"
           PRIVATE_REGISTRY_PS5="${{ env.PRIVATE_REGISTRY_PS5 }}"
           PRIVATE_REGISTRY_NINTENDO="${{ env.PRIVATE_REGISTRY_NINTENDO }}"
+          PRIVATE_REGISTRY_XBOX="${{ env.PRIVATE_REGISTRY_XBOX }}"
 
           SHORT_SHA="$(echo ${GITHUB_SHA} | cut -c1-8)"
           TAG_NAME=${{ github.ref_name }}
@@ -54,6 +56,9 @@ jobs:
                 ;;
                 nssdk)
                   TARGET_REGISTRY=$(echo $PRIVATE_REGISTRY_NINTENDO)
+                ;;
+                xbox)
+                  TARGET_REGISTRY=$(echo $PRIVATE_REGISTRY_XBOX)
                 ;;
             esac
           else 
