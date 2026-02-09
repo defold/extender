@@ -35,7 +35,7 @@ for request in $REQUESTED; do
             INSTALL="wine ps5-10000 ps5-12000"
             ;;
         nintendo)
-            INSTALL="wine nssdk-1832"
+            INSTALL="wine nssdk-1832 nssdk-2143"
             ;;
         android)
             INSTALL="android android-ndk25 android-ndk25_sdk36"
