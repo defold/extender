@@ -29,10 +29,10 @@ for request in $REQUESTED; do
             INSTALL="emsdk-3155 emsdk-3165 emsdk-406"
             ;;
         ps4)
-            INSTALL="wine ps4-12000"
+            INSTALL="wine ps4-12000 ps4-12500"
             ;;
         ps5)
-            INSTALL="wine ps5-10000"
+            INSTALL="wine ps5-10000 ps5-12000"
             ;;
         nintendo)
             INSTALL="wine nssdk-1832"
