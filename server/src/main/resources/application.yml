@@ -85,11 +85,6 @@ management:
             path: /
             threshold: 1073741824 #1024mb
 
-    influx:
-        metrics:
-            export:
-                enabled: false
-
 spring.cloud.gcp:
     core.enabled: false
     storage.enabled: false

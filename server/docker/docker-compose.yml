@@ -6,7 +6,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app${STRUCTURED_LOGGING+,logging}"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app,prometheus${STRUCTURED_LOGGING+,logging}"]
     environment:
       - INSTANCE_ID=frontend-local
     expose:
@@ -329,6 +329,9 @@ services:
       - 8428:8428
     volumes:
       - ./victoria-metrics-data:/victoria-metrics-data
+      - ./prometheus-scrape.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - -promscrape.config=/etc/prometheus/prometheus.yml
     profiles:
       - metrics
     networks:
