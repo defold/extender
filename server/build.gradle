@@ -6,14 +6,14 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:3.5.5'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.0.2'
     }
 }
 
 plugins {
     id 'java'
     id 'idea'
-    id 'org.springframework.boot' version '3.5.7'
+    id 'org.springframework.boot' version '4.0.2'
     id 'jacoco'
 }
 
@@ -39,7 +39,7 @@ dependencies {
     implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:7.4.0"))
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
 
-    implementation('org.springframework.boot:spring-boot-starter-web') {
+    implementation('org.springframework.boot:spring-boot-starter-webmvc') {
         exclude module: 'spring-boot-starter-tomcat'
     }
 
@@ -52,6 +52,7 @@ dependencies {
     implementation('com.google.cloud:google-cloud-compute:1.90.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
+    implementation('tools.jackson.core:jackson-databind:3.0.4')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
     implementation('org.apache.commons:commons-fileupload2-core:2.0.0-M4')
     implementation('org.apache.commons:commons-text:1.14.0')
@@ -62,16 +63,16 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-starter-actuator')
     implementation('org.springframework.boot:spring-boot-starter-jetty')
     implementation('org.springframework.boot:spring-boot-starter-security')
-    implementation('io.micrometer:micrometer-core:1.15.3')
-    implementation('io.micrometer:micrometer-tracing:1.6.0')
-    implementation('io.micrometer:micrometer-tracing-bridge-otel:1.6.0')
+    implementation('org.springframework.boot:spring-boot-starter-micrometer-metrics')
+    implementation('org.springframework.boot:spring-boot-micrometer-tracing')
+    implementation('org.springframework.boot:spring-boot-micrometer-tracing-brave')
+    implementation('io.micrometer:micrometer-tracing-bridge-brave')
 
     implementation('org.projectlombok:lombok:1.18.42')
     annotationProcessor('org.projectlombok:lombok:1.18.42')
 
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:8.1')
-    runtimeOnly('io.micrometer:micrometer-registry-influx:1.15.3')
-    runtimeOnly('io.micrometer:micrometer-registry-prometheus:1.15.3') {
+    runtimeOnly('io.micrometer:micrometer-registry-prometheus') {
         exclude group: 'org.junit.jupiter'
     }
 

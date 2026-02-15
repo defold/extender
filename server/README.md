@@ -102,14 +102,6 @@ docker compose -p extender down
 ```
 if docker compose was run in detached mode (e.g. '-d' flag was passed to `docker compose up` command).
 
-In case of usage `metrics` profile you also need to add `influx` profile to service command (see `./server/docker/common-service.yml` and `./server/docker/docker-compose.yml`). For example, for common remote builder definition should looks like (`./server/docker/common-service.yml`):
-```yml
-  remote_builder:
-    extends: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev,metrics,influx${STRUCTURED_LOGGING+,logging}"]
-
-```
-
 ## Structured logging
 If you want to see logs in structured form you need to execute docker compose with `STRUCTURED_LOGGING=1` environment variable. For example
 ```sh

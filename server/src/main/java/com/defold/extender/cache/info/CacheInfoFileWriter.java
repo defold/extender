@@ -1,7 +1,7 @@
 package com.defold.extender.cache.info;
 
 import com.defold.extender.cache.CacheEntry;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;

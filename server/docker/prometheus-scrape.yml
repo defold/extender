@@ -1,0 +1,18 @@
+scrape_configs:
+  - job_name: extender
+    scrape_interval: 15s
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - frontend:9000
+          - linux:9000
+          - linux-arm64:9000
+          - android-ndk25:9000
+          - android-ndk25_sdk36:9000
+          - emsdk-3165:9000
+          - emsdk-406:9000
+          - nssdk-2143:9000
+          - ps4-12500:9000
+          - ps5-12000:9000
+          - winsdk-2022:9000
+          - xbox-251001:9000

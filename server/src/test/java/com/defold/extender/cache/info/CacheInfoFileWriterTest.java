@@ -8,6 +8,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
+import org.json.simple.parser.JSONParser;
+import org.json.simple.JSONObject;
 import org.junit.jupiter.api.Test;
 
 public class CacheInfoFileWriterTest {
@@ -31,6 +33,10 @@ public class CacheInfoFileWriterTest {
         byte[] buffer = new byte[inputStream.available()];
         inputStream.read(buffer, 0, inputStream.available());
 
-        assertEquals(JSON, new String(buffer));
+        JSONParser parser = new JSONParser();
+        JSONObject expected = (JSONObject)parser.parse(JSON);
+
+        JSONObject result = (JSONObject)parser.parse(new String(buffer));
+        assertEquals(expected, result);
     }
 }

@@ -33,7 +33,7 @@ services:
       - DM_DEBUG_JOB_UPLOAD
   remote_builder:
     extends: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev${STRUCTURED_LOGGING+,logging}"]
+    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev,prometheus${STRUCTURED_LOGGING+,logging}"]
   test_remote_builder:
     extends: test_builder
     command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev"]
