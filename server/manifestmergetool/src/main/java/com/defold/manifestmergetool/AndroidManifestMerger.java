@@ -24,15 +24,23 @@ public class AndroidManifestMerger {
         public ILoggerWrapper(Logger logger) {
             this.logger = logger;
         }
+
+        @Override
         public void error(Throwable t, String msgFormat, Object... args) {
             AndroidManifestMerger.logger.log(Level.SEVERE, msgFormat, args);
         }
+
+        @Override
         public void warning(String msgFormat, Object... args) {
             AndroidManifestMerger.logger.log(Level.WARNING, msgFormat, args);
         }
+
+        @Override
         public void info(String msgFormat, Object... args) {
             AndroidManifestMerger.logger.log(Level.INFO, msgFormat, args);
         }
+
+        @Override
         public void verbose(String msgFormat, Object... args) {
             AndroidManifestMerger.logger.log(Level.FINE, msgFormat, args);
         }
