@@ -121,10 +121,9 @@ public class CocoaPodsService {
 
     /**
      * Create the main Podfile with a list of all dependencies for all uploaded extensions
-     * @param podFiles List of podfiles to merge into the main Pofile
-     * @param jobDirectory The job directory from where to search for Podfiles
-     * @param workingDir The working directory where pods should be resolved
-     * @param platform For which platform to resolve pods
+     * @param buildState Extender's build state
+     * @param cocoapodsBuildState Cocoapods build state
+     * @param jobEnvContext Map of environemnt variables defined for the current build
      * @return Main pod file structure
      * @throws PodfileParsingException
      * @throws IOException 
@@ -354,9 +353,7 @@ public class CocoaPodsService {
     /**
      * Entry point for Cocoapod dependency resolution.
      * @param config Platform config 
-     * @param jobDir Root directory of the job to resolve
-     * @param platform Which platform to resolve pods for
-     * @param configuration Build configuration ("debug", "release", "headless")
+     * @param buildState Extender's build state
      * @return ResolvedPods instance with list of pods, install directory etc
      */
     public ResolvedPods resolveDependencies(PlatformConfig config, ExtenderBuildState buildState) throws IOException, ExtenderException {

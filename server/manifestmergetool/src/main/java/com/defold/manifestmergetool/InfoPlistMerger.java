@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Reader;
 import java.io.FileNotFoundException;
 import java.util.Iterator;
 import java.util.ArrayList;
@@ -151,14 +152,16 @@ public class InfoPlistMerger {
 
 
     private XMLPropertyListConfiguration loadPlist(File file) {
-        try {
+        try(Reader fr = new FileReader(file)) {
             XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
-            plist.read(new FileReader(file));
+            plist.read(fr);
             return plist;
         } catch (ConfigurationException e) {
             throw new RuntimeException(String.format("Failed to parse plist '%s': %s", file.getAbsolutePath(), e.toString()));
         } catch (FileNotFoundException e) {
             throw new RuntimeException(String.format("File not found: %s", file.getAbsolutePath()));
+        } catch (IOException e) {
+            throw new RuntimeException(String.format("Exception when closing file %s", e.getMessage()));
         }
     }
 
