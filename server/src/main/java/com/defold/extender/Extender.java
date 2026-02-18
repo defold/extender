@@ -1989,7 +1989,52 @@ class Extender {
         Map<String, Object> context = createContext(mergedAppContext);
         List<String> allJars = ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), includeJars, excludeJars);
         allJars.addAll( ExtenderUtil.pruneItems( extensionJars, includeJars, excludeJars) );
+        allJars = pruneConflictingAndroidMultidexJars(allJars);
         return allJars;
+    }
+
+    private static boolean hasGradleDependency(List<String> jars, String artifactPrefix) {
+        String escapedPrefix = Pattern.quote(artifactPrefix);
+        Pattern aarClassesPattern = Pattern.compile(String.format(".*/%s-[^/]+\\.aar/classes\\.jar$", escapedPrefix));
+        Pattern jarPattern = Pattern.compile(String.format(".*/%s-[^/]+\\.jar$", escapedPrefix));
+
+        for (String jarPath : jars) {
+            String normalizedPath = jarPath.replace('\\', '/');
+            if (aarClassesPattern.matcher(normalizedPath).matches() || jarPattern.matcher(normalizedPath).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEngineShareJavaJar(String jarPath, String engineJarName) {
+        return jarPath.replace('\\', '/').endsWith("/share/java/" + engineJarName);
+    }
+
+    static List<String> pruneConflictingAndroidMultidexJars(List<String> jars) {
+        List<String> prunedJars = new ArrayList<>(jars);
+
+        if (hasGradleDependency(prunedJars, "androidx.multidex-multidex")) {
+            List<String> removed = prunedJars.stream()
+                    .filter(jarPath -> isEngineShareJavaJar(jarPath, "androidx-multidex.jar"))
+                    .collect(Collectors.toList());
+            if (!removed.isEmpty()) {
+                LOGGER.info("Removing engine androidx multidex jar(s) due to Gradle dependency: {}", removed);
+                prunedJars.removeAll(removed);
+            }
+        }
+
+        if (hasGradleDependency(prunedJars, "com.android.support-multidex")) {
+            List<String> removed = prunedJars.stream()
+                    .filter(jarPath -> isEngineShareJavaJar(jarPath, "android-support-multidex.jar"))
+                    .collect(Collectors.toList());
+            if (!removed.isEmpty()) {
+                LOGGER.info("Removing engine support multidex jar(s) due to Gradle dependency: {}", removed);
+                prunedJars.removeAll(removed);
+            }
+        }
+
+        return prunedJars;
     }
 
     // arguments:
@@ -2136,6 +2181,13 @@ class Extender {
 
         // Find the engine libraries (**/share/java/*.jar)
         List<String> mainListJars = ExtenderUtil.filterStrings(jars, ExtenderConst.ENGINE_JAR_RE);
+        // Keep multidex classes in the main dex even when engine multidex jars are replaced
+        // by Gradle dependencies.
+        mainListJars.addAll(ExtenderUtil.filterStrings(jars, "(?:.*)/androidx\\.multidex-multidex-[^/]+\\.aar/classes\\.jar$"));
+        mainListJars.addAll(ExtenderUtil.filterStrings(jars, "(?:.*)/androidx\\.multidex-multidex-[^/]+\\.jar$"));
+        mainListJars.addAll(ExtenderUtil.filterStrings(jars, "(?:.*)/com\\.android\\.support-multidex-[^/]+\\.aar/classes\\.jar$"));
+        mainListJars.addAll(ExtenderUtil.filterStrings(jars, "(?:.*)/com\\.android\\.support-multidex-[^/]+\\.jar$"));
+        mainListJars = ExtenderUtil.makeUnique(mainListJars);
 
         if (mainListJars.isEmpty()) {
             throw new ExtenderException("Regex failed to find any engine jars: " + ExtenderConst.ENGINE_JAR_RE);

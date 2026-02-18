@@ -337,6 +337,48 @@ public class ExtenderTest {
     }
 
     @Test
+    public void testPruneConflictingAndroidMultidexJarsAndroidX() {
+        List<String> jars = new ArrayList<>();
+        jars.add("/var/extender/sdk/hash/defoldsdk/ext/share/java/androidx-multidex.jar");
+        jars.add("/var/extender/sdk/hash/defoldsdk/share/java/glfw_android.jar");
+        jars.add("/tmp/.gradle/unpacked/androidx.multidex-multidex-2.0.1.aar/classes.jar");
+
+        List<String> result = Extender.pruneConflictingAndroidMultidexJars(jars);
+
+        assertFalse(result.contains("/var/extender/sdk/hash/defoldsdk/ext/share/java/androidx-multidex.jar"));
+        assertTrue(result.contains("/var/extender/sdk/hash/defoldsdk/share/java/glfw_android.jar"));
+        assertTrue(result.contains("/tmp/.gradle/unpacked/androidx.multidex-multidex-2.0.1.aar/classes.jar"));
+    }
+
+    @Test
+    public void testPruneConflictingAndroidMultidexJarsSupportLib() {
+        List<String> jars = new ArrayList<>();
+        jars.add("/var/extender/sdk/hash/defoldsdk/ext/share/java/android-support-multidex.jar");
+        jars.add("/var/extender/sdk/hash/defoldsdk/share/java/glfw_android.jar");
+        jars.add("/tmp/.gradle/unpacked/com.android.support-multidex-1.0.3.aar/classes.jar");
+
+        List<String> result = Extender.pruneConflictingAndroidMultidexJars(jars);
+
+        assertFalse(result.contains("/var/extender/sdk/hash/defoldsdk/ext/share/java/android-support-multidex.jar"));
+        assertTrue(result.contains("/var/extender/sdk/hash/defoldsdk/share/java/glfw_android.jar"));
+        assertTrue(result.contains("/tmp/.gradle/unpacked/com.android.support-multidex-1.0.3.aar/classes.jar"));
+    }
+
+    @Test
+    public void testPruneConflictingAndroidMultidexJarsNoGradleMultidex() {
+        List<String> jars = new ArrayList<>();
+        jars.add("/var/extender/sdk/hash/defoldsdk/ext/share/java/androidx-multidex.jar");
+        jars.add("/var/extender/sdk/hash/defoldsdk/share/java/glfw_android.jar");
+        jars.add("/tmp/.gradle/unpacked/com.google.android.gms-play-services-ads-24.0.0.aar/classes.jar");
+
+        List<String> result = Extender.pruneConflictingAndroidMultidexJars(jars);
+
+        assertTrue(result.contains("/var/extender/sdk/hash/defoldsdk/ext/share/java/androidx-multidex.jar"));
+        assertTrue(result.contains("/var/extender/sdk/hash/defoldsdk/share/java/glfw_android.jar"));
+        assertTrue(result.contains("/tmp/.gradle/unpacked/com.google.android.gms-play-services-ads-24.0.0.aar/classes.jar"));
+    }
+
+    @Test
     public void testAppManifestContext() throws IOException, ExtenderException {
 
         File root = new File("test-data");
