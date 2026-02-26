@@ -17,6 +17,7 @@ import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -31,6 +32,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -191,7 +195,9 @@ public class DataCacheServiceTest {
         // Write with an info file to the test directory root
         final CacheInfoFileWriter cacheInfoFileWriter = new CacheInfoFileWriter();
         File fileCacheInfoFile = new File(tmpDownloadDir, DataCacheService.FILE_CACHE_INFO_FILE);
-        cacheInfoFileWriter.write(DataCacheService.FILE_CACHE_INFO_VERSION, DataCacheService.FILE_CACHE_INFO_HASH_TYPE, Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), new FileOutputStream(fileCacheInfoFile));
+        try (OutputStream os = new FileOutputStream(fileCacheInfoFile)) {
+            cacheInfoFileWriter.write(DataCacheService.FILE_CACHE_INFO_VERSION, DataCacheService.FILE_CACHE_INFO_HASH_TYPE, Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), os);
+        }
 
         DataCacheServiceInfo cacheInfo = spy.getCachedFiles(tmpDownloadDir);
 
@@ -228,13 +234,17 @@ public class DataCacheServiceTest {
                 true,
                 fileThreshold);
 
-        FileInputStream input = new FileInputStream(new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI()));
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        CacheInfoWrapper info = null;
+        File cacheInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
+        try (InputStream input = new FileInputStream(cacheInfoFile);
+            PipedInputStream pis = new PipedInputStream();
+            OutputStream pos = new PipedOutputStream(pis)
+        ) {
+            dataCacheService.queryCache(input, pos);
+            info = parser.parse(pis);
+        }
 
-        dataCacheService.queryCache(input, output);
-
-        InputStream jsonStream = new ByteArrayInputStream(output.toByteArray());
-        CacheInfoWrapper info = parser.parse(jsonStream);
+        assertNotNull(info);
         List<CacheEntry> entries = info.getEntries();
 
         assertEquals(1, info.getVersion());
