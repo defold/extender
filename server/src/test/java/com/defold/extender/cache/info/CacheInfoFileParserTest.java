@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -124,7 +125,7 @@ public class CacheInfoFileParserTest {
     }
 
     @Test
-    public void parseCachedNullThrowsMismatchedInputException() throws FileNotFoundException {
+    public void parseCachedNullThrowsMismatchedInputException() throws IOException {
         InputStream is = new FileInputStream(new File("test-data/cache/test1.json"));
         CacheInfoFileParser parser = new CacheInfoFileParser();
 

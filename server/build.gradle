@@ -37,6 +37,7 @@ repositories {
 
 dependencies {
     implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:7.4.5"))
+    implementation(platform("tools.jackson:jackson-bom:3.0.4"))
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
 
     implementation('org.springframework.boot:spring-boot-starter-webmvc') {
@@ -52,7 +53,7 @@ dependencies {
     implementation('com.google.cloud:google-cloud-compute:1.95.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
-    implementation('tools.jackson.core:jackson-databind:3.0.4')
+    implementation('tools.jackson.core:jackson-databind')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
     implementation('org.apache.commons:commons-fileupload2-core:2.0.0-M5')
     implementation('org.apache.commons:commons-text:1.15.0')
