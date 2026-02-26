@@ -1,239 +1,265 @@
-// package com.defold.extender.services;
+package com.defold.extender.services;
 
-// import com.defold.extender.ExtenderException;
-// import com.defold.extender.TestUtils;
-// import com.defold.extender.cache.CacheEntry;
-// import com.defold.extender.cache.DataCache;
-// import com.defold.extender.cache.DataCacheFactory;
-// import com.defold.extender.cache.info.CacheInfoFileParser;
-// import com.defold.extender.cache.info.CacheInfoFileWriter;
-// import com.defold.extender.cache.info.CacheInfoWrapper;
-// import com.defold.extender.cache.CacheKeyGenerator;
-// import org.junit.Ignore;
-// import org.junit.Test;
-// import org.mockito.ArgumentCaptor;
+import com.defold.extender.ExtenderException;
+import com.defold.extender.TestUtils;
+import com.defold.extender.cache.CacheEntry;
+import com.defold.extender.cache.DataCache;
+import com.defold.extender.cache.DataCacheFactory;
+import com.defold.extender.cache.info.CacheInfoFileParser;
+import com.defold.extender.cache.info.CacheInfoFileWriter;
+import com.defold.extender.cache.info.CacheInfoWrapper;
+import com.defold.extender.services.DataCacheService.DataCacheServiceInfo;
+import com.defold.extender.cache.CacheKeyGenerator;
 
-// import java.io.*;
-// import java.net.URISyntaxException;
-// import java.nio.file.Files;
-// import java.nio.file.StandardCopyOption;
-// import java.util.Arrays;
-// import java.util.List;
-// import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
-// import static org.junit.Assert.*;
-// import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-// public class DataCacheServiceTest {
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
-//     private static final int fileThreshold = 5;
+public class DataCacheServiceTest {
 
-//     private DataCacheFactory createDataCacheFactoryWithS3Store() {
-//         return new DataCacheFactory(
-//                 true,
-//                 "S3",
-//                 "",
-//                 "",
-//                 "defold-extender-cache-dev");
-//     }
+    private static final int fileThreshold = 5;
 
-//     @Test
-//     @Ignore
-//     public void testUploadingToS3Cache() throws Exception {
-//         final DataCacheService dataCacheService = new DataCacheService(
-//                 new CacheKeyGenerator(),
-//                 new CacheInfoFileParser(),
-//                 new CacheInfoFileWriter(),
-//                 createDataCacheFactoryWithS3Store(),
-//                 true,
-//                 fileThreshold);
+    // private DataCacheFactory createDataCacheFactoryWithS3Store() {
+    //     return new DataCacheFactory(
+    //             true,
+    //             "S3",
+    //             "",
+    //             "",
+    //             "defold-extender-cache-dev");
+    // }
 
-//         File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
-//         dataCacheService.cacheFiles(uploadDirectory);
-//     }
+    // @Test
+    // @Ignore
+    // public void testUploadingToS3Cache() throws Exception {
+    //     final DataCacheService dataCacheService = new DataCacheService(
+    //             new CacheKeyGenerator(),
+    //             new CacheInfoFileParser(),
+    //             new CacheInfoFileWriter(),
+    //             createDataCacheFactoryWithS3Store(),
+    //             true,
+    //             fileThreshold);
 
-//     @Test
-//     @Ignore
-//     public void testQueryS3Cache() throws Exception {
-//         final DataCacheService dataCacheService = new DataCacheService(
-//                 new CacheKeyGenerator(),
-//                 new CacheInfoFileParser(),
-//                 new CacheInfoFileWriter(),
-//                 createDataCacheFactoryWithS3Store(),
-//                 true,
-//                 fileThreshold);
+    //     File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
+    //     dataCacheService.cacheFiles(uploadDirectory);
+    // }
 
-//         final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
-//         final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    // @Test
+    // @Ignore
+    // public void testQueryS3Cache() throws Exception {
+    //     final DataCacheService dataCacheService = new DataCacheService(
+    //             new CacheKeyGenerator(),
+    //             new CacheInfoFileParser(),
+    //             new CacheInfoFileWriter(),
+    //             createDataCacheFactoryWithS3Store(),
+    //             true,
+    //             fileThreshold);
 
-//         dataCacheService.queryCache(new FileInputStream(sourceInfoFile), outputStream);
+    //     final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
+    //     final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-//         System.out.println(">>> JSON:\n" + new String(outputStream.toByteArray()));
-//     }
+    //     dataCacheService.queryCache(new FileInputStream(sourceInfoFile), outputStream);
 
-//     @Test
-//     @Ignore
-//     public void testDownloadingFromS3Cache() throws Exception {
-//         final DataCacheService dataCacheService = new DataCacheService(
-//                 new CacheKeyGenerator(),
-//                 new CacheInfoFileParser(),
-//                 new CacheInfoFileWriter(),
-//                 createDataCacheFactoryWithS3Store(),
-//                 true,
-//                 fileThreshold);
+    //     System.out.println(">>> JSON:\n" + new String(outputStream.toByteArray()));
+    // }
 
-//         final File uploadDirectory = Files.createTempDirectory("extenderTest").toFile();
-//         final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
-//         final File targetInfoFile = new File(uploadDirectory.getPath() + "/" + DataCacheService.FILE_CACHE_INFO_FILE);
+    // @Test
+    // @Ignore
+    // public void testDownloadingFromS3Cache() throws Exception {
+    //     final DataCacheService dataCacheService = new DataCacheService(
+    //             new CacheKeyGenerator(),
+    //             new CacheInfoFileParser(),
+    //             new CacheInfoFileWriter(),
+    //             createDataCacheFactoryWithS3Store(),
+    //             true,
+    //             fileThreshold);
 
-//         // Copy cache info file to upload directory
-//         Files.copy(sourceInfoFile.toPath(), targetInfoFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+    //     final File uploadDirectory = Files.createTempDirectory("extenderTest").toFile();
+    //     final File sourceInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
+    //     final File targetInfoFile = new File(uploadDirectory.getPath() + "/" + DataCacheService.FILE_CACHE_INFO_FILE);
 
-//         dataCacheService.getCachedFiles(uploadDirectory);
+    //     // Copy cache info file to upload directory
+    //     Files.copy(sourceInfoFile.toPath(), targetInfoFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-//         System.out.println(">>> Upload directory: " + uploadDirectory.getAbsolutePath());
-//     }
+    //     dataCacheService.getCachedFiles(uploadDirectory);
 
-//     @Test
-//     public void testCachingFiles() throws Exception {
-//         final DataCache dataCache = mock(DataCache.class);
+    //     System.out.println(">>> Upload directory: " + uploadDirectory.getAbsolutePath());
+    // }
 
-//         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
-//         when(dataCacheFactory.createCache()).thenReturn(dataCache);
+    @Test
+    public void testCachingFiles() throws Exception {
+        final DataCache dataCache = mock(DataCache.class);
 
-//         final DataCacheService dataCacheService = new DataCacheService(
-//                 new CacheKeyGenerator(),
-//                 new CacheInfoFileParser(),
-//                 mock(CacheInfoFileWriter.class),
-//                 dataCacheFactory,
-//                 true,
-//                 fileThreshold);
+        final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
+        when(dataCacheFactory.createCache()).thenReturn(dataCache);
 
-//         File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
-//         dataCacheService.cacheFiles(uploadDirectory);
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                new CacheInfoFileParser(),
+                mock(CacheInfoFileWriter.class),
+                dataCacheFactory,
+                true,
+                fileThreshold);
 
-//         // Verify that 3 files were cached
-//         verify(dataCache, times(3)).put(anyString(), any(File.class));
+        File uploadDirectory = new File(ClassLoader.getSystemResource("upload").toURI());
+        dataCacheService.cacheFiles(uploadDirectory);
 
-//         // Verify that correct cache keys and file names were used
-//         for (CacheEntry entry : TestUtils.CACHE_ENTRIES) {
-//             ArgumentCaptor<File> argument = ArgumentCaptor.forClass(File.class);
-//             verify(dataCache).put(eq(entry.getKey()), argument.capture());
-//             assertTrue(argument.getValue().getPath().endsWith(entry.getPath()));
-//         }
-//     }
+        // Verify that 3 files were cached
+        verify(dataCache, times(3)).put(anyString(), any(File.class));
 
-//     @Test
-//     public void testDownloadNoCacheInfoFile() throws IOException, ExtenderException {
-//         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
-//         final CacheInfoFileParser cacheInfoFileParser = mock(CacheInfoFileParser.class);
+        // Verify that correct cache keys and file names were used
+        for (CacheEntry entry : TestUtils.CACHE_ENTRIES) {
+            ArgumentCaptor<File> argument = ArgumentCaptor.forClass(File.class);
+            verify(dataCache).put(eq(entry.getKey()), argument.capture());
+            assertTrue(argument.getValue().getPath().endsWith(entry.getPath()));
+        }
+    }
 
-//         final DataCacheService dataCacheService = new DataCacheService(
-//                 new CacheKeyGenerator(),
-//                 cacheInfoFileParser,
-//                 new CacheInfoFileWriter(),
-//                 dataCacheFactory,
-//                 true,
-//                 fileThreshold);
+    @Test
+    public void testDownloadNoCacheInfoFile() throws IOException, ExtenderException {
+        final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
+        final CacheInfoFileParser cacheInfoFileParser = mock(CacheInfoFileParser.class);
 
-//         final File tmpDir = Files.createTempDirectory("extenderTest").toFile();
-//         tmpDir.deleteOnExit();
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                cacheInfoFileParser,
+                new CacheInfoFileWriter(),
+                dataCacheFactory,
+                true,
+                fileThreshold);
 
-//         // If no cache file is present in directory root, no files should be fetched from cache
-//         long numFilesDownloaded = dataCacheService.getCachedFiles(tmpDir);
-//         assertEquals(0, numFilesDownloaded);
+        final File tmpDir = Files.createTempDirectory("extenderTest").toFile();
+        tmpDir.deleteOnExit();
 
-//         // Cache file parser should not be invoked
-//         verify(cacheInfoFileParser, never()).parse(any(File.class));
-//     }
+        // If no cache file is present in directory root, no files should be fetched from cache
+        DataCacheServiceInfo cacheInfo = dataCacheService.getCachedFiles(tmpDir);
+        assertEquals(0, cacheInfo.cachedFileCount.get());
 
-//     @Test
-//     public void testDownload() throws IOException, ExtenderException {
-//         final DataCache dataCache = mock(DataCache.class);
+        // Cache file parser should not be invoked
+        verify(cacheInfoFileParser, never()).parse(any(File.class));
+    }
 
-//         for (CacheEntry entry : TestUtils.MOCK_CACHE_ENTRIES) {
-//             ByteArrayInputStream inputStream = new ByteArrayInputStream(entry.getPath().getBytes());
-//             when(dataCache.get(entry.getKey())).thenReturn(inputStream);
-//         }
+    @Test
+    public void testDownload() throws IOException, ExtenderException {
+        final DataCache dataCache = mock(DataCache.class);
 
-//         final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
-//         when(dataCacheFactory.createCache()).thenReturn(dataCache);
+        for (CacheEntry entry : TestUtils.MOCK_CACHE_ENTRIES) {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(entry.getPath().getBytes());
+            when(dataCache.get(entry.getKey())).thenReturn(inputStream);
+        }
 
-//         final DataCacheService dataCacheService = new DataCacheService(
-//                 new CacheKeyGenerator(),
-//                 new CacheInfoFileParser(),
-//                 mock(CacheInfoFileWriter.class),
-//                 dataCacheFactory,
-//                 true,
-//                 fileThreshold);
-//         final DataCacheService spy = spy(dataCacheService);
+        final DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
+        when(dataCacheFactory.createCache()).thenReturn(dataCache);
 
-//         // Create an empty test directory
-//         final File tmpDownloadDir = Files.createTempDirectory("extenderTest").toFile();
-//         tmpDownloadDir.deleteOnExit();
+        final DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                new CacheInfoFileParser(),
+                mock(CacheInfoFileWriter.class),
+                dataCacheFactory,
+                true,
+                fileThreshold);
+        final DataCacheService spy = Mockito.spy(dataCacheService);
 
-//         // Write with an info file to the test directory root
-//         final CacheInfoFileWriter cacheInfoFileWriter = new CacheInfoFileWriter();
-//         File fileCacheInfoFile = new File(tmpDownloadDir, DataCacheService.FILE_CACHE_INFO_FILE);
-//         cacheInfoFileWriter.write(DataCacheService.FILE_CACHE_INFO_VERSION, DataCacheService.FILE_CACHE_INFO_HASH_TYPE, Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), new FileOutputStream(fileCacheInfoFile));
+        // Create an empty test directory
+        final File tmpDownloadDir = Files.createTempDirectory("extenderTest").toFile();
+        tmpDownloadDir.deleteOnExit();
 
-//         int numFilesDownloaded = spy.getCachedFiles(tmpDownloadDir);
+        // Write with an info file to the test directory root
+        final CacheInfoFileWriter cacheInfoFileWriter = new CacheInfoFileWriter();
+        File fileCacheInfoFile = new File(tmpDownloadDir, DataCacheService.FILE_CACHE_INFO_FILE);
+        try (OutputStream os = new FileOutputStream(fileCacheInfoFile)) {
+            cacheInfoFileWriter.write(DataCacheService.FILE_CACHE_INFO_VERSION, DataCacheService.FILE_CACHE_INFO_HASH_TYPE, Arrays.asList(TestUtils.MOCK_CACHE_ENTRIES), os);
+        }
 
-//         assertEquals(3, numFilesDownloaded);
+        DataCacheServiceInfo cacheInfo = spy.getCachedFiles(tmpDownloadDir);
 
-//         List<String> collect = Files
-//                 .walk(tmpDownloadDir.toPath())
-//                 .filter(Files::isRegularFile)
-//                 .map(path -> path.toFile().getName())
-//                 .collect(Collectors.toList());
+        assertEquals(3, cacheInfo.cachedFileCount.get());
 
-//         assertEquals(4, collect.size());
-//         assertTrue(collect.contains("file1"));
-//         assertTrue(collect.contains("file2"));
-//         assertTrue(collect.contains("file3"));
-//         assertTrue(collect.contains(DataCacheService.FILE_CACHE_INFO_FILE));
-//     }
+        List<String> collect = Files
+                .walk(tmpDownloadDir.toPath())
+                .filter(Files::isRegularFile)
+                .map(path -> path.toFile().getName())
+                .collect(Collectors.toList());
 
-//     @Test
-//     public void testQuery() throws IOException, ExtenderException, URISyntaxException {
-//         CacheInfoFileParser parser = new CacheInfoFileParser();
+        assertEquals(4, collect.size());
+        assertTrue(collect.contains("file1"));
+        assertTrue(collect.contains("file2"));
+        assertTrue(collect.contains("file3"));
+        assertTrue(collect.contains(DataCacheService.FILE_CACHE_INFO_FILE));
+    }
 
-//         DataCache dataCacheMock = mock(DataCache.class);
-//         when(dataCacheMock.exists(TestUtils.CACHE_ENTRIES[0].getKey())).thenReturn(true);
+    @Test
+    public void testQuery() throws IOException, ExtenderException, URISyntaxException {
+        CacheInfoFileParser parser = new CacheInfoFileParser();
 
-//         DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
-//         when(dataCacheFactory.createCache()).thenReturn(dataCacheMock);
+        DataCache dataCacheMock = mock(DataCache.class);
+        when(dataCacheMock.exists(TestUtils.CACHE_ENTRIES[0].getKey())).thenReturn(true);
 
-//         DataCacheService dataCacheService = new DataCacheService(
-//                 new CacheKeyGenerator(),
-//                 parser,
-//                 new CacheInfoFileWriter(),
-//                 dataCacheFactory,
-//                 true,
-//                 fileThreshold);
+        DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
+        when(dataCacheFactory.createCache()).thenReturn(dataCacheMock);
 
-//         FileInputStream input = new FileInputStream(new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI()));
-//         ByteArrayOutputStream output = new ByteArrayOutputStream();
+        DataCacheService dataCacheService = new DataCacheService(
+                new CacheKeyGenerator(),
+                parser,
+                new CacheInfoFileWriter(),
+                dataCacheFactory,
+                true,
+                fileThreshold);
 
-//         dataCacheService.queryCache(input, output);
+        CacheInfoWrapper info = null;
+        File cacheInfoFile = new File(ClassLoader.getSystemResource("upload/"+DataCacheService.FILE_CACHE_INFO_FILE).toURI());
+        try (InputStream input = new FileInputStream(cacheInfoFile);
+            PipedInputStream pis = new PipedInputStream();
+            OutputStream pos = new PipedOutputStream(pis)
+        ) {
+            dataCacheService.queryCache(input, pos);
+            info = parser.parse(pis);
+        }
 
-//         InputStream jsonStream = new ByteArrayInputStream(output.toByteArray());
-//         CacheInfoWrapper info = parser.parse(jsonStream);
-//         List<CacheEntry> entries = info.getEntries();
+        assertNotNull(info);
+        List<CacheEntry> entries = info.getEntries();
 
-//         assertEquals(1, info.getVersion());
-//         assertEquals("sha256", info.getHashType());
-//         assertEquals(2, entries.size());
+        assertEquals(1, info.getVersion());
+        assertEquals("sha256", info.getHashType());
+        assertEquals(2, entries.size());
 
-//         CacheEntry entry1 = entries.get(0);
-//         assertEquals("dir/test1.txt", entry1.getPath());
-//         assertEquals(TestUtils.CACHE_ENTRIES[0].getKey(), entry1.getKey());
-//         assertTrue(entry1.isCached());
+        CacheEntry entry1 = entries.get(0);
+        assertEquals("dir/test1.txt", entry1.getPath());
+        assertEquals(TestUtils.CACHE_ENTRIES[0].getKey(), entry1.getKey());
+        assertTrue(entry1.isCached());
 
-//         CacheEntry entry2 = entries.get(1);
-//         assertEquals("dir2/test2.txt", entry2.getPath());
-//         assertEquals(TestUtils.CACHE_ENTRIES[1].getKey(), entry2.getKey());
-//         assertFalse(entry2.isCached());
-//     }
-// }
+        CacheEntry entry2 = entries.get(1);
+        assertEquals("dir2/test2.txt", entry2.getPath());
+        assertEquals(TestUtils.CACHE_ENTRIES[1].getKey(), entry2.getKey());
+        assertFalse(entry2.isCached());
+    }
+}
 
