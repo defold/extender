@@ -80,7 +80,7 @@ dependencies {
     implementation('com.android.tools.build:manifest-merger:31.4.1')
     implementation('com.android.tools:common:31.4.1')
     implementation('org.apache.commons:commons-configuration2:2.11.0')
-    implementation('commons-codec:commons-codec:1.19.0')
+    implementation('commons-codec:commons-codec:1.21.0')
 
     testImplementation(platform('org.junit:junit-bom:6.0.1'))
     testRuntimeOnly('org.junit.platform:junit-platform-launcher')
