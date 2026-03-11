@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import javax.naming.InvalidNameException;
 
@@ -125,7 +126,10 @@ public class ResolvedPodsTest {
 
         File bundleDir = new File(targetDir, "UnityAdsResources.bundle");
         assertTrue(bundleDir.exists());
-        List<Path> resultContent = Files.list(bundleDir.toPath()).toList();
+        List<Path> resultContent = null;
+        try (Stream<Path> entries = Files.list(bundleDir.toPath())) {
+            resultContent = entries.toList();
+        }
         assertEquals(expectedFiles.size(), resultContent.size());
         for (Path p : resultContent) {
             assertTrue(expectedFiles.contains(p.getFileName().toString()));
