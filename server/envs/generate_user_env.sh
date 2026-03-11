@@ -32,7 +32,7 @@ OUTPUT_FILE=$ENV_DIR/user.env
 if [[ -z $1 ]]; then
     echo "Load macos environment..."
     source ${ENV_DIR}/macos.env
-    APPENDED_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_26_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
+    APPENDED_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_VERSION}.xctoolchain/usr/bin:/usr/local/bin:${PATH}
 else
     echo "Load $1 environment..."
     source ${ENV_DIR}/$1.env
@@ -42,8 +42,8 @@ fi
 [ -f "$OUTPUT_FILE" ] && echo "Remove old user.env" && rm "$OUTPUT_FILE"
 
 if [[ "" == "${JAVA_HOME}" ]]; then
-    # select java home for JDK 21
-    JAVA_HOME=`/usr/libexec/java_home -v 21`
+    # select java home for JDK 25
+    JAVA_HOME=`/usr/libexec/java_home -v 25`
 fi
 
 echo "ENV_DIR=${ENV_DIR}" > $OUTPUT_FILE
@@ -63,7 +63,7 @@ echo "DOTNET_VERSION_FILE=${DOTNET_VERSION_FILE}" >> $OUTPUT_FILE
 echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $OUTPUT_FILE
 # Added 1.4.9
 echo "ZIG_PATH_0_11=${ZIG_PATH_0_11}" >> $OUTPUT_FILE
-echo "XCTOOLCHAIN_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_16_VERSION}.xctoolchain" >> $OUTPUT_FILE
+echo "XCTOOLCHAIN_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_VERSION}.xctoolchain" >> $OUTPUT_FILE
 
 echo "PATH=\"${APPENDED_PATH}\"" >> $OUTPUT_FILE
 
