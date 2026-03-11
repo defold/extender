@@ -19,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.io.FileUtils;
 import org.json.simple.parser.ParseException;
@@ -161,7 +162,10 @@ public class DefoldSDKServiceTest {
             defoldSdkService.getSdk(sdkHash);
         }
 
-        List<String> collect = Files.list(DefoldSDKServiceTest.configuration.getLocation()).map(path -> path.toFile().getName()).collect(Collectors.toList());
+        List<String> collect = null;
+        try (Stream<Path> entries = Files.list(DefoldSDKServiceTest.configuration.getLocation())) {
+            collect = entries.map(path -> path.toFile().getName()).collect(Collectors.toList());
+        }
 
         assertEquals(DefoldSDKServiceTest.configuration.getCacheSize(), collect.size());
         assertTrue(collect.contains("e41438cca6cc1550d4a0131b8fc3858c2a4097f1"));
