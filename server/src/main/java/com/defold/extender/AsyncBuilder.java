@@ -6,8 +6,10 @@ import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
@@ -167,8 +169,8 @@ public class AsyncBuilder {
         try {
             if (jobResultLocation.exists())
             {
-                Files.list(jobResultLocation.toPath())
-                        .filter(Files::isDirectory)
+                try (Stream<Path> entries = Files.list(jobResultLocation.toPath())){
+                        entries.filter(Files::isDirectory)
                         .filter(path -> ! jobResultLocation.toPath().equals(path))
                         .forEach(path -> {
                             try {
@@ -180,6 +182,7 @@ public class AsyncBuilder {
                                 LOGGER.error(Markers.SERVER_ERROR, "Could not clear build results  " + path.toString(), e);
                             }
                         });
+                    }
             }
         } catch (IOException ex) {
             LOGGER.error(Markers.SERVER_ERROR, "Error during cleanup", ex);
