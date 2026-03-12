@@ -44,10 +44,11 @@ for request in $REQUESTED; do
             INSTALL="android $request"
             ;;
         windows)
-            INSTALL="wine winsdk-2022"
+            # skip building winsdk-2022 because wine image contains newer Clang. 
+            INSTALL="wine winsdk-2022_144435207"
             ;;
         xbox)
-            INSTALL="wine winsdk-2022 xbox-251001"
+            INSTALL="wine winsdk-2022_144435207 xbox-251001"
             ;;
         linux)
             INSTALL="linux"
@@ -72,7 +73,7 @@ for request in $REQUESTED; do
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_XBOX_PRIVATE_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
             ;;
         wine)
-            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-wine-env:1.5.0 -t $DOCKER_REGISTRY/extender-wine-env:latest -f $SCRIPT_DIR/docker/Dockerfile.wine-env $SCRIPT_DIR/docker
+            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-wine-env:1.6.0 -t $DOCKER_REGISTRY/extender-wine-env:latest -f $SCRIPT_DIR/docker/Dockerfile.wine-env $SCRIPT_DIR/docker
             ;;
         android)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-android-env:1.6.0 -f $SCRIPT_DIR/docker/Dockerfile.android-env $SCRIPT_DIR/docker

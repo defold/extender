@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:latest
 
 ENV XBOX_SDK_VERSION=251001
 ENV XBOX_SDK=${PLATFORMSDK_DIR}/xbox-sdk-${XBOX_SDK_VERSION}

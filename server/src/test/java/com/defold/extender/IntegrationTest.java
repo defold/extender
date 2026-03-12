@@ -112,18 +112,16 @@ public class IntegrationTest {
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
                 // new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
-
-                // // 2025-04-14 https://github.com/defold/defold/releases/tag/1.10.0
-                new DefoldVersion("591eb496d52f4140bc2c7de547131f1b9408b9b4", new Version(1, 10, 0), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-
-                // // 2024-05-14 https://github.com/defold/defold/releases/tag/1.10.1
-                new DefoldVersion("d8e6e73a8efac6b9a72783027867e547b6a363e4", new Version(1, 10, 1), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2024-06-11 https://github.com/defold/defold/releases/tag/1.10.2
-                new DefoldVersion("7a0e23b3fcab4c5db82f2b32f5d8ac5df9467c9d", new Version(1, 10, 2), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2025-07-07 https://github.com/defold/defold/releases/tag/1.10.3
-                new DefoldVersion("1c76521bb8b08c63ef619aa8a5ab563dddf7b3cf", new Version(1, 10, 3), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
-                // // 2025-08-04 https://github.com/defold/defold/releases/tag/1.10.4
-                new DefoldVersion("1aafd0a262ff40214ed7f51302d92fa587c607ef", new Version(1, 10, 4), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // https://github.com/defold/defold/releases/tag/1.11.1
+                new DefoldVersion("758dfc0ea71dca26d169fddd0c5a1bc6dd0be4b3", new Version(1, 11, 1), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // https://github.com/defold/defold/releases/tag/1.11.2
+                new DefoldVersion("cddb6eb43c32e4930257fcbbb30f19cf28deb081", new Version(1, 11, 2), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // https://github.com/defold/defold/releases/tag/1.12.0
+                new DefoldVersion("3206f699aaff89f357c9d549050b8453e080c5d2", new Version(1, 12, 0), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // https://github.com/defold/defold/releases/tag/1.12.1
+                new DefoldVersion("16c6fd602f32de4814660672c38ce3ccbbc1fb59", new Version(1, 12, 1), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
+                // // https://github.com/defold/defold/releases/tag/1.12.2
+                new DefoldVersion("e43be333aa7a4fc319ab62adc8d405c8e98bf92f", new Version(1, 12, 2), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"})
                 // Use test-data/createdebugsdk.sh to package your preferred platform sdk and it ends up in the sdk/debugsdk folder
                 // Then you can write your tests without waiting for the next release
                 //new DefoldVersion("debugsdk", new Version(1, 2, 104), new String[] {"js-web"}),

@@ -30,8 +30,8 @@ OSX_AR=${DYNAMO_HOME}/ext/SDKs/XcodeDefault26.2.xctoolchain/usr/bin/ar
 OSX_MIN_VERSION=11.5
 OSX_SYS_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX25.2.sdk
 
-EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-3.1.65/upstream/emscripten/em++
-EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-3.1.65/upstream/emscripten/emar
+EMCC=$DYNAMO_HOME/ext/SDKs/emsdk-4.0.6/upstream/emscripten/em++
+EMAR=$DYNAMO_HOME/ext/SDKs/emsdk-4.0.6/upstream/emscripten/emar
 
 WIN32_CL=cl.exe
 WIN32_LIB=lib.exe
@@ -209,7 +209,7 @@ function CompileWindowsOnDarwin {
 		RemoveTarget $target
 		mkdir -p $(dirname $target)
 
-		local INCLUDES="-I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/include -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Include/10.0.20348.0/ucrt -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/14.37.32822/include"
+		local INCLUDES="-I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/include -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include -I${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Include/10.0.26100.0/ucrt -I${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/14.44.35207/include"
 		local DEFINES="-DDM_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS -D__STDC_LIMIT_MACROS -DWINVER=0x0600 -DWIN32"
 		local FLAGS="-O2 -Wall -Werror=format -fvisibility=hidden -g" # -codeview
 		local ARCH_FLAGS=""
@@ -217,10 +217,10 @@ function CompileWindowsOnDarwin {
 
 		if [ "$arch" == "x86_64" ]; then
 			ARCH_FLAGS="-target x86_64-pc-win32-msvc -m64"
-			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.20348.0/ucrt/x64"
+			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/x86_64-win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64 -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.26100.0/ucrt/x64"
 		else
 			ARCH_FLAGS="-target i386-pc-win32-msvc -m32"
-			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/ -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.20348.0/ucrt/x86"
+			#LIB_PATHS="-L${DYNAMO_HOME}/ext/SDKs/Win32/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/ext/lib/win32 -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/lib/ -L${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L${DYNAMO_HOME}/ext/SDKs/Win32/WindowsKits/10/Lib/10.0.26100.0/ucrt/x86"
 		fi
 
 		echo $WIN32_GCC $ARCH_FLAGS $FLAGS $LIBPATHS $INCLUDES $LIB_PATHS $src -c -o /tmp/$name-$archname.o
