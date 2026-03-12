@@ -253,14 +253,11 @@ public class DefoldSdkService {
 
     protected void evictCache() {
         synchronized (cacheReferenceCount) {
-            try {
+            try (Stream<Path> entries = Files.list(configuration.getLocation())) {
                 LOGGER.info("Cache eviction called");
                 // Delete old SDK:s
                 Comparator<Path> refCountComparator = Comparator.comparing(path -> getSdkRefCount(path.getFileName().toString()));
-
-                Files
-                        .list(configuration.getLocation())
-                        .filter(path -> !path.getFileName().toString().startsWith("tmp")
+                        entries.filter(path -> !path.getFileName().toString().startsWith("tmp")
                                     && !path.toString().endsWith(".delete")
                                     && !path.getFileName().toString().equals(TEST_SDK_DIRECTORY))
                         .sorted(refCountComparator.reversed())
