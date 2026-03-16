@@ -50,7 +50,7 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.96.0')
+    implementation('com.google.cloud:google-cloud-compute:1.97.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('tools.jackson.core:jackson-databind')
