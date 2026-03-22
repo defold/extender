@@ -47,7 +47,7 @@ for request in $REQUESTED; do
             INSTALL="wine winsdk-2022"
             ;;
         xbox)
-            INSTALL="wine winsdk-2022 xbox-251001"
+            INSTALL="wine winsdk-2022 xbox-251002"
             ;;
         linux)
             INSTALL="linux"

@@ -174,13 +174,13 @@ services:
       default:
         aliases:
           - winsdk-2022
-  xbox_251001-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-xbox-private-registry/extender-xbox-251001-env:latest
+  xbox_251002-dev:
+    image: europe-west1-docker.pkg.dev/extender-426409/extender-xbox-private-registry/extender-xbox-251002-env:latest
     extends:
       file: common-services.yml
       service: remote_builder
     environment:
-      - INSTANCE_ID=xbox-251001-local
+      - INSTANCE_ID=xbox-251002-local
     profiles:
       - all
       - consoles
@@ -188,7 +188,7 @@ services:
     networks:
       default:
         aliases:
-          - xbox-251001
+          - xbox-251002
 
 # services for integration testing
   frontend-integration-test:
