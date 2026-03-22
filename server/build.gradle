@@ -6,7 +6,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.0.2'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.0.3'
     }
 }
 
@@ -36,8 +36,9 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:7.4.4"))
-    testImplementation(platform("org.junit:junit-bom:6.0.1"))
+    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:7.4.5"))
+    implementation(platform("tools.jackson:jackson-bom:3.1.0"))
+    testImplementation(platform("org.junit:junit-bom:6.0.3"))
 
     implementation('org.springframework.boot:spring-boot-starter-webmvc') {
         exclude module: 'spring-boot-starter-tomcat'
@@ -49,15 +50,15 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.95.0')
+    implementation('com.google.cloud:google-cloud-compute:1.96.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
-    implementation('tools.jackson.core:jackson-databind:3.0.4')
+    implementation('tools.jackson.core:jackson-databind')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
-    implementation('org.apache.commons:commons-fileupload2-core:2.0.0-M4')
+    implementation('org.apache.commons:commons-fileupload2-core:2.0.0-M5')
     implementation('org.apache.commons:commons-text:1.15.0')
     implementation('org.apache.commons:commons-compress:1.28.0')
-    implementation('org.apache.commons:commons-lang3:3.18.0')
+    implementation('org.apache.commons:commons-lang3:3.20.0')
     implementation('org.apache.httpcomponents:httpclient:4.5.14')
     implementation('org.apache.httpcomponents:httpmime:4.5.14')
     implementation('org.springframework.boot:spring-boot-starter-actuator')
@@ -92,7 +93,7 @@ dependencies {
 
     testImplementation('org.smali:dexlib2:2.5.2')
     testImplementation project(':client')
-    testImplementation('org.wiremock:wiremock-standalone:3.13.1')
+    testImplementation('org.wiremock:wiremock-standalone:3.13.2')
 }
 
 task createVersionFile() {

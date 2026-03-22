@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 @Service
 public class DefoldSdkService {
@@ -252,14 +253,11 @@ public class DefoldSdkService {
 
     protected void evictCache() {
         synchronized (cacheReferenceCount) {
-            try {
+            try (Stream<Path> entries = Files.list(configuration.getLocation())) {
                 LOGGER.info("Cache eviction called");
                 // Delete old SDK:s
                 Comparator<Path> refCountComparator = Comparator.comparing(path -> getSdkRefCount(path.getFileName().toString()));
-
-                Files
-                        .list(configuration.getLocation())
-                        .filter(path -> !path.getFileName().toString().startsWith("tmp")
+                        entries.filter(path -> !path.getFileName().toString().startsWith("tmp")
                                     && !path.toString().endsWith(".delete")
                                     && !path.getFileName().toString().equals(TEST_SDK_DIRECTORY))
                         .sorted(refCountComparator.reversed())
@@ -294,9 +292,8 @@ public class DefoldSdkService {
             return;
         }
         LOGGER.info("Cleaning up SDK cache");
-        try {
-            Files.list(configuration.getLocation())
-                    .filter(path -> ! path.endsWith(TEST_SDK_DIRECTORY))
+        try (Stream<Path> entries = Files.list(configuration.getLocation())) {
+                    entries.filter(path -> ! path.endsWith(TEST_SDK_DIRECTORY))
                     .forEach(this::deleteCachedSdk);
         } catch(IOException e) {
             LOGGER.warn("Failed to list SDK cache directory: " + e.getMessage());

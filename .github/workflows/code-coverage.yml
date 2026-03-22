@@ -17,16 +17,16 @@ jobs:
         java-version: '25'
         distribution: 'temurin'
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
+      uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
     - name: Run extender tests
       run: ./gradlew server:clean server:test server:jacocoTestReport -PexcludeTags="integration" -i
     - name: Setup .NET Core # Required to execute ReportGenerator
-      uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
+      uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
       with:
         dotnet-version: 8.x
         dotnet-quality: 'ga'
     - name: ReportGenerator
-      uses: danielpalme/ReportGenerator-GitHub-Action@ee0ae774f6d3afedcbd1683c1ab21b83670bdf8e # 5.5.1
+      uses: danielpalme/ReportGenerator-GitHub-Action@cf6fe1b38ed5becc89ffe056c1f240825993be5b # 5.5.4
       with:
         reports: '${{ github.workspace }}/server/build/reports/jacoco/test/jacocoTestReport.xml' # REQUIRED # The coverage reports that should be parsed (separated by semicolon). Globbing is supported.
         targetdir: 'coveragereport' # REQUIRED # The directory where the generated report should be saved.
@@ -48,13 +48,13 @@ jobs:
         toolpath: 'reportgeneratortool' # Default directory for installing the dotnet tool.
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: test-result
         path: ${{ github.workspace }}/server/build/reports/tests/
         retention-days: 10
     - name: Upload coverage report artifact
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: CoverageReport # Artifact name
         path: coveragereport # Directory containing files to upload
