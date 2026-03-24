@@ -111,13 +111,16 @@ public class PrivacyManifestMerger {
     }
 
     private void mergeConfigs(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib) throws PlistMergeException {
-        Object baseTracking = base.getProperty("NSPrivacyTracking");
-        Object libTracking = lib.getProperty("NSPrivacyTracking");
-
         // merge privacy tracking domains
         ArrayList<String> baseTrackingDomains = getStringArrayList(base, "NSPrivacyTrackingDomains");
         ArrayList<String> libTrackingDomains = getStringArrayList(lib, "NSPrivacyTrackingDomains");
         baseTrackingDomains.addAll(libTrackingDomains);
+        // ITMS-91064: Invalid tracking information - NSPrivacyTracking must be
+        // true if NSPrivacyTrackingDomains isn’t empty.
+        if(!baseTrackingDomains.isEmpty())
+        {
+            base.setProperty("NSPrivacyTracking", true);
+        }
 
         // merge collected data types
         ArrayList<XMLPropertyListConfiguration> baseCollectedDataTypes = getArrayList(base, "NSPrivacyCollectedDataTypes");
