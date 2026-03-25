@@ -18,7 +18,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -791,9 +790,12 @@ public class ExtenderUtil
     }
 
     public static boolean isChild(File parent, File child) {
-        Path parentPath = parent.toPath().normalize().toAbsolutePath();
-        Path childPath = child.toPath().normalize().toAbsolutePath();
-        return childPath.startsWith(parentPath);
+        try {
+            SandboxedPath.assertWithin(parent, child);
+            return true;
+        } catch (ExtenderException e) {
+            return false;
+        }
     }
 
     // Doesn't work for ".hidden"
@@ -877,8 +879,13 @@ public class ExtenderUtil
     }
 
     public static File extractFile(ZipFile zipFile, ZipEntry entry, File outputDirectory) throws IOException {
-        // Create output file
-        File outputFile = new File(outputDirectory, entry.getName());
+        // Create output file with path traversal protection
+        File outputFile;
+        try {
+            outputFile = SandboxedPath.resolve(outputDirectory, entry.getName());
+        } catch (ExtenderException e) {
+            throw new IOException("Unsafe zip entry: " + e.getMessage(), e);
+        }
         if (!outputFile.getParentFile().exists()) {
             outputFile.getParentFile().mkdirs();
         }

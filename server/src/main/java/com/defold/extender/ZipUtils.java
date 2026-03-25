@@ -46,7 +46,16 @@ public class ZipUtils {
             ZipArchiveEntry zipEntry = zipInputStream.getNextZipEntry();
 
             while (zipEntry != null) {
-                File entryTargetFile = new File(targetDirectory.toFile(), zipEntry.getName());
+                if (zipEntry.isUnixSymlink()) {
+                    throw new IOException("Zip entry is a symlink (rejected): " + zipEntry.getName());
+                }
+
+                File entryTargetFile;
+                try {
+                    entryTargetFile = SandboxedPath.resolve(targetDirectory.toFile(), zipEntry.getName());
+                } catch (ExtenderException e) {
+                    throw new IOException("Unsafe zip entry: " + e.getMessage(), e);
+                }
 
                 if (zipEntry.isDirectory()) {
                     Files.createDirectories(entryTargetFile.toPath());

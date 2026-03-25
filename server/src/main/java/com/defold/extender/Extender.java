@@ -2239,6 +2239,7 @@ class Extender {
             if (manifestConfig == null) {
                 throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
             }
+            SandboxedPath.validateName(manifestConfig.name);
             validateManifestPlatforms(manifestConfig);
             _manifestConfigs.put(manifestConfig.name, manifestConfig);
             manifestFiles.put(manifestConfig.name, manifest);

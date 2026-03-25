@@ -306,8 +306,8 @@ public class ExtenderController {
 
     @GetMapping("/job_status")
     @ResponseBody
-    public Integer getBuildStatus(@RequestParam(name = "jobId") String jobId) throws IOException {
-        File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
+    public Integer getBuildStatus(@RequestParam(name = "jobId") String jobId) throws IOException, ExtenderException {
+        File jobResultDir = SandboxedPath.resolve(jobResultLocation, jobId);
         if (jobResultDir.exists()) {
             File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
             File errorResult = new File(jobResultDir, BuilderConstants.BUILD_ERROR_FILENAME);
@@ -321,8 +321,8 @@ public class ExtenderController {
     }
 
     @GetMapping("/job_result")
-    public @ResponseBody byte[] getBuildResult(@RequestParam(name = "jobId") String jobId) throws IOException {
-        File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
+    public @ResponseBody byte[] getBuildResult(@RequestParam(name = "jobId") String jobId) throws IOException, ExtenderException {
+        File jobResultDir = SandboxedPath.resolve(jobResultLocation, jobId);
         if (jobResultDir.exists()) {
             File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
             File errorResult = new File(jobResultDir, BuilderConstants.BUILD_ERROR_FILENAME);
@@ -345,9 +345,12 @@ public class ExtenderController {
     }
 
     static private boolean isRelativePath(File parent, File file) throws IOException {
-        String parentPath = parent.getCanonicalPath();
-        String filePath = file.getCanonicalPath();
-        return filePath.startsWith(parentPath);
+        try {
+            SandboxedPath.assertWithin(parent, file);
+            return true;
+        } catch (ExtenderException e) {
+            return false;
+        }
     }
 
     static boolean ignoreFilename(String path) throws ExtenderException {
