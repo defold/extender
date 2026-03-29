@@ -1,122 +1,117 @@
-FROM ubuntu:22.04
+ARG JDK_HOME_DIR=/usr/local/jdk-25+36
+ARG PLATFORMSDK_DIR=/opt/platformsdk
+ARG ZIG_VERSION=0.11.0
+ARG ZIG_PATH=${PLATFORMSDK_DIR}/zig-0-11
+ARG DOTNET_ROOT=/opt/dotnet
+ARG DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
+ARG NUGET_PACKAGES=/tmp/.nuget
 
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
+
+ARG PLATFORMSDK_DIR
 ARG TARGETARCH
+ARG JDK_HOME_DIR
+ARG ZIG_VERSION
+ARG ZIG_PATH
+ARG DOTNET_ROOT
+ARG DOTNET_VERSION_FILE
+ARG NUGET_PACKAGES
+ARG JDK_ARCH=${TARGETARCH/amd64/x64}
+ARG JDK_ARCH=${JDK_ARCH/arm64/aarch64}
+ARG ZIG_ARCH=${TARGETARCH/amd64/x86_64}
+ARG ZIG_ARCH=${ZIG_ARCH/arm64/aarch64}
 
 RUN \
   apt-get update && \
-  apt-get update && \
   apt-get install -y --no-install-recommends \
-    wget \
     locales \
-    ca-certificates \
-    unzip \
-    xz-utils \
-    software-properties-common \
-    # used in .Net setup
-    file \
-    # for use when debugging
-    tree \
-    silversearcher-ag \
-    less \
-    nano
-
-#
-# Java
-#
-ENV JAVA_HOME=/usr/local/jdk-25+36
-ENV PATH=${JAVA_HOME}/bin:${PATH}
+    libicu70
 
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
     LC_ALL=en_US.UTF-8
 
-ENV JDK_ARCH=${TARGETARCH/amd64/x64}
-ENV JDK_ARCH=${JDK_ARCH/arm64/aarch64}
-
+#
+# Java
+#
 RUN \
   wget -q -O - https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25%2B36/OpenJDK25U-jdk_${JDK_ARCH}_linux_hotspot_25_36.tar.gz | tar xz -C /usr/local && \
-  java -version && \
-  javac -version
-
-# Put all SDK's into a single folder (just as we do in the regular engine build)
-ENV PLATFORMSDK_DIR=/opt/platformsdk
-RUN mkdir $PLATFORMSDK_DIR
-
-#
-# ZIG
-#
-# https://ziglang.org/download/
-
-ENV ZIG_VERSION=0.11.0
-ENV ZIG_PATH_0_11=${PLATFORMSDK_DIR}/zig-0-11
-ENV PATH=${PATH}:${ZIG_PATH_0_11}
-ENV ZIG_ARCH=${TARGETARCH/amd64/x86_64}
-ENV ZIG_ARCH=${ZIG_ARCH/arm64/aarch64}
+  ${JDK_HOME_DIR}/bin/java -version && \
+  ${JDK_HOME_DIR}/bin/javac -version
 
 RUN \
-  echo "ZIG" && \
-  mkdir -p ${ZIG_PATH_0_11} && \
-  wget -q -O - https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz | tar xJ -C ${ZIG_PATH_0_11} --strip-components=1 && \
-  zig version
-
-#
-# DOTNET
-#
-# https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
-
-ENV NUGET_PACKAGES=/tmp/.nuget
-ENV DOTNET_ROOT=/opt/dotnet
-ENV DOTNET_CLI_HOME=${DOTNET_ROOT}
-ENV DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
-ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
-
-# Workaround for issue when running amd64 on Rosetta: https://github.com/dotnet/runtime/issues/94909
-ENV DOTNET_EnableWriteXorExecute=0
+  mkdir -p ${ZIG_PATH} && \
+  wget -q -O - https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz | tar xJ -C ${ZIG_PATH} --strip-components=1 && \
+  ${ZIG_PATH}/zig version
 
 # Added 1.9.1
 RUN \
   mkdir -p ${DOTNET_ROOT} && \
   mkdir -p ${NUGET_PACKAGES} && \
   wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh && \
-  chmod +x ./dotnet-install.sh
-
-RUN \
+  chmod +x ./dotnet-install.sh && \
   ./dotnet-install.sh --channel 9.0.1xx --install-dir ${DOTNET_ROOT} && \
-  rm ./dotnet-install.sh
-
-RUN \
+  rm ./dotnet-install.sh && \
   find ${DOTNET_ROOT} -iname "dotnet" && \
-  file ${DOTNET_ROOT}/dotnet && \
-  ${DOTNET_ROOT}/dotnet --info
-
-
-RUN \
+  ${DOTNET_ROOT}/dotnet --info && \
   export DOTNET_VERSION=$(${DOTNET_ROOT}/dotnet --info | grep -A 1 'Host' | grep 'Version' | awk '{print $NF}') && \
   echo ${DOTNET_VERSION} > ${DOTNET_VERSION_FILE}
 
-# Final cleanup
+FROM ubuntu@sha256:ce4a593b4e323dcc3dd728e397e0a866a1bf516a1b7c31d6aa06991baec4f2e0
 
-RUN \
-  apt-get remove -y apt-transport-https xvfb && \
-  apt-get clean autoclean autoremove
-
-RUN rm -rf /var/lib/apt/lists/lock
-
-# Add extender user
-RUN  useradd -r -u 2222 extender && \
-  mkdir -p /var/extender && \
-  chmod +s $(which java)
+ARG PLATFORMSDK_DIR
+ARG TARGETARCH
+ARG JDK_HOME_DIR
+ARG ZIG_VERSION
+ARG ZIG_PATH
+ARG DOTNET_ROOT
+ARG DOTNET_VERSION_FILE
+ARG NUGET_PACKAGES
 
 ENV MANIFEST_MERGE_TOOL=/etc/extender/apps/manifestmergetool.jar
+ENV JAVA_HOME=${JDK_HOME_DIR}
+ENV PLATFORMSDK_DIR=${PLATFORMSDK_DIR}
+ENV ZIG_VERSION=${ZIG_VERSION}
+ENV ZIG_PATH_0_11=${ZIG_PATH}
+ENV ZIG_PATH=${ZIG_PATH}
+ENV PATH=${JAVA_HOME}/bin:${PATH}:${ZIG_PATH}
 
+ENV NUGET_PACKAGES=${NUGET_PACKAGES}
+ENV DOTNET_ROOT=${DOTNET_ROOT}
+ENV DOTNET_CLI_HOME=${DOTNET_ROOT}
+ENV DOTNET_VERSION_FILE=${DOTNET_VERSION_FILE}
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+
+COPY --from=build ${JAVA_HOME} ${JAVA_HOME}
+COPY --from=build ${ZIG_PATH} ${ZIG_PATH}
+COPY --from=build ${DOTNET_ROOT} ${DOTNET_ROOT}
+COPY --from=build ${NUGET_PACKAGES} ${NUGET_PACKAGES}
+
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    locales \
+    libicu70 \
+    ca-certificates && \
+    locale-gen en_US.UTF-8 && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+# Add extender user
+    useradd -r -u 2222 extender && \
+    mkdir -p /var/extender && \
 # Extender data cache
-RUN mkdir -p /var/extender/cache/data
-
-RUN chown extender: /var/extender && \
+    mkdir -p /var/extender/cache/data && \
+    chown extender: /var/extender && \
     chown extender: $(which java) && \
     chown -R extender: /var/extender/cache && \
     chown -R extender: ${NUGET_PACKAGES} && \
     chown -R extender: ${DOTNET_ROOT}
+
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
+
 
 EXPOSE 9000

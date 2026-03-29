@@ -1,19 +1,36 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.5.0
+ARG GRADLE_VERSION=9.1.0
+
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
+
+ARG GRADLE_VERSION
 
 # Technically part of the Android build, but also required by the GradleService.java
 # until it can be disabled (e.g. by looking for the existance of GRADLE_USER_HOME)
 
 # Versions: https://developer.android.com/studio/releases/gradle-plugin?buildsystem=ndk-build#updating-gradle
 # Java+Gradle version matrix: https://docs.gradle.org/current/userguide/compatibility.html
-ENV GRADLE_USER_HOME=/tmp/.gradle
-ENV GRADLE_VERSION=9.1.0
-ENV GRADLE_PLUGIN_VERSION=8.13.0
-ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 RUN \
-  echo "Gradle" && \
   wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip && \
   mkdir /opt/gradle && \
   unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
-  rm gradle-${GRADLE_VERSION}-bin.zip && \
-  which gradle && \
-  chown -R extender: /opt/gradle
+  rm gradle-${GRADLE_VERSION}-bin.zip
+
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.6.0
+
+ARG GRADLE_VERSION
+
+ENV GRADLE_USER_HOME=/tmp/.gradle
+ENV GRADLE_VERSION=${GRADLE_VERSION}
+ENV GRADLE_PLUGIN_VERSION=8.13.0
+ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
+
+COPY --from=build /opt/gradle /opt/gradle
+RUN \
+  chown -R extender: /opt/gradle && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+  python3 \
+  python-is-python3 && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*

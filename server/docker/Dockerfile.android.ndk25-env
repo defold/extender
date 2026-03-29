@@ -1,71 +1,43 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.6.0
+ARG ANDROID_BUILD_TOOLS_VERSION_34=34.0.0
+ARG ANDROID_SDK_VERSION_34=34
+ARG ANDROID_BUILD_TOOLS_VERSION_35=35.0.1
+ARG ANDROID_SDK_VERSION_35=35
+ARG ANDROID_NDK25_VERSION=25b
+ARG ANDROID_NDK25_API_VERSION=19
+ARG ANDROID_64_NDK25_API_VERSION=21
+ARG PLATFORMSDK_DIR=/opt/platformsdk
+ARG ANDROID_ROOT=${PLATFORMSDK_DIR}/android
+ARG ANDROID_HOME=${ANDROID_ROOT}/android-sdk-linux
+ARG ANDROID_NDK25_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION}
+ARG ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
+ARG ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
+ARG ANDROID_SDK_BUILD_TOOLS_PATH_34=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34}
+ARG ANDROID_SDK_BUILD_TOOLS_PATH_35=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_35}
 
-#
-# Android SDK/NDK
-# https://developer.android.com/studio/command-line/variables
-#
-ENV ANDROID_ROOT=${PLATFORMSDK_DIR}/android
-# ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
-ENV ANDROID_HOME=${ANDROID_ROOT}/android-sdk-linux
-ENV ANDROID_SDK_ROOT=${ANDROID_HOME}
-# ANDROID_SDK_HOME is the location of the .android folder
-ENV ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
 
-#
-# SDK 34 (Defold 1.9.0):
-#
+ARG ANDROID_BUILD_TOOLS_VERSION_34
+ARG ANDROID_SDK_VERSION_34
+ARG ANDROID_BUILD_TOOLS_VERSION_35
+ARG ANDROID_SDK_VERSION_35
+ARG ANDROID_NDK25_VERSION
+ARG ANDROID_NDK25_API_VERSION
+ARG ANDROID_64_NDK25_API_VERSION
+ARG PLATFORMSDK_DIR
+ARG ANDROID_ROOT
+ARG ANDROID_HOME
+ARG ANDROID_NDK25_PATH
+ARG ANDROID_NDK25_BIN_PATH
+ARG ANDROID_SDK_HOME
+ARG ANDROID_SDK_BUILD_TOOLS_PATH_34
+ARG ANDROID_SDK_BUILD_TOOLS_PATH_35
 
-ENV ANDROID_BUILD_TOOLS_VERSION_34=34.0.0
-ENV ANDROID_SDK_VERSION_34=34
-ENV ANDROID_SDK_FILENAME_34=android-sdk-linux-android-${ANDROID_SDK_VERSION_34}-${ANDROID_BUILD_TOOLS_VERSION_34}.tar.gz
-
-ENV ANDROID_SDK_BUILD_TOOLS_PATH_34=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34}
-ENV ANDROID_LIBRARYJAR_34=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_34}/android.jar
-
-#
-# SDK 35 (Defold 1.9.8):
-#
-
-ENV ANDROID_BUILD_TOOLS_VERSION_35=35.0.1
-ENV ANDROID_SDK_VERSION_35=35
-ENV ANDROID_SDK_FILENAME_35=android-sdk-linux-android-${ANDROID_SDK_VERSION_35}-${ANDROID_BUILD_TOOLS_VERSION_35}.tar.gz
-
-ENV ANDROID_SDK_BUILD_TOOLS_PATH_35=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_35}
-ENV ANDROID_LIBRARYJAR_35=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_35}/android.jar
-
-# We specify it in build_input.yml by setting it the first in PATH for new SDK
-# But at least one SDK should be specified by default in Dockerfile
-ENV PATH=${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_34}
-# ANDROID_SDK_VERSION used in Java code, default should be specified in Dockerfile as well:
-ENV ANDROID_SDK_VERSION=${ANDROID_SDK_VERSION_35}
-
-#
-# NDK25b (Defold 1.4.3):
-#
-
-ENV ANDROID_NDK25_VERSION=25b
-ENV ANDROID_NDK25_API_VERSION=19
-ENV ANDROID_64_NDK25_API_VERSION=21
-
-# These paths are the same for both the 32 and 64 bit toolchains
-ENV ANDROID_NDK25_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION}
-ENV ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
-ENV ANDROID_NDK25_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-ENV ANDROID_NDK25_FILENAME=android-ndk-r${ANDROID_NDK25_VERSION}-linux.tar.gz
-
-# We specify it in build_input.yml by setting it the first in PATH
-ENV PATH=${PATH}:${ANDROID_NDK25_BIN_PATH}
-
-# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
-RUN \
-  apt-get update && \
-  apt-get install -y --no-install-recommends proguard && \
-  ls -la /usr/share/java/proguard.jar
-
-ENV ANDROID_PROGUARD=/usr/share/java/proguard.jar
+ARG ANDROID_SDK_FILENAME_34=android-sdk-linux-android-${ANDROID_SDK_VERSION_34}-${ANDROID_BUILD_TOOLS_VERSION_34}.tar.gz
+ARG ANDROID_SDK_FILENAME_35=android-sdk-linux-android-${ANDROID_SDK_VERSION_35}-${ANDROID_BUILD_TOOLS_VERSION_35}.tar.gz
+ARG ANDROID_NDK25_FILENAME=android-ndk-r${ANDROID_NDK25_VERSION}-linux.tar.gz
+ARG R8_VERSION=8.7.0-dev
 
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
-    echo "Android SDK" && \
     mkdir -p ${ANDROID_HOME} && \
     wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_NDK25_FILENAME} | tar xz -C ${ANDROID_ROOT} && \
     wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${ANDROID_SDK_FILENAME_34} | tar xz -C ${ANDROID_HOME} --strip-components=1 && \
@@ -88,29 +60,86 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
     chmod ugo+rw -R ${ANDROID_SDK_HOME} && \
 # fix permissions
     chmod +r -R ${ANDROID_ROOT} && \
-    chmod +w -R ${ANDROID_SDK_ROOT} && \
+    chmod +w -R ${ANDROID_HOME} && \
     chmod -R 755 ${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK25_VERSION} && \
 # check that dx installed properly
-    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_34}/d8 && \
-    ls -la ${ANDROID_SDK_BUILD_TOOLS_PATH_35}/d8 && \
     which ${ANDROID_NDK25_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK25_API_VERSION}-clang++ && \
     which ${ANDROID_NDK25_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK25_API_VERSION}-clang++ && \
 # check that aapt installed correctly
-    aapt v  && \
-    aapt2 version
-
+    ${ANDROID_SDK_BUILD_TOOLS_PATH_34}/aapt2 version && \
 # download and install R8 utility separatly. It's done in that way because
 # R8/D8 received fixes from time to time which not populated with build tools
 # It's ok that R8.jar downloaded but saved to D8.jar. Can't find D8 as separate utility.
 # R8 contains all classes of D8.
-ENV R8_VERSION=8.7.0-dev
-RUN \
     wget -O ${ANDROID_SDK_BUILD_TOOLS_PATH_34}/lib/d8.jar https://storage.googleapis.com/r8-releases/raw/${R8_VERSION}/r8.jar && \
     wget -O ${ANDROID_SDK_BUILD_TOOLS_PATH_35}/lib/d8.jar https://storage.googleapis.com/r8-releases/raw/${R8_VERSION}/r8.jar
 
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.7.0
+
+ARG ANDROID_BUILD_TOOLS_VERSION_34
+ARG ANDROID_SDK_VERSION_34
+ARG ANDROID_BUILD_TOOLS_VERSION_35
+ARG ANDROID_SDK_VERSION_35
+ARG ANDROID_NDK25_VERSION
+ARG ANDROID_NDK25_API_VERSION
+ARG ANDROID_64_NDK25_API_VERSION
+ARG PLATFORMSDK_DIR
+ARG ANDROID_ROOT
+ARG ANDROID_HOME
+ARG ANDROID_NDK25_PATH
+ARG ANDROID_NDK25_BIN_PATH
+ARG ANDROID_SDK_HOME
+ARG ANDROID_SDK_BUILD_TOOLS_PATH_34
+ARG ANDROID_SDK_BUILD_TOOLS_PATH_35
+
+ENV ANDROID_ROOT=${ANDROID_ROOT} \
+# ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
+    ANDROID_HOME=${ANDROID_HOME} \
+    ANDROID_SDK_ROOT=${ANDROID_HOME} \
+# ANDROID_SDK_HOME is the location of the .android folder
+    ANDROID_SDK_HOME=${ANDROID_SDK_HOME} \
+#
+# SDK 34 (Defold 1.9.0):
+#
+    ANDROID_BUILD_TOOLS_VERSION_34=${ANDROID_BUILD_TOOLS_VERSION_34} \
+    ANDROID_SDK_VERSION_34=${ANDROID_SDK_VERSION_34} \
+    ANDROID_SDK_BUILD_TOOLS_PATH_34=${ANDROID_SDK_BUILD_TOOLS_PATH_34} \
+    ANDROID_LIBRARYJAR_34=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_34}/android.jar \
+#
+# SDK 35 (Defold 1.9.8):
+#
+    ANDROID_BUILD_TOOLS_VERSION_35=${ANDROID_BUILD_TOOLS_VERSION_35} \
+    ANDROID_SDK_VERSION_35=${ANDROID_SDK_VERSION_35} \
+    ANDROID_SDK_BUILD_TOOLS_PATH_35=${ANDROID_SDK_BUILD_TOOLS_PATH_35} \
+    ANDROID_LIBRARYJAR_35=${ANDROID_HOME}/platforms/android-${ANDROID_SDK_VERSION_35}/android.jar \
+# ANDROID_SDK_VERSION used in Java code, default should be specified in Dockerfile as well:
+    ANDROID_SDK_VERSION=${ANDROID_SDK_VERSION_35} \
+#
+# NDK25b (Defold 1.4.3):
+#
+    ANDROID_NDK25_VERSION=${ANDROID_NDK25_VERSION} \
+    ANDROID_NDK25_API_VERSION=${ANDROID_NDK25_API_VERSION} \
+    ANDROID_64_NDK25_API_VERSION=${ANDROID_64_NDK25_API_VERSION} \
+# These paths are the same for both the 32 and 64 bit toolchains
+    ANDROID_NDK25_PATH=${ANDROID_NDK25_PATH} \
+    ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_BIN_PATH} \
+    ANDROID_NDK25_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
+    ANDROID_PROGUARD=/usr/share/java/proguard.jar \
+# We specify it in build_input.yml by setting it the first in PATH for new SDK
+# But at least one SDK should be specified by default in Dockerfile
+    PATH=${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_34}:${ANDROID_NDK25_BIN_PATH}
+
+COPY --from=build ${ANDROID_ROOT} ${ANDROID_ROOT}
+
+# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends proguard && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* && \
 # Since dotnet cannot really cross compile, we need to create a "ar" shim for "llvm-ar"
 # As long as it's in the path, it will be picked up
-RUN \
   echo '#!/usr/bin/env bash' > /usr/bin/ar && \
   find /opt/platformsdk/android -iname "llvm-ar" | tail -1 | xargs xargs printf "%s \$*\n" $1 >> /usr/bin/ar && \
   chmod +x /usr/bin/ar
