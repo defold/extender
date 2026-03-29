@@ -53,7 +53,7 @@ public class AuthenticationTest implements AfterEachCallback {
         processExecutor.putEnv("COMPOSE_PROFILE", "auth-test");
         processExecutor.putEnv("APPLICATION", "extender-test-auth");
         processExecutor.putEnv("PORT", String.valueOf(EXTENDER_PORT));
-        processExecutor.execute("scripts/start-test-server.sh");
+        processExecutor.execute(TestUtils.shellScriptArgs("scripts/start-test-server.sh"));
         System.out.println(processExecutor.getOutput());
 
         long startTime = System.currentTimeMillis();
@@ -84,7 +84,7 @@ public class AuthenticationTest implements AfterEachCallback {
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("APPLICATION", "extender-test-auth");
-        processExecutor.execute("scripts/stop-test-server.sh");
+        processExecutor.execute(TestUtils.shellScriptArgs("scripts/stop-test-server.sh"));
         System.out.println(processExecutor.getOutput());
     }
 

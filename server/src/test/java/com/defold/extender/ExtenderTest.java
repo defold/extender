@@ -54,10 +54,7 @@ public class ExtenderTest {
     }
 
     @Test
-    public void testExtender() throws IOException, InterruptedException, ExtenderException {
-        File jobDir = new File("/tmp/tmpJob");
-        jobDir.mkdirs();
-        jobDir.deleteOnExit();
+    public void testExtender(@TempDir File jobDir) throws IOException, InterruptedException, ExtenderException {
         File uploadDir = new File(jobDir, "upload");
         uploadDir.mkdirs();
         File buildDir = new File(jobDir, "build");

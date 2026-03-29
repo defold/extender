@@ -83,10 +83,6 @@ services:
     profiles:
       - all
       - android
-    expose:
-      - "5005"
-    ports:
-      - "5005:5005"
     networks:
       default:
         aliases:

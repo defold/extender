@@ -68,10 +68,15 @@ public final class SandboxedPath {
             while (current != null && !current.toFile().exists()) {
                 current = current.getParent();
             }
-            if (current != null) {
+
+            Path existedRoot = rootPath;
+            while (existedRoot != null && !existedRoot.toFile().exists()) {
+                existedRoot = existedRoot.getParent();
+            }
+            if (current != null && existedRoot != null) {
                 try {
                     Path realAncestor = current.toRealPath();
-                    Path realRoot = root.toPath().toRealPath();
+                    Path realRoot = existedRoot.toRealPath();
                     if (!realAncestor.startsWith(realRoot) && !realAncestor.equals(realRoot)) {
                         throw new ExtenderException(
                             String.format("Symlink escape detected: ancestor of '%s' resolves outside root directory", childPath));

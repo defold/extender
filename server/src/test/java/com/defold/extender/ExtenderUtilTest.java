@@ -88,7 +88,6 @@ public class ExtenderUtilTest {
         assertEquals( ExtenderUtil.isChild(parent, new File("upload")), false);
     }
 
-
     @Test
     public void testPatternConversion() {
         // Literals
@@ -347,5 +346,28 @@ public class ExtenderUtilTest {
         assertFalse(excludeSymbols.contains("ProfilerExt"));
         assertFalse(excludeSymbols.contains("ProfilerBasic"));
         assertFalse(excludeSymbols.contains("ProfilerRemotery"));
+    }
+
+    @Test
+    public void testSanitizeJavacCmdAddsFlag() {
+        assertEquals("javac -proc:none Foo.java", ExtenderUtil.sanitizeJavacCmd("javac Foo.java"));
+    }
+
+    @Test
+    public void testSanitizeJavacCmdWithMultipleArgs() {
+        assertEquals("javac -proc:none -source 11 -target 11 Foo.java", ExtenderUtil.sanitizeJavacCmd("javac -source 11 -target 11 Foo.java"));
+    }
+
+    @Test
+    public void testSanitizeJavacCmdAlreadyHasFlag() {
+        String cmd = "javac -proc:none Foo.java";
+        assertEquals(cmd, ExtenderUtil.sanitizeJavacCmd(cmd));
+    }
+
+    @Test
+    public void testSanitizeJavacCmdFlagElsewhere() {
+        // -proc:none already present but not at the start — should not add a second one
+        String cmd = "javac -source 11 -proc:none Foo.java";
+        assertEquals(cmd, ExtenderUtil.sanitizeJavacCmd(cmd));
     }
 }

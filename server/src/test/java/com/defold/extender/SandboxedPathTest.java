@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,6 +40,12 @@ public class SandboxedPathTest {
         File result = SandboxedPath.resolve(tempDir, "a/b/c.txt");
         Path expected = tempDir.toPath().resolve("a/b/c.txt").normalize();
         assertEquals(expected.toFile().getAbsolutePath(), result.getAbsolutePath());
+    }
+
+    @Test
+    public void resolveNonExitedRoot() {
+        File nonExistedRoot = new File(tempDir, "non-existed");
+        assertDoesNotThrow(() -> SandboxedPath.resolve(nonExistedRoot, "some_file.txt"));
     }
 
     @Test

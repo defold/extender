@@ -344,15 +344,6 @@ public class ExtenderController {
         return healthReporter.collectHealthReport(remoteBuilderEnabled, remoteBuilderPlatformMappings);
     }
 
-    static private boolean isRelativePath(File parent, File file) throws IOException {
-        try {
-            SandboxedPath.assertWithin(parent, file);
-            return true;
-        } catch (ExtenderException e) {
-            return false;
-        }
-    }
-
     static boolean ignoreFilename(String path) throws ExtenderException {
         String name = FilenameUtils.getName(path);
 
@@ -402,7 +393,7 @@ public class ExtenderController {
 
             File file = new File(uploadDirectory, name);
 
-            if (!isRelativePath(uploadDirectory, file)) { // in case the name contains "../"
+            if (!ExtenderUtil.isChild(uploadDirectory, file)) { // in case the name contains "../"
                 throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", key));
             }
             if (file.exists()) {

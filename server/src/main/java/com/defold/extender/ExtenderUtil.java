@@ -945,4 +945,11 @@ public class ExtenderUtil
         FileUtils.writeLines(resultFile, escapedList);
         return resultFile;
     }
+
+    public static String sanitizeJavacCmd(String cmd) {
+        if (cmd.contains("-proc:none")) {
+            return cmd;
+        }
+        return cmd.replaceFirst("^javac\\s+", "javac -proc:none ");
+    }
 }

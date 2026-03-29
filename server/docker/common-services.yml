@@ -22,7 +22,7 @@ services:
       - ./../app/:/etc/extender/apps/:ro
       - ./../configs:/etc/defold/extender:ro
       - ${DYNAMO_HOME:-./../app/dummy}:/dynamo_home
-    entrypoint: ["java","-Xdebug", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", "-Xmx4g","-XX:MaxDirectMemorySize=2g","-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500","-jar","/app/extender.jar"]
+    entrypoint: ["java", "-Xmx4g","-XX:MaxDirectMemorySize=2g","-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500","-jar","/app/extender.jar"]
     user: extender
     environment:
       - DYNAMO_HOME${DYNAMO_HOME:+=/dynamo_home}

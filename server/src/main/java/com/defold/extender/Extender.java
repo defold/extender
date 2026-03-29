@@ -1355,7 +1355,7 @@ class Extender {
                     context.put("classesDir", classesDir.getAbsolutePath());
                     context.put("classPath", classPath);
                     context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-                    executeCommand(platformConfig.javacCmd, context);
+                    executeCommand(ExtenderUtil.sanitizeJavacCmd(platformConfig.javacCmd), context);
                 }
 
                 // Collect all classes into a Jar file
@@ -1819,7 +1819,7 @@ class Extender {
                 context.put("classesDir", classesDir.getAbsolutePath());
                 context.put("classPath", classesDir.getAbsolutePath());
                 context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-                executeCommand(platformConfig.javacCmd, context);
+                executeCommand(ExtenderUtil.sanitizeJavacCmd(platformConfig.javacCmd), context);
 
                 // Collect all classes into a Jar file
                 context = createContext(mergedAppContext);
@@ -1932,7 +1932,7 @@ class Extender {
 
             context.put("classPath", classPath);
             context.put("sourcesListFile", sourcesListFile.getAbsolutePath());
-            executeCommand(platformConfig.javacCmd, context);
+            executeCommand(ExtenderUtil.sanitizeJavacCmd(platformConfig.javacCmd), context);
 
             // Collect all classes into a Jar file
             context = createContext(manifestContext);

@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,6 +40,12 @@ import java.util.regex.Pattern;
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "true")
 public class RealGradleService implements GradleServiceInterface {
     private static final Logger LOGGER = LoggerFactory.getLogger(RealGradleService.class);
+
+    private static final List<String> GRADLE_BLOCKLIST = List.of(
+        "buildscript", "apply plugin:", "apply from:",
+        "Runtime.getRuntime", "ProcessBuilder", "System.exit",
+        "ClassLoader", "Class.forName", "URLClassLoader"
+    );
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
     private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
 
@@ -148,13 +155,54 @@ public class RealGradleService implements GradleServiceInterface {
         Files.write(localPropertiesFile.toPath(), contents.getBytes());
     }
 
-    private void createBuildGradleFile(File mainGradleFile, List<File> gradleFiles, Map<String, Object> jobEnvContext) throws IOException {
-        List<String> values = new ArrayList<>();
+    private void validateGradleFile(File file) throws IOException, ExtenderException {
+        String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        for (String keyword : GRADLE_BLOCKLIST) {
+            if (content.contains(keyword)) {
+                throw new ExtenderException("build.gradle contains disallowed content: '" + keyword + "' in file: " + file.getName());
+            }
+        }
+    }
+
+    private List<String> extractBlockContent(String content, String blockName) {
+        List<String> lines = new ArrayList<>();
+        Pattern pattern = Pattern.compile("\\b" + blockName + "\\s*\\{");
+        Matcher matcher = pattern.matcher(content);
+        while (matcher.find()) {
+            int braceStart = matcher.end() - 1;
+            int depth = 1;
+            int pos = braceStart + 1;
+            while (pos < content.length() && depth > 0) {
+                char c = content.charAt(pos);
+                if (c == '{') depth++;
+                else if (c == '}') depth--;
+                pos++;
+            }
+            if (depth == 0) {
+                String inner = content.substring(braceStart + 1, pos - 1);
+                for (String line : inner.split("\n")) {
+                    String trimmed = line.trim();
+                    if (!trimmed.isEmpty() && !trimmed.startsWith("//")) {
+                        lines.add(trimmed);
+                    }
+                }
+            }
+        }
+        return lines;
+    }
+
+    private void createBuildGradleFile(File mainGradleFile, List<File> gradleFiles, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+        List<String> userDependencies = new ArrayList<>();
+        List<String> userRepositories = new ArrayList<>();
         for (File file : gradleFiles) {
-            values.add(file.getAbsolutePath());
+            validateGradleFile(file);
+            String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            userDependencies.addAll(extractBlockContent(content, "dependencies"));
+            userRepositories.addAll(extractBlockContent(content, "repositories"));
         }
         HashMap<String, Object> envContext = new HashMap<>();
-        envContext.put("gradle-files", values);
+        envContext.put("user-dependencies", userDependencies);
+        envContext.put("user-repositories", userRepositories);
         envContext.put("compile-sdk-version", jobEnvContext.get("env.ANDROID_SDK_VERSION"));
         envContext.put("gradle-plugin-version", GRADLE_PLUGIN_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
@@ -263,7 +311,8 @@ public class RealGradleService implements GradleServiceInterface {
                 "--write-locks",
                 "--stacktrace",
                 "--warning-mode",
-                "all"
+                "all",
+                "--no-daemon"
             ), cwd,
             Map.of("GRADLE_USER_HOME", this.gradleHome));
         LOGGER.debug("\n" + log);
@@ -284,7 +333,8 @@ public class RealGradleService implements GradleServiceInterface {
                 "gradle",
                 "dependencies",
                 "--configuration",
-                "releaseCompileClasspath"
+                "releaseCompileClasspath",
+                "--no-daemon"
             ), cwd, Map.of("GRADLE_USER_HOME", this.gradleHome));
         LOGGER.debug("\n" + treelog);
 

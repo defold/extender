@@ -43,7 +43,7 @@ public class ZipUtils {
 
     public static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
         try (ZipArchiveInputStream zipInputStream = new ZipArchiveInputStream(inputStream)) {
-            ZipArchiveEntry zipEntry = zipInputStream.getNextZipEntry();
+            ZipArchiveEntry zipEntry = zipInputStream.getNextEntry();
 
             while (zipEntry != null) {
                 if (zipEntry.isUnixSymlink()) {
@@ -83,7 +83,7 @@ public class ZipUtils {
                     Files.setPosixFilePermissions(entryTargetFile.toPath(), s);
                 }
 
-                zipEntry = zipInputStream.getNextZipEntry();
+                zipEntry = zipInputStream.getNextEntry();
             }
         }
     }
