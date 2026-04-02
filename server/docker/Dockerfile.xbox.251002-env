@@ -1,17 +1,27 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
+ARG XBOX_SDK_VERSION=251002
+ARG XBOX_SDK=${PLATFORMSDK_DIR}/xbox-sdk-${XBOX_SDK_VERSION}
 
-ENV XBOX_SDK_VERSION=251002
-ENV XBOX_SDK=${PLATFORMSDK_DIR}/xbox-sdk-${XBOX_SDK_VERSION}
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
 
-ENV XBOX_SDK_FILENAME=xbox-gdk-${XBOX_SDK_VERSION}.tar.gz
-
-ENV GameDKCoreLatest=${XBOX_SDK}
-ENV GameDKLatest=${XBOX_SDK}
-ENV GameDKXboxLatest=${XBOX_SDK}
-ENV GRDKLatest=${XBOX_SDK}/GRDK
-ENV GXDKLatest=${XBOX_SDK}/GXDK
+ARG XBOX_SDK_VERSION
+ARG XBOX_SDK
+ARG XBOX_SDK_FILENAME=xbox-gdk-${XBOX_SDK_VERSION}.tar.gz
 
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
-  echo "XBox ${XBOX_SDK_FILENAME}" && \
   mkdir -p ${XBOX_SDK} && \
   wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${XBOX_SDK_FILENAME} | tar xz -C ${XBOX_SDK} --strip-components=1
+
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:1.1.0
+
+ARG XBOX_SDK_VERSION
+ARG XBOX_SDK
+
+ENV XBOX_SDK_VERSION=${XBOX_SDK_VERSION} \
+  XBOX_SDK=${XBOX_SDK} \
+  GameDKCoreLatest=${XBOX_SDK} \
+  GameDKLatest=${XBOX_SDK} \
+  GameDKXboxLatest=${XBOX_SDK} \
+  GRDKLatest=${XBOX_SDK}/GRDK \
+  GXDKLatest=${XBOX_SDK}/GXDK
+
+COPY --from=build ${XBOX_SDK} ${XBOX_SDK}
