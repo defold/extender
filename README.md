@@ -56,7 +56,7 @@ There are two ways to obtain Extender's jars:
 As result you should have 2 jars in `./server/apps/` folder: extender.jar and manifestmergetool.jar.
 
 ### Run
-To run stand-alone Extender instance use folowing script:
+To run stand-alone Extender instance use following script:
 ```sh
     ./server/scripts/standalone/service-standalone.sh start
 ```

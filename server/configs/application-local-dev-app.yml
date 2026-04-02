@@ -11,9 +11,6 @@ extender:
                 url: http://android-ndk25_sdk36:9000
                 instanceId: android-ndk25_sdk36
                 alwaysOn: true
-            emsdk-3165:
-                url: http://emsdk-3165:9000
-                instanceId: emsdk-3165
             emsdk-406:
                 url: http://emsdk-406:9000
                 instanceId: emsdk-406
@@ -35,6 +32,9 @@ extender:
             winsdk-2022:
                 url: http://winsdk-2022:9000
                 instanceId: winsdk-2022
+            winsdk-2022_144435207:
+                url: http://winsdk-2022_144435207:9000
+                instanceId: winsdk-2022_144435207
             xbox-251002:
                 url: http://xbox-251002:9000
                 instanceId: xbox-251002

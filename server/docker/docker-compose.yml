@@ -87,20 +87,6 @@ services:
       default:
         aliases:
           - android-ndk25_sdk36
-  emscripten_3165-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3165-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=emsdk-3165-local
-    profiles:
-      - all
-      - web
-    networks:
-      default:
-        aliases:
-          - emsdk-3165
   emscripten_406-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
     extends:
@@ -259,18 +245,7 @@ services:
     networks:
       default:
         aliases:
-          - android-ndk25_sdk35
-  emscripten_3165-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-3165-env:latest
-    extends:
-      file: common-services.yml
-      service: test_remote_builder
-    profiles:
-      - test
-    networks:
-      default:
-        aliases:
-          - emsdk-3165
+          - android-ndk25_sdk36
   emscripten_406-integration-test:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
     extends:
@@ -327,7 +302,7 @@ services:
     # redefine helathcheck because of another port
     # see the same configuration in common-services.yml
     healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:9001/actuator/health
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9001 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q UP"]
       interval: 10s
       timeout: 2s
       retries: 10

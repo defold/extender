@@ -1,9 +1,15 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.5.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.6.0
 
+ENV CLANG_VERSION=17
+ENV CLANG_HOME=/usr/lib/llvm-${CLANG_VERSION}
+# Possibly get the "-resource-dir" from clang++ -### empty.cpp
+ENV CLANG_RESOURCE_DIR=/usr/lib/llvm-${CLANG_VERSION}/lib/clang/${CLANG_VERSION}
+ENV PATH=${CLANG_HOME}/bin:$PATH
 RUN \
-  echo "LINUX TOOLS + COMPILER" && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
+    python3 \
+    python-is-python3 \
     libssl-dev \
     openssl \
     libtool \
@@ -16,20 +22,16 @@ RUN \
     libopenal-dev \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
-    freeglut3-dev
-
-#
-# llvm
-#
-ENV CLANG_VERSION=17
-RUN \
-  echo "LLVM + CLANG ${CLANG_VERSION}" && \
-  wget https://apt.llvm.org/llvm.sh && \
-  chmod +x llvm.sh && \
-  ./llvm.sh ${CLANG_VERSION} && \
-  rm llvm.sh
-
-ENV CLANG_17_HOME=/usr/lib/llvm-${CLANG_VERSION}
-# Possibly get the "-resource-dir" from clang++ -### empty.cpp
-ENV CLANG_17_RESOURCE_DIR=/usr/lib/llvm-${CLANG_VERSION}/lib/clang/${CLANG_VERSION}
-ENV PATH=${CLANG_17_HOME}/bin:$PATH
+    freeglut3-dev \
+    wget \
+    lsb-release \
+    software-properties-common \
+    gnupg && \
+    wget https://apt.llvm.org/llvm.sh && \
+    chmod +x llvm.sh && \
+    ./llvm.sh ${CLANG_VERSION} && \
+    rm llvm.sh && \
+    apt-get remove -y wget lsb-release software-properties-common gnupg && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*

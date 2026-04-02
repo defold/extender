@@ -9,10 +9,10 @@ scrape_configs:
           - linux-arm64:9000
           - android-ndk25:9000
           - android-ndk25_sdk36:9000
-          - emsdk-3165:9000
           - emsdk-406:9000
           - nssdk-2143:9000
           - ps4-12500:9000
           - ps5-12000:9000
           - winsdk-2022:9000
+          - winsdk-2022_144435207:9000
           - xbox-251002:9000

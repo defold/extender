@@ -34,9 +34,17 @@ java {
     }
 }
 
-{{#gradle-files}}
-apply from: "{{{.}}}"
-{{/gradle-files}}
+repositories {
+{{#user-repositories}}
+    {{{.}}}
+{{/user-repositories}}
+}
+
+dependencies {
+{{#user-dependencies}}
+    {{{.}}}
+{{/user-dependencies}}
+}
 
 dependencyLocking {
     lockAllConfigurations()

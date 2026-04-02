@@ -32,7 +32,7 @@ public class HealthReporterServiceTest {
     private static final String OPERATIONAL_RESPONSE = JSONObject.toJSONString(Collections.singletonMap("status", OperationalStatus.Operational.toString()));
     private static final String UNREACHABLE_RESPONSE = JSONObject.toJSONString(Collections.singletonMap("status", OperationalStatus.Unreachable.toString()));
 
-    private static Path tmpHTTPRoot = Path.of("/tmp/__health_check_http");
+    private static Path tmpHTTPRoot;
 
     private static WireMockServer normalServer1;
     private static WireMockServer normalServer2;
@@ -43,6 +43,7 @@ public class HealthReporterServiceTest {
 
     @BeforeAll
     public static void beforeAll() throws IOException {
+        tmpHTTPRoot = Files.createTempDirectory("health_check_http");
         Files.createDirectories(tmpHTTPRoot);
 
         normalServer1 = new WireMockServer(WireMockConfiguration.options()

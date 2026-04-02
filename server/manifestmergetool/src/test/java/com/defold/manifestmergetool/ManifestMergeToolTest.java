@@ -758,7 +758,7 @@ public class ManifestMergeToolTest {
             + "<plist version=\"1.0\">\n"
             + "    <dict>\n"
             + "        <key>NSPrivacyTracking</key>\n"
-            + "        <false/>\n"
+            + "        <true/>\n"
             + "\n"
             + "        <key>NSPrivacyCollectedDataTypes</key>\n"
             + "        <array>\n"

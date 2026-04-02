@@ -1,31 +1,16 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.5.0
-
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
 # Installation notes: https://wiki.winehq.org/Ubuntu
 # TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
 RUN \
- echo "Wine deps" && \
  apt-get update && \
- apt-get install -y --no-install-recommends \
- python-is-python3 \
- openssl \
- gnupg1 \
- gpg-agent \
- build-essential \
- software-properties-common \
- apt-transport-https \
- ca-certificates \
- ca-certificates-java \
- xvfb \
- cabextract && \
- apt-get clean autoclean autoremove
-
-# From https://github.com/scottyhardy/docker-wine/blob/master/Dockerfile
+ apt-get install -y --no-install-recommends xvfb gpg lsb-release software-properties-common gnupg
 
 # Install wine
 ARG WINE_BRANCH="stable"
-RUN wget -nv -O- https://dl.winehq.org/wine-builds/winehq.key | APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add - \
-    && echo "deb https://dl.winehq.org/wine-builds/ubuntu/ $(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2) main" >> /etc/apt/sources.list \
-    && dpkg --add-architecture i386 \
+
+RUN wget -O - https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key - &&\
+    dpkg --add-architecture i386 \
+    && wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2).sources \
     && apt-get update \
     && DEBIAN_FRONTEND="noninteractive" apt-get install -y --install-recommends winehq-${WINE_BRANCH} \
     && rm -rf /var/lib/apt/lists/*
@@ -40,35 +25,42 @@ ENV PATH=${PATH}:/opt/wine-stable/bin
 ENV WINEDEBUG="-all"
 
 ENV WINEPREFIX="/var/extender/.wine"
-
-RUN \
-  echo "Wine Init" && \
-  mkdir -p ${WINEPREFIX}
-
 ENV DISPLAY=":1"
 RUN \
+  mkdir -p ${WINEPREFIX} && \
   set -xe                     && \
   WINEDLLOVERRIDES="mscoree,mshtml=" xvfb-run wine wineboot && \
   xvfb-run wineserver -w
-  # xvfb-run wineserver -w      && \
-  # xvfb-run winetricks -q vcrun2015
 
-RUN \
-  chown -R extender: $WINEPREFIX
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.6.0
 
+COPY --from=build /opt/wine-stable /opt/wine-stable
+COPY --from=build /var/extender/.wine /var/extender/.wine
 
-#
-# llvm
-#
+# Disable all debug messages
+ENV WINEDEBUG="-all"
+ENV WINEPREFIX="/var/extender/.wine"
+ENV DISPLAY=":1"
 ENV CLANG_VERSION=19
-RUN \
-  echo "LLVM + CLANG ${CLANG_VERSION}" && \
-  wget https://apt.llvm.org/llvm.sh && \
-  chmod +x llvm.sh && \
-  ./llvm.sh ${CLANG_VERSION} && \
-  rm llvm.sh
-
 ENV CLANG_HOME=/usr/lib/llvm-${CLANG_VERSION}
-# Possibly get the "-resource-dir" from clang++ -### empty.cpp
 ENV CLANG_RESOURCE_DIR=/usr/lib/llvm-${CLANG_VERSION}/lib/clang/${CLANG_VERSION}
-ENV PATH=${CLANG_HOME}/bin:$PATH
+ENV PATH=${CLANG_HOME}/bin:${PATH}:/opt/wine-stable/bin
+
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    python3 \
+    python-is-python3 \
+    wget \
+    lsb-release \
+    software-properties-common \
+    gnupg && \
+    wget https://apt.llvm.org/llvm.sh && \
+    chmod +x llvm.sh && \
+    ./llvm.sh ${CLANG_VERSION} && \
+    rm llvm.sh && \
+    apt-get remove -y wget lsb-release software-properties-common gnupg && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    chown -R extender: $WINEPREFIX
