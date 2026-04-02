@@ -48,11 +48,11 @@ for request in $REQUESTED; do
             INSTALL="android $request"
             ;;
         windows)
-            # skip building winsdk-2022 because wine image contains newer Clang. 
+            # skip building winsdk-2022 because wine image contains newer Clang.
             INSTALL="wine winsdk-2022_144435207"
             ;;
         xbox)
-            INSTALL="wine winsdk-2022_144435207 xbox-251001"
+            INSTALL="wine winsdk-2022_144435207 xbox-251002"
             ;;
         linux)
             INSTALL="linux"
