@@ -10,7 +10,7 @@ services:
       - EXAMPLE_VAR=1
     healthcheck:
       # Extender's port is hardcoded here.
-      test: wget --no-verbose --tries=1 --spider http://localhost:9000/actuator/health
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q UP"]
       interval: 10s
       timeout: 2s
       retries: 10
@@ -22,7 +22,7 @@ services:
       - ./../app/:/etc/extender/apps/:ro
       - ./../configs:/etc/defold/extender:ro
       - ${DYNAMO_HOME:-./../app/dummy}:/dynamo_home
-    entrypoint: ["java","-Xmx4g","-XX:MaxDirectMemorySize=2g","-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500","-jar","/app/extender.jar"]
+    entrypoint: ["java", "-Xmx4g","-XX:MaxDirectMemorySize=2g","-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500","-jar","/app/extender.jar"]
     user: extender
     environment:
       - DYNAMO_HOME${DYNAMO_HOME:+=/dynamo_home}

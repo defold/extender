@@ -63,41 +63,72 @@ public class PodfileParser {
         return result;
     }
 
+    // Matches pod name (alphanumeric, hyphens, underscores, dots, plus signs) with optional subspec paths
+    // e.g. "pod 'Firebase/Analytics'" or "pod 'OneTrust-CMP-XCFramework'"
+    private static final Pattern POD_NAME_PATTERN = Pattern.compile("[\\w.+][\\w.+/-]*");
+
+    // Matches version operator + version string, including pre-release/build metadata segments
+    // e.g. "~>1.0", ">=2.3.1", "<=4.3.28.3", "1.0.0-beta", "2.0.0-rc.1"
+    private static final Pattern POD_VERSION_PATTERN = Pattern.compile("[~><=.-]*\\s*[\\d][\\w.+-]*");
+
+    // Full pod line pattern: pod 'Name' with optional version, optional trailing comment
+    // Group 1: pod name (with optional subspec)
+    // Group 2: optional version constraint (operator + version)
+    private static final Pattern POD_LINE_PATTERN = Pattern.compile(
+        "pod\\s+'(" + POD_NAME_PATTERN.pattern() + ")'(?:\\s*,\\s*'(" + POD_VERSION_PATTERN.pattern() + ")')?\\s*(?:#.*)?");
+
+    /**
+     * Sanitize a pod definition line by parsing and reconstructing it.
+     * This prevents injection of arbitrary Ruby code through crafted Podfile lines.
+     * Only the pod name and optional version constraint are preserved.
+     */
+    static String sanitizePodDefinition(String podName, String podVersion) {
+        if (podVersion != null) {
+            return String.format("pod '%s', '%s'", podName, podVersion);
+        }
+        return String.format("pod '%s'", podName);
+    }
+
     public static ParseResult parsePodfile(File podFile) throws IOException, PodfileParsingException {
         ParseResult res = new ParseResult();
-        // Load all Podfiles
-        Pattern podPattern = Pattern.compile("pod '([\\w|-]+)'.*");
         // Split each file into lines and go through them one by one
         // Search for a Podfile platform and version configuration, examples:
         //   platform :ios, '9.0'
         //   platform :osx, '10.2'
         // Get the version and figure out which is the highest version defined. This
-        // version will be used in the combined Podfile created by this function. 
+        // version will be used in the combined Podfile created by this function.
         // Treat everything else as pods
         List<String> lines = Files.readAllLines(podFile.toPath());
         for (String line : lines) {
-            if (line.isEmpty()) {
+            // Strip inline comments and trim whitespace before processing
+            String stripped = line.contains("#") ? line.substring(0, line.indexOf('#')).trim() : line.trim();
+            if (stripped.isEmpty()) {
                 continue;
             }
-            if (line.startsWith("platform :")) {
+            if (stripped.startsWith("platform :")) {
                 if (res.platform != null) {
                     throw new PodfileParsingException("'platform' is already defined.");
                 }
-                if (!line.contains(":ios") && !line.contains(":osx")) {
+                if (!stripped.contains(":ios") && !stripped.contains(":osx")) {
                     throw new PodfileParsingException("Unsupported 'platform'");
                 }
-                res.platform = line.contains(":ios") ? "ios" : "osx";
-                String version = line.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
+                res.platform = stripped.contains(":ios") ? "ios" : "osx";
+                String version = stripped.replaceFirst("platform :ios|platform :osx", "").replace(",", "").replace("'", "").trim();
                 if (!version.isEmpty()) {
                     res.minVersion = version;
                 }
-            } else if (line.startsWith("use_frameworks!")) {
+            } else if (stripped.startsWith("use_frameworks!")) {
                 res.useFrameworks = true;
             } else {
-                Matcher matcher = podPattern.matcher(line);
+                Matcher matcher = POD_LINE_PATTERN.matcher(stripped);
                 if (matcher.matches()) {
-                    res.podDefinitions.add(line);
-                    res.podNames.add(matcher.group(1));
+                    String podName = matcher.group(1);
+                    String podVersion = matcher.group(2);
+                    // Extract the top-level pod name (before any subspec slash)
+                    String topLevelName = podName.contains("/") ? podName.substring(0, podName.indexOf('/')) : podName;
+                    // Reconstruct a safe pod definition line from parsed components only
+                    res.podDefinitions.add(sanitizePodDefinition(podName, podVersion));
+                    res.podNames.add(topLevelName);
                 }
             }
         }

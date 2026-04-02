@@ -306,8 +306,8 @@ public class ExtenderController {
 
     @GetMapping("/job_status")
     @ResponseBody
-    public Integer getBuildStatus(@RequestParam(name = "jobId") String jobId) throws IOException {
-        File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
+    public Integer getBuildStatus(@RequestParam(name = "jobId") String jobId) throws IOException, ExtenderException {
+        File jobResultDir = SandboxedPath.resolve(jobResultLocation, jobId);
         if (jobResultDir.exists()) {
             File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
             File errorResult = new File(jobResultDir, BuilderConstants.BUILD_ERROR_FILENAME);
@@ -321,8 +321,8 @@ public class ExtenderController {
     }
 
     @GetMapping("/job_result")
-    public @ResponseBody byte[] getBuildResult(@RequestParam(name = "jobId") String jobId) throws IOException {
-        File jobResultDir = new File(jobResultLocation.getAbsolutePath() + "/" + jobId);
+    public @ResponseBody byte[] getBuildResult(@RequestParam(name = "jobId") String jobId) throws IOException, ExtenderException {
+        File jobResultDir = SandboxedPath.resolve(jobResultLocation, jobId);
         if (jobResultDir.exists()) {
             File jobResult = new File(jobResultDir, BuilderConstants.BUILD_RESULT_FILENAME);
             File errorResult = new File(jobResultDir, BuilderConstants.BUILD_ERROR_FILENAME);
@@ -342,12 +342,6 @@ public class ExtenderController {
     @CrossOrigin
     public String getHealthReport() {
         return healthReporter.collectHealthReport(remoteBuilderEnabled, remoteBuilderPlatformMappings);
-    }
-
-    static private boolean isRelativePath(File parent, File file) throws IOException {
-        String parentPath = parent.getCanonicalPath();
-        String filePath = file.getCanonicalPath();
-        return filePath.startsWith(parentPath);
     }
 
     static boolean ignoreFilename(String path) throws ExtenderException {
@@ -399,7 +393,7 @@ public class ExtenderController {
 
             File file = new File(uploadDirectory, name);
 
-            if (!isRelativePath(uploadDirectory, file)) { // in case the name contains "../"
+            if (!ExtenderUtil.isChild(uploadDirectory, file)) { // in case the name contains "../"
                 throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", key));
             }
             if (file.exists()) {

@@ -43,10 +43,19 @@ public class ZipUtils {
 
     public static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
         try (ZipArchiveInputStream zipInputStream = new ZipArchiveInputStream(inputStream)) {
-            ZipArchiveEntry zipEntry = zipInputStream.getNextZipEntry();
+            ZipArchiveEntry zipEntry = zipInputStream.getNextEntry();
 
             while (zipEntry != null) {
-                File entryTargetFile = new File(targetDirectory.toFile(), zipEntry.getName());
+                if (zipEntry.isUnixSymlink()) {
+                    throw new IOException("Zip entry is a symlink (rejected): " + zipEntry.getName());
+                }
+
+                File entryTargetFile;
+                try {
+                    entryTargetFile = SandboxedPath.resolve(targetDirectory.toFile(), zipEntry.getName());
+                } catch (ExtenderException e) {
+                    throw new IOException("Unsafe zip entry: " + e.getMessage(), e);
+                }
 
                 if (zipEntry.isDirectory()) {
                     Files.createDirectories(entryTargetFile.toPath());
@@ -74,7 +83,7 @@ public class ZipUtils {
                     Files.setPosixFilePermissions(entryTargetFile.toPath(), s);
                 }
 
-                zipEntry = zipInputStream.getNextZipEntry();
+                zipEntry = zipInputStream.getNextEntry();
             }
         }
     }

@@ -1,11 +1,22 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.5.0
+ARG PLATFORMSDK_DIR=/opt/platformsdk
+ARG PS5_SDK_VERSION=12.000
+ARG PS5_SDK=${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_VERSION}
 
-ENV PS5_SDK_VERSION=12.000
-ENV PS5_SDK=${PLATFORMSDK_DIR}/ps5-sdk-${PS5_SDK_VERSION}
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
 
-ENV PS5_SDK_FILENAME=ps5-sdk-${PS5_SDK_VERSION}.tar.gz
+ARG PS5_SDK_VERSION
+ARG PS5_SDK
+ARG PS5_SDK_FILENAME=ps5-sdk-${PS5_SDK_VERSION}.tar.gz
 
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
-  echo "PS5 ${PS5_SDK_FILENAME}" && \
   mkdir -p ${PS5_SDK} && \
   wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/${PS5_SDK_FILENAME} | tar xz -C ${PS5_SDK} --strip-components=1
+
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.7.0
+
+ARG PS5_SDK_VERSION
+ARG PS5_SDK
+ENV PS5_SDK_VERSION=${PS5_SDK_VERSION}
+ENV PS5_SDK=${PS5_SDK}
+
+COPY --from=build ${PS5_SDK} ${PS5_SDK}

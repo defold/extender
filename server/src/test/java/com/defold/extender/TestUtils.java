@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.defold.extender.cache.CacheEntry;
@@ -21,6 +22,51 @@ public class TestUtils {
             new CacheEntry("2d8c2f6d978ca21712b5f6de36c9d31fa8e96a4fa5d8ff8b0188dfb9e7c171bb", "dir/test1.txt", true),
             new CacheEntry("7f3b61aeb34a8ea15c675ffddaa6af6a6fbdd031ed9786dcb2b35b351a132b31", "dir2/test2.txt", true)
     };
+
+    public static List<String> shellScriptArgs(String script) {
+        if (System.getProperty("os.name").toLowerCase().startsWith("windows")) {
+            String bash = findWindowsBash();
+            String cwd = toMsysPath(System.getProperty("user.dir"));
+            // cd to the working directory (Windows path converted to MSYS2 format), then run the
+            // script with MSYS2_ARG_CONV_EXCL=/var so Git Bash skips path conversion for
+            // container-internal paths (e.g. /var/extender/sdk/a) while still converting host
+            // filesystem paths (e.g. /d/work/...) to Windows paths (e.g. D:\work\...) for Docker.
+            return List.of(bash, "-c", "cd '" + cwd + "' && MSYS2_ARG_CONV_EXCL=/var bash '" + script + "'");
+        }
+        return List.of(script);
+    }
+
+    private static String findWindowsBash() {
+        // Find Git Bash by locating git.exe via where.exe, then deriving bash.exe path.
+        // This avoids resolving to WSL's bash.exe (C:\Windows\System32\bash.exe).
+        try {
+            Process p = new ProcessBuilder("where.exe", "git").redirectErrorStream(true).start();
+            String output = new String(p.getInputStream().readAllBytes()).trim();
+            p.waitFor();
+            for (String line : output.split("\\r?\\n")) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                // git.exe is typically at <GitRoot>\cmd\git.exe; bash.exe at <GitRoot>\bin\bash.exe
+                File bashExe = new File(new File(line).getParentFile().getParentFile(), "bin/bash.exe");
+                if (bashExe.exists()) {
+                    return bashExe.getAbsolutePath();
+                }
+            }
+        } catch (Exception e) {
+            // ignore, fall through to error
+        }
+        throw new IllegalStateException(
+            "Git Bash not found. Please install Git for Windows (https://gitforwindows.org/).");
+    }
+
+    private static String toMsysPath(String windowsPath) {
+        // Convert "D:\work\foo" to "/d/work/foo" for use in Git Bash (MSYS2) commands.
+        if (windowsPath.length() >= 2 && windowsPath.charAt(1) == ':') {
+            return "/" + Character.toLowerCase(windowsPath.charAt(0))
+                   + windowsPath.substring(2).replace('\\', '/');
+        }
+        return windowsPath.replace('\\', '/');
+    }
 
     public static Map<String, String> envFileToMap(File inputFile) {
         Map<String, String> result = new HashMap<>();

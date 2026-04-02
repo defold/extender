@@ -6,14 +6,14 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.0.3'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.0.4'
     }
 }
 
 plugins {
     id 'java'
     id 'idea'
-    id 'org.springframework.boot' version '4.0.2'
+    id 'org.springframework.boot' version '4.0.4'
     id 'jacoco'
 }
 

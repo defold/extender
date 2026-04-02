@@ -46,12 +46,16 @@ public class DefoldSDKServiceTest {
 
     private static WireMockServer mockServer;
     private static int serverPort = 8090;
-    private static Path tmpHTTPRoot = Path.of("/tmp/__defoldsdk_http");
+    private static Path tmpHTTPRoot;
 
     @BeforeAll
     public static void beforeAll() throws IOException {
+        tmpHTTPRoot = Files.createTempDirectory("defoldsdk_http");
+        Path sdkLocation = Files.createTempDirectory("defoldsdk");
+        Path sdkOtherLocation = Files.createTempDirectory("defoldsdk_test");
+
         DefoldSDKServiceTest.configuration = DefoldSdkServiceConfiguration.builder()
-            .location(Path.of("/tmp/defoldsdk"))
+            .location(sdkLocation)
             .sdkUrls(new String[]{"http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "http://d.defold.com/archive/%s/engine/defoldsdk.zip"})
             .mappingsUrls(new String[] {"http://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "http://d.defold.com/archive/%s/engine/platform.sdks.json"})
             .cacheSize(3)
@@ -63,11 +67,11 @@ public class DefoldSDKServiceTest {
 
         DefoldSDKServiceTest.zeroCacheConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.configuration.toBuilder());
             zeroCacheConfiguration.setCacheSize(0);
-    
+
         Files.createDirectories(DefoldSDKServiceTest.configuration.getLocation());
 
         DefoldSDKServiceTest.otherLocationConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.zeroCacheConfiguration.toBuilder());
-        DefoldSDKServiceTest.otherLocationConfiguration.setLocation(Path.of("/tmp/defoldsdk_test"));
+        DefoldSDKServiceTest.otherLocationConfiguration.setLocation(sdkOtherLocation);
         Files.createDirectories(DefoldSDKServiceTest.otherLocationConfiguration.getLocation());
 
         // prepare content for serving
@@ -242,7 +246,7 @@ public class DefoldSDKServiceTest {
         assertEquals(0, defoldSdkService.getSdkRefCount(testSdk));
 
         defoldSdkService.evictCache();
-        assertFalse(new File("/tmp/defoldsdk", testSdk).exists());
+        assertFalse(new File(DefoldSDKServiceTest.configuration.getLocation().toFile(), testSdk).exists());
     }
 
     @Test
@@ -322,7 +326,7 @@ public class DefoldSDKServiceTest {
     @Test
     public void testChecksumVerification() throws IOException {
         DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
-            .location(Path.of("/tmp/defoldsdk"))
+            .location(DefoldSDKServiceTest.configuration.getLocation())
             .cacheSize(1)
             .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
             .enableSdkVerification(true)
@@ -335,7 +339,7 @@ public class DefoldSDKServiceTest {
     @Test
     public void testInvalidVerification() throws IOException {
         DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
-            .location(Path.of("/tmp/defoldsdk"))
+            .location(DefoldSDKServiceTest.configuration.getLocation())
             .cacheSize(0)
             .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
             .enableSdkVerification(false)
@@ -345,7 +349,7 @@ public class DefoldSDKServiceTest {
         assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
 
         DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
-            .location(Path.of("/tmp/defoldsdk"))
+            .location(DefoldSDKServiceTest.configuration.getLocation())
             .cacheSize(0)
             .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
             .enableSdkVerification(true)
@@ -364,7 +368,7 @@ public class DefoldSDKServiceTest {
     @Test
     public void testUnstableAccessSdkMappings() throws IOException {
         DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
-            .location(Path.of("/tmp/defoldsdk"))
+            .location(DefoldSDKServiceTest.configuration.getLocation())
             .cacheSize(0)
             .mappingsUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.json"})
             .enableSdkVerification(false)
