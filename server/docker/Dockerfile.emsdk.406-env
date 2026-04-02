@@ -29,7 +29,7 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
 RUN \
   ${EMSCRIPTEN_TARGET_DIR}/emsdk activate sdk-${EMSCRIPTEN_VERSION}-64bit && \
   EM_CONFIG=${EMSCRIPTEN_CONFIG} EM_CACHE=${EMSCRIPTEN_CACHE} python3 ${EMSCRIPTEN_BIN}/embuilder.py build SYSTEM MINIMAL && \
-  rm -fr ${EMSDK}/upstream/emscripten/tests && \
+  rm -fr ${EMSCRIPTEN_TARGET_DIR}/upstream/emscripten/tests && \
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
   sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG} && \
