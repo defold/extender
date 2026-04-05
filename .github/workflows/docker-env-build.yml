@@ -6,6 +6,7 @@ on:
     tags:
       - "android*"
       - "base*"
+      - "build*"
       - "linux*"
       - "emsdk*"
       - "wine*"
@@ -67,7 +68,7 @@ jobs:
           fi
           
           case $PLATFORM in
-            base|linux)
+            base|linux|build)
               BUILD_PLATFORMS="linux/amd64,linux/arm64"
             ;;
             *)

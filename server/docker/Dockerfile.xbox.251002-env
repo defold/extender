@@ -1,7 +1,7 @@
 ARG XBOX_SDK_VERSION=251002
 ARG XBOX_SDK=${PLATFORMSDK_DIR}/xbox-sdk-${XBOX_SDK_VERSION}
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
 
 ARG XBOX_SDK_VERSION
 ARG XBOX_SDK

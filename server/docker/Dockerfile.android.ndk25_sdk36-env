@@ -14,7 +14,7 @@ ARG ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
 ARG ANDROID_NDK_BIN_PATH=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
 ARG ANDROID_SDK_BUILD_TOOLS_PATH=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
 
 ARG ANDROID_BUILD_TOOLS_VERSION
 ARG ANDROID_SDK_VERSION

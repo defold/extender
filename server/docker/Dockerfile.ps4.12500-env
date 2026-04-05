@@ -2,7 +2,7 @@ ARG PLATFORMSDK_DIR=/opt/platformsdk
 ARG PS4_SDK_VERSION=12.500
 ARG PS4_SDK=${PLATFORMSDK_DIR}/ps4-sdk-${PS4_SDK_VERSION}
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
 
 ARG PS4_SDK_VERSION
 ARG PS4_SDK

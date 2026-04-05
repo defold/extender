@@ -1,6 +1,6 @@
 ARG GRADLE_VERSION=9.1.0
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
 
 ARG GRADLE_VERSION
 

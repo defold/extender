@@ -18,7 +18,7 @@ MULTI_ARCH="linux/amd64"
 
 # base stage image (shared across Dockerfiles)
 echo "Base stage image with archs: $MULTI_ARCH"
-docker buildx build --load --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-base-stage:1.0.0 -t $DOCKER_REGISTRY/extender-base-stage:latest -f $SCRIPT_DIR/docker/Dockerfile.base-stage $SCRIPT_DIR/docker
+docker buildx build --load --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-build-env:1.0.0 -t $DOCKER_REGISTRY/extender-build-env:latest -f $SCRIPT_DIR/docker/Dockerfile.build-env $SCRIPT_DIR/docker
 
 # base images
 echo "Base image with archs: $MULTI_ARCH"

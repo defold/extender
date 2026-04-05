@@ -5,7 +5,7 @@ ARG WINDOWS_MSVC_VERSION=14.44.35207
 ARG WINDOWS_SDK_DIR=${PLATFORMSDK_WIN32}/WindowsKits/10
 ARG WINDOWS_MSVC_DIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2022/VC/Tools/MSVC/${WINDOWS_MSVC_VERSION}"
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-stage:1.0.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
 
 ARG PLATFORMSDK_WIN32
 ARG WINDOWS_SDK_VERSION
