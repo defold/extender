@@ -35,6 +35,30 @@ class ExtensionManifestValidator {
         return list != null && list.stream().allMatch(o -> o instanceof String);
     }
 
+    // Validates the top-level app.manifest `context` map (the one read by
+    // ExtenderBuildState). Whitespace is intentionally rejected: the rendered
+    // command is split on spaces in ProcessExecutor.execute(String), so any
+    // space here would inject extra argv elements (compiler-flag injection).
+    void validateAppManifestContext(Map<String, Object> appContext) throws ExtenderException {
+        if (appContext == null) {
+            return;
+        }
+        Object debugSourcePath = appContext.get(ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH);
+        if (debugSourcePath != null) {
+            if (!(debugSourcePath instanceof String)) {
+                throw new ExtenderException(String.format(
+                        "Error in app.manifest: '%s' must be a string.",
+                        ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH));
+            }
+            String s = (String) debugSourcePath;
+            if (!s.isEmpty() && !VALID_INCLUDE_PATH.matcher(s).matches()) {
+                throw new ExtenderException(String.format(
+                        "Error in app.manifest: invalid '%s' value '%s'. Allowed characters: letters, digits and '._+-/'.",
+                        ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH, s));
+            }
+        }
+    }
+
     private void validateIncludePaths(String extensionName, File extensionFolder, List<String> includes) throws ExtenderException {
         for (String include : includes) {
             if (include == null || include.isEmpty() || !VALID_INCLUDE_PATH.matcher(include).matches()) {
