@@ -212,17 +212,19 @@ public class DefoldSdkService {
                                 } catch (IOException exc) {
                                     LOGGER.warn(String.format("Can't download checksum for sdk %s", hash), exc);
                                 }
+                                if (expectedChecksum == null) {
+                                    LOGGER.warn(String.format("No checksum for sdk %s. Verification failed.", hash));
+                                    break;
+                                }
 
-                                boolean isChecksumValid = true;
-                                if (expectedChecksum != null) {
-                                    LOGGER.info("Verify checksum for downloaded sdk {}", hash);
-                                    try {
-                                        String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody));
-                                        isChecksumValid = expectedChecksum.equals(actualChecksum);
-                                        LOGGER.info("Checksum verification result {}", isChecksumValid);
-                                    } catch(NoSuchAlgorithmException|IOException exc) {
-                                        LOGGER.warn(String.format("Error during checksum calculation"), exc);
-                                    }
+                                boolean isChecksumValid = false;
+                                LOGGER.info("Verify checksum for downloaded sdk {}", hash);
+                                try {
+                                    String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody));
+                                    isChecksumValid = expectedChecksum.equals(actualChecksum);
+                                    LOGGER.info("Checksum verification result {}", isChecksumValid);
+                                } catch(NoSuchAlgorithmException|IOException exc) {
+                                    LOGGER.warn(String.format("Error during checksum calculation"), exc);
                                 }
                                 if (!isChecksumValid) {
                                     ++attempt;
