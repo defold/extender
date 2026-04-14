@@ -203,9 +203,8 @@ public class DefoldSdkService {
                             if (this.configuration.isEnableSdkVerification()) {
                                 LOGGER.info("Download checksum for sdk {}", hash);
                                 URI checksumURI = URI.create(url.replace(".zip", ".sha256"));
-                                ClientHttpRequest checksumRequest = clientHttpRequestFactory.createRequest(checksumURI, HttpMethod.GET);
                                 String expectedChecksum = null;
-                                try (ClientHttpResponse checksumResponse = checksumRequest.execute()) {
+                                try (ClientHttpResponse checksumResponse = doRequestWithRedirects(checksumURI, HttpMethod.GET, configuration.getMaxRedirectCount())) {
                                     if (checksumResponse.getStatusCode() == HttpStatus.OK) {
                                         expectedChecksum = new String(checksumResponse.getBody().readAllBytes(), StandardCharsets.UTF_8);
                                     }
