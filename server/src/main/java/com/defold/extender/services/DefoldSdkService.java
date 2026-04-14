@@ -14,8 +14,11 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.micrometer.core.instrument.MeterRegistry;
+
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
@@ -38,6 +41,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,6 +61,41 @@ public class DefoldSdkService {
     private final ConcurrentHashMap<String, Integer> cacheReferenceCount;
     private final ConcurrentHashMap<String, CompletableFuture<JSONObject>> mappingsDownloadOperationCache = new ConcurrentHashMap<>();
     protected final LinkedHashMap<String, JSONObject> mappingsCache;
+
+    private static ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory() {
+        @Override
+        protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+            super.prepareConnection(connection, httpMethod);
+            connection.setInstanceFollowRedirects("GET".equals(httpMethod) || "HEAD".equals(httpMethod));
+        }
+    };
+
+    // SimpleClientHttpRequestFactory doesn't handle reiderect in case of switching protocols (https->http->https) by default
+    // so need manual handling of such kind of redirects
+    private static ClientHttpResponse doRequestWithRedirects(URI url, HttpMethod method, int maxRedirects) throws IOException, NullPointerException {
+        ClientHttpResponse response = null;
+        int counter = 0;
+        do {
+            ++counter;
+            ClientHttpRequest request = clientHttpRequestFactory.createRequest(url, method);
+
+            // Connect and copy to file
+            response = request.execute();
+            HttpStatusCode responseCode = response.getStatusCode();
+            if (responseCode.is3xxRedirection()) {
+                List<String> location = response.getHeaders().get(HttpHeaders.LOCATION);
+                if (location == null || location.isEmpty()) {
+                    break;
+                }
+                URI next = URI.create(location.get(0));
+                url = url.resolve(next);
+                response.close();
+                continue;
+            }
+            return response;
+        } while(counter < maxRedirects);
+        throw new NullPointerException(String.format("Mac redirect count reached for request {}", url.toString()));
+    }
 
     DefoldSdkService(DefoldSdkServiceConfiguration configuration,
                      MeterRegistry meterRegistry) throws IOException {
@@ -130,20 +169,11 @@ public class DefoldSdkService {
             } else  {
                 boolean sdkFound = false;
                 String url = null;
-                ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory() {
-                    @Override
-                    protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
-                        super.prepareConnection(connection, httpMethod);
-                        connection.setInstanceFollowRedirects("GET".equals(httpMethod) || "HEAD".equals(httpMethod));
-                    }
-                };
-
                 for (String urlPattern : configuration.getSdkUrls()) {
                     try {
                         url = String.format(urlPattern, hash);
                         URI sdkURI = URI.create(url);
-                        ClientHttpRequest existenceRequest = clientHttpRequestFactory.createRequest(sdkURI, HttpMethod.HEAD);
-                        try (ClientHttpResponse response = existenceRequest.execute()) {
+                        try (ClientHttpResponse response = doRequestWithRedirects(sdkURI, HttpMethod.HEAD, configuration.getMaxRedirectCount())) {
                             if (response.getStatusCode() != HttpStatus.OK) {
                                 LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
                                 continue;
@@ -155,7 +185,7 @@ public class DefoldSdkService {
                         } catch (IOException exc) {
                             LOGGER.warn(String.format("HEAD for %s failed", url), exc);
                         }
-                    }  catch (IOException exc) {
+                    }  catch (Exception exc) {
                         LOGGER.warn("Can't create HEAD request", exc);
                     }
                 }
@@ -163,17 +193,9 @@ public class DefoldSdkService {
                     int attempt = 0;
                     while (attempt < configuration.getMaxVerificationRetryCount()) {
                         LOGGER.info("Downloading Defold SDK from {} attempt {} ...", url, attempt + 1);
-                        ClientHttpRequest request;
-                        try {
-                            request = clientHttpRequestFactory.createRequest(URI.create(url), HttpMethod.GET);
-                        } catch (IOException exc) {
-                            LOGGER.error("Connect can't be established", exc);
-                            break;
-                        }
-
                         File tmpResponseBody = null;
                         // Connect and copy to file
-                        try (ClientHttpResponse response = request.execute()) {
+                        try (ClientHttpResponse response = doRequestWithRedirects(URI.create(url), HttpMethod.GET, configuration.getMaxRedirectCount())) {
                             InputStream body = response.getBody();
                             tmpResponseBody = File.createTempFile(hash, ".zip.tmp");
                             Files.copy(body, tmpResponseBody.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -317,14 +339,10 @@ public class DefoldSdkService {
                 for (String url_pattern : configuration.getMappingsUrls()) {
                     try {
                         URI url = URI.create(String.format(url_pattern, hash));
-            
-                        ClientHttpRequestFactory clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
-                        ClientHttpRequest request = clientHttpRequestFactory.createRequest(url, HttpMethod.GET);
-            
-                        // Connect and copy to file
-                        try (ClientHttpResponse response = request.execute()) {
-                            if (response.getStatusCode() != HttpStatus.OK) {
-                                LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
+                        try (ClientHttpResponse response = doRequestWithRedirects(url, HttpMethod.GET, configuration.getMaxRedirectCount())) {
+                            HttpStatusCode responseCode = response.getStatusCode();
+                            if (responseCode != HttpStatus.OK) {
+                                LOGGER.info("The given sdk does not exist: {} {}", url, responseCode.toString());
                                 continue;
                             }
             

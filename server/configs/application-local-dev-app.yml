@@ -1,4 +1,11 @@
 extender:
+    sdk:
+        sdk-urls: >
+            https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip,
+            https://d.defold.com/archive/%s/engine/defoldsdk.zip
+        mappings-urls: >
+            https://d.defold.com/archive/stable/%s/engine/platform.sdks.json,
+            https://d.defold.com/archive/%s/engine/platform.sdks.json
     instance-type: FRONTEND_ONLY
     remote-builder:
         enabled: true

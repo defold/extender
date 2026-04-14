@@ -56,17 +56,18 @@ public class DefoldSDKServiceTest {
 
         DefoldSDKServiceTest.configuration = DefoldSdkServiceConfiguration.builder()
             .location(sdkLocation)
-            .sdkUrls(new String[]{"http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "http://d.defold.com/archive/%s/engine/defoldsdk.zip"})
-            .mappingsUrls(new String[] {"http://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "http://d.defold.com/archive/%s/engine/platform.sdks.json"})
+            .sdkUrls(new String[]{"https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "https://d.defold.com/archive/%s/engine/defoldsdk.zip"})
+            .mappingsUrls(new String[] {"https://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "https://d.defold.com/archive/%s/engine/platform.sdks.json"})
             .cacheSize(3)
             .mappingsCacheSize(3)
             .cacheClearOnExit(true)
             .enableSdkVerification(false)
             .maxVerificationRetryCount(3)
+            .maxRedirectCount(5)
             .build();
 
         DefoldSDKServiceTest.zeroCacheConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.configuration.toBuilder());
-            zeroCacheConfiguration.setCacheSize(0);
+        zeroCacheConfiguration.setCacheSize(0);
 
         Files.createDirectories(DefoldSDKServiceTest.configuration.getLocation());
 
