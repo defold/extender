@@ -52,11 +52,13 @@ public class PodfileParser {
         String[] parts2 = version2.split("\\.");
         int length = Math.max(parts1.length, parts2.length);
         for (int i = 0; i < length; i++) {
-            Integer v1 = i < parts1.length ? Integer.parseInt(parts1[i]) : 0;
-            Integer v2 = i < parts2.length ? Integer.parseInt(parts2[i]) : 0;
-            int compare = v1.compareTo(v2);
-            if (compare != 0) {
-                result = compare;
+            int v1 = i < parts1.length ? Integer.parseInt(parts1[i]) : 0;
+            int v2 = i < parts2.length ? Integer.parseInt(parts2[i]) : 0;
+            if (v1 < v2) {
+                result = -1;
+                break;
+            } else if (v1 > v2) {
+                result = 1;
                 break;
             }
         }
