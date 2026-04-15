@@ -93,8 +93,8 @@ public class DefoldSdkService {
                 continue;
             }
             return response;
-        } while(counter < maxRedirects);
-        throw new NullPointerException(String.format("Mac redirect count reached for request %s", url.toString()));
+        } while(counter <= maxRedirects);
+        throw new NullPointerException(String.format("Max redirect count reached for request %s", url.toString()));
     }
 
     DefoldSdkService(DefoldSdkServiceConfiguration configuration,
