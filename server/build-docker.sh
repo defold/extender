@@ -16,8 +16,8 @@ DOCKER_XBOX_PRIVATE_REGISTRY=$REGISTRY_PREFIX/extender-xbox-private-registry
 MULTI_ARCH="linux/amd64"
 [[ -z "$NO_ARM64" ]] && MULTI_ARCH+=",linux/arm64"
 
-# base stage image (shared across Dockerfiles)
-echo "Base stage image with archs: $MULTI_ARCH"
+# build env image (shared across Dockerfiles)
+echo "Build env image with archs: $MULTI_ARCH"
 docker buildx build --load --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-build-env:1.0.0 -t $DOCKER_REGISTRY/extender-build-env:latest -f $SCRIPT_DIR/docker/Dockerfile.build-env $SCRIPT_DIR/docker
 
 # base images

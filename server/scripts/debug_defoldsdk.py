@@ -10,7 +10,7 @@ import argparse
 domain=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 
 def get_latest_version():
-    url = "http://d.defold.com/stable/info.json"
+    url = "https://d.defold.com/stable/info.json"
     response = urllib.request.urlopen(url)
     if response.getcode() == 200:
         return json.loads(response.read())

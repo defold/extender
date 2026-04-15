@@ -219,17 +219,15 @@ class Extender {
                 baseVariantManifest = Extender.loadYaml(builder.jobDirectory, baseVariantFile, AppManifestConfiguration.class);
             }
         }
-        this.buildState = new ExtenderBuildState(builder, appManifest);
-
-        if (config.platforms.get(buildState.fullPlatform) == null) {
-            throw new ExtenderException(String.format("Unsupported platform %s by this sdk", buildState.fullPlatform));
+        if (config.platforms.get(builder.platform) == null) {
+            throw new ExtenderException(String.format("Unsupported platform %s by this sdk", builder.platform));
         }
 
         // Merge the platform configs from build.yml into a single instance: common -> platform -> arch-platform
         this.platformConfig = new PlatformConfig();
         this.platformConfig.context = new HashMap<>(config.context); // the context from build.yml
 
-        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
+        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(builder.platform)) {
             PlatformConfig platformConfigAlt = config.platforms.get(platformAlt);
             if (platformConfigAlt == null)
                 continue;
@@ -240,7 +238,7 @@ class Extender {
         // Merge the variant info into a single config
         this.platformVariantConfig = new PlatformConfig();
         if (baseVariantManifest != null) {
-            for (String platformAlt : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
+            for (String platformAlt : ExtenderUtil.getPlatformAlternatives(builder.platform)) {
                 AppManifestPlatformConfig configAlt = baseVariantManifest.platforms.get(platformAlt);
                 if (configAlt == null)
                     continue;
@@ -251,7 +249,7 @@ class Extender {
 
         // Merge the app manifest info into a single config
         this.platformAppConfig = new PlatformConfig();
-        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
+        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(builder.platform)) {
             AppManifestPlatformConfig configAlt = appManifest.platforms.get(platformAlt);
             if (configAlt == null) {
                 continue;
@@ -261,17 +259,17 @@ class Extender {
             ExtenderUtil.mergeObjects(this.platformAppConfig, platformConfigAlt);
         }
 
-        LOGGER.info("Using context for platform: {}", buildState.fullPlatform);
+        LOGGER.info("Using context for platform: {}", builder.platform);
 
-        processExecutor.setCwd(buildState.jobDir);
+        processExecutor.setCwd(builder.jobDirectory);
 
         {
             HashMap<String, Object> envContext = new HashMap<>();
-            envContext.put("build_folder", buildState.buildDir);
-            envContext.put("dynamo_home", buildState.sdk);
+            envContext.put("build_folder", builder.buildDirectory);
+            envContext.put("dynamo_home", builder.sdk);
             envContext.put("env.LD_LIBRARY_PATH", "."); // Easier when running a standalone local without such a variable
 
-            processExecutor.putEnv("DYNAMO_HOME", buildState.sdk.getAbsolutePath());
+            processExecutor.putEnv("DYNAMO_HOME", builder.sdk.getAbsolutePath());
             String java_home = System.getenv("JAVA_HOME");
             if (java_home != null)
             {
@@ -306,6 +304,12 @@ class Extender {
 
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
         ExtensionManifestValidator manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
+
+        // Validate the top-level app.manifest context (e.g. debugSourcePath) before
+        // ExtenderBuildState reads any field from it.
+        manifestValidator.validateAppManifestContext(appManifest.context);
+
+        this.buildState = new ExtenderBuildState(builder, appManifest);
 
         // Make sure the user hasn't input anything invalid in the manifest
         manifestValidator.validate(this.appManifestPath, buildState.uploadDir, this.platformAppConfig.context);

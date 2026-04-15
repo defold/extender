@@ -56,17 +56,18 @@ public class DefoldSDKServiceTest {
 
         DefoldSDKServiceTest.configuration = DefoldSdkServiceConfiguration.builder()
             .location(sdkLocation)
-            .sdkUrls(new String[]{"http://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "http://d.defold.com/archive/%s/engine/defoldsdk.zip"})
-            .mappingsUrls(new String[] {"http://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "http://d.defold.com/archive/%s/engine/platform.sdks.json"})
+            .sdkUrls(new String[]{"https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "https://d.defold.com/archive/%s/engine/defoldsdk.zip"})
+            .mappingsUrls(new String[] {"https://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "https://d.defold.com/archive/%s/engine/platform.sdks.json"})
             .cacheSize(3)
             .mappingsCacheSize(3)
             .cacheClearOnExit(true)
             .enableSdkVerification(false)
             .maxVerificationRetryCount(3)
+            .maxRedirectCount(5)
             .build();
 
         DefoldSDKServiceTest.zeroCacheConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.configuration.toBuilder());
-            zeroCacheConfiguration.setCacheSize(0);
+        zeroCacheConfiguration.setCacheSize(0);
 
         Files.createDirectories(DefoldSDKServiceTest.configuration.getLocation());
 
@@ -113,6 +114,18 @@ public class DefoldSDKServiceTest {
                         .withStatus(200)
                         .withBodyFile("test_sdk_invalid.sha256")
                         .withHeader("Content-Type", "text/plain")));
+        // stub for missing checksum file - zip exists but .sha256 is not found
+        stubFor(head(urlEqualTo("/test_sdk_no_checksum.zip"))
+                .willReturn(aResponse()
+                        .withStatus(200)));
+        stubFor(get(urlEqualTo("/test_sdk_no_checksum.zip"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBodyFile("test_sdk.zip")
+                        .withHeader("Content-Type", "application/zip")));
+        stubFor(get(urlEqualTo("/test_sdk_no_checksum.sha256"))
+                .willReturn(aResponse()
+                        .withStatus(404)));
 
         // first call should fail; second - should be successful
         stubFor(get(urlEqualTo("/unstable_sdk_mapping.json"))
@@ -362,6 +375,23 @@ public class DefoldSDKServiceTest {
         sdkService1.evictCache();
 
         ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid"));
+        assertTrue(exc.getMessage().contains("Sdk verification failed"));
+    }
+
+    @Test
+    public void testMissingChecksumVerification() throws IOException {
+        DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
+            .location(DefoldSDKServiceTest.configuration.getLocation())
+            .cacheSize(0)
+            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+            .enableSdkVerification(true)
+            .maxVerificationRetryCount(3)
+            .build();
+        DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
+        // ensure nothing is left in cache from previous runs
+        sdkService.evictCache();
+
+        ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService.getSdk("test_sdk_no_checksum"));
         assertTrue(exc.getMessage().contains("Sdk verification failed"));
     }
 

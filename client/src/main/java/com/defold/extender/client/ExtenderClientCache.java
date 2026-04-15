@@ -128,8 +128,8 @@ public class ExtenderClientCache {
             throw new ExtenderClientException(String.format("Failed to create cache dir %s", parentDir.getAbsolutePath()));
         }
 
-        try {
-            Files.copy(new FileInputStream(source), cachedFile.toPath(), REPLACE_EXISTING);
+        try(InputStream is = new FileInputStream(source)) {
+            Files.copy(is, cachedFile.toPath(), REPLACE_EXISTING);
         } catch (IOException e) {
             throw new ExtenderClientException(String.format("Failed to copy %s to %s", source.getAbsolutePath(), cachedFile.getAbsolutePath()), e);
         }
@@ -152,14 +152,12 @@ public class ExtenderClientCache {
             throw new ExtenderClientException(String.format("The file %s wasn't cached with key %s", cachedFile.getAbsolutePath(), key));
         }
 
-        try {
-            Files.copy(new FileInputStream(cachedFile), destination.toPath(), REPLACE_EXISTING);
+        try(InputStream is = new FileInputStream(cachedFile)) {
+            Files.copy(is, destination.toPath(), REPLACE_EXISTING);
         } catch (IOException e) {
             throw new ExtenderClientException(String.format("Failed to copy %s to %s", cachedFile.getAbsolutePath(), destination.getAbsolutePath()), e);
         }
     }
-
-    //
 
     private static MessageDigest getHasher() throws ExtenderClientException {
         MessageDigest md = null;
@@ -198,8 +196,8 @@ public class ExtenderClientCache {
 
     private void loadCache() {
         Properties properties = new Properties();
-        try {
-            properties.load(new FileInputStream(getCacheFile()));
+        try(InputStream is = new FileInputStream(getCacheFile())) {
+            properties.load(is);
         } catch (IOException e) {
             return;
         }

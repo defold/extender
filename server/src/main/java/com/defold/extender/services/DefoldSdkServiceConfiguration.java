@@ -25,6 +25,7 @@ public class DefoldSdkServiceConfiguration {
     @Builder.Default private int mappingsCacheSize = 20;
     // retry count in case of checksum validation fail
     @Builder.Default private int maxVerificationRetryCount = 3;
+    @Builder.Default private int maxRedirectCount = 5;
     private boolean cacheClearOnExit;
     private boolean enableSdkVerification;
 }

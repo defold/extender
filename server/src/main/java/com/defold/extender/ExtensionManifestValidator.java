@@ -19,6 +19,9 @@ class ExtensionManifestValidator {
     private final List<Pattern> allowedDefines = new ArrayList<>();
     private final List<Pattern> allowedSymbols = new ArrayList<>();
 
+    private static final Pattern VALID_INCLUDE_PATH = Pattern.compile("^[A-Za-z0-9._+\\-/]+$");
+    private static final Pattern VALID_SYMBOL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSymbols) {
         this.allowedDefines.add(WhitelistConfig.compile(whitelistConfig.defineRe));
         this.allowedLibs.add(WhitelistConfig.compile(whitelistConfig.libraryRe));
@@ -32,8 +35,37 @@ class ExtensionManifestValidator {
         return list != null && list.stream().allMatch(o -> o instanceof String);
     }
 
+    // Validates the top-level app.manifest `context` map (the one read by
+    // ExtenderBuildState). Whitespace is intentionally rejected: the rendered
+    // command is split on spaces in ProcessExecutor.execute(String), so any
+    // space here would inject extra argv elements (compiler-flag injection).
+    void validateAppManifestContext(Map<String, Object> appContext) throws ExtenderException {
+        if (appContext == null) {
+            return;
+        }
+        Object debugSourcePath = appContext.get(ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH);
+        if (debugSourcePath != null) {
+            if (!(debugSourcePath instanceof String)) {
+                throw new ExtenderException(String.format(
+                        "Error in app.manifest: '%s' must be a string.",
+                        ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH));
+            }
+            String s = (String) debugSourcePath;
+            if (!s.isEmpty() && !VALID_INCLUDE_PATH.matcher(s).matches()) {
+                throw new ExtenderException(String.format(
+                        "Error in app.manifest: invalid '%s' value '%s'. Allowed characters: letters, digits and '._+-/'.",
+                        ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH, s));
+            }
+        }
+    }
+
     private void validateIncludePaths(String extensionName, File extensionFolder, List<String> includes) throws ExtenderException {
         for (String include : includes) {
+            if (include == null || include.isEmpty() || !VALID_INCLUDE_PATH.matcher(include).matches()) {
+                throw new ExtenderException(String.format(
+                        "Error in '%s': Invalid include path '%s'. Include paths may only contain letters, digits and '._+-/'.",
+                        extensionName, include));
+            }
             String[] tokens = include.split("/");
             for (int i = 0; i < tokens.length; ++i)
             {
@@ -98,6 +130,17 @@ class ExtensionManifestValidator {
                     continue;
 
                 case "symbols":
+                    if (v instanceof List) {
+                        for (String sym : (List<String>) v) {
+                            if (sym == null || !VALID_SYMBOL_IDENTIFIER.matcher(sym).matches()) {
+                                throw new ExtenderException(String.format(
+                                        "Error in '%s': Invalid symbol '%s'. Symbols must be valid C identifiers.",
+                                        extensionName, sym));
+                            }
+                        }
+                    }
+                    continue;
+
                 case "excludeLibs":
                 case "excludeJars":
                 case "excludeJsLibs":
