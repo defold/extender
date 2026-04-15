@@ -46,7 +46,7 @@ public class ProcessExecutor {
         if (DM_DEBUG_COMMANDS) {
             StringBuffer debugBuffer = new StringBuffer();
             debugBuffer.append(String.format("CMD %d: %s\n", commandId, String.join(" ", args)));
-            debugBuffer.append(String.format("\tWorking dir: \n", this.cwd == null ? "(null)" : this.cwd.toString()));
+            debugBuffer.append(String.format("\tWorking dir: %s\n", this.cwd == null ? "(null)" : this.cwd.toString()));
             debugBuffer.append("\tEnvironment:\n");
             for (Map.Entry<String, String> envEntry : this.env.entrySet()) {
                 debugBuffer.append(String.format("\t%s=%s\n", envEntry.getKey(), envEntry.getValue()));

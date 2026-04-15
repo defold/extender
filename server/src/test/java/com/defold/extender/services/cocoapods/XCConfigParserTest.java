@@ -72,7 +72,7 @@ public class XCConfigParserTest {
 
     private static Stream<Arguments> parsingData() {
         String podsConfigurationBuildDir = String.format("%s/%s%s", PODS_BUILD_DIR, "Debug", "iphoneos");
-        String podsXCFrameworksBuildDir = String.format("%s/XCFrameworkIntermediates", podsConfigurationBuildDir, "Debug", "iphoneos");
+        String podsXCFrameworksBuildDir = String.format("%s/XCFrameworkIntermediates", podsConfigurationBuildDir);
         // Arguments struct
         // * Pod name
         // * path to xcconfig

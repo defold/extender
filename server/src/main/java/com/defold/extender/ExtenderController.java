@@ -437,6 +437,6 @@ public class ExtenderController {
         } else if (this.remoteBuilderPlatformMappings.containsKey(fallbackKey)) {
             return this.remoteBuilderPlatformMappings.get(fallbackKey);
         }
-        throw new ExtenderException(String.format("No suitable remote builder found for %", fullKey));
+        throw new ExtenderException(String.format("No suitable remote builder found for %s", fullKey));
     }
 }

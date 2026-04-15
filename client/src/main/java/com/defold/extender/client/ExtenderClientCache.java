@@ -35,10 +35,10 @@ public class ExtenderClientCache {
      */
     public String getHash(ExtenderResource extenderResource) throws ExtenderClientException {
         String path = extenderResource.getPath();
-        Long fileTimestamp = extenderResource.getLastModified();
+        long fileTimestamp = extenderResource.getLastModified();
         Long timestamp = this.timestamps.get(path);
 
-        if (timestamp != null && fileTimestamp.equals(timestamp) ) {
+        if (timestamp != null && timestamp.longValue() == fileTimestamp) {
             String hash = this.hashes.get(path);
             if (hash != null) {
                 return hash;
@@ -180,7 +180,7 @@ public class ExtenderClientCache {
             md.update(data);
             return hashToString(md.digest());
         } catch(Exception e){
-            throw new ExtenderClientException(String.format("Failed to hash resource: ", extenderResource.getPath()), e);
+            throw new ExtenderClientException(String.format("Failed to hash resource: %s", extenderResource.getPath()), e);
         }
     }
 

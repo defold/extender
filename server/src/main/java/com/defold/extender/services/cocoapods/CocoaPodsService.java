@@ -65,6 +65,7 @@ public class CocoaPodsService {
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private static final String CURRENT_CACHE_DIR_FILE = "current_pod_cache.txt";
     private static final String OLD_CACHE_DIR_FILE = "old_pod_caches.txt";
+    private final Object syncLock = new Object();
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     private final String podfileTemplateContents;
@@ -88,13 +89,13 @@ public class CocoaPodsService {
         // initialize cache directory
         Path currentCacheDir = readCurrentCacheDir();
         if (currentCacheDir != null && currentCacheDir.startsWith(this.homeDirPrefix)) {
-            synchronized(this.currentCacheDir) {
+            synchronized(this.syncLock) {
                 this.currentCacheDir = currentCacheDir;
             }
             updateSpecRepo();
         } else {
             LOGGER.info("Cocoapods has no current cache dir or prefix is changed. Created...");
-            synchronized(this.currentCacheDir) {
+            synchronized(this.syncLock) {
                 this.currentCacheDir = generateCacheDirPath();
                 storeCurrentCacheDir(this.currentCacheDir);
             }
@@ -216,7 +217,7 @@ public class CocoaPodsService {
         LOGGER.info("Installing pods");
         Path cacheDir;
         // store current cache dir into local variable to use the same value for all 'pod' runs
-        synchronized(currentCacheDir) {
+        synchronized(syncLock) {
             cacheDir = currentCacheDir;
         }
         InstalledPods installedPods = new InstalledPods();
@@ -501,7 +502,7 @@ public class CocoaPodsService {
     private void initializeTrunkRepo() {
         try {
             Path cacheDir;
-            synchronized(currentCacheDir) {
+            synchronized(syncLock) {
                 cacheDir = currentCacheDir;
             }
             String log = ProcessUtils.execCommand(List.of(
@@ -524,7 +525,7 @@ public class CocoaPodsService {
         LOGGER.info("Rotate pod cache directory");
         Path newCacheDir = generateCacheDirPath();
         Path cacheDir;
-        synchronized(this.currentCacheDir) {
+        synchronized(this.syncLock) {
             cacheDir = this.currentCacheDir;
         }
         try {
@@ -541,7 +542,7 @@ public class CocoaPodsService {
         } catch(IOException exc) {
             LOGGER.warn("Error while writing to old cache paths file", exc);
         }
-        synchronized(this.currentCacheDir) {
+        synchronized(this.syncLock) {
             this.currentCacheDir = newCacheDir;
             storeCurrentCacheDir(currentCacheDir);
         }
@@ -578,7 +579,7 @@ public class CocoaPodsService {
         try {
             LOGGER.info("Run pod spec update");
             Path cacheDir;
-            synchronized(currentCacheDir) {
+            synchronized(this.syncLock) {
                 cacheDir = currentCacheDir;
             }
             String log = ProcessUtils.execCommand(List.of(
