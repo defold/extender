@@ -94,7 +94,7 @@ public class DefoldSdkService {
             }
             return response;
         } while(counter < maxRedirects);
-        throw new NullPointerException(String.format("Mac redirect count reached for request {}", url.toString()));
+        throw new NullPointerException(String.format("Mac redirect count reached for request %s", url.toString()));
     }
 
     DefoldSdkService(DefoldSdkServiceConfiguration configuration,
@@ -218,8 +218,8 @@ public class DefoldSdkService {
 
                                 boolean isChecksumValid = false;
                                 LOGGER.info("Verify checksum for downloaded sdk {}", hash);
-                                try {
-                                    String actualChecksum = ExtenderUtil.calculateSHA256(new FileInputStream(tmpResponseBody));
+                                try (InputStream is = new FileInputStream(tmpResponseBody)) {
+                                    String actualChecksum = ExtenderUtil.calculateSHA256(is);
                                     isChecksumValid = expectedChecksum.equals(actualChecksum);
                                     LOGGER.info("Checksum verification result {}", isChecksumValid);
                                 } catch(NoSuchAlgorithmException|IOException exc) {
