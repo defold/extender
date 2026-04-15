@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - 'dev'
+    paths:
+      - '**/*.java'
+      - '**/*.py'
   pull_request:
     branches:
       - 'dev'
+    paths:
+      - '**/*.java'
+      - '**/*.py'
   schedule:
     - cron: "0 2 * * MON"
 
