@@ -92,48 +92,73 @@ public class ManifestMergeTool {
         logger.log(Level.FINE, "Merging done");
     }
 
+    static class ParsedArgs {
+        Platform platform = Platform.UNKNOWN;
+        File main = null;
+        File output = null;
+        List<File> libraries = new ArrayList<>();
+    }
+
+    static ParsedArgs parseArgs(String[] args) {
+        if ((args.length % 2) != 0) {
+            throw new IllegalArgumentException("Expected key/value argument pairs, got odd number of arguments: " + args.length);
+        }
+
+        ParsedArgs parsed = new ParsedArgs();
+        for (int i = 0; i < args.length; i += 2) {
+            String key = args[i];
+            String value = args[i + 1];
+            switch (key) {
+                case "--main":
+                    parsed.main = new File(value);
+                    break;
+                case "--out":
+                    parsed.output = new File(value);
+                    break;
+                case "--lib":
+                    parsed.libraries.add(new File(value));
+                    break;
+                case "--platform":
+                    switch (value) {
+                        case "android":
+                            parsed.platform = Platform.ANDROID;
+                            break;
+                        case "ios":
+                            parsed.platform = Platform.IOS;
+                            break;
+                        case "osx":
+                            parsed.platform = Platform.OSX;
+                            break;
+                        case "web":
+                            parsed.platform = Platform.WEB;
+                            break;
+                        default:
+                            throw new IllegalArgumentException(String.format("Unsupported platform: %s", value));
+                    }
+                    break;
+                default:
+                    throw new IllegalArgumentException(String.format("Unknown argument: %s", key));
+            }
+        }
+        return parsed;
+    }
+
     /**
      * Merges a main manifest with several stubs
      */
     public static void main(String[] args) throws Exception {
 
-        File main = null;
-        File output = null;
-        List<File> libraries = new ArrayList<>();
-
-        Platform platform = Platform.UNKNOWN;
-
-        int index = 0;
-        for (int i = 0; i < args.length; ++i) {
-            if (args[i].equals("--main") && (index+1) < args.length) {
-                main = new File(args[++i]);
-            }
-            else if (args[i].equals("--out") && (index+1) < args.length) {
-                output = new File(args[++i]);
-            }
-            else if (args[i].equals("--lib") && (index+1) < args.length) {
-                libraries.add(new File(args[++i]));
-            }
-
-            if (args[i].equals("--platform") && (index+1) < args.length) {
-                ++i;
-                if (args[i].equals("android")) {
-                    platform = Platform.ANDROID;
-                } else if (args[i].equals("ios")) {
-                    platform = Platform.IOS;
-                } else if (args[i].equals("osx")) {
-                    platform = Platform.OSX;
-                } else if (args[i].equals("web")) {
-                    platform = Platform.WEB;
-                } else {
-                    ManifestMergeTool.logger.log(Level.SEVERE, String.format("Unsupported platform: %s", args[i]));
-                    System.exit(1);
-                }
-            }
+        ParsedArgs parsed;
+        try {
+            parsed = parseArgs(args);
+        } catch (IllegalArgumentException e) {
+            ManifestMergeTool.logger.log(Level.SEVERE, e.getMessage());
+            System.exit(1);
+            return;
         }
 
         try {
-            merge(platform, main, output, libraries);
+            merge(parsed.platform, parsed.main, parsed.output, parsed.libraries);
         } catch(Exception e) {
             ManifestMergeTool.logger.log(Level.SEVERE, e.toString());
             System.exit(1);

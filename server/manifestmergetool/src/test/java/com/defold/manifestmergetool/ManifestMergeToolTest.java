@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.apache.commons.io.FileUtils;
@@ -849,5 +851,90 @@ public class ManifestMergeToolTest {
         String merged = readFile(target);
 
         assertEquals(expected, merged);
+    }
+
+    @Test
+    public void testParseArgsEmpty() {
+        ManifestMergeTool.ParsedArgs parsed = ManifestMergeTool.parseArgs(new String[]{});
+        assertEquals(Platform.UNKNOWN, parsed.platform);
+        assertNull(parsed.main);
+        assertNull(parsed.output);
+        assertTrue(parsed.libraries.isEmpty());
+    }
+
+    @Test
+    public void testParseArgsAllFlags() {
+        String[] args = {
+            "--platform", "android",
+            "--main", "AndroidManifest.xml",
+            "--lib", "lib1.xml",
+            "--lib", "lib2.xml",
+            "--out", "merged.xml",
+        };
+        ManifestMergeTool.ParsedArgs parsed = ManifestMergeTool.parseArgs(args);
+        assertEquals(Platform.ANDROID, parsed.platform);
+        assertEquals(new File("AndroidManifest.xml"), parsed.main);
+        assertEquals(new File("merged.xml"), parsed.output);
+        assertEquals(2, parsed.libraries.size());
+        assertEquals(new File("lib1.xml"), parsed.libraries.get(0));
+        assertEquals(new File("lib2.xml"), parsed.libraries.get(1));
+    }
+
+    @Test
+    public void testParseArgsPlatformIos() {
+        ManifestMergeTool.ParsedArgs parsed = ManifestMergeTool.parseArgs(new String[]{"--platform", "ios"});
+        assertEquals(Platform.IOS, parsed.platform);
+    }
+
+    @Test
+    public void testParseArgsPlatformOsx() {
+        ManifestMergeTool.ParsedArgs parsed = ManifestMergeTool.parseArgs(new String[]{"--platform", "osx"});
+        assertEquals(Platform.OSX, parsed.platform);
+    }
+
+    @Test
+    public void testParseArgsPlatformWeb() {
+        ManifestMergeTool.ParsedArgs parsed = ManifestMergeTool.parseArgs(new String[]{"--platform", "web"});
+        assertEquals(Platform.WEB, parsed.platform);
+    }
+
+    @Test
+    public void testParseArgsLibrariesOrderPreserved() {
+        String[] args = {
+            "--lib", "a.xml",
+            "--lib", "b.xml",
+            "--lib", "c.xml",
+        };
+        ManifestMergeTool.ParsedArgs parsed = ManifestMergeTool.parseArgs(args);
+        assertEquals(3, parsed.libraries.size());
+        assertEquals(new File("a.xml"), parsed.libraries.get(0));
+        assertEquals(new File("b.xml"), parsed.libraries.get(1));
+        assertEquals(new File("c.xml"), parsed.libraries.get(2));
+    }
+
+    @Test
+    public void testParseArgsUnsupportedPlatform() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ManifestMergeTool.parseArgs(new String[]{"--platform", "windows"}));
+        assertTrue(e.getMessage().contains("windows"));
+    }
+
+    @Test
+    public void testParseArgsUnknownFlag() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ManifestMergeTool.parseArgs(new String[]{"--bogus", "value"}));
+        assertTrue(e.getMessage().contains("--bogus"));
+    }
+
+    @Test
+    public void testParseArgsOddNumberOfArgs() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ManifestMergeTool.parseArgs(new String[]{"--main"}));
+    }
+
+    @Test
+    public void testParseArgsOddNumberOfArgsTrailing() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ManifestMergeTool.parseArgs(new String[]{"--main", "a.xml", "--lib"}));
     }
 }
