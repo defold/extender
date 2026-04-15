@@ -180,7 +180,7 @@ public class ExtenderClientCache {
             md.update(data);
             return hashToString(md.digest());
         } catch(Exception e){
-            throw new ExtenderClientException(String.format("Failed to hash resource: ", extenderResource.getPath()), e);
+            throw new ExtenderClientException(String.format("Failed to hash resource: %s", extenderResource.getPath()), e);
         }
     }
 

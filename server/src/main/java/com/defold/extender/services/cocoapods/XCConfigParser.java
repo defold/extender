@@ -144,8 +144,6 @@ public class XCConfigParser implements IConfigParser {
                         || (c >= 'A' && c <= 'Z')
                         || c == '_') {
                             varBuilder.append(c);
-                    } else if (c == '[') {
-                        currentMode = ParseMode.FLAVOUR_START;
                     } else if (c == '=') {
                         currentMode = ParseMode.ASSIGMENT_OPERATOR;
                     } else {
