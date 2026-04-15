@@ -1,0 +1,94 @@
+name: Scan jars
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 22 * * MON
+
+env:
+  GCP_PROJECT: extender-426409
+  GCP_LOCATION: europe-west1
+  REPOSITORY_ID: extender-maven
+
+jobs:
+  jars:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Login to GCP
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          service_account: ${{ secrets.DEPLOYER_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.DEPLOYER_SERVICE_KEY }}
+          export_environment_variables: true
+          create_credentials_file: true
+      - name: Pull jars
+        run: |
+          TMP_DIR=${{ github.workspace }}/_tmp
+          APPLICATION_DIR=${{ github.workspace }}/app
+          EXTENDER_VERSION=$(gcloud artifacts versions list --location=${{ env.GCP_LOCATION }} --repository=${{ env.REPOSITORY_ID }} --package="com.defold.extender:server" --sort-by="~createTime" --limit=1 --format="get(name)" | awk -F'/' '{print $NF}')
+          MANIFESTMERGETOOL_VERSION=$(gcloud artifacts versions list --location=${{ env.GCP_LOCATION }} --repository=${{ env.REPOSITORY_ID }} --package="com.defold.extender:manifestmergetool" --sort-by="~createTime" --limit=1 --format="get(name)" | awk -F'/' '{print $NF}')
+          echo "Download prebuild jars to ${APPLICATION_DIR}"
+          echo "Extender version: ${EXTENDER_VERSION}"
+          echo "Manifest merge tool version: ${MANIFESTMERGETOOL_VERSION}"
+          rm -rf ${TMP_DIR}
+          mkdir -p ${TMP_DIR}
+          rm -rf ${APPLICATION_DIR}
+          mkdir -p ${APPLICATION_DIR}
+
+          gcloud artifacts files download \
+          --project=${{ env.GCP_PROJECT }} \
+          --location=${{ env.GCP_LOCATION }} \
+          --repository=${{ env.REPOSITORY_ID }} \
+          --destination=${TMP_DIR} \
+          com/defold/extender/server/${EXTENDER_VERSION}/server-${EXTENDER_VERSION}.jar
+
+          gcloud artifacts files download \
+          --project=${{ env.GCP_PROJECT }} \
+          --location=${{ env.GCP_LOCATION }} \
+          --repository=${{ env.REPOSITORY_ID }} \
+          --destination=${TMP_DIR} \
+          com/defold/extender/manifestmergetool/${MANIFESTMERGETOOL_VERSION}/manifestmergetool-${MANIFESTMERGETOOL_VERSION}.jar
+
+          ls -la ${TMP_DIR}
+          echo "${TMP_DIR}/$(ls ${TMP_DIR} | grep server-${EXTENDER_VERSION}.jar) ${APPLICATION_DIR}/extender.jar"
+          cp ${TMP_DIR}/$(ls ${TMP_DIR} | grep server-${EXTENDER_VERSION}.jar) ${APPLICATION_DIR}/extender.jar
+          echo "cp ${TMP_DIR}/$(ls ${TMP_DIR} | grep manifestmergetool-${MANIFESTMERGETOOL_VERSION}.jar) ${APPLICATION_DIR}/manifestmergetool.jar"
+          cp ${TMP_DIR}/$(ls ${TMP_DIR} | grep manifestmergetool-${MANIFESTMERGETOOL_VERSION}.jar) ${APPLICATION_DIR}/manifestmergetool.jar
+      - name: Login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build container
+        id: build-docker
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: ${{ github.workspace }}
+          file: ${{ github.workspace }}/ci/Dockerfile
+          push: false
+          tags: defold/security-scanner-test:latest
+      - name: Run Docker scout
+        uses: docker/scout-action@bacf462e8d090c09660de30a6ccc718035f961e3 # v1.20.4
+        with:
+          command: cves
+          image: ${{ steps.build-docker.outputs.tags }}
+          ignore-unchanged: true
+          write-comment: false
+          sarif-file: jar-scan.output.json
+          summary: false
+      - name: Upload SARIF result
+        id: upload-sarif
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # 4.35.1
+        with:
+          sarif_file: jar-scan.output.json
+          category: jar-scanning
+      - name: Notify about job completion
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
+        if: always()
+        with:
+          type: ${{ job.status }}
+          job_name: 'Security scanner'
+          channel: '#defold-alarms-build'
+          url: ${{ secrets.SLACK_WEBHOOK }}
