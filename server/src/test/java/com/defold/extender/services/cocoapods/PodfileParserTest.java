@@ -69,14 +69,19 @@ public class PodfileParserTest {
     }
 
     @Test
-    public void testCompareVersions() {
+    public void testCompareVersions() throws PodfileParsingException {
         assertThrows(NullPointerException.class, () -> { PodfileParser.compareVersions(null, null); });
         assertEquals(0, PodfileParser.compareVersions("12.0", "12.0"));
         assertEquals(0, PodfileParser.compareVersions("12.0", "12.0."));
         assertTrue(PodfileParser.compareVersions("13.0.1", "13.0") > 0);
         assertTrue(PodfileParser.compareVersions("9.3", "12.6.1") < 0);
-        assertThrows(NumberFormatException.class, () -> { PodfileParser.compareVersions("9.3", "unknown"); });
+        assertThrows(PodfileParsingException.class, () -> { PodfileParser.compareVersions("9.3", "unknown"); });
         assertThrows(NullPointerException.class, () -> { PodfileParser.compareVersions("9.3", null); });
+        // Semver pre-release and build metadata are ignored during comparison
+        assertEquals(0, PodfileParser.compareVersions("1.0.0-beta", "1.0.0"));
+        assertEquals(0, PodfileParser.compareVersions("2.0.0-rc.1", "2.0.0"));
+        assertEquals(0, PodfileParser.compareVersions("1.2.3+build.7", "1.2.3"));
+        assertTrue(PodfileParser.compareVersions("1.0.1-beta", "1.0.0") > 0);
     }
 
     private static Stream<Arguments> mergeVersionsData() {
