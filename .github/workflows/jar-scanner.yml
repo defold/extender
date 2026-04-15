@@ -77,7 +77,7 @@ jobs:
           ignore-unchanged: true
           write-comment: false
           sarif-file: jar-scan.output.json
-          summary: true
+          summary: false
       - name: Upload SARIF result
         id: upload-sarif
         uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # 4.35.1
