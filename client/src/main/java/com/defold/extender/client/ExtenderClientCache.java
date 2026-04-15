@@ -35,10 +35,10 @@ public class ExtenderClientCache {
      */
     public String getHash(ExtenderResource extenderResource) throws ExtenderClientException {
         String path = extenderResource.getPath();
-        Long fileTimestamp = extenderResource.getLastModified();
+        long fileTimestamp = extenderResource.getLastModified();
         Long timestamp = this.timestamps.get(path);
 
-        if (timestamp != null && fileTimestamp.equals(timestamp) ) {
+        if (timestamp != null && timestamp.longValue() == fileTimestamp) {
             String hash = this.hashes.get(path);
             if (hash != null) {
                 return hash;
