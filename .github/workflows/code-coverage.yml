@@ -1,9 +1,16 @@
 name: Code coverage
 
 on:
+  push:
+    branches:
+      - 'dev'
+    paths:
+      - '**/*.java'
   pull_request:
     branches:
-    - dev
+      - 'dev'
+    paths:
+      - '**/*.java'
 
 jobs:
   extender:

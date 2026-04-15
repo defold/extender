@@ -1,0 +1,67 @@
+name: Hadolint check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - 'dev'
+    paths:
+      - 'server/docker/Dockerfile.*'
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      dockerfiles: ${{ steps.list.outputs.dockerfiles }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: List Dockerfiles
+        id: list
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            files=$(git diff --name-only --diff-filter=d "$BASE_SHA" "$HEAD_SHA" -- 'server/docker/Dockerfile.*' \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            files=$(find server/docker -maxdepth 1 -type f -name 'Dockerfile.*' \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+          echo "dockerfiles=$files" >> "$GITHUB_OUTPUT"
+
+  hadolint:
+    needs: discover
+    if: needs.discover.outputs.dockerfiles != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile: ${{ fromJSON(needs.discover.outputs.dockerfiles) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Derive slug
+        id: slug
+        run: echo "name=$(basename '${{ matrix.dockerfile }}' | tr '.' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          format: sarif
+          output-file: hadolint-${{ steps.slug.outputs.name }}.sarif
+          no-fail: true
+
+      - name: Upload SARIF to Code Scanning
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # 4.35.1
+        with:
+          sarif_file: hadolint-${{ steps.slug.outputs.name }}.sarif
+          category: hadolint-${{ steps.slug.outputs.name }}
