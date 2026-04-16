@@ -52,20 +52,22 @@ public class CacheInfoFileParserTest {
         CacheInfoFileParser parser = new CacheInfoFileParser();
         File file = new File(ClassLoader.getSystemResource("upload/ne-cache-info.json").toURI());
 
-        CacheInfoWrapper info = parser.parse(new FileInputStream(file));
-        List<CacheEntry> entries = info.getEntries();
+        try (InputStream is = new FileInputStream(file)) {
+            CacheInfoWrapper info = parser.parse(is);
+            List<CacheEntry> entries = info.getEntries();
 
-        assertEquals(1, info.getVersion());
-        assertEquals("sha256", info.getHashType());
-        assertEquals(2, entries.size());
+            assertEquals(1, info.getVersion());
+            assertEquals("sha256", info.getHashType());
+            assertEquals(2, entries.size());
 
-        CacheEntry entry1 = entries.get(0);
-        assertEquals(TestUtils.CACHE_ENTRIES[0].getPath(), entry1.getPath());
-        assertEquals(TestUtils.CACHE_ENTRIES[0].getKey(), entry1.getKey());
+            CacheEntry entry1 = entries.get(0);
+            assertEquals(TestUtils.CACHE_ENTRIES[0].getPath(), entry1.getPath());
+            assertEquals(TestUtils.CACHE_ENTRIES[0].getKey(), entry1.getKey());
 
-        CacheEntry entry2 = entries.get(1);
-        assertEquals(TestUtils.CACHE_ENTRIES[1].getPath(), entry2.getPath());
-        assertEquals(TestUtils.CACHE_ENTRIES[1].getKey(), entry2.getKey());
+            CacheEntry entry2 = entries.get(1);
+            assertEquals(TestUtils.CACHE_ENTRIES[1].getPath(), entry2.getPath());
+            assertEquals(TestUtils.CACHE_ENTRIES[1].getKey(), entry2.getKey());
+        }
     }
 
     @Test

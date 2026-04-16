@@ -279,13 +279,15 @@ public class ExtenderClient {
                 response = httpClient.execute(resultRequest);
                 if (jobStatus == 1) {
                     log("Job %s completed successfully. Writing result to %s", jobId, destination);
-                    response.getEntity().writeTo(new FileOutputStream(destination));
+                    try(OutputStream os = new FileOutputStream(destination)) {
+                        response.getEntity().writeTo(os);
+                    }
                 } else {
                     log("Job %s did not complete successfully. Writing log to %s", jobId, log);
-                    OutputStream os = new FileOutputStream(log);
-                    os.write(String.format("Job id: %s; traceId: %s", jobId, traceId == null ? "null" : traceId).getBytes());
-                    response.getEntity().writeTo(os);
-                    os.close();
+                    try(OutputStream os = new FileOutputStream(log)) {
+                        os.write(String.format("Job id: %s; traceId: %s", jobId, traceId == null ? "null" : traceId).getBytes());
+                        response.getEntity().writeTo(os);
+                    }
                     throw new ExtenderClientException(String.format("Failed to build source: jobId - %s, traceId - %s", jobId, traceId == null ? "null" : traceId));
                 }
             } else if (statusCode == HttpStatus.SC_NOT_IMPLEMENTED) {
@@ -294,17 +296,17 @@ public class ExtenderClient {
                 String body = responseBody != null ? EntityUtils.toString(responseBody) : "(unknown)";
                 String error = String.format("%s (trace id - %s)", body, traceId == null ? "null" : traceId);
                 log(error);
-                OutputStream os = new FileOutputStream(log);
-                os.write(error.getBytes());
-                os.close();
+                try (OutputStream os = new FileOutputStream(log)) {
+                    os.write(error.getBytes());
+                }
                 throw new ExtenderClientException(error);
             } else{
                 String result = String.format("Async build request failed with status code %d %s", statusCode, statusLine.getReasonPhrase());
                 log(result);
-                OutputStream os = new FileOutputStream(log);
-                os.write(result.getBytes());
-                response.getEntity().writeTo(os);
-                os.close();
+                try (OutputStream os = new FileOutputStream(log)) {
+                    os.write(result.getBytes());
+                    response.getEntity().writeTo(os);
+                }
                 throw new ExtenderClientException("Failed to build source.");
             }
         } catch (ExtenderClientException exc) {

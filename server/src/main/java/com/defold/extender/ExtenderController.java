@@ -420,7 +420,9 @@ public class ExtenderController {
         File sourceCodeArchive = new File(uploadDirectory, ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME);
         if (sourceCodeArchive.exists()) {
             LOGGER.debug("Source code archive found. Unarchiving...");
-            ZipUtils.unzip(new FileInputStream(sourceCodeArchive), uploadDirectory.toPath());
+            try (InputStream fis = new FileInputStream(sourceCodeArchive)) {
+                ZipUtils.unzip(fis, uploadDirectory.toPath());
+            }
         }
     }
 

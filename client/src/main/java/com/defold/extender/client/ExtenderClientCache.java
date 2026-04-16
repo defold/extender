@@ -187,8 +187,8 @@ public class ExtenderClientCache {
     private void saveCache() {
         Properties properties = new Properties();
         properties.putAll(this.persistentHashes);
-        try {
-            properties.store(new FileOutputStream(getCacheFile()), null);
+        try(OutputStream os = new FileOutputStream(getCacheFile())) {
+            properties.store(os, null);
         } catch (IOException e) {
             System.out.println(String.format("Could not store cache to '%s'", getCacheFile().getAbsolutePath()));
         }

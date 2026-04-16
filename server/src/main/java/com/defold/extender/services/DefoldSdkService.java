@@ -32,6 +32,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -236,7 +237,9 @@ public class DefoldSdkService {
                             File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
 
                             Files.createDirectories(tempDirectoryPath);
-                            ZipUtils.unzip(new FileInputStream(tmpResponseBody), tmpSdkDirectory.toPath());
+                            try (InputStream is = new FileInputStream(tmpResponseBody)) {
+                                ZipUtils.unzip(is, tmpSdkDirectory.toPath());
+                            }
 
                             Files.move(tmpSdkDirectory.toPath(), sdkDirectory.toPath(), StandardCopyOption.ATOMIC_MOVE);
                             isVerified = true;
@@ -350,7 +353,9 @@ public class DefoldSdkService {
                             LOGGER.info("Downloading platform sdks mappings from {} ...", url);
                             InputStream body = response.getBody();
                             JSONParser parser = new JSONParser();
-                            result = (JSONObject)parser.parse(new InputStreamReader(body));
+                            try (Reader reader = new InputStreamReader(body)) {
+                                result = (JSONObject)parser.parse(reader);
+                            }
                             break;
                         }
                     } catch(IOException|ParseException exc) {

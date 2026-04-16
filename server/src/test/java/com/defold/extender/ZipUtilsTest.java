@@ -8,6 +8,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -28,9 +30,13 @@ public class ZipUtilsTest {
         files.add(sourceFile1.toFile());
         files.add(sourceFile2.toFile());
 
-        ZipUtils.zip(new FileOutputStream(destinationFile.toFile()), null, files);
+        try (OutputStream os = new FileOutputStream(destinationFile.toFile())) {
+            ZipUtils.zip(os, null, files);
+        }
 
-        ZipUtils.unzip(new FileInputStream(destinationFile.toFile()), targetDirectory);
+        try(InputStream is = new FileInputStream(destinationFile.toFile())) {
+            ZipUtils.unzip(is, targetDirectory);
+        }
 
         assertEquals(2, targetDirectory.toFile().listFiles().length);
     }
