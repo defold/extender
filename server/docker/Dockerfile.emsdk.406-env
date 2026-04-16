@@ -17,22 +17,24 @@ ARG EMSCRIPTEN_CONFIG
 ARG EMSCRIPTEN_CACHE
 ARG EMSCRIPTEN_BIN
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 RUN apt-get -qq -y update \
     && apt-get -qq install -y --no-install-recommends \
         python3 \
         python3-pip
 
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
-  mkdir -p ${EMSCRIPTEN_TARGET_DIR} && \
-  wget -q -O - $(cat /run/secrets/DM_PACKAGES_URL)/emsdk-${EMSCRIPTEN_VERSION}-x86_64-linux.tar.gz | tar xz -C ${EMSCRIPTEN_TARGET_DIR} --strip-components=1
+  mkdir -p "${EMSCRIPTEN_TARGET_DIR}" && \
+  wget -q -O - "$(cat /run/secrets/DM_PACKAGES_URL)/emsdk-${EMSCRIPTEN_VERSION}-x86_64-linux.tar.gz" | tar xz -C "${EMSCRIPTEN_TARGET_DIR}" --strip-components=1
 
 RUN \
-  ${EMSCRIPTEN_TARGET_DIR}/emsdk activate sdk-${EMSCRIPTEN_VERSION}-64bit && \
-  EM_CONFIG=${EMSCRIPTEN_CONFIG} EM_CACHE=${EMSCRIPTEN_CACHE} python3 ${EMSCRIPTEN_BIN}/embuilder.py build SYSTEM MINIMAL && \
-  rm -fr ${EMSCRIPTEN_TARGET_DIR}/upstream/emscripten/tests && \
+  "${EMSCRIPTEN_TARGET_DIR}/emsdk" activate sdk-${EMSCRIPTEN_VERSION}-64bit && \
+  EM_CONFIG="${EMSCRIPTEN_CONFIG}" EM_CACHE="${EMSCRIPTEN_CACHE}" python3 "${EMSCRIPTEN_BIN}/embuilder.py" build SYSTEM MINIMAL && \
+  rm -fr "${EMSCRIPTEN_TARGET_DIR}/upstream/emscripten/tests" && \
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
-  sed '/TEMP_DIR =/d' ${EMSCRIPTEN_CONFIG} && \
+  sed '/TEMP_DIR =/d' "${EMSCRIPTEN_CONFIG}" && \
   echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG}
 
 

@@ -7,4 +7,5 @@ RUN \
     wget \
     ca-certificates \
     unzip \
-    xz-utils
+    xz-utils && \
+  rm -rf /var/lib/apt/lists/*

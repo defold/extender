@@ -1,4 +1,6 @@
 FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # Installation notes: https://wiki.winehq.org/Ubuntu
 # TODO: Backup the files as descibed here: https://wiki.winehq.org/Ubuntu
 RUN \
@@ -8,11 +10,12 @@ RUN \
 # Install wine
 ARG WINE_BRANCH="stable"
 
-RUN wget -O - https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key - &&\
+# hadolint ignore=DL3015 # ignore rule here because --install-recomends stay here according to Wine install documentation
+RUN wget -q -O - https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key - &&\
     dpkg --add-architecture i386 \
-    && wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2).sources \
+    && wget -q -NP /etc/apt/sources.list.d/ "https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-$(grep VERSION_CODENAME= /etc/os-release | cut -d= -f2).sources" \
     && apt-get update \
-    && DEBIAN_FRONTEND="noninteractive" apt-get install -y --install-recommends winehq-${WINE_BRANCH} \
+    && DEBIAN_FRONTEND="noninteractive" apt-get install -y --install-recommends "winehq-${WINE_BRANCH}" \
     && rm -rf /var/lib/apt/lists/*
 
 # Install winetricks
@@ -55,7 +58,7 @@ RUN \
     lsb-release \
     software-properties-common \
     gnupg && \
-    wget https://apt.llvm.org/llvm.sh && \
+    wget -q https://apt.llvm.org/llvm.sh && \
     chmod +x llvm.sh && \
     ./llvm.sh ${CLANG_VERSION} && \
     rm llvm.sh && \

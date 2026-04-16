@@ -27,7 +27,7 @@ RUN \
     lsb-release \
     software-properties-common \
     gnupg && \
-    wget https://apt.llvm.org/llvm.sh && \
+    wget -q https://apt.llvm.org/llvm.sh && \
     chmod +x llvm.sh && \
     ./llvm.sh ${CLANG_VERSION} && \
     rm llvm.sh && \

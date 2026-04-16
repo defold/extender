@@ -14,7 +14,14 @@ jobs:
     outputs:
       dockerfiles: ${{ steps.list.outputs.dockerfiles }}
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (pull request)
+        if:  ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+        
+      - name: Checkout repository (regular)
+        if:  ${{ github.event_name != 'pull_request' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: List Dockerfiles
@@ -59,6 +66,7 @@ jobs:
           format: sarif
           output-file: hadolint-${{ steps.slug.outputs.name }}.sarif
           no-fail: true
+          config: ${{ github.workspace}}/ci/.hadolint.yaml
 
       - name: Upload SARIF to Code Scanning
         uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # 4.35.1
