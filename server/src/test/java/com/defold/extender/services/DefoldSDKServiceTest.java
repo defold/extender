@@ -338,61 +338,74 @@ public class DefoldSDKServiceTest {
 
     @Test
     public void testChecksumVerification() throws IOException {
-        DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
-            .location(DefoldSDKServiceTest.configuration.getLocation())
-            .cacheSize(1)
-            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-            .enableSdkVerification(true)
-            .maxVerificationRetryCount(3)
-            .build();
-        DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
-        assertDoesNotThrow(() -> sdkService.getSdk("test_sdk"));
+        Path tmpLocation = Files.createTempDirectory("defoldsdk_checksum_test");
+        try {
+            DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
+                .location(tmpLocation)
+                .cacheSize(1)
+                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .enableSdkVerification(true)
+                .maxVerificationRetryCount(3)
+                .build();
+            DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
+            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk"));
+        } finally {
+            FileUtils.deleteDirectory(tmpLocation.toFile());
+        }
     }
 
     @Test
     public void testInvalidVerification() throws IOException {
-        DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
-            .location(DefoldSDKServiceTest.configuration.getLocation())
-            .cacheSize(0)
-            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-            .enableSdkVerification(false)
-            .maxVerificationRetryCount(3)
-            .build();
-        DefoldSdkService sdkService = new DefoldSdkService(disabledVerificationConf, new SimpleMeterRegistry());
-        assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
+        Path tmpLocation = Files.createTempDirectory("defoldsdk_invalid_test");
+        try {
+            DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
+                .location(tmpLocation)
+                .cacheSize(0)
+                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .enableSdkVerification(false)
+                .maxVerificationRetryCount(3)
+                .build();
+            DefoldSdkService sdkService = new DefoldSdkService(disabledVerificationConf, new SimpleMeterRegistry());
+            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
 
-        DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
-            .location(DefoldSDKServiceTest.configuration.getLocation())
-            .cacheSize(0)
-            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-            .enableSdkVerification(true)
-            .maxVerificationRetryCount(3)
-            .build();
-        DefoldSdkService sdkService1 = new DefoldSdkService(enabledVerificationConf, new SimpleMeterRegistry());
-        // no exception because sdk folder already exists
-        assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
-        // force remove cache
-        sdkService1.evictCache();
+            DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
+                .location(tmpLocation)
+                .cacheSize(0)
+                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .enableSdkVerification(true)
+                .maxVerificationRetryCount(3)
+                .build();
+            DefoldSdkService sdkService1 = new DefoldSdkService(enabledVerificationConf, new SimpleMeterRegistry());
+            // no exception because sdk folder already exists
+            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
+            // force remove cache
+            sdkService1.evictCache();
 
-        ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid"));
-        assertTrue(exc.getMessage().contains("Sdk verification failed"));
+            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid"));
+            assertTrue(exc.getMessage().contains("Sdk verification failed"));
+        } finally {
+            FileUtils.deleteDirectory(tmpLocation.toFile());
+        }
     }
 
     @Test
     public void testMissingChecksumVerification() throws IOException {
-        DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
-            .location(DefoldSDKServiceTest.configuration.getLocation())
-            .cacheSize(0)
-            .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-            .enableSdkVerification(true)
-            .maxVerificationRetryCount(3)
-            .build();
-        DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
-        // ensure nothing is left in cache from previous runs
-        sdkService.evictCache();
+        Path tmpLocation = Files.createTempDirectory("defoldsdk_nochecksum_test");
+        try {
+            DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
+                .location(tmpLocation)
+                .cacheSize(0)
+                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .enableSdkVerification(true)
+                .maxVerificationRetryCount(3)
+                .build();
+            DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
 
-        ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService.getSdk("test_sdk_no_checksum"));
-        assertTrue(exc.getMessage().contains("Sdk verification failed"));
+            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService.getSdk("test_sdk_no_checksum"));
+            assertTrue(exc.getMessage().contains("Sdk verification failed"));
+        } finally {
+            FileUtils.deleteDirectory(tmpLocation.toFile());
+        }
     }
 
     @Test
