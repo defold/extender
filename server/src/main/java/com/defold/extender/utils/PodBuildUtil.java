@@ -3,6 +3,7 @@ package com.defold.extender.utils;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
@@ -91,9 +92,9 @@ public class PodBuildUtil {
 
     public static File mergeVFSOverlays(File overlayA, File overlayB) {
         JSONParser parser = new JSONParser();
-            try {
-                JSONObject parsedOverlayA = (JSONObject)parser.parse(new FileReader(overlayA));
-                JSONObject parsedOverlayB = (JSONObject)parser.parse(new FileReader(overlayB));
+            try(Reader readerA = new FileReader(overlayA); Reader readerB = new FileReader(overlayB)) {
+                JSONObject parsedOverlayA = (JSONObject)parser.parse(readerA);
+                JSONObject parsedOverlayB = (JSONObject)parser.parse(readerB);
 
                 JSONArray roots = (JSONArray)parsedOverlayA.get("roots");
                 roots.addAll((JSONArray)parsedOverlayB.get("roots"));

@@ -55,7 +55,9 @@ public class LocalDiskDataCacheTest {
         for (CacheEntry entry : TestUtils.CACHE_ENTRIES) {
             InputStream inputStream = cache.get(entry.getKey());
             File source = getSourceFile(entry.getPath());
-            assertTrue(IOUtils.contentEquals(new FileInputStream(source), inputStream));
+            try (InputStream fis = new FileInputStream(source)) {
+                assertTrue(IOUtils.contentEquals(fis, inputStream));
+            }
         }
     }
 

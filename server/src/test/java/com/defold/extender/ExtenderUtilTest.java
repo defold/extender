@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -292,11 +293,14 @@ public class ExtenderUtilTest {
 
     @Test
     public void testSHA256Checksum() throws NoSuchAlgorithmException, FileNotFoundException, IOException {
-        String calculatedSha = ExtenderUtil.calculateSHA256(new FileInputStream("test-data/checksum_sdk/test_sdk.zip"));
-        String expectedSha = new String(Files.readAllBytes(Path.of("test-data/checksum_sdk/test_sdk.sha256")), StandardCharsets.UTF_8);
-        assertEquals(expectedSha, calculatedSha);
-
-        assertThrows(FileNotFoundException.class, () -> ExtenderUtil.calculateSHA256(new FileInputStream("test-data/checksum_sdk/non-exist.zip")));
+        try (InputStream is = new FileInputStream("test-data/checksum_sdk/test_sdk.zip")) {
+            String calculatedSha = ExtenderUtil.calculateSHA256(is);
+            String expectedSha = new String(Files.readAllBytes(Path.of("test-data/checksum_sdk/test_sdk.sha256")), StandardCharsets.UTF_8);
+            assertEquals(expectedSha, calculatedSha);
+        }
+        try(InputStream is = new FileInputStream("test-data/checksum_sdk/non-exist.zip")) {
+            assertThrows(FileNotFoundException.class, () -> ExtenderUtil.calculateSHA256(is));
+        }
     }
 
     @Test

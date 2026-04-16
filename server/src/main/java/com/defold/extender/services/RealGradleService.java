@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -258,7 +259,9 @@ public class RealGradleService implements GradleServiceInterface {
 
         // use job folder as tmp location
         File unpackedTmp = new File(jobDir, dependency.getName() + ".tmp");
-        ZipUtils.unzip(new FileInputStream(dependency), unpackedTmp.toPath());
+        try (InputStream fis = new FileInputStream(dependency)) {
+            ZipUtils.unzip(fis, unpackedTmp.toPath());
+        }
         Move(unpackedTmp.toPath(), unpackedTarget.toPath());
         return unpackedTarget;
     }

@@ -162,9 +162,8 @@ public class PrivacyManifestMerger {
             }
         }
 
-        try {
+        try(ModifyingFileWriter writer = new ModifyingFileWriter(out)) {
             FileHandler handler = new FileHandler(basePlist);
-            ModifyingFileWriter writer = new ModifyingFileWriter(out);
             handler.save(writer);
         } catch (ConfigurationException | IOException e) {
             throw new RuntimeException("Failed to write plist: " + e.toString());

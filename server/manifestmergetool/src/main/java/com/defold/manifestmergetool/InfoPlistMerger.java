@@ -249,9 +249,8 @@ public class InfoPlistMerger {
         }
 
 
-        try {
+        try(FileWriter writer = new FileWriter(out)) {
             FileHandler handler = new FileHandler(basePlist);
-            FileWriter writer = new FileWriter(out);
             handler.save(writer);
         } catch (ConfigurationException | IOException e) {
             throw new RuntimeException("Failed to write plist: " + e.toString());
