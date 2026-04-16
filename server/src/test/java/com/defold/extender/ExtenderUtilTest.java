@@ -298,9 +298,11 @@ public class ExtenderUtilTest {
             String expectedSha = new String(Files.readAllBytes(Path.of("test-data/checksum_sdk/test_sdk.sha256")), StandardCharsets.UTF_8);
             assertEquals(expectedSha, calculatedSha);
         }
-        try(InputStream is = new FileInputStream("test-data/checksum_sdk/non-exist.zip")) {
-            assertThrows(FileNotFoundException.class, () -> ExtenderUtil.calculateSHA256(is));
-        }
+        assertThrows(FileNotFoundException.class, () -> {
+            try(InputStream is = new FileInputStream("test-data/checksum_sdk/non-exist.zip")) {
+                ExtenderUtil.calculateSHA256(is);
+            }
+        });
     }
 
     @Test
