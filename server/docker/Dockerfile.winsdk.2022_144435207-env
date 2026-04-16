@@ -97,6 +97,7 @@ ENV \
 COPY --from=build ${PLATFORMSDK_WIN32} ${PLATFORMSDK_WIN32}
 
 # windres: Allows for generating .res files that can be used during linking
+# hadolint ignore=SC2016
 RUN \
   apt-get update && \
   apt-get install -y --no-install-recommends binutils-mingw-w64-x86-64 gcc && \
@@ -109,7 +110,7 @@ RUN \
 # Since dotnet cannot really cross compile, we need to create a "lib" shim for "wine lib.exe"
 # As long as it's in the path, it will be picked up
   echo '#!/usr/bin/env bash' > /usr/bin/lib && \
-  echo "wine ${WINDOWS_VCINSTALLDIR}/bin/Hostx64/x64/lib.exe $*" >> /usr/bin/lib && \
+  echo 'wine ${WINDOWS_VCINSTALLDIR}/bin/Hostx64/x64/lib.exe $*' >> /usr/bin/lib && \
   chmod +x /usr/bin/lib && \
   apt-get autoremove -y && \
   apt-get clean && \

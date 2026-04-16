@@ -84,7 +84,8 @@ WORKDIR /
 
 # Since dotnet cannot really cross compile, we need to create a "lib" shim for "wine lib.exe"
 # As long as it's in the path, it will be picked up
+# hadolint ignore=SC2016
 RUN \
   echo '#!/usr/bin/env bash' > /usr/bin/lib && \
-  echo "wine ${WINDOWS_VCINSTALLDIR_2022}/bin/Hostx64/x64/lib.exe $*" >> /usr/bin/lib && \
+  echo 'wine ${WINDOWS_VCINSTALLDIR_2022}/bin/Hostx64/x64/lib.exe $*' >> /usr/bin/lib && \
   chmod +x /usr/bin/lib
