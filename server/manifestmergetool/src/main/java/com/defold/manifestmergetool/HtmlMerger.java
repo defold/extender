@@ -20,9 +20,6 @@ public class HtmlMerger {
         HtmlMerger.logger = logger;
     }
 
-    class HtmlMergeException extends RuntimeException {
-    };
-
     private MergePolicy getMergePolicy(Element e) {
         String attr = e.attr("merge");
         return MergePolicy.fromString(attr);
@@ -108,17 +105,9 @@ public class HtmlMerger {
     public void merge(File main, File[] libraries, File out) throws RuntimeException, IOException {
         Document baseDocument = loadDocument(main);
 
-        // For error reporting/troubleshooting
-        String paths = "\n" + main.getAbsolutePath();
-
         for (File library : libraries) {
-            paths += "\n" + library.getAbsolutePath();
             Document libraryDocument = loadDocument(library);
-            try {
-                mergeDocuments(baseDocument, libraryDocument);
-            } catch (HtmlMergeException e) {
-                throw new RuntimeException(String.format("Errors merging html files: %s + %s:\n%s", paths, library.getAbsolutePath(), e.toString()));
-            }
+            mergeDocuments(baseDocument, libraryDocument);
         }
 
         writeDocument(baseDocument, out);

@@ -14,7 +14,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -26,7 +25,7 @@ public class PodfileParserTest {
     private File wrongPodfile;
 
     @BeforeEach
-    public void setUp(TestInfo testInfo) {
+    public void setUp() {
         this.emptyPodfile = new File("test-data/podfiles/empty.Podfile");
         this.regularPodfile = new File("test-data/podfiles/regular.Podfile");
         this.wrongPodfile = new File("test-data/podfiles/wrong.Podfile");

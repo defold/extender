@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -79,7 +78,7 @@ public class ExtenderClient {
     public ExtenderClient(CookieStore cookieStore,
             String extenderBaseUrl,
             File cacheDir) throws IOException {
-        this(new ExtenderClientCache(cacheDir), cookieStore,
+        this(new ExtenderClientCache(cacheDir),
         HttpClientBuilder.create()
             .setDefaultRequestConfig(
                 RequestConfig.custom()
@@ -92,7 +91,6 @@ public class ExtenderClient {
     }
 
     public ExtenderClient(ExtenderClientCache cache,
-            CookieStore cookieStore,
             HttpClient httpClient,
             String extenderBaseUrl) {
         this.extenderBaseUrl = extenderBaseUrl;
@@ -401,7 +399,7 @@ public class ExtenderClient {
     }
 
     public HttpGet createGetRequest(String url) throws UnsupportedEncodingException {
-        HttpGet request = new HttpGet(extenderBaseUrl);
+        HttpGet request = new HttpGet(url);
         addAuthorizationHeader(request);
         addHeaders(request);
         return request;

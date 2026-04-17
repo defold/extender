@@ -25,7 +25,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.entity.mime.content.ByteArrayBody;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
@@ -38,7 +37,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -86,7 +84,7 @@ public class RemoteEngineBuilder {
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
-                        File jobDirectory, File buildDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
+                        File jobDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
 
         LOGGER.info("Building engine remotely at {}", remoteInstanceConfig.getUrl());
         String jobName = jobDirectory.getName();

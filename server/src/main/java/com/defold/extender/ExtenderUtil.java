@@ -39,7 +39,6 @@ import org.springframework.core.io.Resource;
 public class ExtenderUtil
 {
     static String convertStringToLiteral(String expression) {
-        String expressionOriginal = expression;
         int begin = expression.indexOf("{{");
         if (begin >= 0)
         {

@@ -39,7 +39,7 @@ public class ResolvedPodsTest {
     private CocoaPodsServiceBuildState cocoapodsState;
     CreateBuildSpecArgs args;
 
-    class EmptyConfigParser implements IConfigParser {
+    static class EmptyConfigParser implements IConfigParser {
         @Override
         public Map<String, String> parse(String moduleName, String podName, File xcconfig) throws IOException {
             return Map.of();

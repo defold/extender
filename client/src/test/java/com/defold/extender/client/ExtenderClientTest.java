@@ -64,7 +64,7 @@ public class ExtenderClientTest extends Mockito {
             final String HDR_VALUE_2 = "my custom header2";
             DefaultHttpClient httpClient = Mockito.mock(DefaultHttpClient.class);
 
-            ExtenderClient extenderClient = new ExtenderClient(null, null, httpClient, "http://localhost");
+            ExtenderClient extenderClient = new ExtenderClient(null, httpClient, "http://localhost");
             extenderClient.setHeader(HDR_NAME_1, HDR_VALUE_1);
             extenderClient.setHeader(HDR_NAME_2, HDR_VALUE_2);
 

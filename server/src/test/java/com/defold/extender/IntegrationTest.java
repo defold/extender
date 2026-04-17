@@ -86,6 +86,11 @@ public class IntegrationTest {
             this.version = version;
             this.platforms = platforms;
         }
+
+        @Override
+        public String toString() {
+            return version.toString();
+        }
     }
 
     private static class TestConfiguration {
