@@ -63,17 +63,16 @@ public class ExtenderTest {
 
         Map<String, String> env = createEnv();
 
-        Extender extender = new Extender.Builder()
+        assertDoesNotThrow(() -> new Extender.Builder()
                             .setPlatform("x86_64-osx")
                             .setSdk(sdk)
                             .setJobDirectory(jobDir)
                             .setUploadDirectory(uploadDir)
                             .setBuildDirectory(buildDir)
                             .setEnv(env)
-                            .build();
+                            .build());
 
-        uploadDir.delete();
-        assertTrue(true);
+        assertTrue(uploadDir.delete());
     }
 
     public static MultipartHttpServletRequest createMultipartHttpRequest(List<MockMultipartFile> files) throws IOException {
@@ -376,7 +375,6 @@ public class ExtenderTest {
                             .build();
         Map<String, Object> mergedAppContext = extender.getMergedAppContext();
 
-        List<String> libsOriginal = Arrays.asList("engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null");
         List<String> libsExpected = Arrays.asList("clang_rt.osx", "engine_release", "engine_service_null", "remotery_null", "record_null");
         assertEquals(libsExpected, mergedAppContext.getOrDefault("libs", new ArrayList<String>()));
 

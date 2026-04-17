@@ -113,7 +113,7 @@ class Extender {
     // * libraryJars - Array of .jar files should be passed to ProGuard as '-libraryjar' entries.
     //                 Everything from a libraryjar will be kept by ProGuard, i.e no optimization or
     //                 obfuscation will be performed.
-    private class ProGuardContext {
+    private static class ProGuardContext {
         public List<String> proGuardFiles = new ArrayList<>();
         public List<String> libraryJars   = new ArrayList<>();
     }
@@ -1377,8 +1377,6 @@ class Extender {
         // ***************************************************************************
         // Python
         {
-            List<File> srcFiles = ExtenderUtil.listFiles(srcDirs, platformConfig.sourceRe);
-
             if (!protoFiles.isEmpty()) {
                 List<File> generatedFiles = generateProtoSrcForPlugin(extDir, manifestContext, protoFiles, "python");
                 outputFiles.addAll(generatedFiles);
@@ -2204,7 +2202,7 @@ class Extender {
         context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, resourceFile));
 
         String command = templateExecutor.execute(platformConfig.windresCmd, context);
-        if (command.equals("")) {
+        if (command.isEmpty()) {
             return null;
         }
         try {
@@ -2343,7 +2341,7 @@ class Extender {
     }
 
     private boolean shouldBuildEngine() {
-        return buildState.getBuildArtifacts().equals("") || shouldBuildArtifact("engine");
+        return buildState.getBuildArtifacts().isEmpty() || shouldBuildArtifact("engine");
     }
     private boolean shouldBuildPlugins() {
         return shouldBuildArtifact("plugins");
@@ -2711,7 +2709,7 @@ class Extender {
     }
 
     private String getBasePlatform(String platform) {
-        String[] platformParts = buildState.fullPlatform.split("-");
+        String[] platformParts = platform.split("-");
         return platformParts[1];
     }
 

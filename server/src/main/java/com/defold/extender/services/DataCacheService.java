@@ -42,7 +42,7 @@ public class DataCacheService {
 
     private DataCache dataCache;
 
-    public class DataCacheServiceInfo {
+    public static class DataCacheServiceInfo {
         public AtomicInteger cachedFileCount = new AtomicInteger();
         public AtomicLong cachedFileSize = new AtomicLong();
     }

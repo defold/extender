@@ -55,7 +55,7 @@ public class CocoaPodsService {
         return res;
     }
 
-    private class InstalledPods {
+    private static class InstalledPods {
         public Map<String, PodSpec> podsMap = new HashMap<>();
         // set of pod's specs to present build order
         public Set<String> pods = new LinkedHashSet<>();
@@ -207,13 +207,10 @@ public class CocoaPodsService {
 
     /**
      * Install pods from a podfile and create PodSpec instances for each installed pod.
-     * @param buildState Extender's build state
      * @param cocoapodsBuildState Cocoapod's service build state
-     * @param jobEnvContext Job environment context which contains all the job environment variables with `env.*` keys
      * @return An InstalledPods object with installed pods
      */
-    private InstalledPods installPods(ExtenderBuildState buildState, CocoaPodsServiceBuildState cocoapodsBuildState,
-        Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+    private InstalledPods installPods(CocoaPodsServiceBuildState cocoapodsBuildState) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         Path cacheDir;
         // store current cache dir into local variable to use the same value for all 'pod' runs
@@ -390,7 +387,7 @@ public class CocoaPodsService {
 
         CocoaPodsServiceBuildState cocoapodsBuildState = new CocoaPodsServiceBuildState(buildState);
         MainPodfile mainPodfile = createMainPodfile(buildState, cocoapodsBuildState, platformPodfiles, jobEnvContext);
-        InstalledPods installedPods = installPods(buildState, cocoapodsBuildState, jobEnvContext);
+        InstalledPods installedPods = installPods(cocoapodsBuildState);
 
 
         XCConfigParser parser = new XCConfigParser(buildState, cocoapodsBuildState);

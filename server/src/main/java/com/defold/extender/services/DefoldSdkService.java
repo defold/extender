@@ -326,7 +326,7 @@ public class DefoldSdkService {
         }
     }
 
-    private JSONObject getLocalPlatformSdkMappings(String hash) throws IOException, ParseException {
+    private JSONObject getLocalPlatformSdkMappings() throws IOException, ParseException {
         JSONParser parser = new JSONParser();
         return (JSONObject)parser.parse(new FileReader(Path.of(getLocalSdk().toFile().getAbsolutePath(), "platform.sdks.json").toFile()));
     }
@@ -391,7 +391,7 @@ public class DefoldSdkService {
     }
 
     public JSONObject getPlatformSdkMappings(String hash) throws IOException, ExtenderException, ParseException {
-        return isLocalSdk(hash) ? getLocalPlatformSdkMappings(hash) : getRemotePlatformSdkMappings(hash);
+        return isLocalSdk(hash) ? getLocalPlatformSdkMappings() : getRemotePlatformSdkMappings(hash);
     }
 
     public void acquireSdk(String hash) {
