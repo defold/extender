@@ -13,7 +13,7 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
   mkdir -p "${XBOX_SDK}" && \
   wget -q -O - "$(cat /run/secrets/DM_PACKAGES_URL)/${XBOX_SDK_FILENAME}" | tar xz -C "${XBOX_SDK}" --strip-components=1
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:1.1.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:1.1.1
 
 ARG XBOX_SDK_VERSION
 ARG XBOX_SDK
