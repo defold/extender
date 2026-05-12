@@ -74,7 +74,7 @@ RUN \
 
 WORKDIR /
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.7.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.7.1
 
 ARG PLATFORMSDK_WIN32
 ARG WINDOWS_SDK_VERSION
