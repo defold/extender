@@ -74,7 +74,9 @@ public class PodUtilsTest {
     public void testSwiftModuleName() throws ExtenderException {
         assertEquals("arm64-apple-ios", PodUtils.swiftModuleNameFromPlatform("arm64-ios"));
         assertEquals("x86_64-apple-ios-simulator", PodUtils.swiftModuleNameFromPlatform("x86_64-ios"));
+        assertEquals("arm64-apple-macos", PodUtils.swiftModuleNameFromPlatform("arm64-osx"));
         assertEquals("arm64-apple-macos", PodUtils.swiftModuleNameFromPlatform("arm64-macos"));
+        assertEquals("x86_64-apple-macos", PodUtils.swiftModuleNameFromPlatform("x86_64-osx"));
         assertEquals("x86_64-apple-macos", PodUtils.swiftModuleNameFromPlatform("x86_64-macos"));
         assertThrows(ExtenderException.class, () -> { PodUtils.swiftModuleNameFromPlatform("x86_64-linux"); });
 

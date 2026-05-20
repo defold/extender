@@ -416,12 +416,16 @@ public class ExtenderTest {
         assertTrue(platformConfig.compileCmd.contains("-isysroot {{env.SYSROOT}}"));
         assertEquals("arm64", platformConfig.context.get("clangArch"));
         assertEquals("arm64-apple-darwin19", platformConfig.context.get("clangTarget"));
+        List<String> swiftFlags = (List<String>)platformConfig.context.get("swiftFlags");
+        assertTrue(swiftFlags.contains("arm64-apple-macosx{{osMinVersion}}"));
 
         List<String> flags = (List<String>)platformConfig.context.get("flags");
         assertFalse(flags.contains("-arch"));
         assertFalse(flags.contains("-target"));
         assertFalse(flags.contains("-isysroot"));
         assertFalse(flags.contains("{{env.SYSROOT}}"));
+        List<String> libPaths = (List<String>)platformConfig.context.get("libPaths");
+        assertTrue(libPaths.contains("{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx"));
 
         Map<String, String> env = new HashMap<>();
         env.put("SYSROOT", "/opt/platformsdk/MacOSX.sdk");
@@ -451,6 +455,10 @@ public class ExtenderTest {
         assertFalse(legacyRenderedCompileCmd.contains("-target "));
         assertFalse(legacyRenderedCompileCmd.contains("-m64 "));
         assertTrue(legacyRenderedCompileCmd.contains("-isysroot /opt/platformsdk/MacOSX.sdk"));
+
+        PlatformConfig x86_64PlatformConfig = mergePlatformConfig(config, "x86_64-osx");
+        List<String> x86_64SwiftFlags = (List<String>)x86_64PlatformConfig.context.get("swiftFlags");
+        assertTrue(x86_64SwiftFlags.contains("x86_64-apple-macosx{{osMinVersion}}"));
     }
 
     @Test

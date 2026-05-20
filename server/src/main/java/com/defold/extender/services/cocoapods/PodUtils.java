@@ -103,7 +103,9 @@ public class PodUtils {
         switch(extenderTargetPlatform) {
             case "arm64-ios": return "arm64-apple-ios";
             case "x86_64-ios": return "x86_64-apple-ios-simulator";
+            case "arm64-osx":
             case "arm64-macos": return "arm64-apple-macos";
+            case "x86_64-osx":
             case "x86_64-macos": return "x86_64-apple-macos";
             default:
                 throw new ExtenderException(String.format("Invalid platform input for swift module name %s", extenderTargetPlatform));
