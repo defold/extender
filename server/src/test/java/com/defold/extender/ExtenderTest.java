@@ -53,6 +53,19 @@ public class ExtenderTest {
         assertEquals(Arrays.asList(expected), l);
     }
 
+    static PlatformConfig mergePlatformConfig(Configuration config, String platform) throws ExtenderException
+    {
+        PlatformConfig platformConfig = new PlatformConfig();
+        platformConfig.context = new HashMap<>(config.context);
+        for (String platformAlt : ExtenderUtil.getPlatformAlternatives(platform)) {
+            PlatformConfig platformConfigAlt = config.platforms.get(platformAlt);
+            if (platformConfigAlt != null) {
+                ExtenderUtil.mergeObjects(platformConfig, platformConfigAlt);
+            }
+        }
+        return platformConfig;
+    }
+
     @Test
     public void testExtender(@TempDir File jobDir) throws IOException, InterruptedException, ExtenderException {
         File uploadDir = new File(jobDir, "upload");
@@ -387,6 +400,57 @@ public class ExtenderTest {
 
         uploadDir.delete();
         assertTrue(true);
+    }
+
+    @Test
+    public void testOsxCompileCommandCarriesSdkFlags() throws IOException, ExtenderException {
+        File root = new File("test-data");
+        File sdk = new File(root, "sdk/a/defoldsdk");
+        Configuration config = Extender.loadYaml(root, new File(sdk, "extender/build.yml"), Configuration.class);
+
+        PlatformConfig platformConfig = mergePlatformConfig(config, "arm64-osx");
+
+        assertTrue(platformConfig.compileCmd.contains("{{#clangArch}}-arch {{{clangArch}}} {{/clangArch}}"));
+        assertTrue(platformConfig.compileCmd.contains("{{#clangTarget}}-target {{{clangTarget}}} {{/clangTarget}}"));
+        assertTrue(platformConfig.compileCmd.contains("{{#clangArch}}-m64 {{/clangArch}}"));
+        assertTrue(platformConfig.compileCmd.contains("-isysroot {{env.SYSROOT}}"));
+        assertEquals("arm64", platformConfig.context.get("clangArch"));
+        assertEquals("arm64-apple-darwin19", platformConfig.context.get("clangTarget"));
+
+        List<String> flags = (List<String>)platformConfig.context.get("flags");
+        assertFalse(flags.contains("-arch"));
+        assertFalse(flags.contains("-target"));
+        assertFalse(flags.contains("-isysroot"));
+        assertFalse(flags.contains("{{env.SYSROOT}}"));
+
+        Map<String, String> env = new HashMap<>();
+        env.put("SYSROOT", "/opt/platformsdk/MacOSX.sdk");
+        env.put("MACOS_VERSION_MIN", "10.15");
+
+        Map<String, Object> renderContext = new HashMap<>(platformConfig.context);
+        renderContext.put("env", env);
+        renderContext.put("ext", new HashMap<String, Object>());
+        renderContext.put("extension_name_upper", "TEST");
+        renderContext.put("src", "source.mm");
+        renderContext.put("tgt", "source.o");
+        String renderedCompileCmd = new TemplateExecutor().execute(platformConfig.compileCmd, renderContext);
+        assertTrue(renderedCompileCmd.contains("-arch arm64"));
+        assertTrue(renderedCompileCmd.contains("-target arm64-apple-darwin19"));
+        assertTrue(renderedCompileCmd.contains("-m64"));
+        assertTrue(renderedCompileCmd.contains("-isysroot /opt/platformsdk/MacOSX.sdk"));
+
+        PlatformConfig legacyPlatformConfig = mergePlatformConfig(config, "x86-osx");
+        Map<String, Object> legacyRenderContext = new HashMap<>(legacyPlatformConfig.context);
+        legacyRenderContext.put("env", env);
+        legacyRenderContext.put("ext", new HashMap<String, Object>());
+        legacyRenderContext.put("extension_name_upper", "TEST");
+        legacyRenderContext.put("src", "source.mm");
+        legacyRenderContext.put("tgt", "source.o");
+        String legacyRenderedCompileCmd = new TemplateExecutor().execute(legacyPlatformConfig.compileCmd, legacyRenderContext);
+        assertFalse(legacyRenderedCompileCmd.contains("-arch "));
+        assertFalse(legacyRenderedCompileCmd.contains("-target "));
+        assertFalse(legacyRenderedCompileCmd.contains("-m64 "));
+        assertTrue(legacyRenderedCompileCmd.contains("-isysroot /opt/platformsdk/MacOSX.sdk"));
     }
 
     @Test
