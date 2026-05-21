@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,7 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.text.StringEscapeUtils;
+import com.defold.extender.process.CommandLineTokenizer;
+
 
 // similar to PodSpec but contains some runtime information that used during the build
 public class PodBuildSpec {
@@ -132,7 +132,7 @@ public class PodBuildSpec {
         // defines
         List<String> defs = argumentsAsList(parsedConfig.getOrDefault("GCC_PREPROCESSOR_DEFINITIONS", null));
         if (defs != null) {
-            this.defines.addAll(unescapeStrings(defs));
+            this.defines.addAll(defs);
         }
         // linker flags
         // https://xcodebuildsettings.com/#other_ldflags
@@ -285,14 +285,6 @@ public class PodBuildSpec {
         return value != null && !value.trim().isEmpty();
     }
 
-    static List<String> unescapeStrings(List<String> strings) {
-        List<String> unescapedStrings = new ArrayList<>();
-        for (String s : strings) {
-            unescapedStrings.add(StringEscapeUtils.unescapeJava(s));
-        }
-        return unescapedStrings;
-    }
-
     // check if the value for a specific key matches an expected value
     static boolean compareString(Map<String, String> config, String key, String expected) {
         String value = config.get(key);
@@ -307,7 +299,7 @@ public class PodBuildSpec {
         if (arguments == null || arguments.isEmpty()) {
             return null;
         }
-        return new ArrayList<>(Arrays.asList(arguments.split(" ")));
+        return new ArrayList<>(CommandLineTokenizer.splitPreservingEscapedWhitespace(arguments));
     }
 
     /**

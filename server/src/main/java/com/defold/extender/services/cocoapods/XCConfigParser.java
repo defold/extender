@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,9 +17,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.defold.extender.ExtenderBuildState;
+import com.defold.extender.process.CommandLineTokenizer;
 
 public class XCConfigParser implements IConfigParser {
     private static final Logger LOGGER = LoggerFactory.getLogger(XCConfigParser.class);
+    private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$[\\(|{]([\\w]+)[\\)|}]");
     private File buildDir;
     private File podsDir;
     private String platform;
@@ -74,35 +75,86 @@ public class XCConfigParser implements IConfigParser {
      * Merged values from base values (like directory paths) and values obtained from xcconfig
      */
     String postProcessValue(String value, Map<String, String> allValues) {
-        List<String> tmpList = new ArrayList<>(Arrays.asList(value.split(" ")));
-        tmpList.remove("$(inherited)");
+        return String.join(" ", postProcessTokens(value, allValues, new HashSet<>()));
+    }
 
-        // check for $(....) pattern
-        Pattern p = Pattern.compile("\\$[\\(|{]([\\w]+)[\\)|}]");
+    private List<String> postProcessTokens(String value, Map<String, String> allValues, Set<String> visitedKeys) {
+        List<String> result = new ArrayList<>();
+        List<String> tmpList = new ArrayList<>(CommandLineTokenizer.splitPreservingEscapedWhitespace(value));
 
-        // substitute values if any placeholders are presented
-        for (int idx = 0 ; idx < tmpList.size(); ++idx) {
-            Set<String> visitedKeys = new HashSet<>();
-            String element = tmpList.get(idx);
-            Matcher matcher = p.matcher(element);
-            while (matcher.find()) {
-                String replaceKey = matcher.group(1);
-                String replaceValue = allValues.containsKey(replaceKey) && !visitedKeys.contains(replaceKey) ? allValues.get(replaceKey) : null;
-                visitedKeys.add(replaceKey);
-                if (replaceValue != null) {
-                    element = element.replace(matcher.group(0), replaceValue);
-                    element = element.replaceAll("\"", "");
-                    // update matcher every time because during replace new values for substitution can be introduced.
-                    // For example: ${PODS_ROOT}/Headers (where PODS_ROOT=${SRCROOT}) -> ${SRCROOT}/Headers
-                    matcher = p.matcher(element);
-                } else {
-                    LOGGER.warn("Can't find value for substitution for key {}", replaceKey);
-                }
+        for (String token : tmpList) {
+            if ("$(inherited)".equals(token)) {
+                continue;
             }
-            tmpList.set(idx, element);
+            result.addAll(postProcessToken(token, allValues, visitedKeys));
         }
 
-        return String.join(" ", tmpList);
+        return result;
+    }
+
+    private List<String> postProcessToken(String token, Map<String, String> allValues, Set<String> visitedKeys) {
+        Matcher matcher = VARIABLE_PATTERN.matcher(token);
+        if (matcher.matches()) {
+            String replaceKey = matcher.group(1);
+            if (visitedKeys.contains(replaceKey)) {
+                return List.of(CommandLineTokenizer.escapeWhitespace(token));
+            }
+
+            String replaceValue = allValues.get(replaceKey);
+            if (replaceValue != null) {
+                Set<String> nextVisitedKeys = new HashSet<>(visitedKeys);
+                nextVisitedKeys.add(replaceKey);
+                if (isListBuildSetting(replaceKey)) {
+                    return postProcessTokens(replaceValue, allValues, nextVisitedKeys);
+                }
+                return List.of(postProcessScalarValue(replaceValue, allValues, nextVisitedKeys));
+            } else {
+                LOGGER.warn("Can't find value for substitution for key {}", replaceKey);
+                return List.of(CommandLineTokenizer.escapeWhitespace(token));
+            }
+        }
+
+        return List.of(postProcessSingleToken(token, allValues, visitedKeys));
+    }
+
+    private boolean isListBuildSetting(String key) {
+        return key.endsWith("FLAGS")
+            || key.endsWith("PATHS")
+            || key.endsWith("DEFINITIONS")
+            || key.endsWith("ARCHS")
+            || key.endsWith("LIBRARIES");
+    }
+
+    private String postProcessScalarValue(String value, Map<String, String> allValues, Set<String> visitedKeys) {
+        String scalarValue = String.join(" ", CommandLineTokenizer.splitPreservingEscapedWhitespace(value));
+        return postProcessSingleToken(scalarValue, allValues, visitedKeys);
+    }
+
+    private String postProcessSingleToken(String token, Map<String, String> allValues, Set<String> visitedKeys) {
+        String element = token;
+        Set<String> localVisitedKeys = new HashSet<>(visitedKeys);
+        Matcher matcher = VARIABLE_PATTERN.matcher(element);
+        while (matcher.find()) {
+            String replaceKey = matcher.group(1);
+            if (localVisitedKeys.contains(replaceKey)) {
+                continue;
+            }
+
+            String replaceValue = allValues.get(replaceKey);
+            localVisitedKeys.add(replaceKey);
+            if (replaceValue != null) {
+                String resolvedValue = String.join(" ", postProcessTokens(replaceValue, allValues, localVisitedKeys));
+                element = element.replace(matcher.group(0), resolvedValue);
+                element = element.replaceAll("(?<!\\\\)\"", "");
+                // update matcher every time because during replace new values for substitution can be introduced.
+                // For example: ${PODS_ROOT}/Headers (where PODS_ROOT=${SRCROOT}) -> ${SRCROOT}/Headers
+                matcher = VARIABLE_PATTERN.matcher(element);
+            } else {
+                LOGGER.warn("Can't find value for substitution for key {}", replaceKey);
+            }
+        }
+
+        return CommandLineTokenizer.escapeWhitespace(element);
     }
 
     Pair<String, String> parseLine(String line) {
@@ -125,8 +177,6 @@ public class XCConfigParser implements IConfigParser {
             parseIncludes(line);
             return null;
         }
-        // replace " to avoid problem with arguments in ProcessBuilder
-        line = line.replaceAll("(?<!\\\\)\"", "");
         char[] charsArray = line.toCharArray();
         ParseMode currentMode = ParseMode.VAR_START;
         StringBuilder varBuilder = new StringBuilder();
@@ -182,7 +232,21 @@ public class XCConfigParser implements IConfigParser {
                     break;
             }
         }
-        return Pair.of(varBuilder.toString(), valueBuilder.toString());
+        return Pair.of(varBuilder.toString(), normalizeParsedValue(valueBuilder.toString()));
+    }
+
+    private String normalizeParsedValue(String value) {
+        if (value.length() >= 2) {
+            char quote = value.charAt(0);
+            if ((quote == '\'' || quote == '"') && value.charAt(value.length() - 1) == quote) {
+                String quotedValue = value.substring(1, value.length() - 1);
+                if (quotedValue.chars().noneMatch(Character::isWhitespace)) {
+                    return quotedValue;
+                }
+            }
+        }
+
+        return value;
     }
 
     @Override

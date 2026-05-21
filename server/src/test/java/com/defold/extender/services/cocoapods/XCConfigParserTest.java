@@ -44,7 +44,9 @@ public class XCConfigParserTest {
             "PODS_BUILD_DIR", "/var/tmp/tmp-dir/pod-build-dir",
             "CONFIGURATION", "debug",
             "EFFECTIVE_PLATFORM_NAME","iphoneos",
-            "TOOLCHAIN_DIR", "/opt/platformsdk/XcodeDefaults16.0.toolchain"
+            "TOOLCHAIN_DIR", "/opt/platformsdk/XcodeDefaults16.0.toolchain",
+            "BASE_LDFLAGS", "-framework Foo -framework Bar",
+            "BASE_PATH", "/Users/test-pod/Build Products"
         );
     } 
 
@@ -54,6 +56,7 @@ public class XCConfigParserTest {
             Arguments.of("\t      ARG=1 // comment end line", Pair.of("ARG", "1")),
             Arguments.of("LINE_WITHSEMICOLON=value1 value_w2;;;;", Pair.of("LINE_WITHSEMICOLON", "value1 value_w2")),
             Arguments.of("\t\t\t   \t ARG\t\t    = \t\t\t\t    \t\t\t\t   \"some_values\"", Pair.of("ARG", "some_values")),
+            Arguments.of("QUOTED_VALUE_WITH_SPACES = \"some values\"", Pair.of("QUOTED_VALUE_WITH_SPACES", "\"some values\"")),
             Arguments.of("PODS_VARIANT1[sdk=*][version=13.0] = value1 value2", Pair.of("PODS_VARIANT1", "value1 value2")),
             Arguments.of("PODS_VARIANT2[sdk=iphone, version=11.0, configuration=debug]= single value", Pair.of("PODS_VARIANT2", "single value"))
         );
@@ -65,6 +68,10 @@ public class XCConfigParserTest {
             Arguments.of("VALUE_SUBSTITUTION1=$(inherited) ${PODS_ROOT}/Headers/Private ${PODS_ROOT}/Headers/Private/KSCrash ${PODS_ROOT}/Headers/Public ${PODS_ROOT}/Headers/Public/KSCrash", "/Users/test-pod/Pods/Headers/Private /Users/test-pod/Pods/Headers/Private/KSCrash /Users/test-pod/Pods/Headers/Public /Users/test-pod/Pods/Headers/Public/KSCrash"),
             Arguments.of("VALUE_SUBSTITUTION2=${PODS_BUILD_DIR}/$(CONFIGURATION)/$(EFFECTIVE_PLATFORM_NAME)", "/var/tmp/tmp-dir/pod-build-dir/debug/iphoneos"),
             Arguments.of("VALUE_SUBSTITUTION3=${PODS_BUILD_DIR}/${CONFIGURATION}/$(EFFECTIVE_PLATFORM_NAME)", "/var/tmp/tmp-dir/pod-build-dir/debug/iphoneos"),
+            Arguments.of("GCC_PREPROCESSOR_DEFINITIONS = $(inherited) COCOAPODS=1 CLS_SDK_NAME=Crashlytics\\ SDK\\ iOS PB_ENABLE_MALLOC=1", "COCOAPODS=1 CLS_SDK_NAME=Crashlytics\\ SDK\\ iOS PB_ENABLE_MALLOC=1"),
+            Arguments.of("QUOTED_VALUE=\"${PODS_ROOT}/Firebase Crashlytics\" tail", "/Users/test-pod/Pods/Firebase\\ Crashlytics tail"),
+            Arguments.of("OTHER_LDFLAGS=$(BASE_LDFLAGS) -ObjC", "-framework Foo -framework Bar -ObjC"),
+            Arguments.of("SCALAR_PATH=$(BASE_PATH)", "/Users/test-pod/Build\\ Products"),
             Arguments.of("POD_VERSION=$(POD_VERSION)", "$(POD_VERSION)"),
             Arguments.of("POD_VERSION=${POD_VERSION}", "${POD_VERSION}")
         );

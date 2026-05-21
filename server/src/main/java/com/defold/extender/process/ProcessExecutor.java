@@ -7,7 +7,6 @@ import java.io.FileOutputStream;
 import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.defold.extender.ExtenderException;
 
@@ -23,9 +22,7 @@ public class ProcessExecutor {
 
     public int execute(String command) throws IOException, InterruptedException {
         // To avoid an issue where an extra space was interpreted as an argument
-        List<String> args = Arrays.stream(command.split(" "))
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toList());
+        List<String> args = CommandLineTokenizer.parse(command);
         return execute(args);
     }
 

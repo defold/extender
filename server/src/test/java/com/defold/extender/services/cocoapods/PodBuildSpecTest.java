@@ -1,6 +1,7 @@
 package com.defold.extender.services.cocoapods;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -63,6 +64,36 @@ public class PodBuildSpecTest {
                     // ignore cleanup errors
                 }
             });
+    }
+
+    @Test
+    public void testPreprocessorDefinitionsPreserveEscapedSpaces() {
+        PodBuildSpec buildSpec = new PodBuildSpec();
+
+        buildSpec.updateFlagsFromConfig(Map.of(
+            "GCC_PREPROCESSOR_DEFINITIONS",
+            "COCOAPODS=1 CLS_SDK_NAME=Crashlytics\\ SDK\\ iOS PB_ENABLE_MALLOC=1"
+        ));
+
+        assertTrue(buildSpec.defines.contains("COCOAPODS=1"));
+        assertTrue(buildSpec.defines.contains("CLS_SDK_NAME=Crashlytics\\ SDK\\ iOS"));
+        assertTrue(buildSpec.defines.contains("PB_ENABLE_MALLOC=1"));
+        assertFalse(buildSpec.defines.contains("SDK"));
+        assertFalse(buildSpec.defines.contains("iOS"));
+    }
+
+    @Test
+    public void testPreprocessorDefinitionsEscapeQuotedSpaces() {
+        PodBuildSpec buildSpec = new PodBuildSpec();
+
+        buildSpec.updateFlagsFromConfig(Map.of(
+            "GCC_PREPROCESSOR_DEFINITIONS",
+            "CLS_SDK_NAME=\"Crashlytics SDK iOS\""
+        ));
+
+        assertTrue(buildSpec.defines.contains("CLS_SDK_NAME=Crashlytics\\ SDK\\ iOS"));
+        assertFalse(buildSpec.defines.contains("SDK"));
+        assertFalse(buildSpec.defines.contains("iOS"));
     }
 
     @Test
