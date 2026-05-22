@@ -10,6 +10,8 @@ import org.jf.dexlib2.iface.DexFile;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -36,6 +38,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 @Tag("integration")
+@Execution(ExecutionMode.SAME_THREAD)
 public class IntegrationTest {
     private static final int EXTENDER_PORT = 9000;
 
