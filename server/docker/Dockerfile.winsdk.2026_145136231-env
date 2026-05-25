@@ -1,0 +1,117 @@
+ARG PLATFORMSDK_DIR=/opt/platformsdk
+ARG PLATFORMSDK_WIN32=${PLATFORMSDK_DIR}/Win32
+ARG WINDOWS_SDK_VERSION=10.0.28000.0
+ARG WINDOWS_MSVC_VERSION=14.51.36231
+ARG WINDOWS_SDK_DIR=${PLATFORMSDK_WIN32}/WindowsKits/10
+ARG WINDOWS_MSVC_DIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2026/VC/Tools/MSVC/${WINDOWS_MSVC_VERSION}"
+
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
+
+ARG PLATFORMSDK_WIN32
+ARG WINDOWS_SDK_VERSION
+ARG WINDOWS_MSVC_VERSION
+ARG WINDOWS_SDK_DIR
+ARG WINDOWS_MSVC_DIR
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends python3 python-is-python3
+
+RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
+  mkdir -p "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2026" && \
+  wget -q -O - "$(cat /run/secrets/DM_PACKAGES_URL)/Microsoft-Visual-Studio-2026-${WINDOWS_MSVC_VERSION}.tar.gz" | tar xz -C "${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2026" && \
+  mkdir -p "${PLATFORMSDK_WIN32}/WindowsKits" && \
+  wget -q -O - "$(cat /run/secrets/DM_PACKAGES_URL)/WindowsKits-${WINDOWS_SDK_VERSION}.tar.gz" | tar xz -C "${PLATFORMSDK_WIN32}/WindowsKits"
+
+COPY winsdk_rename_files.py ${PLATFORMSDK_WIN32}
+
+# Due to Windows' case insensitive file system, the sources reference lib files with wrong cases
+# so we solve the bulk by making the suffixes lowercase. (e.g. MyLib.Lib -> MyLib.lib)
+RUN find $PLATFORMSDK_WIN32 -iname '*.Lib' -type f -exec sh -c 'a=$(echo "$0" | sed -r "s/([^.]*)\$/\L\1/"); [ "$a" != "$0" ] && [ ! -f "$a" ] && ln -s "$0" "$a" ' {} \; && \
+  python ${PLATFORMSDK_WIN32}/winsdk_rename_files.py > ${PLATFORMSDK_WIN32}/rename.txt && \
+# Make a copy of all the headers too, in lower case (e.g. Windows.h -> windows.h etc)
+  find $PLATFORMSDK_WIN32 -iname '*.h' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \; && \
+# Make lower case links of libraries as well
+  find ${WINDOWS_SDK_DIR}/Lib -iname '*.lib' -type f -exec sh -c 'd=$(dirname "$0"); a=$(basename "$0" | tr [:upper:] [:lower:]); [ "$a" != $(basename "$0")  ] && [ ! -f "$d/$a" ] && ln -s "$0" "$d/$a" ' {} \;
+
+# and the rest are manually copied (or made lower case)
+WORKDIR "${WINDOWS_MSVC_DIR}/lib/x64"
+RUN \
+  cp oldnames.lib OLDNAMES.lib && \
+  cp libcmt.lib LIBCMT.lib && \
+  cp delayimp.lib Delayimp.lib
+
+WORKDIR "${WINDOWS_MSVC_DIR}/lib/x86"
+RUN \
+  cp oldnames.lib OLDNAMES.lib && \
+  cp libcmt.lib LIBCMT.lib && \
+  cp delayimp.lib Delayimp.lib
+
+# Some headers are named by the wrong name in the windows sdk's...
+# We need to make certain names lowercase because some users
+# have put "pragma lib" comments in some libraries :(
+# and/or misspelled header files
+WORKDIR "${WINDOWS_SDK_DIR}/Include/${WINDOWS_SDK_VERSION}/shared"
+RUN \
+  cp driverspecs.h DriverSpecs.h && \
+  cp specstrings.h SpecStrings.h && \
+  cp concurrencysal.h ConcurrencySal.h && \
+  cp wlantypes.h WlanTypes.h
+
+WORKDIR "${WINDOWS_SDK_DIR}/Lib/${WINDOWS_SDK_VERSION}/um/x64"
+RUN cp psapi.lib Psapi.lib
+
+WORKDIR "${WINDOWS_SDK_DIR}/Lib/${WINDOWS_SDK_VERSION}/um/x86"
+RUN cp psapi.lib Psapi.lib
+
+# Also, the OpenGL headers in the windows SDK is in a folder with lower case letters, which doesn't match the includes
+WORKDIR "${WINDOWS_SDK_DIR}/Include/${WINDOWS_SDK_VERSION}/um"
+RUN \
+  mkdir ./GL && \
+  cp -v ./gl/*.* ./GL/
+
+WORKDIR /
+
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.7.1
+
+ARG PLATFORMSDK_WIN32
+ARG WINDOWS_SDK_VERSION
+ARG WINDOWS_MSVC_VERSION
+ARG WINDOWS_SDK_DIR
+ARG WINDOWS_MSVC_DIR
+
+
+ENV PLATFORMSDK_WIN32=${PLATFORMSDK_WIN32}
+ENV \
+  WINDOWS_SDK_DIR=${WINDOWS_SDK_DIR} \
+  WINDOWS_SDK_VERSION=${WINDOWS_SDK_VERSION} \
+  WINDOWS_MSVC_VERSION=$WINDOWS_MSVC_VERSION} \
+  VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2026/VC" \
+  VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2026" \
+  WINDOWS_MSVC_DIR=${WINDOWS_MSVC_DIR} \
+  WINDOWS_VCINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2026/VC/Tools/MSVC/${WINDOWS_MSVC_VERSION}" \
+  WINDOWS_VSINSTALLDIR="${PLATFORMSDK_WIN32}/MicrosoftVisualStudio2026"
+
+COPY --from=build ${PLATFORMSDK_WIN32} ${PLATFORMSDK_WIN32}
+
+# windres: Allows for generating .res files that can be used during linking
+# hadolint ignore=SC2016
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends binutils-mingw-w64-x86-64 gcc && \
+  ls -la /usr/bin/x86_64-w64-mingw32-windres && \
+  ln -s /usr/bin/x86_64-w64-mingw32-windres /usr/local/bin/windres && \
+  CLANG_EXEC="$(which clang)" && \
+  LLVM_AR="$(which llvm-ar)" &&\
+  ln -s "${CLANG_EXEC}" "$(dirname "${CLANG_EXEC}")/x86_64-pc-win32-clang" && \
+  ln -s "${LLVM_AR}" "$(dirname "${LLVM_AR}")/x86_64-pc-win32-clang-ar" && \
+# Since dotnet cannot really cross compile, we need to create a "lib" shim for "wine lib.exe"
+# As long as it's in the path, it will be picked up
+  echo '#!/usr/bin/env bash' > /usr/bin/lib && \
+  echo 'wine ${WINDOWS_VCINSTALLDIR}/bin/Hostx64/x64/lib.exe $*' >> /usr/bin/lib && \
+  chmod +x /usr/bin/lib && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
