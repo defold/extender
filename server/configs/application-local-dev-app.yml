@@ -42,6 +42,9 @@ extender:
             winsdk-2022_144435207:
                 url: http://winsdk-2022_144435207:9000
                 instanceId: winsdk-2022_144435207
+            winsdk-2026_145136231:
+                url: http://winsdk-2026_145136231:9000
+                instanceId: winsdk-2026_145136231
             xbox-251002:
                 url: http://xbox-251002:9000
                 instanceId: xbox-251002
