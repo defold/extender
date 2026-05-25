@@ -180,7 +180,8 @@ services:
       file: common-services.yml
       service: test_remote_builder
     profiles:
-      - test
+      - all
+      - windows
     networks:
       default:
         aliases:
