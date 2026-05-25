@@ -174,7 +174,7 @@ services:
       default:
         aliases:
           - winsdk-2022_144435207
-  win_2026_145136231-integration-dev:
+  win_2026_145136231-dev:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2026_145136231-env:latest
     extends:
       file: common-services.yml
