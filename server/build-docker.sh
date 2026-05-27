@@ -77,13 +77,13 @@ for request in $REQUESTED; do
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_XBOX_PRIVATE_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
             ;;
         wine)
-            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-wine-env:1.7.1 -t $DOCKER_REGISTRY/extender-wine-env:latest -f $SCRIPT_DIR/docker/Dockerfile.wine-env $SCRIPT_DIR/docker
+            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-wine-env:1.8.0 -t $DOCKER_REGISTRY/extender-wine-env:latest -f $SCRIPT_DIR/docker/Dockerfile.wine-env $SCRIPT_DIR/docker
             ;;
         android)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-android-env:1.7.0 -t $DOCKER_REGISTRY/extender-android-env:latest -f $SCRIPT_DIR/docker/Dockerfile.android-env $SCRIPT_DIR/docker
             ;;
         winsdk-2026_145136231)
-            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-winsdk-2026_145136231-env:1.0.0 -t $DOCKER_REGISTRY/extender-winsdk-2026_145136231-env:latest -f $SCRIPT_DIR/docker/Dockerfile.winsdk.2026_145136231-env $SCRIPT_DIR/docker
+            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-winsdk-2026_145136231-env:1.1.0 -t $DOCKER_REGISTRY/extender-winsdk-2026_145136231-env:latest -f $SCRIPT_DIR/docker/Dockerfile.winsdk.2026_145136231-env $SCRIPT_DIR/docker
             ;;
         android-ndk*|winsdk-*|emsdk-*)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
