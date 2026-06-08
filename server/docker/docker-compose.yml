@@ -6,7 +6,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app,prometheus${STRUCTURED_LOGGING+,logging}"]
+    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app,prometheus${STRUCTURED_LOGGING+,logging}"]
     environment:
       - INSTANCE_ID=frontend-local
     expose:
@@ -62,7 +62,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
+    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
     environment:
       - INSTANCE_ID=android-ndk25-local
     profiles:
@@ -77,7 +77,7 @@ services:
     extends:
       file: common-services.yml
       service: common_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
+    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
     environment:
       - INSTANCE_ID=android-ndk25_sdk36-local
     profiles:
@@ -208,7 +208,7 @@ services:
     extends:
       file: common-services.yml
       service: test_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=test-app"]
+    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=test-app"]
     expose:
       - "9000"
     ports:
@@ -237,7 +237,7 @@ services:
     extends:
       file: common-services.yml
       service: test_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
+    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
     profiles:
       - test
       - auth-test
@@ -250,7 +250,7 @@ services:
     extends:
       file: common-services.yml
       service: test_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
+    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
     profiles:
       - test
       - auth-test
@@ -309,7 +309,7 @@ services:
     extends:
       file: common-services.yml
       service: test_builder
-    command: ["--spring.config.location=classpath:./,file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt", "--server.port=9001"]
+    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt", "--server.port=9001"]
     volumes:
       - ./../users:/etc/defold/users:ro
     expose:
