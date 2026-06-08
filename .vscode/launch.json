@@ -12,10 +12,11 @@
             "name": "Spring Boot-ExtenderApplication<server>",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "vmArgs": "-Dorg.eclipse.jetty.server.Request.maxFormKeys=1500",
+            "vmArgs": "",
             "mainClass": "com.defold.extender.ExtenderApplication",
             "projectName": "server",
-            "args": "--spring.config.location=classpath:./,file:${workspaceFolder}/server/configs/ --extender.sdk.location=${workspaceFolder}/server/app/sdk --spring.profiles.active=standalone-dev",
+            "classPaths": ["$Auto", "${workspaceFolder}/server/build/resources/main"],
+            "args": "--spring.config.additional-location=file:${workspaceFolder}/server/configs/ --extender.sdk.location=${workspaceFolder}/server/app/sdk --spring.profiles.active=standalone-dev",
             "envFile": ["${workspaceFolder}/server/envs/.env", "${workspaceFolder}/server/envs/user.env", "${workspaceFolder}/server/envs/macos.env"]
         }
     ]
