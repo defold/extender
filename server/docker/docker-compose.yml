@@ -178,7 +178,9 @@ services:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2026_145136231-env:latest
     extends:
       file: common-services.yml
-      service: test_remote_builder
+      service: remote_builder
+    environment:
+      - INSTANCE_ID=win_2026_145136231-local
     profiles:
       - all
       - windows
