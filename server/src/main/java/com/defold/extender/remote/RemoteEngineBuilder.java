@@ -18,14 +18,16 @@ import com.defold.extender.log.Markers;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
@@ -46,6 +48,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import java.nio.charset.Charset;
@@ -60,12 +63,16 @@ public class RemoteEngineBuilder {
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
     private boolean keepJobDirectory = false;
-    protected final HttpClient httpClient;
+    protected final CloseableHttpClient httpClient;
 
     public RemoteEngineBuilder(Optional<GCPInstanceService> instanceService,
                             @Value("${extender.job-result.location}") String jobResultLocation,
                             @Value("${extender.remote-builder.build-sleep-timeout:5000}") long buildSleepTimeout,
                             @Value("${extender.remote-builder.build-result-wait-timeout:1200000}") long buildResultWaitTimeout,
+                            @Value("${extender.remote-builder.connect-timeout:30000}") int connectTimeout,
+                            @Value("${extender.remote-builder.connection-request-timeout:30000}") int connectionRequestTimeout,
+                            @Value("${extender.remote-builder.socket-timeout:600000}") int socketTimeout,
+                            @Value("${extender.remote-builder.max-connections:${extender.tasks.executor.pool-size:35}}") int maxConnections,
                             @Autowired Tracer tracer,
                             @Autowired Propagator propogator) {
         instanceService.ifPresent(val -> { LOGGER.info("Instance client is initialized"); this.instanceService = val; });
@@ -73,8 +80,23 @@ public class RemoteEngineBuilder {
         this.buildResultWaitTimeout = buildResultWaitTimeout;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
+
+        RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectTimeout(connectTimeout)
+            .setConnectionRequestTimeout(connectionRequestTimeout)
+            .setSocketTimeout(socketTimeout)
+            .build();
+
+        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+        connectionManager.setMaxTotal(maxConnections);
+        connectionManager.setDefaultMaxPerRoute(maxConnections);
+
         this.httpClient  = HttpClientBuilder
             .create()
+            .setConnectionManager(connectionManager)
+            .setDefaultRequestConfig(requestConfig)
+            .evictExpiredConnections()
+            .evictIdleConnections(socketTimeout, TimeUnit.MILLISECONDS)
             .addInterceptorLast(new ExtenderTracerInterceptor(tracer, propogator))
             .build();
     }
@@ -90,7 +112,7 @@ public class RemoteEngineBuilder {
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation.getAbsolutePath(), jobName);
-        resultDir.mkdir();
+        resultDir.mkdirs();
 
         final HttpEntity httpEntity;
         Timer buildTimer = new Timer();
@@ -114,9 +136,17 @@ public class RemoteEngineBuilder {
             request.setEntity(httpEntity);
     
             touchInstance(remoteInstanceConfig.getInstanceId());
-            HttpResponse response = httpClient.execute(request);
-            // copied from ExtenderClient. Think about code deduplication.
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+            try (CloseableHttpResponse response = httpClient.execute(request)) {
+                // copied from ExtenderClient. Think about code deduplication.
+                if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                    LOGGER.error(Markers.COMPILATION_ERROR,  "Failed to build source.");
+                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+                    try (PrintWriter writer = new PrintWriter(errorFile)) {
+                        IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
+                    }
+                    return;
+                }
+
                 String jobId = EntityUtils.toString(response.getEntity());
                 LOGGER.info(String.format("Remote async build posted. Wait job id: %s", jobId));
                 long currentTime = System.currentTimeMillis();
@@ -125,8 +155,9 @@ public class RemoteEngineBuilder {
                 while (System.currentTimeMillis() - currentTime < buildResultWaitTimeout) {
                     touchInstance(remoteInstanceConfig.getInstanceId());
                     HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
-                    response = httpClient.execute(statusRequest);
-                    jobStatus = Integer.valueOf(EntityUtils.toString(response.getEntity()));
+                    try (CloseableHttpResponse statusResponse = httpClient.execute(statusRequest)) {
+                        jobStatus = Integer.valueOf(EntityUtils.toString(statusResponse.getEntity()));
+                    }
                     if (jobStatus != 0) {
                         LOGGER.info(String.format("Job %s status is %d", jobId, jobStatus));
                         break;
@@ -138,36 +169,29 @@ public class RemoteEngineBuilder {
                     PrintWriter writer = new PrintWriter(errorFile);
                     writer.write(String.format("Job %s result cannot be defined during %d", jobId, buildResultWaitTimeout));
                     writer.close();
+                    return;
                 }
                 touchInstance(remoteInstanceConfig.getInstanceId());
                 HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
-                response = httpClient.execute(resultRequest);
-                LOGGER.info(String.format("Job %s result got.", jobId));
-                if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
-                    // Write zip file to result directory
-                    File tmpResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME + ".tmp");
-                    OutputStream os = new FileOutputStream(tmpResult);
-                    IOUtils.copy(response.getEntity().getContent(), os);
-                    os.close();
-                    File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
-                    Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
-                } else {
-                    LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
-                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                    PrintWriter writer = new PrintWriter(errorFile);
-                    IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
-                    writer.close();
-                    EntityUtils.consumeQuietly(response.getEntity());
+                try (CloseableHttpResponse resultResponse = httpClient.execute(resultRequest)) {
+                    LOGGER.info(String.format("Job %s result got.", jobId));
+                    if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
+                        // Write zip file to result directory
+                        File tmpResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME + ".tmp");
+                        try (OutputStream os = new FileOutputStream(tmpResult)) {
+                            IOUtils.copy(resultResponse.getEntity().getContent(), os);
+                        }
+                        File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
+                        Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                    } else {
+                        LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
+                        File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+                        try (PrintWriter writer = new PrintWriter(errorFile)) {
+                            IOUtils.copy(resultResponse.getEntity().getContent(), writer, Charset.defaultCharset());
+                        }
+                    }
                 }
-            } else {
-                LOGGER.error(Markers.COMPILATION_ERROR,  "Failed to build source.");
-                File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                PrintWriter writer = new PrintWriter(errorFile);
-                IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
-                writer.close();
-                EntityUtils.consumeQuietly(response.getEntity());
             }
-            metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
         } catch (Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             PrintWriter writer = new PrintWriter(errorFile);
