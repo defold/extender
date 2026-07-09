@@ -28,6 +28,10 @@ extender:
         enabled: false
         build-sleep-timeout: 5000
         build-result-wait-timeout: 1200000
+        connect-timeout: 30000
+        connection-request-timeout: 30000
+        socket-timeout: 600000
+        max-connections: 35
     gradle:
         enabled: false
         location: /tmp/.gradle
