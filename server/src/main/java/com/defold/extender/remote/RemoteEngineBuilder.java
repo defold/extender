@@ -20,6 +20,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
@@ -62,6 +63,8 @@ public class RemoteEngineBuilder {
     private File jobResultLocation;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
+    private int resultDownloadRetries;
+    private long resultDownloadRetryDelay;
     private boolean keepJobDirectory = false;
     protected final CloseableHttpClient httpClient;
 
@@ -71,13 +74,17 @@ public class RemoteEngineBuilder {
                             @Value("${extender.remote-builder.build-result-wait-timeout:1200000}") long buildResultWaitTimeout,
                             @Value("${extender.remote-builder.connect-timeout:30000}") int connectTimeout,
                             @Value("${extender.remote-builder.connection-request-timeout:30000}") int connectionRequestTimeout,
-                            @Value("${extender.remote-builder.socket-timeout:600000}") int socketTimeout,
+                            @Value("${extender.remote-builder.socket-timeout:120000}") int socketTimeout,
                             @Value("${extender.remote-builder.max-connections:${extender.tasks.executor.pool-size:35}}") int maxConnections,
+                            @Value("${extender.remote-builder.result-download-retries:3}") int resultDownloadRetries,
+                            @Value("${extender.remote-builder.result-download-retry-delay:5000}") long resultDownloadRetryDelay,
                             @Autowired Tracer tracer,
                             @Autowired Propagator propogator) {
         instanceService.ifPresent(val -> { LOGGER.info("Instance client is initialized"); this.instanceService = val; });
         this.buildSleepTimeout = buildSleepTimeout;
         this.buildResultWaitTimeout = buildResultWaitTimeout;
+        this.resultDownloadRetries = resultDownloadRetries;
+        this.resultDownloadRetryDelay = resultDownloadRetryDelay;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
 
@@ -90,13 +97,16 @@ public class RemoteEngineBuilder {
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
         connectionManager.setMaxTotal(maxConnections);
         connectionManager.setDefaultMaxPerRoute(maxConnections);
+        // detect connections half-closed by flaky networks instead of failing the next request on them
+        connectionManager.setValidateAfterInactivity(5000);
+        connectionManager.setDefaultSocketConfig(SocketConfig.custom().setSoKeepAlive(true).build());
 
         this.httpClient  = HttpClientBuilder
             .create()
             .setConnectionManager(connectionManager)
             .setDefaultRequestConfig(requestConfig)
             .evictExpiredConnections()
-            .evictIdleConnections(socketTimeout, TimeUnit.MILLISECONDS)
+            .evictIdleConnections(60, TimeUnit.SECONDS)
             .addInterceptorLast(new ExtenderTracerInterceptor(tracer, propogator))
             .build();
     }
@@ -171,26 +181,7 @@ public class RemoteEngineBuilder {
                     writer.close();
                     return;
                 }
-                touchInstance(remoteInstanceConfig.getInstanceId());
-                HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
-                try (CloseableHttpResponse resultResponse = httpClient.execute(resultRequest)) {
-                    LOGGER.info(String.format("Job %s result got.", jobId));
-                    if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
-                        // Write zip file to result directory
-                        File tmpResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME + ".tmp");
-                        try (OutputStream os = new FileOutputStream(tmpResult)) {
-                            IOUtils.copy(resultResponse.getEntity().getContent(), os);
-                        }
-                        File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
-                        Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
-                    } else {
-                        LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
-                        File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                        try (PrintWriter writer = new PrintWriter(errorFile)) {
-                            IOUtils.copy(resultResponse.getEntity().getContent(), writer, Charset.defaultCharset());
-                        }
-                    }
-                }
+                downloadResult(remoteInstanceConfig, jobId, jobStatus, resultDir);
             }
         } catch (Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
@@ -210,6 +201,41 @@ public class RemoteEngineBuilder {
             }
             else {
                 LOGGER.info("Keeping job directory due to debug flags");
+            }
+        }
+    }
+
+    // The job result stays on the builder for extender.job-result.lifetime, so a download
+    // interrupted by a network error can be retried instead of failing the finished build.
+    private void downloadResult(final RemoteInstanceConfig remoteInstanceConfig, String jobId, int jobStatus, File resultDir)
+            throws IOException, InterruptedException {
+        final String resultUrl = String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId);
+        for (int attempt = 0; ; ++attempt) {
+            touchInstance(remoteInstanceConfig.getInstanceId());
+            try (CloseableHttpResponse resultResponse = httpClient.execute(new HttpGet(resultUrl))) {
+                if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
+                    // Write zip file to result directory
+                    File tmpResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME + ".tmp");
+                    try (OutputStream os = new FileOutputStream(tmpResult)) {
+                        IOUtils.copy(resultResponse.getEntity().getContent(), os);
+                    }
+                    File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
+                    Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                    LOGGER.info(String.format("Job %s result got.", jobId));
+                } else {
+                    LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
+                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+                    try (PrintWriter writer = new PrintWriter(errorFile)) {
+                        IOUtils.copy(resultResponse.getEntity().getContent(), writer, Charset.defaultCharset());
+                    }
+                }
+                return;
+            } catch (IOException e) {
+                if (attempt >= resultDownloadRetries) {
+                    throw e;
+                }
+                LOGGER.warn(String.format("Failed to download result of job %s (retry %d of %d)", jobId, attempt + 1, resultDownloadRetries), e);
+                Thread.sleep(resultDownloadRetryDelay);
             }
         }
     }
