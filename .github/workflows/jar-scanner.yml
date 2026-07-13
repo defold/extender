@@ -70,7 +70,7 @@ jobs:
           push: false
           tags: defold/security-scanner-test:latest
       - name: Run Docker scout
-        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d # v1.22.0
+        uses: docker/scout-action@2688993af7bafd6ba8c6a74ec652442be91dd82b # v1.23.1
         with:
           command: cves
           image: ${{ steps.build-docker.outputs.tags }}
