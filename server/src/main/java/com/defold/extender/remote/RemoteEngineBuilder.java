@@ -9,6 +9,7 @@ import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GCPInstanceService;
 import com.defold.extender.tracing.ExtenderTracerInterceptor;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
 
@@ -18,18 +19,24 @@ import com.defold.extender.log.Markers;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.SocketConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.client.utils.URIUtils;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +52,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -58,8 +66,10 @@ import java.nio.charset.Charset;
 public class RemoteEngineBuilder {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteEngineBuilder.class);
+    private static final String RECONNECT_METRIC_ID = "extender.service.remoteBuilder.reconnect";
 
     private GCPInstanceService instanceService;
+    private final MeterRegistry meterRegistry;
     private File jobResultLocation;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
@@ -78,9 +88,11 @@ public class RemoteEngineBuilder {
                             @Value("${extender.remote-builder.max-connections:${extender.tasks.executor.pool-size:35}}") int maxConnections,
                             @Value("${extender.remote-builder.result-download-retries:3}") int resultDownloadRetries,
                             @Value("${extender.remote-builder.result-download-retry-delay:5000}") long resultDownloadRetryDelay,
+                            @Autowired MeterRegistry meterRegistry,
                             @Autowired Tracer tracer,
                             @Autowired Propagator propogator) {
         instanceService.ifPresent(val -> { LOGGER.info("Instance client is initialized"); this.instanceService = val; });
+        this.meterRegistry = meterRegistry;
         this.buildSleepTimeout = buildSleepTimeout;
         this.buildResultWaitTimeout = buildResultWaitTimeout;
         this.resultDownloadRetries = resultDownloadRetries;
@@ -107,8 +119,37 @@ public class RemoteEngineBuilder {
             .setDefaultRequestConfig(requestConfig)
             .evictExpiredConnections()
             .evictIdleConnections(60, TimeUnit.SECONDS)
+            .setRetryHandler(this::shouldRetryRequest)
             .addInterceptorLast(new ExtenderTracerInterceptor(tracer, propogator))
             .build();
+    }
+
+    // Same retry policy as the client default, but every granted retry runs on a fresh
+    // connection, so count it as a reconnect to make per-builder network flakiness visible.
+    private boolean shouldRetryRequest(IOException exception, int executionCount, HttpContext context) {
+        if (!DefaultHttpRequestRetryHandler.INSTANCE.retryRequest(exception, executionCount, context)) {
+            return false;
+        }
+        HttpClientContext clientContext = HttpClientContext.adapt(context);
+        countReconnect(clientContext.getTargetHost(), requestOperation(clientContext.getRequest()));
+        return true;
+    }
+
+    private void countReconnect(HttpHost builderHost, String operation) {
+        MetricsWriter.metricsCounterIncrement(meterRegistry, RECONNECT_METRIC_ID,
+            "host", builderHost != null ? builderHost.toHostString() : "unknown",
+            "operation", operation);
+    }
+
+    private static String requestOperation(HttpRequest request) {
+        try {
+            // request paths are /build_async/<platform>/<sdk>, /job_status, /job_result
+            String path = URI.create(request.getRequestLine().getUri()).getPath();
+            String[] segments = path.split("/");
+            return segments.length > 1 ? segments[1] : "unknown";
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 
     @Async(value="extenderTaskExecutor")
@@ -210,6 +251,7 @@ public class RemoteEngineBuilder {
     private void downloadResult(final RemoteInstanceConfig remoteInstanceConfig, String jobId, int jobStatus, File resultDir)
             throws IOException, InterruptedException {
         final String resultUrl = String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId);
+        final HttpHost builderHost = URIUtils.extractHost(URI.create(remoteInstanceConfig.getUrl()));
         for (int attempt = 0; ; ++attempt) {
             touchInstance(remoteInstanceConfig.getInstanceId());
             try (CloseableHttpResponse resultResponse = httpClient.execute(new HttpGet(resultUrl))) {
@@ -235,6 +277,7 @@ public class RemoteEngineBuilder {
                     throw e;
                 }
                 LOGGER.warn(String.format("Failed to download result of job %s (retry %d of %d)", jobId, attempt + 1, resultDownloadRetries), e);
+                countReconnect(builderHost, "job_result");
                 Thread.sleep(resultDownloadRetryDelay);
             }
         }

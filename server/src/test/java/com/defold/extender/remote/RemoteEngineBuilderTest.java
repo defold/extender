@@ -48,11 +48,13 @@ public class RemoteEngineBuilderTest {
     private WireMockServer builderMock;
     private ExecutorService executor;
     private Path resultLocation;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     public void setUp() throws Exception {
         builderMock = new WireMockServer(WireMockConfiguration.options().dynamicPort());
         builderMock.start();
+        meterRegistry = new SimpleMeterRegistry();
         executor = Executors.newCachedThreadPool(runnable -> {
             Thread thread = new Thread(runnable);
             thread.setDaemon(true);
@@ -79,8 +81,14 @@ public class RemoteEngineBuilderTest {
             35,
             resultDownloadRetries,
             100,
+            meterRegistry,
             new SimpleTracer(),
             Propagator.NOOP);
+    }
+
+    private double reconnectCount(String operation) {
+        return meterRegistry.counter("extender.service.remoteBuilder.reconnect",
+            "host", "localhost:" + builderMock.port(), "operation", operation).count();
     }
 
     private RemoteInstanceConfig mockInstanceConfig() {
@@ -173,6 +181,38 @@ public class RemoteEngineBuilderTest {
             "Build result was not downloaded although the builder had it ready for a retry");
         assertArrayEquals(resultZip, Files.readAllBytes(buildResult));
         assertEquals(2, builderMock.findAll(getRequestedFor(urlPathEqualTo("/job_result"))).size());
+        assertEquals(1.0, reconnectCount("job_result"),
+            "The retried result download must be counted as a reconnect to the builder");
+    }
+
+    // A connection dropped before the response arrives (e.g. closed by a NAT or the builder
+    // restarting) is retried by the HTTP client on a fresh connection and shows up in metrics
+    @Test
+    @Timeout(60)
+    public void droppedStatusConnectionIsRetriedAndCounted() throws Exception {
+        builderMock.stubFor(post(urlPathMatching("/build_async/.*"))
+                .willReturn(aResponse().withStatus(200).withBody("reconnect-job")));
+        builderMock.stubFor(get(urlPathEqualTo("/job_status")).inScenario("dropped connection")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withFault(Fault.EMPTY_RESPONSE))
+                .willSetStateTo("recovered"));
+        builderMock.stubFor(get(urlPathEqualTo("/job_status")).inScenario("dropped connection")
+                .whenScenarioStateIs("recovered")
+                .willReturn(aResponse().withStatus(200)
+                        .withBody(String.valueOf(BuilderConstants.JobStatus.SUCCESS.ordinal()))));
+        final byte[] resultZip = new byte[] {0x50, 0x4b, 0x03, 0x04, 0x42};
+        builderMock.stubFor(get(urlPathEqualTo("/job_result"))
+                .willReturn(aResponse().withStatus(200).withBody(resultZip)));
+
+        Path resultDir = submitBuild(createBuilder(1), "reconnect");
+
+        Path buildResult = resultDir.resolve(BuilderConstants.BUILD_RESULT_FILENAME);
+        assertTrue(waitFor(() -> buildResult.toFile().exists(), 15_000),
+            "Build did not recover from a dropped status poll connection");
+        assertEquals(2, builderMock.findAll(getRequestedFor(urlPathEqualTo("/job_status"))).size());
+        assertEquals(1.0, reconnectCount("job_status"),
+            "The client-level retry of the status poll must be counted as a reconnect");
+        assertEquals(0.0, reconnectCount("job_result"));
     }
 
     @Test
