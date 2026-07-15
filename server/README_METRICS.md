@@ -27,4 +27,5 @@ Below is the table with metrics description that collected inside application. T
 |extender.service.gradle.unpack    |Timer        |Milliseconds |How long Gradle was unpacking dependencies                                       |
 |extender.service.gradle.get       |Timer        |Milliseconds |How long Gradle dependencies step was going                                      |
 |extender.versionInfo              |Gauge        |Unit         |Always return 1. Labels contains git tag and git commit sha with current version |
-|extender.build.target             |Counter      |Unit         |How many build by target was made ('engine', 'plugins', 'library'                |
+|extender.build.target             |Counter      |Unit         |How many build by target was made ('engine', 'plugins', 'library')               |
+|extender.service.remoteBuilder.reconnect|Counter      |Unit         |How many times a request to a remote builder was retried on a fresh connection after a network error. Labels contain the builder host:port and the operation ('build_async', 'job_status', 'job_result') |
