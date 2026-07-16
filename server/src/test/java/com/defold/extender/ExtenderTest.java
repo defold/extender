@@ -242,6 +242,67 @@ public class ExtenderTest {
         }
     }
 
+    // The Android platform config in build.yml templates its env from these, so they have to be
+    // present when creating an Extender for an Android platform. The values are never executed here.
+    static Map<String, String> createAndroidEnv()
+    {
+        Map<String, String> env = createEnv();
+        env.put("ANDROID_PROGUARD", "/opt/android/proguard.jar");
+        env.put("ANDROID_LIBRARYJAR", "/opt/android/android.jar");
+        env.put("ANDROID_NDK_PATH", "/opt/android/ndk");
+        env.put("ANDROID_NDK_SYSROOT", "/opt/android/ndk/sysroot");
+        env.put("ANDROID_NDK_BIN_PATH", "/opt/android/ndk/bin");
+        env.put("ANDROID_NDK_API_VERSION", "19");
+        env.put("ANDROID_64_NDK_API_VERSION", "21");
+        env.put("ANDROID_SDK_VERSION", "36");
+        env.put("ANDROID_SDK_BUILD_TOOLS_PATH", "/opt/android/build-tools");
+        return env;
+    }
+
+    // An .aar in an extension is unpacked into the same exploded layout as a Maven resolved .aar:
+    // a directory named "*.aar" holding classes.jar, libs/, res/, assets/ and the AndroidManifest.
+    @Test
+    public void testResolveLocalAars() throws IOException, ExtenderException {
+        File jobDir = Files.createTempDirectory("localaar").toFile();
+        jobDir.deleteOnExit();
+        File uploadDir = new File(jobDir, "upload");
+        File buildDir = new File(jobDir, "build");
+        buildDir.mkdirs();
+
+        // an extension shipping a local .aar next to its jars
+        File extDir = new File(uploadDir, "myext");
+        FileUtils.copyFile(new File("test-data/ext/ext.manifest"), new File(extDir, "ext.manifest"));
+        FileUtils.copyFile(new File("test-data/ext/lib/android/LocalAar.aar"), new File(extDir, "lib/android/LocalAar.aar"));
+
+        Extender extender = new Extender.Builder()
+                            .setPlatform("armv7-android")
+                            .setSdk(new File("test-data/sdk/a/defoldsdk"))
+                            .setJobDirectory(jobDir)
+                            .setUploadDirectory(uploadDir)
+                            .setBuildDirectory(buildDir)
+                            .setEnv(createAndroidEnv())
+                            .build();
+
+        extender.resolveLocalAars();
+
+        File unpacked = new File(buildDir, "local_aars/myext-LocalAar.aar");
+        assertTrue(unpacked.isDirectory());
+        assertTrue(new File(unpacked, "classes.jar").exists());
+        assertTrue(new File(unpacked, "libs/InnerJar.jar").exists());
+        assertTrue(new File(unpacked, "res/values/strings.xml").exists());
+        assertTrue(new File(unpacked, "assets/local_aar.txt").exists());
+        assertTrue(new File(unpacked, "AndroidManifest.xml").exists());
+
+        FileUtils.deleteQuietly(jobDir);
+    }
+
+    @Test
+    public void testCollectAars() {
+        List<String> paths = ExtenderUtil.collectFilesByPath(new File("test-data/ext/lib/android"), ExtenderConst.AAR_RE);
+        assertEquals(1, paths.size());
+        assertTrue(paths.get(0).endsWith("test-data/ext/lib/android/LocalAar.aar"));
+    }
+
     @Test
     public void testCollectJars() {
         String[] endings = {"test-data/ext/lib/android/Dummy.jar", "test-data/ext/lib/android/JarDep.jar",
