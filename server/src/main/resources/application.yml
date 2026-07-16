@@ -28,6 +28,13 @@ extender:
         enabled: false
         build-sleep-timeout: 5000
         build-result-wait-timeout: 1200000
+        connect-timeout: 30000
+        connection-request-timeout: 30000
+        # per-read inactivity limit; a download making progress is never cut off
+        socket-timeout: 120000
+        max-connections: 35
+        result-download-retries: 3
+        result-download-retry-delay: 5000
     gradle:
         enabled: false
         location: /tmp/.gradle
