@@ -73,7 +73,10 @@ function stack_is_current() {
 	[ -n "$ids" ] || return 1
 
 	local jar_mtime
-	jar_mtime=$(stat -f %m "$jar" 2>/dev/null || stat -c %Y "$jar")
+	# GNU stat must come first: BSD-style "stat -f %m" fails on GNU but only after printing
+	# the whole filesystem status to stdout, which would corrupt jar_mtime. "stat -c" on BSD
+	# fails cleanly with nothing on stdout.
+	jar_mtime=$(stat -c %Y "$jar" 2>/dev/null || stat -f %m "$jar")
 
 	local started started_epoch
 	for id in $ids; do
