@@ -195,6 +195,7 @@ public class DefoldSdkService {
                     while (attempt < configuration.getMaxVerificationRetryCount()) {
                         LOGGER.info("Downloading Defold SDK from {} attempt {} ...", url, attempt + 1);
                         File tmpResponseBody = null;
+                        Path tmpSdkPath = null;
                         // Connect and copy to file
                         try (ClientHttpResponse response = doRequestWithRedirects(URI.create(url), HttpMethod.GET, configuration.getMaxRedirectCount())) {
                             InputStream body = response.getBody();
@@ -234,7 +235,8 @@ public class DefoldSdkService {
                                 LOGGER.info("Sdk checksum verification is disabled");
                             }
                             Path tempDirectoryPath = Files.createTempDirectory(configuration.getLocation(), "tmp" + hash);
-                            File tmpSdkDirectory = tempDirectoryPath.toFile(); // Either moved or deleted later by Move()
+                            tmpSdkPath = tempDirectoryPath;
+                            File tmpSdkDirectory = tempDirectoryPath.toFile();
 
                             Files.createDirectories(tempDirectoryPath);
                             try (InputStream is = new FileInputStream(tmpResponseBody)) {
@@ -242,13 +244,27 @@ public class DefoldSdkService {
                             }
 
                             Files.move(tmpSdkDirectory.toPath(), sdkDirectory.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                            tmpSdkPath = null; // moved, nothing left to clean up
                             isVerified = true;
                             break;
                         } catch (IOException exc) {
+                            // The move above fails with DirectoryNotEmptyException when someone else
+                            // populated this hash first - which is expected once builders share a
+                            // cache directory. Their copy is as good as ours, so take it.
+                            if (Files.exists(sdkDirectory.toPath())) {
+                                LOGGER.info("Defold SDK {} was downloaded concurrently, reusing it", hash);
+                                isVerified = true;
+                                break;
+                            }
+                            // Count the attempt, otherwise a persistent IO error re-downloads forever.
+                            ++attempt;
                             LOGGER.error("Error downloading defoldsdk", exc);
                         } finally {
                             if (tmpResponseBody != null && tmpResponseBody.exists()) {
                                 tmpResponseBody.delete();
+                            }
+                            if (tmpSdkPath != null && Files.exists(tmpSdkPath)) {
+                                FileUtils.deleteQuietly(tmpSdkPath.toFile());
                             }
                         }
                     }
