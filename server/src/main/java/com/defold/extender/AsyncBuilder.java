@@ -107,8 +107,9 @@ public class AsyncBuilder {
                             .setMetricsWriter(metricsWriter)
                             .build();
 
-                // Resolve Gradle dependencies
+                // Resolve Gradle dependencies and .aar files shipped inside the extensions
                 if (platform.contains("android")) {
+                    extender.resolveLocalAars();
                     extender.resolve(gradleService);
                     metricsWriter.measureGradleDownload();
                 }

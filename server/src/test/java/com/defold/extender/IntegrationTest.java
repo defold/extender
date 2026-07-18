@@ -548,6 +548,44 @@ public class IntegrationTest {
         assertTrue(checkClassesDexClasses(destination, classes));
     }
 
+    /*
+     * Test that an .aar file shipped inside an extension (lib/android/*.aar) is unpacked and that
+     * all of its parts are used: the classes of classes.jar and libs/*.jar end up in the dex and on
+     * the javac classpath, the resources are compiled and returned in packages/, the package of the
+     * AndroidManifest is passed to aapt2 as an extra package (which gives us its R class) and the
+     * assets are returned to the client.
+     */
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidLocalAar(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android") && configuration.version.version.isGreaterThan(1, 2, 174),
+            "Defold version does not support Android resources compilation test."
+        );
+
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/src/TestAar.java"),
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/LocalAar.aar"));
+
+        File destination = doBuild(sourceFiles, configuration);
+
+        List<String> classes = Arrays.asList(new String[]{
+            "Lcom/defold/localaar/LocalAar;",   // from classes.jar
+            "Lcom/defold/localaar/InnerJar;",   // from libs/InnerJar.jar
+            "Lcom/defold/localaar/R;",          // from the aapt2 extra package
+            "Lcom/defold/Test;"});              // the extension source importing the two classes above
+        assertTrue(checkClassesDexClasses(destination, classes));
+
+        // The unpacked .aar is named "<extension>-<file>.aar", which also names its resource package
+        try (ZipFile zipFile = new ZipFile(destination)) {
+            assertNotEquals(null, zipFile.getEntry("packages/ext-LocalAar.aar/res/values/strings.xml"));
+            assertNotEquals(null, zipFile.getEntry("assets/local_aar.txt"));
+        }
+    }
+
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
     @MethodSource("data")
     public void buildEngineAppManifest(TestConfiguration configuration) throws IOException, ExtenderClientException {

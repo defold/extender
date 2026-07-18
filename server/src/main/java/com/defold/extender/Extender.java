@@ -16,7 +16,9 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -72,7 +74,9 @@ class Extender {
 
     private List<File> extDirs;
     private List<File> manifests;       // The list of ext.manifests found in the upload
-    private List<File> gradlePackages;
+    // Unpacked Android dependencies: a .jar file, or a directory named "*.aar" holding an exploded
+    // .aar. They come from Gradle/Maven, or from .aar files shipped inside an extension.
+    private List<File> androidPackages;
     private List<File> outputFiles;
     private ResolvedPods resolvedPods;
     private int nameCounter = 0;
@@ -173,7 +177,7 @@ class Extender {
 
     private Extender(Builder builder) throws IOException, ExtenderException {
         this.metricsWriter = builder.metricsWriter;
-        this.gradlePackages = new ArrayList<>();
+        this.androidPackages = new ArrayList<>();
         this.outputFiles = new ArrayList<>();
 
         // Read config from SDK
@@ -446,6 +450,16 @@ class Extender {
         return jars;
     }
 
+    private List<String> getExtensionLibAars(File extDir) {
+        List<String> aars = new ArrayList<>();
+        aars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + buildState.fullPlatform), ExtenderConst.AAR_RE)); // e.g. armv7-android
+        String[] platformParts = buildState.fullPlatform.split("-");
+        if (platformParts.length == 2) {
+            aars.addAll(ExtenderUtil.collectFilesByPath(new File(extDir, "lib" + File.separator + platformParts[1]), ExtenderConst.AAR_RE)); // e.g. "android"
+        }
+        return aars;
+    }
+
     private List<String> getAllExtensionsLibJars() {
         List<String> allLibJars = new ArrayList<>();
         for (File extDir : this.extDirs) {
@@ -454,7 +468,7 @@ class Extender {
 
         // Where we previously stored the dependencies directly inside the extensions
         // we now use gradle to resolve the dependencies
-        for (File f : gradlePackages) {
+        for (File f : androidPackages) {
             if (f.getName().endsWith(".jar"))
                 allLibJars.add(f.getAbsolutePath());
             else if(f.getName().endsWith(".aar")) {
@@ -1591,7 +1605,7 @@ class Extender {
 
     private List<File> getAndroidAssetsFolders(String platform) {
         List<File> assetDirs = new ArrayList<>();
-        assetDirs.addAll(gradlePackages.stream()
+        assetDirs.addAll(androidPackages.stream()
                                          .map(f -> new File(f, "assets"))
                                          .collect(Collectors.toList()));
         return assetDirs.stream()
@@ -1601,7 +1615,7 @@ class Extender {
 
     private List<File> getAndroidJniFolders(String platform) {
         List<File> jniDirs = new ArrayList<>();
-        jniDirs.addAll(gradlePackages.stream()
+        jniDirs.addAll(androidPackages.stream()
                                          .map(f -> new File(f, "jni"))
                                          .collect(Collectors.toList()));
         return jniDirs.stream()
@@ -1610,17 +1624,21 @@ class Extender {
     }
 
     private List<String> getAndroidResourceFolders(String platform) {
-        // New feature from 1.2.165
-        File packageDir = new File(buildState.uploadDir, "packages");
-        if (!packageDir.exists()) {
-            return new ArrayList<>();
-        }
         List<File> packageDirs = new ArrayList<>();
 
-        for (File dir : packageDir.listFiles(File::isDirectory)) {
-            File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
-            if (resDir != null) {
-                packageDirs.add(resDir);
+        // Resources uploaded by the client as pre-resolved packages. New feature from 1.2.165.
+        // This is optional: an extension may ship only a local .aar (see androidPackages below)
+        // and no "packages" directory at all, so we must not short-circuit when it is absent.
+        File packageDir = new File(buildState.uploadDir, "packages");
+        if (packageDir.exists()) {
+            File[] uploadedPackages = packageDir.listFiles(File::isDirectory);
+            if (uploadedPackages != null) {
+                for (File dir : uploadedPackages) {
+                    File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
+                    if (resDir != null) {
+                        packageDirs.add(resDir);
+                    }
+                }
             }
         }
 
@@ -1639,7 +1657,7 @@ class Extender {
         }
 
         // we add all packages (even non-directories)
-        packageDirs.addAll(gradlePackages.stream()
+        packageDirs.addAll(androidPackages.stream()
                                          .map(f -> new File(f, "res"))
                                          .collect(Collectors.toList()));
 
@@ -1717,7 +1735,7 @@ class Extender {
             context.put("resourceListFile", resourceList.getAbsolutePath());
 
             // extra packages
-            List<String> extraPackages = getExtraPackagesFromGradlePackages();
+            List<String> extraPackages = getExtraPackagesFromAndroidPackages();
             if (mergedAppContext.containsKey("aaptExtraPackages")) {
                 extraPackages.addAll((List<String>)mergedAppContext.get("aaptExtraPackages"));
             }
@@ -2562,12 +2580,12 @@ class Extender {
     }
 
     // get extra packages (for aapt2) from the 'package' attribute in the AndroidManifest
-    // of the gradle dependencies. only get extra packages from aar dependencies which
+    // of the android dependencies. only get extra packages from aar dependencies which
     // have a res folder
-    private List<String> getExtraPackagesFromGradlePackages() throws ExtenderException {
+    private List<String> getExtraPackagesFromAndroidPackages() throws ExtenderException {
         Set<String> extraPackages = new HashSet<String>();
         try {
-            for (File f : gradlePackages) {
+            for (File f : androidPackages) {
                 if(f.getName().endsWith(".aar")) {
                     File res = new File(f, "res");
                     File androidManifest = new File(f, "AndroidManifest.xml");
@@ -2747,8 +2765,8 @@ class Extender {
         }
 
         // Add all dependency manifest files
-        if (gradlePackages != null) {
-            for (File dependencyDir : gradlePackages) {
+        if (androidPackages != null) {
+            for (File dependencyDir : androidPackages) {
                 File manifest = new File(dependencyDir, manifestName);
                 if (manifest.exists()) {
                     allManifests.add(manifest);
@@ -2801,10 +2819,39 @@ class Extender {
 
     void resolve(GradleService gradleService) throws ExtenderException {
         try {
-            gradlePackages = gradleService.resolveDependencies(this.buildState, this.platformConfig.context, outputFiles);
+            androidPackages.addAll(gradleService.resolveDependencies(this.buildState, this.platformConfig.context, outputFiles));
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
+        }
+    }
+
+    // Unpack the .aar files shipped inside the extensions into the same exploded layout that the
+    // Gradle service produces, so that their classes.jar, libs/, res/, assets/, jni/ and
+    // AndroidManifest.xml are consumed just like those of a Maven resolved .aar.
+    void resolveLocalAars() throws ExtenderException {
+        File aarsDir = new File(buildState.buildDir, "local_aars");
+
+        for (File extDir : this.extDirs) {
+            for (String path : getExtensionLibAars(extDir)) {
+                File aar = new File(path);
+                // The name must be unique among all packages and must end with ".aar", since that is
+                // what the consumers key off, and it also names the resource package of the .aar.
+                File unpacked = SandboxedPath.resolve(aarsDir, extDir.getName() + "-" + aar.getName());
+                if (unpacked.exists()) {
+                    // the same .aar was found in both lib/android and lib/<arch>-android
+                    continue;
+                }
+
+                LOGGER.info("Unpacking local Android archive {}", aar.getName());
+                try (InputStream is = new FileInputStream(aar)) {
+                    ZipUtils.unzip(is, unpacked.toPath());
+                }
+                catch (IOException e) {
+                    throw new ExtenderException(e, "Failed to unpack .aar file: " + aar.getName());
+                }
+                androidPackages.add(unpacked);
+            }
         }
     }
 
