@@ -1624,17 +1624,21 @@ class Extender {
     }
 
     private List<String> getAndroidResourceFolders(String platform) {
-        // New feature from 1.2.165
-        File packageDir = new File(buildState.uploadDir, "packages");
-        if (!packageDir.exists()) {
-            return new ArrayList<>();
-        }
         List<File> packageDirs = new ArrayList<>();
 
-        for (File dir : packageDir.listFiles(File::isDirectory)) {
-            File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
-            if (resDir != null) {
-                packageDirs.add(resDir);
+        // Resources uploaded by the client as pre-resolved packages. New feature from 1.2.165.
+        // This is optional: an extension may ship only a local .aar (see androidPackages below)
+        // and no "packages" directory at all, so we must not short-circuit when it is absent.
+        File packageDir = new File(buildState.uploadDir, "packages");
+        if (packageDir.exists()) {
+            File[] uploadedPackages = packageDir.listFiles(File::isDirectory);
+            if (uploadedPackages != null) {
+                for (File dir : uploadedPackages) {
+                    File resDir = ExtenderUtil.getAndroidResourceFolder(dir);
+                    if (resDir != null) {
+                        packageDirs.add(resDir);
+                    }
+                }
             }
         }
 
