@@ -58,6 +58,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import java.nio.charset.Charset;
@@ -67,6 +68,7 @@ public class RemoteEngineBuilder {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteEngineBuilder.class);
     private static final String RECONNECT_METRIC_ID = "extender.service.remoteBuilder.reconnect";
+    private static final int MAX_ERROR_BODY_LENGTH = 200;
 
     private GCPInstanceService instanceService;
     private final MeterRegistry meterRegistry;
@@ -141,6 +143,12 @@ public class RemoteEngineBuilder {
             "operation", operation);
     }
 
+    // Remote builders can return a large HTML error page as a job_status body; cap what we echo
+    // into error.txt so a runaway body never bloats the file the client downloads.
+    private static String truncate(String body) {
+        return body.length() <= MAX_ERROR_BODY_LENGTH ? body : body.substring(0, MAX_ERROR_BODY_LENGTH) + "...";
+    }
+
     private static String requestOperation(HttpRequest request) {
         try {
             // request paths are /build_async/<platform>/<sdk>, /job_status, /job_result
@@ -207,7 +215,26 @@ public class RemoteEngineBuilder {
                     touchInstance(remoteInstanceConfig.getInstanceId());
                     HttpGet statusRequest = new HttpGet(String.format("%s/job_status?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
                     try (CloseableHttpResponse statusResponse = httpClient.execute(statusRequest)) {
-                        jobStatus = Integer.valueOf(EntityUtils.toString(statusResponse.getEntity()));
+                        int statusCode = statusResponse.getStatusLine().getStatusCode();
+                        if (statusCode != HttpStatus.SC_OK) {
+                            LOGGER.error(Markers.SERVER_ERROR, "Remote builder returned HTTP {} for job_status of job {}", statusCode, jobId);
+                            File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+                            try (PrintWriter writer = new PrintWriter(errorFile)) {
+                                writer.write(String.format("Remote builder returned HTTP %d for job_status of job %s", statusCode, jobId));
+                            }
+                            return;
+                        }
+                        String jobStatusBody = EntityUtils.toString(statusResponse.getEntity());
+                        try {
+                            jobStatus = Integer.valueOf(jobStatusBody.trim());
+                        } catch (NumberFormatException exc) {
+                            LOGGER.error(Markers.SERVER_ERROR, "Remote builder returned malformed job_status '{}' for job {}", truncate(jobStatusBody), jobId);
+                            File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+                            try (PrintWriter writer = new PrintWriter(errorFile)) {
+                                writer.write(String.format("Remote builder returned malformed job_status '%s' for job %s", truncate(jobStatusBody), jobId));
+                            }
+                            return;
+                        }
                     }
                     if (jobStatus != 0) {
                         LOGGER.info(String.format("Job %s status is %d", jobId, jobStatus));
@@ -255,6 +282,17 @@ public class RemoteEngineBuilder {
         for (int attempt = 0; ; ++attempt) {
             touchInstance(remoteInstanceConfig.getInstanceId());
             try (CloseableHttpResponse resultResponse = httpClient.execute(new HttpGet(resultUrl))) {
+                int resultStatusCode = resultResponse.getStatusLine().getStatusCode();
+                if (resultStatusCode != HttpStatus.SC_OK) {
+                    // A completed HTTP error (not a mid-download IOException) is a definitive builder
+                    // fault, so don't retry it and never copy its body into build.zip.
+                    LOGGER.error(Markers.SERVER_ERROR, "Remote builder returned HTTP {} for job_result of job {}", resultStatusCode, jobId);
+                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+                    try (PrintWriter writer = new PrintWriter(errorFile)) {
+                        writer.write(String.format("Remote builder returned HTTP %d for job_result of job %s", resultStatusCode, jobId));
+                    }
+                    return;
+                }
                 if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
                     // Write zip file to result directory
                     File tmpResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME + ".tmp");
@@ -287,9 +325,11 @@ public class RemoteEngineBuilder {
         MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
         entityBuilder.setStrictMode();
 
-        try (OutputStream fileOut = Files.newOutputStream(tmpUploadArchive.toPath()); ZipOutputStream zipStream = new ZipOutputStream(fileOut)) {
-            Path projectDirectoryPath = projectDirectory.toPath();
-            Files.walk(projectDirectoryPath)
+        Path projectDirectoryPath = projectDirectory.toPath();
+        try (OutputStream fileOut = Files.newOutputStream(tmpUploadArchive.toPath());
+             ZipOutputStream zipStream = new ZipOutputStream(fileOut);
+             Stream<Path> projectFiles = Files.walk(projectDirectoryPath)) {
+            projectFiles
                 .filter(Files::isRegularFile)
                 .filter(path -> !path.getFileName().toString().equals(ExtenderConst.SOURCE_CODE_ARCHIVE_MAGIC_NAME))
                 .filter(path -> !path.getFileName().toString().equals(DataCacheService.FILE_CACHE_INFO_FILE))
