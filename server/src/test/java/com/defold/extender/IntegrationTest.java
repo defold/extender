@@ -64,6 +64,11 @@ public class IntegrationTest {
             return String.format("%d.%d.%03d", major, middle, minor);
         }
 
+        // How a version is written on the command line, e.g. -PdefoldVersions=1.12.3
+        public String toShortString() {
+            return String.format("%d.%d.%d", major, middle, minor);
+        }
+
         boolean isVersion(int major, int middle, int minor) {
             return this.major == major && this.middle == middle && this.minor == minor;
         }
@@ -146,14 +151,64 @@ public class IntegrationTest {
             versions = ciVersions;
         }
 
+        // Opt-in narrowing for local runs. Both properties are absent in CI, so this is a no-op there.
+        String versionFilter = System.getProperty(TestUtils.PROP_DEFOLD_VERSIONS);
+        if (versionFilter != null && !versionFilter.isBlank()) {
+            versions = filterVersions(versions, ciVersions, versionFilter.trim());
+        }
+        Set<String> platformFilter = TestUtils.selectedPlatforms();
+
         for( int i = 0; i < versions.length; ++i )
         {
             for (String platform : versions[i].platforms) {
+                if (!platformFilter.isEmpty() && !platformFilter.contains(platform)) {
+                    continue;
+                }
                 data.add(new TestConfiguration(versions[i], platform));
             }
         }
 
+        if (data.isEmpty()) {
+            // An empty @MethodSource fails every test with an opaque error, so say what went wrong.
+            throw new IllegalArgumentException(String.format(
+                "-PtargetPlatforms=%s selected no target platform. Known platforms: %s",
+                System.getProperty(TestUtils.PROP_TARGET_PLATFORMS),
+                String.join(", ", versions[0].platforms)));
+        }
+
         return data;
+    }
+
+    // -PdefoldVersions=all|ci|latest|1.12.3,1.11.1
+    private static DefoldVersion[] filterVersions(DefoldVersion[] versions, DefoldVersion[] ciVersions, String filter) {
+        switch (filter) {
+            case "all":
+                return versions;
+            case "ci":
+                return ciVersions;
+            case "latest":
+                return new DefoldVersion[] { versions[versions.length - 1] };
+            default:
+                break;
+        }
+
+        Set<String> wanted = new LinkedHashSet<>(Arrays.asList(filter.split("\\s*,\\s*")));
+        List<DefoldVersion> selected = new ArrayList<>();
+        for (DefoldVersion version : versions) {
+            if (wanted.contains(version.version.toShortString())) {
+                selected.add(version);
+            }
+        }
+        if (selected.isEmpty()) {
+            List<String> known = new ArrayList<>();
+            for (DefoldVersion version : versions) {
+                known.add(version.version.toShortString());
+            }
+            throw new IllegalArgumentException(String.format(
+                "-PdefoldVersions=%s matched no Defold version. Use 'all', 'ci', 'latest', or any of: %s",
+                filter, String.join(", ", known)));
+        }
+        return selected.toArray(new DefoldVersion[0]);
     }
 
     public IntegrationTest() { }
@@ -161,9 +216,13 @@ public class IntegrationTest {
     @BeforeAll
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
-        processExecutor.putEnv("COMPOSE_PROFILE", "test");
+        // Boot only the builders the selected target platforms need; "test" (everything) by default.
+        processExecutor.putEnv("COMPOSE_PROFILE", TestUtils.composeProfiles(TestUtils.selectedPlatforms()));
         processExecutor.putEnv("APPLICATION", "extender-test");
         processExecutor.putEnv("PORT", String.valueOf(EXTENDER_PORT));
+        if (TestUtils.reuseStack()) {
+            processExecutor.putEnv("EXTENDER_KEEP_STACK", "1");
+        }
         processExecutor.execute(TestUtils.shellScriptArgs("scripts/start-test-server.sh"));
         System.out.println(processExecutor.getOutput());
 
@@ -197,6 +256,9 @@ public class IntegrationTest {
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("APPLICATION", "extender-test");
+        if (TestUtils.reuseStack()) {
+            processExecutor.putEnv("EXTENDER_KEEP_STACK", "1");
+        }
         processExecutor.execute(TestUtils.shellScriptArgs("scripts/stop-test-server.sh"));
         System.out.println(processExecutor.getOutput());
     }

@@ -218,6 +218,22 @@ test {
             excludeTags project.getProperty("excludeTags")
         }
     }
+    // Opt-in knobs to shrink a local integration test run. All absent in CI, where they are no-ops.
+    //   -PtargetPlatforms=x86_64-linux,js-web   only build these targets, and only boot the
+    //                                           builders they need (see docker-compose.yml profiles)
+    //   -PdefoldVersions=all|ci|latest|1.12.3   which Defold SDK versions to test against
+    //   -PreuseStack=true                       leave the docker stack running between runs
+    ["targetPlatforms", "defoldVersions", "reuseStack"].each { name ->
+        if (project.hasProperty(name)) {
+            systemProperty "extender.test.${name}", project.getProperty(name)
+        }
+    }
+    //   -PbuildSleepTimeout=500                 poll job status every 500ms instead of the client
+    //                                           default 5000ms - each async build waits at least one
+    //                                           full interval before its first status check
+    if (project.hasProperty("buildSleepTimeout")) {
+        systemProperty "com.defold.extender.client.build-sleep-timeout", project.getProperty("buildSleepTimeout")
+    }
     finalizedBy jacocoTestReport
 }
 
