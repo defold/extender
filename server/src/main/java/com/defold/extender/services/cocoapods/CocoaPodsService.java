@@ -31,6 +31,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Service
 @ConditionalOnProperty(prefix = "extender", name = "cocoapods.enabled", havingValue = "true")
@@ -66,6 +68,14 @@ public class CocoaPodsService {
     private static final String CURRENT_CACHE_DIR_FILE = "current_pod_cache.txt";
     private static final String OLD_CACHE_DIR_FILE = "old_pod_caches.txt";
     private final Object syncLock = new Object();
+    // Guards the contents of the CocoaPods home directory (CP_HOME_DIR).
+    // Pod installations take the read lock and run concurrently with each other, while anything
+    // that mutates the shared spec repo or download cache (repo update, cache rotation, cleanup)
+    // takes the write lock. Without this a 'pod repo update' or a cache rotation can run while a
+    // build is doing 'pod install', which may resolve against half-written CDN metadata or copy a
+    // partially extracted pod out of the shared download cache. A fair lock is used so that a
+    // pending repo update is not starved by a continuous stream of builds.
+    private final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock(true);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     private final String podfileTemplateContents;
@@ -95,9 +105,15 @@ public class CocoaPodsService {
             updateSpecRepo();
         } else {
             LOGGER.info("Cocoapods has no current cache dir or prefix is changed. Created...");
+            Path newCacheDir = generateCacheDirPath();
+            try {
+                Files.createDirectories(newCacheDir);
+            } catch(IOException|UnsupportedOperationException|SecurityException exc) {
+                LOGGER.warn("Cannot create pod cache directory {}", newCacheDir, exc);
+            }
             synchronized(this.syncLock) {
-                this.currentCacheDir = generateCacheDirPath();
-                storeCurrentCacheDir(this.currentCacheDir);
+                this.currentCacheDir = newCacheDir;
+                storeCurrentCacheDir(newCacheDir);
             }
             initializeTrunkRepo();
         }
@@ -166,13 +182,99 @@ public class CocoaPodsService {
             handledPods.add(podName);
             File unpackScript = Path.of(cocoapodsBuildState.getTargetSupportFilesDir().toString(), podName, String.format("%s-xcframeworks.sh", podName)).toFile();
             if (unpackScript.exists()) {
-                ProcessUtils.execCommand(List.of(
+                String log = ProcessUtils.execCommand(List.of(
                     unpackScript.getAbsolutePath()
                 ), null, spec.parsedXCConfig);
+                LOGGER.info("Unpacked xcframeworks for {}:\n{}", podName, log);
+                String failure = findUnpackFailure(log);
+                if (failure != null) {
+                    throw new ExtenderException(String.format(
+                        "Unable to unpack xcframework for pod '%s' (ARCHS=%s, PLATFORM_NAME=%s): %s",
+                        podName,
+                        spec.parsedXCConfig.get("ARCHS"),
+                        spec.parsedXCConfig.get("PLATFORM_NAME"),
+                        failure));
+                }
+            } else if (hasVendoredXCFramework(spec)) {
+                // the pod ships an .xcframework but Cocoapods generated no script to unpack it,
+                // so the framework search paths in the xcconfig will point at an empty directory
+                LOGGER.warn("Pod {} has vendored xcframeworks {} but no unpack script {}", podName, spec.vendoredFrameworks, unpackScript);
             } else {
                 LOGGER.debug("No xcframework unpack script for {}", podName);
             }
         }
+    }
+
+    static boolean hasVendoredXCFramework(PodBuildSpec spec) {
+        return spec.vendoredFrameworks.stream().anyMatch(f -> f.contains(".xcframework"));
+    }
+
+    /**
+     * Scan the output of a Cocoapods generated '<pod>-xcframeworks.sh' script for a failure to
+     * select a slice. The script prints a warning and exits with code 0 in that case, so the
+     * process exit code alone does not tell us that nothing was unpacked.
+     * @param scriptOutput Combined stdout/stderr of the unpack script
+     * @return The offending line, or null if the output contains no such warning
+     */
+    static String findUnpackFailure(String scriptOutput) {
+        if (scriptOutput == null) {
+            return null;
+        }
+        for (String line : scriptOutput.split("\\R")) {
+            // "warning: [CP] Unable to find matching .xcframework slice in '...' for the current build architectures (...)."
+            if (line.contains("[CP]") && line.contains("Unable to find matching")) {
+                return line.trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Verify that every include/framework search path pointing into the XCFrameworkIntermediates
+     * directory was actually populated by unpackXCFrameworks(). Cocoapods writes those paths into
+     * the generated xcconfig whether or not the .xcframework was ever unpacked, so without this
+     * check a skipped or failed unpack only surfaces later as a confusing compiler error such as
+     * "'SomeHeader.h' file not found".
+     * @param unpackedFrameworksDir The XCFrameworkIntermediates directory for this build
+     * @param pods The resolved pod build specs
+     */
+    static void validateUnpackedFrameworks(File unpackedFrameworksDir, List<PodBuildSpec> pods) throws ExtenderException {
+        Path unpackedRoot = unpackedFrameworksDir.toPath().toAbsolutePath().normalize();
+        List<String> errors = new ArrayList<>();
+        for (PodBuildSpec spec : pods) {
+            Set<File> searchPaths = new LinkedHashSet<>(spec.includePaths);
+            if (spec.frameworkSearchPaths != null) {
+                searchPaths.addAll(spec.frameworkSearchPaths);
+            }
+            for (File searchPath : searchPaths) {
+                Path path = Path.of(unescapeWhitespace(searchPath.toString())).toAbsolutePath().normalize();
+                if (!path.startsWith(unpackedRoot) || path.equals(unpackedRoot)) {
+                    continue;
+                }
+                String[] entries = path.toFile().list();
+                if (entries == null || entries.length == 0) {
+                    errors.add(String.format("pod '%s' expects unpacked xcframework content in '%s' but that directory is %s",
+                        spec.name, path, entries == null ? "missing" : "empty"));
+                }
+            }
+        }
+        if (!errors.isEmpty()) {
+            throw new ExtenderException("Cocoapods xcframework unpacking did not produce the expected output:\n  "
+                + String.join("\n  ", errors));
+        }
+    }
+
+    // search paths parsed from an xcconfig keep whitespace escaped (see CommandLineTokenizer.escapeWhitespace)
+    static String unescapeWhitespace(String path) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < path.length(); ++i) {
+            char c = path.charAt(i);
+            if (c == '\\' && i + 1 < path.length() && Character.isWhitespace(path.charAt(i + 1))) {
+                continue;
+            }
+            result.append(c);
+        }
+        return result.toString();
     }
 
     void generateSwiftCompatabilityModule(List<PodBuildSpec> pods) {
@@ -211,6 +313,17 @@ public class CocoaPodsService {
      * @return An InstalledPods object with installed pods
      */
     private InstalledPods installPods(CocoaPodsServiceBuildState cocoapodsBuildState) throws IOException, ExtenderException {
+        // hold the shared lock for the whole installation so that the cache dir cannot be rotated,
+        // updated or deleted underneath us between the 'pod install' and the 'pod spec cat' calls
+        cacheLock.readLock().lock();
+        try {
+            return installPodsLocked(cocoapodsBuildState);
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+
+    private InstalledPods installPodsLocked(CocoaPodsServiceBuildState cocoapodsBuildState) throws IOException, ExtenderException {
         LOGGER.info("Installing pods");
         Path cacheDir;
         // store current cache dir into local variable to use the same value for all 'pod' runs
@@ -309,6 +422,19 @@ public class CocoaPodsService {
         for (Map.Entry<String, List<String>> entry : podsDependencies.entrySet()) {
             installedPods.pods.addAll(getPodDeps(podsDependencies, entry.getValue()));
             installedPods.pods.add(entry.getKey());
+        }
+
+        // Podfile.lock lists what was resolved, the Pods directory holds what actually landed on
+        // disk. The loop below only walks disk -> lock, so check the other direction here as well:
+        // a pod that resolved but was not materialised is otherwise completely invisible.
+        Set<String> podDirNames = new HashSet<>();
+        for (File podDir : podsNames) {
+            podDirNames.add(podDir.getName());
+        }
+        for (String podName : podVersions.keySet()) {
+            if (!podDirNames.contains(podName)) {
+                LOGGER.warn("Pod {} is listed in Podfile.lock but has no directory in {}", podName, podsDir);
+            }
         }
 
         for (File podDir : podsNames) {
@@ -438,6 +564,7 @@ public class CocoaPodsService {
             }
         }
         unpackXCFrameworks(cocoapodsBuildState, pods);
+        validateUnpackedFrameworks(cocoapodsBuildState.getUnpackedFrameworksDir(), pods);
         generateSwiftCompatabilityModule(pods);
 
         dumpDir(jobDir, 0);
@@ -497,6 +624,7 @@ public class CocoaPodsService {
     }
 
     private void initializeTrunkRepo() {
+        cacheLock.writeLock().lock();
         try {
             Path cacheDir;
             synchronized(syncLock) {
@@ -514,11 +642,22 @@ public class CocoaPodsService {
             LOGGER.debug("\n" + log);
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during repo init", exc);
-        }        
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
     }
 
     @Scheduled(cron="${extender.cocoapods.cache-dir-rotate-cron}")
     public void rotatePodCacheDirectory() {
+        cacheLock.writeLock().lock();
+        try {
+            rotatePodCacheDirectoryLocked();
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
+    }
+
+    private void rotatePodCacheDirectoryLocked() {
         LOGGER.info("Rotate pod cache directory");
         Path newCacheDir = generateCacheDirPath();
         Path cacheDir;
@@ -541,38 +680,106 @@ public class CocoaPodsService {
         }
         synchronized(this.syncLock) {
             this.currentCacheDir = newCacheDir;
-            storeCurrentCacheDir(currentCacheDir);
+            storeCurrentCacheDir(newCacheDir);
         }
         initializeTrunkRepo();
     }
 
     @Scheduled(cron="${extender.cocoapods.old-cache-clean-cron}")
     private void cleanupOldCacheDirectories() {
+        cacheLock.writeLock().lock();
+        try {
+            cleanupOldCacheDirectoriesLocked();
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
+    }
+
+    private void cleanupOldCacheDirectoriesLocked() {
         LOGGER.info("Cleanup old cache directories");
+        Path cacheDir;
+        synchronized(this.syncLock) {
+            cacheDir = this.currentCacheDir;
+        }
+        Path activeCacheDir = cacheDir.toAbsolutePath().normalize();
         File oldDirFile = Path.of(this.homeDirPrefix, CocoaPodsService.OLD_CACHE_DIR_FILE).toFile();
-        if (oldDirFile.exists()) {
-            try (BufferedReader reader = new BufferedReader(new FileReader(oldDirFile))) {
-                String strPath = reader.readLine();
-                while (strPath != null) {
-                    LOGGER.info("Remove old pod cache directory: {}", strPath);
-                    Path dirPath = Path.of(strPath);
-                    File path = dirPath.toFile();
-                    if (path.exists()) {
-                        FileUtils.deleteDirectory(path);
-                    }
-                    strPath = reader.readLine();
+        if (!oldDirFile.exists()) {
+            LOGGER.warn("File with old cache paths doesn't exist. Cleanup skipped");
+            return;
+        }
+
+        List<String> retained = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(oldDirFile))) {
+            String strPath = reader.readLine();
+            while (strPath != null) {
+                String path = strPath.trim();
+                if (!path.isEmpty() && !removeOldCacheDirectory(path, activeCacheDir)) {
+                    retained.add(path);
                 }
-            } catch(IOException io) {
-                LOGGER.warn("Exception while read old cache paths file", io);
+                strPath = reader.readLine();
             }
+        } catch(IOException io) {
+            // leave the file untouched so that nothing is forgotten
+            LOGGER.warn("Exception while read old cache paths file", io);
+            return;
+        }
+
+        if (retained.isEmpty()) {
             oldDirFile.delete();
         } else {
-            LOGGER.warn("File with old cache paths doesn't exist. Cleanup skipped");
+            // keep the directories we failed to remove so the next run retries them, instead of
+            // dropping the whole file and leaking them for good
+            LOGGER.warn("{} old pod cache directories could not be removed and will be retried", retained.size());
+            try (FileWriter writer = new FileWriter(oldDirFile, false)) {
+                for (String path : retained) {
+                    writer.append(path);
+                    writer.append("\n");
+                }
+            } catch(IOException exc) {
+                LOGGER.warn("Error while rewriting old cache paths file", exc);
+            }
+        }
+    }
+
+    /**
+     * Remove a single old pod cache directory.
+     * @param strPath Path of the directory to remove
+     * @param activeCacheDir The cache directory currently in use, which must never be removed
+     * @return true if the directory is gone or should not be retried, false if removal failed
+     */
+    private boolean removeOldCacheDirectory(String strPath, Path activeCacheDir) {
+        Path dirPath;
+        try {
+            dirPath = Path.of(strPath);
+        } catch(InvalidPathException exc) {
+            LOGGER.warn("Ignoring malformed old pod cache path {}", strPath, exc);
+            return true;
+        }
+        // never delete the directory builds are currently using. It gets appended to the file
+        // again by the next rotation, so it is safe to drop it from the list here.
+        if (dirPath.toAbsolutePath().normalize().equals(activeCacheDir)) {
+            LOGGER.warn("Skip removal of pod cache directory {}, it is the current one", strPath);
+            return true;
+        }
+        File path = dirPath.toFile();
+        if (!path.exists()) {
+            return true;
+        }
+        LOGGER.info("Remove old pod cache directory: {}", strPath);
+        try {
+            FileUtils.deleteDirectory(path);
+            return true;
+        } catch(IOException exc) {
+            // a single failure must not abort the cleanup of the remaining directories
+            LOGGER.warn("Unable to remove old pod cache directory {}", strPath, exc);
+            return false;
         }
     }
 
     @Scheduled(initialDelay=3600000, fixedDelayString="${extender.cocoapods.repo-update-interval:3600000}")
     public void updateSpecRepo() {
+        // exclusive: 'pod repo update' rewrites the spec repo that concurrent installs read from
+        cacheLock.writeLock().lock();
         try {
             LOGGER.info("Run pod spec update");
             Path cacheDir;
@@ -590,6 +797,8 @@ public class CocoaPodsService {
             LOGGER.debug("\n" + log);
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during spec repo update", exc);
+        } finally {
+            cacheLock.writeLock().unlock();
         }
     }
 }

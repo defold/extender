@@ -36,9 +36,9 @@ public class ProcessUtils {
         }
 
         try {
-            if (pe.execute(args) != 0) {
-                throw new ExtenderException(pe.getOutput());
-            }
+            // ProcessExecutor.execute() throws IOException on any non-zero exit code,
+            // so a normal return here always means success
+            pe.execute(args);
         } catch (IOException | InterruptedException e) {
             throw new ExtenderException(e, pe.getOutput());
         }
