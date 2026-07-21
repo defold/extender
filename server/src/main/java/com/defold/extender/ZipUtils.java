@@ -7,7 +7,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
@@ -25,10 +24,6 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 
 public class ZipUtils {
-    // use those flag only for real filesystem paths (not for zip archive or virtual FS)
-    public static final boolean IS_POSIX_SUPPORTED =
-        FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
-
     private static int bufferSize = 128 * 1024;
 
     public static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
@@ -47,9 +42,8 @@ public class ZipUtils {
                     throw new IOException("Unsafe zip entry: " + e.getMessage(), e);
                 }
 
-                Path entryTargetPath = entryTargetFile.toPath();
                 if (zipEntry.isDirectory()) {
-                    Files.createDirectories(entryTargetPath);
+                    Files.createDirectories(entryTargetFile.toPath());
                 } else {
                     File parentDir = entryTargetFile.getParentFile();
                     if (!parentDir.exists()) {
@@ -57,20 +51,18 @@ public class ZipUtils {
                     }
                     extractFile(zipInputStream, entryTargetFile);
 
-                    entryTargetFile.setReadable(true);
+                    Set<PosixFilePermission> s = new HashSet<>();
+                    s.add(PosixFilePermission.OTHERS_READ);
+                    s.add(PosixFilePermission.GROUP_READ);
+                    s.add(PosixFilePermission.OWNER_READ);
 
                     // Poor man's version of making sure the stuff in the bin folder is executable
                     if (entryTargetFile.getAbsolutePath().contains("/bin/")) {
-                        if (IS_POSIX_SUPPORTED) {
-                            Set<PosixFilePermission> s = new HashSet<>();
-
-                            s.add(PosixFilePermission.GROUP_EXECUTE);
-                            s.add(PosixFilePermission.OWNER_EXECUTE);
-                            Files.setPosixFilePermissions(entryTargetPath, s);
-                        } else {
-                            entryTargetFile.setExecutable(true);
-                        }
+                        s.add(PosixFilePermission.GROUP_EXECUTE);
+                        s.add(PosixFilePermission.OWNER_EXECUTE);
                     }
+
+                    Files.setPosixFilePermissions(entryTargetFile.toPath(), s);
                 }
 
                 zipEntry = zipInputStream.getNextEntry();
