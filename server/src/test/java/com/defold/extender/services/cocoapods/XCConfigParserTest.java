@@ -22,8 +22,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 @TestInstance(Lifecycle.PER_CLASS)
 public class XCConfigParserTest {
 
-    private static final String PODS_BUILD_DIR = "/var/tmp/tmp-dir/build";
-    private static final String PODS_DIR = "/var/tmp/tmp-dir/pods-dir";
+    // XCConfigParser exposes these via File#toString() (see calculateBaseVariables()), which
+    // normalizes '/' to the platform separator on Windows. Normalize here too so expected
+    // values built from these constants match the parser's actual output on every OS.
+    private static final String PODS_BUILD_DIR = new File("/var/tmp/tmp-dir/build").toString();
+    private static final String PODS_DIR = new File("/var/tmp/tmp-dir/pods-dir").toString();
 
     XCConfigParser parser;
     Map<String, String> baseVars;

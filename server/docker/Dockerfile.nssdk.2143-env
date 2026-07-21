@@ -14,7 +14,7 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
    mkdir -p "${NINTENDO_SDK_ROOT}" && \
    wget -q -O - "$(cat /run/secrets/DM_PACKAGES_URL)/${SWITCH_SDK_FILENAME}" | tar xz -C "${NINTENDO_SDK_ROOT}"
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.8.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-wine-env:1.9.0
 
 ARG NINTENDO_SDK_VERSION
 ARG NINTENDO_SDK_ROOT

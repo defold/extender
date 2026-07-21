@@ -4,6 +4,8 @@ subprojects {
     }
 }
 
+apply from: "$rootDir/gradle/docker-test.gradle"
+
 if (project.hasProperty('publishToGar')) {
     apply plugin: 'maven-publish'
     apply plugin: 'com.google.cloud.artifactregistry.gradle-plugin'

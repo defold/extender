@@ -1,4 +1,5 @@
 **/build
+**/build-container
 **/classes
 /client/.buildcache
 /tmp

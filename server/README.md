@@ -118,6 +118,24 @@ During the testing local servers will be run. That's why it necessary to have pr
 * **test** - run for integration testing (see *IntegrationTest.java*)
 * **auth-test** - run for authentication testing (see *AuthenticationTest.java*)
 
+### On Windows
+
+On a Windows host `./gradlew test` (or `server:test`) does not run the tests locally. It builds
+`server/docker/Dockerfile.unit-test` and runs the whole non-integration suite - `:server`,
+`:client` and `:manifestmergetool`, with `-PexcludeTags=integration` - inside a Linux container, so
+the result matches CI. See `gradle/docker-test.gradle`. Everything is a no-op on Linux and macOS.
+
+The container builds into `build-container/` rather than `build/` (the host Gradle daemon keeps its
+own outputs open on Windows), so reports end up in e.g.
+`server/build-container/reports/tests/test/index.html`.
+
+Add `-PnoDocker` to run natively instead. This is what you need for the integration and auth tests,
+which use Git Bash to drive `scripts/start-test-server.sh`:
+
+```sh
+./gradlew server:test -PnoDocker --tests '*IntegrationTest*'
+```
+
 ### Speeding up local runs (Apple Silicon)
 
 A full `server:test` builds every target across every Defold version and, on an arm64 Mac, runs

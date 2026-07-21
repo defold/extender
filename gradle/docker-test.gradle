@@ -1,0 +1,76 @@
+// Windows hosts cannot run the docker-compose based integration/auth suite natively, and the
+// remaining (untagged) tests would run against a Windows JDK/filesystem, which can drift from CI.
+// So on Windows we route the whole non-integration suite through a small Linux container instead.
+//
+// Linux and macOS are untouched: useTestContainer is false there and every task below is a no-op.
+//
+//   ./gradlew test              on Windows -> one container run, all three modules
+//   ./gradlew test -PnoDocker   run natively (this is how you run integration/auth locally)
+
+def testImage = 'extender-unit-test:1.0.0'
+
+// EXTENDER_IN_TEST_CONTAINER guards against recursion. os.name is already "Linux" inside the
+// container so this is belt and braces, but it keeps the intent explicit.
+ext.useTestContainer = System.getProperty('os.name').toLowerCase().startsWith('windows') &&
+                       !project.hasProperty('noDocker') &&
+                       System.getenv('EXTENDER_IN_TEST_CONTAINER') == null
+
+// Inside the container we build into build-container/ rather than build/. The two must not be
+// shared: the host Gradle daemon keeps its own build outputs open on Windows, and the container
+// then cannot overwrite them ("Unable to delete file .../extender-client-0.5.0.jar"). It also
+// keeps Linux and Windows compilation output from mixing.
+if (System.getenv('EXTENDER_IN_TEST_CONTAINER') != null) {
+    allprojects {
+        layout.buildDirectory = layout.projectDirectory.dir('build-container')
+    }
+}
+
+tasks.register('buildTestImage', Exec) {
+    group = 'verification'
+    description = 'Builds the container image used to run the tests on Windows.'
+    // Docker layer caching makes this a no-op after the first run.
+    commandLine 'docker', 'build',
+        '-t', testImage,
+        '-f', file('server/docker/Dockerfile.unit-test').absolutePath,
+        file('server/docker').absolutePath
+}
+
+tasks.register('dockerTest', Exec) {
+    group = 'verification'
+    description = 'Runs the non-integration tests of all modules inside a Linux container.'
+    dependsOn 'buildTestImage'
+
+    // Docker wants forward slashes even on Windows.
+    def mount = rootDir.absolutePath.replace('\\', '/')
+
+    commandLine 'docker', 'run', '--rm',
+        '-v', "${mount}:/workspace",
+        // Named volume, so the dependency cache survives between runs.
+        '-v', 'extender-gradle-cache:/gradle-home',
+        '-e', 'EXTENDER_IN_TEST_CONTAINER=1',
+        '-w', '/workspace',
+        testImage,
+        // --project-cache-dir keeps the container out of the host's .gradle/, so a Windows-side
+        // Gradle daemon and the container never fight over the same lock files. Everything else
+        // (build/, reports, jacoco) stays on the bind mount and is visible from the host.
+        '--no-daemon',
+        '--project-cache-dir', '/tmp/gradle-project-cache',
+        '-PexcludeTags=integration',
+        ':server:test', ':client:test', ':manifestmergetool:test'
+}
+
+if (rootProject.ext.useTestContainer) {
+    subprojects {
+        tasks.matching { it.name == 'test' }.configureEach {
+            // All three depend on the single root task, so `./gradlew test` still produces
+            // exactly one container run.
+            dependsOn ':dockerTest'
+            enabled = false
+        }
+        // The container already wrote its own report under build-container/; there is no
+        // execution data on the host side to report on.
+        tasks.matching { it.name == 'jacocoTestReport' }.configureEach { enabled = false }
+    }
+}
+// On Linux/macOS nothing is wired up - `test` runs natively as before. `dockerTest` stays
+// invokable by hand there if you want to reproduce the Windows path.
