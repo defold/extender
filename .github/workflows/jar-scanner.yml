@@ -80,7 +80,7 @@ jobs:
           summary: false
       - name: Upload SARIF result
         id: upload-sarif
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # 4.36.2
+        uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
         with:
           sarif_file: jar-scan.output.json
           category: jar-scanning
