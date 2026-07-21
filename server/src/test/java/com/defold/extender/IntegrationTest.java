@@ -73,10 +73,6 @@ public class IntegrationTest {
             return this.major == major && this.middle == middle && this.minor == minor;
         }
 
-        boolean isLessThan(int major, int middle, int minor) {
-            return this.major < major || this.middle < middle || this.minor < minor;
-        }
-
         boolean isGreaterThan(int major, int middle, int minor) {
             return this.major > major || this.middle > middle || this.minor > minor;
         }

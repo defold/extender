@@ -673,10 +673,6 @@ class Extender {
         return o;
     }
 
-    private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        return addCompileFileCppStatic(index, extDir, src, manifestContext, commands, List.of());
-    }
-
     private File addCompileFileCppStatic(int index, File extDir, File src, Map<String, Object> manifestContext, List<String> commands, List<String> additionalIncludes) throws IOException, InterruptedException, ExtenderException {
         return addCompileFileCpp_Internal(index, extDir, src, manifestContext, this.platformConfig.compileCmd, commands, additionalIncludes);
     }
