@@ -125,6 +125,14 @@ ENV ANDROID_ROOT=${ANDROID_ROOT} \
     ANDROID_NDK25_PATH=${ANDROID_NDK25_PATH} \
     ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_BIN_PATH} \
     ANDROID_NDK25_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
+# Unversioned names are the canonical ones. The ANDROID_NDK25_* names above are
+# kept for backward compatibility with already released Defold SDKs.
+    ANDROID_NDK_VERSION=${ANDROID_NDK25_VERSION} \
+    ANDROID_NDK_API_VERSION=${ANDROID_NDK25_API_VERSION} \
+    ANDROID_64_NDK_API_VERSION=${ANDROID_64_NDK25_API_VERSION} \
+    ANDROID_NDK_PATH=${ANDROID_NDK25_PATH} \
+    ANDROID_NDK_BIN_PATH=${ANDROID_NDK25_BIN_PATH} \
+    ANDROID_NDK_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
     ANDROID_PROGUARD=/usr/share/java/proguard.jar \
 # We specify it in build_input.yml by setting it the first in PATH for new SDK
 # But at least one SDK should be specified by default in Dockerfile

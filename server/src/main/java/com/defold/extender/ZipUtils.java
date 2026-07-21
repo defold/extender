@@ -1,6 +1,7 @@
 package com.defold.extender;
 
 import java.io.*;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
@@ -19,27 +20,11 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 
 public class ZipUtils {
+    // use those flag only for real filesystem paths (not for zip archive or virtual FS)
+    public static final boolean IS_POSIX_SUPPORTED =
+        FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
 
     private static int bufferSize = 128 * 1024;
-
-    public static Set<PosixFilePermission> getPosixFilePermissions(int mode) {
-        final PosixFilePermission[] values = {
-            PosixFilePermission.OTHERS_EXECUTE, PosixFilePermission.OTHERS_WRITE, PosixFilePermission.OTHERS_READ,
-            PosixFilePermission.GROUP_EXECUTE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.GROUP_READ,
-            PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_READ
-        };
-
-        int mask = 1;
-
-        Set<PosixFilePermission> s = EnumSet.noneOf(PosixFilePermission.class);
-        for (PosixFilePermission p : values) {
-            if ((mask & mode) != 0) {
-                s.add(p);
-            }
-            mask = mask << 1;
-        }
-        return s;
-    }
 
     public static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
         try (ZipArchiveInputStream zipInputStream = new ZipArchiveInputStream(inputStream)) {
@@ -57,8 +42,9 @@ public class ZipUtils {
                     throw new IOException("Unsafe zip entry: " + e.getMessage(), e);
                 }
 
+                Path entryTargetPath = entryTargetFile.toPath();
                 if (zipEntry.isDirectory()) {
-                    Files.createDirectories(entryTargetFile.toPath());
+                    Files.createDirectories(entryTargetPath);
                 } else {
                     File parentDir = entryTargetFile.getParentFile();
                     if (!parentDir.exists()) {
@@ -66,21 +52,20 @@ public class ZipUtils {
                     }
                     extractFile(zipInputStream, entryTargetFile);
 
-                    // TODO: Find out why it doesn't return other than 0 !?
-                    //int permissions = zipEntry.getUnixMode();
-                    //Set<PosixFilePermission> s = getPosixFilePermissions(permissions);
-                    Set<PosixFilePermission> s = new HashSet<>();
-                    s.add(PosixFilePermission.OTHERS_READ);
-                    s.add(PosixFilePermission.GROUP_READ);
-                    s.add(PosixFilePermission.OWNER_READ);
+                    entryTargetFile.setReadable(true);
 
                     // Poor man's version of making sure the stuff in the bin folder is executable
                     if (entryTargetFile.getAbsolutePath().contains("/bin/")) {
-                        s.add(PosixFilePermission.GROUP_EXECUTE);
-                        s.add(PosixFilePermission.OWNER_EXECUTE);
-                    }
+                        if (IS_POSIX_SUPPORTED) {
+                            Set<PosixFilePermission> s = new HashSet<>();
 
-                    Files.setPosixFilePermissions(entryTargetFile.toPath(), s);
+                            s.add(PosixFilePermission.GROUP_EXECUTE);
+                            s.add(PosixFilePermission.OWNER_EXECUTE);
+                            Files.setPosixFilePermissions(entryTargetPath, s);
+                        } else {
+                            entryTargetFile.setExecutable(true);
+                        }
+                    }
                 }
 
                 zipEntry = zipInputStream.getNextEntry();

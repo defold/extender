@@ -15,7 +15,7 @@ RUN \
   unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
   rm gradle-${GRADLE_VERSION}-bin.zip
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.6.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.7.0
 
 ARG GRADLE_VERSION
 

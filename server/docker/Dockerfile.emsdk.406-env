@@ -38,7 +38,7 @@ RUN \
   echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG}
 
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.6.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.7.0
 
 ARG EMSCRIPTEN_VERSION
 ARG NODE_VERSION

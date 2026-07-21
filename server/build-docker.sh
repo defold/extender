@@ -22,7 +22,7 @@ docker buildx build --network host --load --platform $MULTI_ARCH -t $DOCKER_REGI
 
 # base images
 echo "Base image with archs: $MULTI_ARCH"
-docker buildx build --network host --load --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-base-env:1.6.0 -t $DOCKER_REGISTRY/extender-base-env:latest -f $SCRIPT_DIR/docker/Dockerfile.base-env $SCRIPT_DIR/docker
+docker buildx build --network host --load --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-base-env:1.7.0 -t $DOCKER_REGISTRY/extender-base-env:latest -f $SCRIPT_DIR/docker/Dockerfile.base-env $SCRIPT_DIR/docker
 
 REQUESTED="$@"
 [ -z "$REQUESTED" ] && REQUESTED="android windows web ps4 ps5 nintendo xbox linux"
@@ -77,7 +77,7 @@ for request in $REQUESTED; do
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_XBOX_PRIVATE_REGISTRY/extender-${install}-env:latest -f $SCRIPT_DIR/docker/Dockerfile.$(echo $install | sed 's,-,.,')-env $SCRIPT_DIR/docker
             ;;
         wine)
-            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-wine-env:1.8.0 -t $DOCKER_REGISTRY/extender-wine-env:latest -f $SCRIPT_DIR/docker/Dockerfile.wine-env $SCRIPT_DIR/docker
+            DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-wine-env:1.9.0 -t $DOCKER_REGISTRY/extender-wine-env:latest -f $SCRIPT_DIR/docker/Dockerfile.wine-env $SCRIPT_DIR/docker
             ;;
         android)
             DM_PACKAGES_URL=$DM_PACKAGES_URL docker buildx build --network host --load --secret id=DM_PACKAGES_URL --platform linux/amd64 -t $DOCKER_REGISTRY/extender-android-env:1.7.0 -t $DOCKER_REGISTRY/extender-android-env:latest -f $SCRIPT_DIR/docker/Dockerfile.android-env $SCRIPT_DIR/docker
