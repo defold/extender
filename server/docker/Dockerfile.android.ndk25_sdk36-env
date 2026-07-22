@@ -66,7 +66,7 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
 # R8 contains all classes of D8.
     wget -q -O "${ANDROID_SDK_BUILD_TOOLS_PATH}/lib/d8.jar" "https://storage.googleapis.com/r8-releases/raw/${R8_VERSION}/r8.jar"
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.7.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.8.0
 
 ARG ANDROID_BUILD_TOOLS_VERSION
 ARG ANDROID_SDK_VERSION
