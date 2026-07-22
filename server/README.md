@@ -114,6 +114,13 @@ Test can be run from the root directory with
 ```sh
 ./gradlew server:test
 ```
+Unless `-PexcludeTags=integration` is passed, this first builds `server:bootJar` and
+`manifestmergetool:mainJar` into `server/app/` - the directory the test containers bind-mount.
+Both are needed: the containers run `extender.jar`, and `manifestmergetool.jar` is invoked as a
+subprocess by the sdk's `manifestMergeCmd` (see `IntegrationTest.buildAndroidLocalAar`). Those two
+jars are declared outputs of their tasks, so deleting one from `server/app/` re-runs the task
+rather than being silently reported as `UP-TO-DATE`.
+
 During the testing local servers will be run. That's why it necessary to have prebuild docker images. There are two set of services that run:
 * **test** - run for integration testing (see *IntegrationTest.java*)
 * **auth-test** - run for authentication testing (see *AuthenticationTest.java*)

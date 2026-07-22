@@ -21,11 +21,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -40,6 +43,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import org.apache.http.HttpEntity;
 
@@ -58,11 +63,21 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.tracing.propagation.Propagator;
 import io.micrometer.tracing.test.simple.SimpleTracer;
 
+// The methods below start a WireMock server each and assert on wall-clock deadlines. Running
+// them concurrently (junit-platform.properties sets parallel.mode.default=concurrent) puts as
+// many Jetty startups as there are cores on top of each other, which on a loaded CI runner
+// delays the first response past the socket timeout and fails the test with a spurious
+// "Failed to communicate with Extender service".
+@Execution(ExecutionMode.SAME_THREAD)
 public class RemoteEngineBuilderTest {
 
     private static final long BUILD_SLEEP_TIMEOUT = 100;
     private static final long BUILD_RESULT_WAIT_TIMEOUT = 10_000;
-    private static final int SOCKET_TIMEOUT = 2_000;
+    // Generous enough that a busy CI runner is never mistaken for a network fault: a
+    // SocketTimeoutException is not retried by the client and marks the build as failed.
+    private static final int SOCKET_TIMEOUT = 30_000;
+    // Only for the test that has to give up on a deliberately stalled response.
+    private static final int SHORT_SOCKET_TIMEOUT = 2_000;
 
     @TempDir
     Path tmpDir;
@@ -71,6 +86,7 @@ public class RemoteEngineBuilderTest {
     private ExecutorService executor;
     private Path resultLocation;
     private SimpleMeterRegistry meterRegistry;
+    private final List<RemoteEngineBuilder> builders = new ArrayList<>();
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -88,6 +104,16 @@ public class RemoteEngineBuilderTest {
     @AfterEach
     public void tearDown() {
         executor.shutdownNow();
+        // Each client owns connection eviction threads, which would otherwise leak for the
+        // remainder of the suite. Closing is cleanup only, so it never fails a test.
+        for (RemoteEngineBuilder builder : builders) {
+            try {
+                builder.httpClient.close();
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        builders.clear();
         builderMock.stop();
     }
 
@@ -101,20 +127,28 @@ public class RemoteEngineBuilderTest {
 
     private RemoteEngineBuilder createBuilder(Optional<GCPInstanceService> instanceService,
                                               int resultDownloadRetries, long buildResultWaitTimeout) {
-        return new RemoteEngineBuilder(
+        return createBuilder(instanceService, resultDownloadRetries, buildResultWaitTimeout, SOCKET_TIMEOUT);
+    }
+
+    private RemoteEngineBuilder createBuilder(Optional<GCPInstanceService> instanceService,
+                                              int resultDownloadRetries, long buildResultWaitTimeout,
+                                              int socketTimeout) {
+        RemoteEngineBuilder builder = new RemoteEngineBuilder(
             instanceService,
             resultLocation.toString(),
             BUILD_SLEEP_TIMEOUT,
             buildResultWaitTimeout,
-            SOCKET_TIMEOUT,
-            SOCKET_TIMEOUT,
-            SOCKET_TIMEOUT,
+            socketTimeout,
+            socketTimeout,
+            socketTimeout,
             35,
             resultDownloadRetries,
             100,
             meterRegistry,
             new SimpleTracer(),
             Propagator.NOOP);
+        builders.add(builder);
+        return builder;
     }
 
     private double reconnectCount(String operation) {
@@ -170,7 +204,10 @@ public class RemoteEngineBuilderTest {
         builderMock.stubFor(get(urlPathEqualTo("/job_result"))
                 .willReturn(aResponse().withStatus(200).withFixedDelay(30_000).withBody(new byte[] {0x42})));
 
-        RemoteEngineBuilder builder = createBuilder(1);
+        // The short socket timeout is what lets the stuck downloads give up on the 30s delayed
+        // response inside this test's deadline.
+        RemoteEngineBuilder builder = createBuilder(Optional.empty(), 1, BUILD_RESULT_WAIT_TIMEOUT,
+            SHORT_SOCKET_TIMEOUT);
 
         // Occupy the connection pool with builds stuck downloading their result
         Path stalledResult1 = submitBuild(builder, "stalled1");

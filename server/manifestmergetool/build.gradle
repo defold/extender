@@ -45,6 +45,11 @@ task mainJar(type: Jar) {
     }
     duplicatesStrategy = DuplicatesStrategy.WARN
     with jar
+    // The copy below is a real output of this task: server/app/ is what the docker containers
+    // bind-mount, and the sdk's manifestMergeCmd runs this jar from there. Declaring it means a
+    // deleted server/app/manifestmergetool.jar re-runs the task instead of reporting UP-TO-DATE
+    // and leaving it missing.
+    outputs.file("${project.projectDir}/../app/manifestmergetool.jar")
         doLast {
         copy {
             from "${project.projectDir}/build/libs/manifestmergetool-${project.ext.manifestMergetoolVersion}.jar"
