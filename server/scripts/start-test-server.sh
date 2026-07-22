@@ -38,6 +38,16 @@ echo "Using PORT: ${PORT}"
 
 URL=http://localhost:${PORT}
 
+# server/app/ is bind-mounted into every container: extender.jar is what they run, and
+# manifestmergetool.jar is invoked as a subprocess by the sdk's manifestMergeCmd. Missing jars
+# would only surface much later as an obscure in-container failure.
+for jar in extender.jar manifestmergetool.jar; do
+	if [ ! -f "${DIR}/../app/${jar}" ]; then
+		echo "ERROR: server/app/${jar} is missing. Run: ./gradlew server:bootJar manifestmergetool:mainJar"
+		exit 1
+	fi
+done
+
 COMPOSE_FILES=(-f "${DIR}/../docker/docker-compose.yml")
 if [ "$EXTENDER_DEV_CACHE" == "1" ]; then
 	# The volume is external so that the 'extender-test' and 'extender-test-auth'
