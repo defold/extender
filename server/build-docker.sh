@@ -18,7 +18,7 @@ MULTI_ARCH="linux/amd64"
 
 # build env image (shared across Dockerfiles)
 echo "Build env image with archs: $MULTI_ARCH"
-docker buildx build --network host --load --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-build-env:1.0.0 -t $DOCKER_REGISTRY/extender-build-env:latest -f $SCRIPT_DIR/docker/Dockerfile.build-env $SCRIPT_DIR/docker
+docker buildx build --network host --load --platform $MULTI_ARCH -t $DOCKER_REGISTRY/extender-build-env:1.1.0 -t $DOCKER_REGISTRY/extender-build-env:latest -f $SCRIPT_DIR/docker/Dockerfile.build-env $SCRIPT_DIR/docker
 
 # base images
 echo "Base image with archs: $MULTI_ARCH"

@@ -6,7 +6,7 @@ ARG DOTNET_ROOT=/opt/dotnet
 ARG DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
 ARG NUGET_PACKAGES=/tmp/.nuget
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.0.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.1.0 AS build
 
 ARG PLATFORMSDK_DIR
 ARG TARGETARCH
