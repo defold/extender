@@ -196,6 +196,7 @@ public class BuildProgressService {
         private final AtomicInteger jobTotalFiles = new AtomicInteger();
         private final AtomicInteger jobCompletedFiles = new AtomicInteger();
         private volatile int lastPercent = 0;
+        private boolean terminated = false;
         private volatile BuildProgressEvent lastEvent;
         private volatile long lastTouched = System.currentTimeMillis();
 
@@ -234,7 +235,15 @@ public class BuildProgressService {
 
         @Override
         public void terminal(boolean success, String detail) {
-            publish(success ? BuildStage.SUCCESS : BuildStage.ERROR, detail, 100, null, null, null);
+            // a build reports its outcome from several exit paths; only the
+            // first one wins, so the most specific reason is what subscribers see
+            synchronized (lock) {
+                if (terminated) {
+                    return;
+                }
+                terminated = true;
+                publish(success ? BuildStage.SUCCESS : BuildStage.ERROR, detail, 100, null, null, null);
+            }
             completeEmitters();
             jobs.remove(jobId);
         }

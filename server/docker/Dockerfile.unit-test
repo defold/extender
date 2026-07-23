@@ -1,0 +1,36 @@
+# Container used to run the non-integration test suite on hosts that cannot run it natively
+# (currently Windows - see gradle/docker-test.gradle). Deliberately NOT named
+# "Dockerfile.<x>-env": build-docker.sh and .github/workflows/docker-env-build.yml only ever
+# touch the -env build environment fleet, and this image is not part of it.
+#
+# Nothing in the untagged suite shells out or needs native tooling, so a bare JDK is enough.
+FROM eclipse-temurin:25-jdk
+
+# Must match gradle/wrapper/gradle-wrapper.properties. The wrapper itself cannot be used here:
+# gradlew is checked out with CRLF line endings on Windows and will not execute on Linux.
+ARG GRADLE_VERSION=9.4.1
+ARG GRADLE_SHA256=2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    ca-certificates \
+    unzip \
+    wget && \
+  rm -rf /var/lib/apt/lists/* && \
+  wget -q -O /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" && \
+  echo "${GRADLE_SHA256}  /tmp/gradle.zip" | sha256sum -c - && \
+  unzip -q -d /opt /tmp/gradle.zip && \
+  rm /tmp/gradle.zip && \
+  ln -s "/opt/gradle-${GRADLE_VERSION}" /opt/gradle
+
+# Backed by a named volume at runtime so the dependency cache survives between runs.
+ENV GRADLE_USER_HOME=/gradle-home
+ENV PATH="/opt/gradle/bin:${PATH}"
+
+WORKDIR /workspace
+
+ENTRYPOINT ["gradle"]
+CMD ["--version"]

@@ -66,12 +66,13 @@ public class IntegrationTest {
             return String.format("%d.%d.%03d", major, middle, minor);
         }
 
-        boolean isVersion(int major, int middle, int minor) {
-            return this.major == major && this.middle == middle && this.minor == minor;
+        // How a version is written on the command line, e.g. -PdefoldVersions=1.12.3
+        public String toShortString() {
+            return String.format("%d.%d.%d", major, middle, minor);
         }
 
-        boolean isLessThan(int major, int middle, int minor) {
-            return this.major < major || this.middle < middle || this.minor < minor;
+        boolean isVersion(int major, int middle, int minor) {
+            return this.major == major && this.middle == middle && this.minor == minor;
         }
 
         boolean isGreaterThan(int major, int middle, int minor) {
@@ -148,14 +149,64 @@ public class IntegrationTest {
             versions = ciVersions;
         }
 
+        // Opt-in narrowing for local runs. Both properties are absent in CI, so this is a no-op there.
+        String versionFilter = System.getProperty(TestUtils.PROP_DEFOLD_VERSIONS);
+        if (versionFilter != null && !versionFilter.isBlank()) {
+            versions = filterVersions(versions, ciVersions, versionFilter.trim());
+        }
+        Set<String> platformFilter = TestUtils.selectedPlatforms();
+
         for( int i = 0; i < versions.length; ++i )
         {
             for (String platform : versions[i].platforms) {
+                if (!platformFilter.isEmpty() && !platformFilter.contains(platform)) {
+                    continue;
+                }
                 data.add(new TestConfiguration(versions[i], platform));
             }
         }
 
+        if (data.isEmpty()) {
+            // An empty @MethodSource fails every test with an opaque error, so say what went wrong.
+            throw new IllegalArgumentException(String.format(
+                "-PtargetPlatforms=%s selected no target platform. Known platforms: %s",
+                System.getProperty(TestUtils.PROP_TARGET_PLATFORMS),
+                String.join(", ", versions[0].platforms)));
+        }
+
         return data;
+    }
+
+    // -PdefoldVersions=all|ci|latest|1.12.3,1.11.1
+    private static DefoldVersion[] filterVersions(DefoldVersion[] versions, DefoldVersion[] ciVersions, String filter) {
+        switch (filter) {
+            case "all":
+                return versions;
+            case "ci":
+                return ciVersions;
+            case "latest":
+                return new DefoldVersion[] { versions[versions.length - 1] };
+            default:
+                break;
+        }
+
+        Set<String> wanted = new LinkedHashSet<>(Arrays.asList(filter.split("\\s*,\\s*")));
+        List<DefoldVersion> selected = new ArrayList<>();
+        for (DefoldVersion version : versions) {
+            if (wanted.contains(version.version.toShortString())) {
+                selected.add(version);
+            }
+        }
+        if (selected.isEmpty()) {
+            List<String> known = new ArrayList<>();
+            for (DefoldVersion version : versions) {
+                known.add(version.version.toShortString());
+            }
+            throw new IllegalArgumentException(String.format(
+                "-PdefoldVersions=%s matched no Defold version. Use 'all', 'ci', 'latest', or any of: %s",
+                filter, String.join(", ", known)));
+        }
+        return selected.toArray(new DefoldVersion[0]);
     }
 
     public IntegrationTest() { }
@@ -163,9 +214,13 @@ public class IntegrationTest {
     @BeforeAll
     public static void beforeClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
-        processExecutor.putEnv("COMPOSE_PROFILE", "test");
+        // Boot only the builders the selected target platforms need; "test" (everything) by default.
+        processExecutor.putEnv("COMPOSE_PROFILE", TestUtils.composeProfiles(TestUtils.selectedPlatforms()));
         processExecutor.putEnv("APPLICATION", "extender-test");
         processExecutor.putEnv("PORT", String.valueOf(EXTENDER_PORT));
+        if (TestUtils.reuseStack()) {
+            processExecutor.putEnv("EXTENDER_KEEP_STACK", "1");
+        }
         processExecutor.execute(TestUtils.shellScriptArgs("scripts/start-test-server.sh"));
         System.out.println(processExecutor.getOutput());
 
@@ -199,6 +254,9 @@ public class IntegrationTest {
     public static void afterClass() throws IOException, InterruptedException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.putEnv("APPLICATION", "extender-test");
+        if (TestUtils.reuseStack()) {
+            processExecutor.putEnv("EXTENDER_KEEP_STACK", "1");
+        }
         processExecutor.execute(TestUtils.shellScriptArgs("scripts/stop-test-server.sh"));
         System.out.println(processExecutor.getOutput());
     }
@@ -578,6 +636,44 @@ public class IntegrationTest {
 
         List<String> classes = Arrays.asList(new String[]{"Lcom/defold/extendertest/R;"});
         assertTrue(checkClassesDexClasses(destination, classes));
+    }
+
+    /*
+     * Test that an .aar file shipped inside an extension (lib/android/*.aar) is unpacked and that
+     * all of its parts are used: the classes of classes.jar and libs/*.jar end up in the dex and on
+     * the javac classpath, the resources are compiled and returned in packages/, the package of the
+     * AndroidManifest is passed to aapt2 as an extra package (which gives us its R class) and the
+     * assets are returned to the client.
+     */
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildAndroidLocalAar(TestConfiguration configuration) throws IOException, ExtenderClientException {
+        assumeTrue(configuration.platform.contains("android") && configuration.version.version.isGreaterThan(1, 2, 174),
+            "Defold version does not support Android resources compilation test."
+        );
+
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/src/TestAar.java"),
+                new FileExtenderResource(String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource("test-data/ext/lib/android/LocalAar.aar"));
+
+        File destination = doBuild(sourceFiles, configuration);
+
+        List<String> classes = Arrays.asList(new String[]{
+            "Lcom/defold/localaar/LocalAar;",   // from classes.jar
+            "Lcom/defold/localaar/InnerJar;",   // from libs/InnerJar.jar
+            "Lcom/defold/localaar/R;",          // from the aapt2 extra package
+            "Lcom/defold/Test;"});              // the extension source importing the two classes above
+        assertTrue(checkClassesDexClasses(destination, classes));
+
+        // The unpacked .aar is named "<extension>-<file>.aar", which also names its resource package
+        try (ZipFile zipFile = new ZipFile(destination)) {
+            assertNotEquals(null, zipFile.getEntry("packages/ext-LocalAar.aar/res/values/strings.xml"));
+            assertNotEquals(null, zipFile.getEntry("assets/local_aar.txt"));
+        }
     }
 
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")

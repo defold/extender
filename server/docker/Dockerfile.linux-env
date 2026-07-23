@@ -1,6 +1,6 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.6.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.7.0
 
-ENV CLANG_VERSION=17
+ENV CLANG_VERSION=20
 ENV CLANG_HOME=/usr/lib/llvm-${CLANG_VERSION}
 # Possibly get the "-resource-dir" from clang++ -### empty.cpp
 ENV CLANG_RESOURCE_DIR=/usr/lib/llvm-${CLANG_VERSION}/lib/clang/${CLANG_VERSION}

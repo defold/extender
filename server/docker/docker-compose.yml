@@ -205,6 +205,16 @@ services:
           - xbox-251002
 
 # services for integration testing
+#
+# "test" starts every builder and is what CI uses. The test-<target> profiles let a local
+# run boot only the builders it needs: IntegrationTest derives them from -PtargetPlatforms.
+# They are purely additive - "test" still selects all of these services.
+#   test-linux   -> x86_64-linux
+#   test-android -> armv7-android, arm64-android
+#   test-web     -> js-web, wasm-web
+#   test-windows -> x86_64-win32
+# Both android builders, and all three winsdk builders, stay grouped together: which one
+# serves a request is decided by that Defold version's platform.sdks.json, not by the test.
   frontend-integration-test:
     image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
     extends:
@@ -217,6 +227,10 @@ services:
       - "9000:9000"
     profiles:
       - test
+      - test-linux
+      - test-android
+      - test-web
+      - test-windows
     networks:
       default:
         aliases:
@@ -229,6 +243,7 @@ services:
     profiles:
       - test
       - auth-test
+      - test-linux
     platform: linux/amd64
     networks:
       default:
@@ -243,6 +258,7 @@ services:
     profiles:
       - test
       - auth-test
+      - test-android
     networks:
       default:
         aliases:
@@ -256,6 +272,7 @@ services:
     profiles:
       - test
       - auth-test
+      - test-android
     networks:
       default:
         aliases:
@@ -267,6 +284,7 @@ services:
       service: test_remote_builder
     profiles:
       - test
+      - test-web
     networks:
       default:
         aliases:
@@ -278,6 +296,7 @@ services:
       service: test_remote_builder
     profiles:
       - test
+      - test-windows
     networks:
       default:
         aliases:
@@ -289,6 +308,7 @@ services:
       service: test_remote_builder
     profiles:
       - test
+      - test-windows
     networks:
       default:
         aliases:
@@ -300,6 +320,7 @@ services:
       service: test_remote_builder
     profiles:
       - test
+      - test-windows
     networks:
       default:
         aliases:

@@ -186,10 +186,10 @@ if [[ $(uname) == "Darwin" ]]; then
 
     # Keep Apple's naming convention to avoid bugs
     PACKAGES=(
-        iPhoneOS${IOS_26_VERSION}.sdk
-        iPhoneSimulator${IOS_26_VERSION}.sdk
-        MacOSX${MACOS_26_VERSION}.sdk
-        XcodeDefault${XCODE_26_VERSION}.xctoolchain.darwin
+        iPhoneOS${IOS_VERSION}.sdk
+        iPhoneSimulator${IOS_VERSION}.sdk
+        MacOSX${MACOS_VERSION}.sdk
+        XcodeDefault${XCODE_VERSION}.xctoolchain.darwin
     )
     function download_packages() {
         for package_name in ${PACKAGES[@]}; do
@@ -201,6 +201,9 @@ if [[ $(uname) == "Darwin" ]]; then
     download_packages
 fi
 
+# Fall back to the legacy name in case user.env was generated before ZIG_PATH existed
+ZIG_PATH=${ZIG_PATH:-${ZIG_PATH_0_11}}
+
 ZIG_ARCH=x86_64
 if [[ $(uname -m) == "arm64" ]]; then
     ZIG_ARCH=aarch64
@@ -209,7 +212,7 @@ ZIG_PACKAGE_NAME=zig-macos-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz
 ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}
 
 echo "[setup] Downloading Zig"
-download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH_0_11}
+download_zig ${ZIG_URL} ${ZIG_PACKAGE_NAME} ${ZIG_PATH}
 
 echo "[setup] Installing dotnet"
 install_dotnet

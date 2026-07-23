@@ -1,0 +1,47 @@
+# Local-developer override: keep downloaded Defold SDKs between test runs.
+#
+# Without this, /var/extender/sdk lives in the container's writable layer, so every
+# `docker compose down` throws the SDKs away and the next run re-downloads and re-unzips
+# one per (builder x Defold version) - by far the largest cost of a local test run.
+#
+# Enabled by server/scripts/start-test-server.sh unless EXTENDER_DEV_CACHE=0, and never
+# in CI. Layered with `-f`, so docker-compose.yml stays exactly what CI sees.
+#
+# Only the builders mount the cache: the frontend is FRONTEND_ONLY and never downloads an
+# SDK (only AsyncBuilder does), and keeping it off the shared volume keeps its @PreDestroy
+# cache cleanup away from everyone else's SDKs.
+
+volumes:
+  # External, so the `extender-test` and `extender-test-auth` compose projects share one
+  # cache instead of each getting a project-prefixed copy. Created by start-test-server.sh.
+  extender-sdk-cache:
+    external: true
+
+x-sdk-cache: &sdk-cache
+  volumes:
+    - extender-sdk-cache:/var/extender/sdk
+  environment:
+    # DefoldSdkService deletes the whole cache in @PreDestroy. Compose only grants a 10s
+    # stop grace, so a multi-GB delete gets SIGKILLed part-way through - which is harmless
+    # for a throwaway writable layer but corrupts a persistent volume, because getRemoteSdk
+    # treats "directory exists" as "already verified".
+    - EXTENDER_SDK_CACHECLEARONEXIT=false
+    # The builders now share one cache directory, so raise the eviction bound above the
+    # default 10 to keep them from evicting each other's SDKs.
+    - EXTENDER_SDK_CACHESIZE=32
+
+services:
+  linux-integration-test:
+    <<: *sdk-cache
+  android_ndk25-integration-test:
+    <<: *sdk-cache
+  android_ndk25_sdk36-integration-test:
+    <<: *sdk-cache
+  emscripten_406-integration-test:
+    <<: *sdk-cache
+  win_2022-integration-test:
+    <<: *sdk-cache
+  win_2022_144435207-integration-test:
+    <<: *sdk-cache
+  win_2026_145136231-integration-test:
+    <<: *sdk-cache

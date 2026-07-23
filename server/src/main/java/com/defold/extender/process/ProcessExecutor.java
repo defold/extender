@@ -83,7 +83,9 @@ public class ProcessExecutor {
             System.out.println(debugBuffer.toString());
         }
 
-        if (exitValue > 0) {
+        // note: a negative exit value means the process was terminated by a signal,
+        // which is a failure just like a positive exit code
+        if (exitValue != 0) {
             throw new IOException(output.toString());
         }
 
@@ -109,8 +111,10 @@ public class ProcessExecutor {
         env.put(key, value);
     }
 
-    public void putEnv(Map<String, String> inputEnv) throws NullPointerException {
-        env.putAll(inputEnv);
+    public void putEnv(Map<String, String> inputEnv) {
+        for (Map.Entry<String, String> entry : inputEnv.entrySet()) {
+            putEnv(entry.getKey(), entry.getValue());
+        }
     }
 
     public Map<String, String> getEnv() {

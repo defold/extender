@@ -114,9 +114,66 @@ Test can be run from the root directory with
 ```sh
 ./gradlew server:test
 ```
+Unless `-PexcludeTags=integration` is passed, this first builds `server:bootJar` and
+`manifestmergetool:mainJar` into `server/app/` - the directory the test containers bind-mount.
+Both are needed: the containers run `extender.jar`, and `manifestmergetool.jar` is invoked as a
+subprocess by the sdk's `manifestMergeCmd` (see `IntegrationTest.buildAndroidLocalAar`). Those two
+jars are declared outputs of their tasks, so deleting one from `server/app/` re-runs the task
+rather than being silently reported as `UP-TO-DATE`.
+
 During the testing local servers will be run. That's why it necessary to have prebuild docker images. There are two set of services that run:
 * **test** - run for integration testing (see *IntegrationTest.java*)
 * **auth-test** - run for authentication testing (see *AuthenticationTest.java*)
+
+### On Windows
+
+On a Windows host `./gradlew test` (or `server:test`) does not run the tests locally. It builds
+`server/docker/Dockerfile.unit-test` and runs the whole non-integration suite - `:server`,
+`:client` and `:manifestmergetool`, with `-PexcludeTags=integration` - inside a Linux container, so
+the result matches CI. See `gradle/docker-test.gradle`. Everything is a no-op on Linux and macOS.
+
+The container builds into `build-container/` rather than `build/` (the host Gradle daemon keeps its
+own outputs open on Windows), so reports end up in e.g.
+`server/build-container/reports/tests/test/index.html`.
+
+Add `-PnoDocker` to run natively instead. This is what you need for the integration and auth tests,
+which use Git Bash to drive `scripts/start-test-server.sh`:
+
+```sh
+./gradlew server:test -PnoDocker --tests '*IntegrationTest*'
+```
+
+### Speeding up local runs (Apple Silicon)
+
+A full `server:test` builds every target across every Defold version and, on an arm64 Mac, runs
+those builders emulated. A few opt-in flags cut that down for local iteration. They are all
+no-ops in CI, so they do not change what CI runs.
+
+* **Enable Rosetta first.** In Docker Desktop → Settings → General → Virtual Machine Options, use
+  *Apple Virtualization framework* with *Use Rosetta for x86_64/amd64 emulation on Apple Silicon*.
+  This is a prerequisite, not a tip: the Android and `x86_64-linux` builders can never be arm64
+  (their toolchains are x86_64-only), so they always run emulated.
+
+* `-PtargetPlatforms=<list>` — build only these targets, and boot only the builders they need.
+  Values: `x86_64-linux`, `armv7-android`, `arm64-android`, `js-web`, `wasm-web`, `x86_64-win32`.
+* `-PdefoldVersions=<list>` — which Defold SDK versions to test. `latest`, `ci` (first + last, what
+  CI uses), `all`, or a comma list like `1.12.3,1.11.1`.
+* `-PreuseStack=true` — leave the docker stack running after the tests and reuse it next time. The
+  stack is recreated automatically when `server/app/extender.jar` is rebuilt, so you never test
+  stale code. Stop it by hand with `EXTENDER_KEEP_STACK=0 docker compose -p extender-test down`.
+* `-PbuildSleepTimeout=500` — poll async build status every 500ms instead of the client default
+  5000ms. Every build waits at least one full interval before its first status check, so with fast
+  (Rosetta) builders the default turns each ~5s build into a flat 10s.
+
+```sh
+# one target, one version - 1 config and 2 containers instead of 36 configs and 8 containers
+./gradlew server:test --tests '*IntegrationTest*' -PtargetPlatforms=x86_64-linux -PdefoldVersions=latest \
+    -PreuseStack=true -PbuildSleepTimeout=500
+```
+
+Downloaded Defold SDKs are kept in an external docker volume (`extender-sdk-cache`) between runs, so
+they are fetched once instead of on every run. This is on by default locally and off in CI; set
+`EXTENDER_DEV_CACHE=0` to opt out. Remove the cache with `docker volume rm extender-sdk-cache`.
 
 ## How to debug running instance
 To enable remote JVM debug need to add following additional options to entrypoint section in `./server/docker/common-services.yml` for `common_builder` service
@@ -189,4 +246,4 @@ Keys in `extender.remote-builder.platform` should be formed in the following way
 5. Frontend instance sends a build request to the found server url.
 
 # Testing notes
-When runs integration tests on Macos at arm chips - check docker engine configuration. It's better to use `Virtual Machine option` -> `Apple Virtualization framework` with checked `Use Rosetta for x86_64/amd64 emulation on Apple Silicon` checkbox.
+When runs integration tests on Macos at arm chips - check docker engine configuration. It's better to use `Virtual Machine option` -> `Apple Virtualization framework` with checked `Use Rosetta for x86_64/amd64 emulation on Apple Silicon` checkbox. See [Speeding up local runs](#speeding-up-local-runs-apple-silicon) for the flags that make a local run practical.

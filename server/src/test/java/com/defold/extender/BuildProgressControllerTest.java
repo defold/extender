@@ -90,6 +90,24 @@ public class BuildProgressControllerTest {
     }
 
     @Test
+    public void testOnlyFirstTerminalIsReported() throws Exception {
+        // RemoteEngineBuilder reports the outcome from several exit paths (a specific
+        // one plus a catch-all in its finally block); subscribers must see exactly one
+        // terminal event, carrying the most specific reason.
+        ProgressReporter reporter = service.register("job1");
+        MvcResult result = subscribe("job1");
+
+        reporter.terminal(false, "Remote build timed out");
+        reporter.terminal(false, "Build failed");
+
+        String content = result.getResponse().getContentAsString();
+        assertTrue(content.contains("Remote build timed out"));
+        assertFalse(content.contains("Build failed"));
+        assertEquals(1, content.split("\"terminal\":true", -1).length - 1,
+                "exactly one terminal event must be emitted");
+    }
+
+    @Test
     public void testLastEventIdReplay() throws Exception {
         ProgressReporter reporter = service.register("job1");
         reporter.stage(BuildStage.SDK, "one");          // seq 1

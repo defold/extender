@@ -116,9 +116,10 @@ public class AsyncBuilder {
                             .setProgressReporter(progressReporter)
                             .build();
 
-                // Resolve Gradle dependencies
+                // Resolve Gradle dependencies and .aar files shipped inside the extensions
                 if (platform.contains("android")) {
                     progressReporter.stage(BuildStage.DEPENDENCIES, "Resolving Gradle dependencies");
+                    extender.resolveLocalAars();
                     extender.resolve(gradleService);
                     metricsWriter.measureGradleDownload();
                 }
