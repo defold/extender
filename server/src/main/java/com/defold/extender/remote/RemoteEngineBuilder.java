@@ -5,6 +5,9 @@ import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.progress.BuildProgressService;
+import com.defold.extender.progress.BuildStage;
+import com.defold.extender.progress.ProgressReporter;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GCPInstanceService;
 import com.defold.extender.tracing.ExtenderTracerInterceptor;
@@ -56,6 +59,7 @@ public class RemoteEngineBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteEngineBuilder.class);
 
     private GCPInstanceService instanceService;
+    private BuildProgressService buildProgressService;
     private File jobResultLocation;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
@@ -63,12 +67,14 @@ public class RemoteEngineBuilder {
     protected final HttpClient httpClient;
 
     public RemoteEngineBuilder(Optional<GCPInstanceService> instanceService,
+                            BuildProgressService buildProgressService,
                             @Value("${extender.job-result.location}") String jobResultLocation,
                             @Value("${extender.remote-builder.build-sleep-timeout:5000}") long buildSleepTimeout,
                             @Value("${extender.remote-builder.build-result-wait-timeout:1200000}") long buildResultWaitTimeout,
                             @Autowired Tracer tracer,
                             @Autowired Propagator propogator) {
         instanceService.ifPresent(val -> { LOGGER.info("Instance client is initialized"); this.instanceService = val; });
+        this.buildProgressService = buildProgressService;
         this.buildSleepTimeout = buildSleepTimeout;
         this.buildResultWaitTimeout = buildResultWaitTimeout;
         this.jobResultLocation = new File(jobResultLocation);
@@ -108,17 +114,27 @@ public class RemoteEngineBuilder {
             throw new RemoteBuildException("Failed to add files to multipart request", e);
         }
 
+        ProgressReporter progressReporter = buildProgressService.reporterFor(jobName);
+        RemoteProgressRelay relay = null;
         try {
             final String serverUrl = String.format("%s/build_async/%s/%s", remoteInstanceConfig.getUrl(), platform, sdkVersion);
             final HttpPost request = new HttpPost(serverUrl);
             request.setEntity(httpEntity);
-    
+
             touchInstance(remoteInstanceConfig.getInstanceId());
             HttpResponse response = httpClient.execute(request);
             // copied from ExtenderClient. Think about code deduplication.
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                 String jobId = EntityUtils.toString(response.getEntity());
                 LOGGER.info(String.format("Remote async build posted. Wait job id: %s", jobId));
+                if (buildProgressService.isEnabled()) {
+                    // relay the remote builder's progress stream into the local
+                    // registry under the local job id
+                    relay = new RemoteProgressRelay(remoteInstanceConfig.getUrl(), jobId, jobName, buildProgressService);
+                    Thread relayThread = new Thread(relay, String.format("progress-relay-%s", jobName));
+                    relayThread.setDaemon(true);
+                    relayThread.start();
+                }
                 long currentTime = System.currentTimeMillis();
                 Integer jobStatus = 0;
                 Thread.sleep(buildSleepTimeout);
@@ -131,6 +147,12 @@ public class RemoteEngineBuilder {
                         LOGGER.info(String.format("Job %s status is %d", jobId, jobStatus));
                         break;
                     }
+                    if (relay == null || !relay.isDeliveringEvents()) {
+                        // old remote builder (or dropped stream): coarse progress
+                        long elapsedSeconds = (System.currentTimeMillis() - currentTime) / 1000;
+                        buildProgressService.publishRaw(jobName, BuildStage.REMOTE_BUILDING,
+                                String.format("Building remotely, %ds elapsed", elapsedSeconds), 0, null, null, null);
+                    }
                     Thread.sleep(buildSleepTimeout);
                 }
                 if (jobStatus == 0) {
@@ -138,6 +160,7 @@ public class RemoteEngineBuilder {
                     PrintWriter writer = new PrintWriter(errorFile);
                     writer.write(String.format("Job %s result cannot be defined during %d", jobId, buildResultWaitTimeout));
                     writer.close();
+                    progressReporter.terminal(false, "Remote build timed out");
                 }
                 touchInstance(remoteInstanceConfig.getInstanceId());
                 HttpGet resultRequest = new HttpGet(String.format("%s/job_result?jobId=%s", remoteInstanceConfig.getUrl(), jobId));
@@ -151,13 +174,16 @@ public class RemoteEngineBuilder {
                     os.close();
                     File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
                     Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
-                } else {
+                    // terminal only after the local result file is in place
+                    progressReporter.terminal(true, "Build succeeded");
+                } else if (jobStatus != 0) {
                     LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     PrintWriter writer = new PrintWriter(errorFile);
                     IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
                     writer.close();
                     EntityUtils.consumeQuietly(response.getEntity());
+                    progressReporter.terminal(false, "Build failed");
                 }
             } else {
                 LOGGER.error(Markers.COMPILATION_ERROR,  "Failed to build source.");
@@ -166,6 +192,7 @@ public class RemoteEngineBuilder {
                 IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
                 writer.close();
                 EntityUtils.consumeQuietly(response.getEntity());
+                progressReporter.terminal(false, "Remote build request failed");
             }
             metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
         } catch (Exception e) {
@@ -174,7 +201,11 @@ public class RemoteEngineBuilder {
             writer.write("Failed to communicate with Extender service.");
             e.printStackTrace(writer);
             writer.close();
+            progressReporter.terminal(false, "Failed to communicate with remote builder");
         } finally {
+            if (relay != null) {
+                relay.stop();
+            }
             tmpUploadArchive.delete();
             metricsWriter.measureRemoteEngineBuild(buildTimer.start(), platform);
             // Delete temporary upload directory

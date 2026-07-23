@@ -4,6 +4,7 @@ Extender is a build server that builds native extensions of the Defold engine. T
 
 * Server description and setup/run instructions - [link](/server/README.md)
 * Debugging FAQ - [link](/README_DEBUGGING.md)
+* Live build progress (SSE) - [link](/README_BUILD_PROGRESS.md)
 
 ---
 

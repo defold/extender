@@ -13,6 +13,9 @@ import java.util.stream.Stream;
 
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.progress.BuildProgressService;
+import com.defold.extender.progress.BuildStage;
+import com.defold.extender.progress.ProgressReporter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
@@ -35,6 +38,7 @@ public class AsyncBuilder {
     private DefoldSdkService defoldSdkService;
     private GradleService gradleService;
     private CocoaPodsService cocoaPodsService;
+    private BuildProgressService buildProgressService;
     private File jobResultLocation;
     private long resultLifetime;
     private boolean keepJobDirectory = false;
@@ -42,11 +46,13 @@ public class AsyncBuilder {
     public AsyncBuilder(DefoldSdkService defoldSdkService,
                         GradleService gradleService,
                         Optional<CocoaPodsService> cocoaPodsService,
+                        BuildProgressService buildProgressService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
         this.gradleService = gradleService;
         cocoaPodsService.ifPresent(val -> { this.cocoaPodsService = val; });
+        this.buildProgressService = buildProgressService;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
         this.resultLifetime = jobResultLifetime;
@@ -91,10 +97,12 @@ public class AsyncBuilder {
         resultDir.mkdir();
         Extender extender = null;
         Boolean isSuccefull = true;
+        ProgressReporter progressReporter = buildProgressService.reporterFor(jobName);
         try {
             LOGGER.info("Building engine locally");
 
             // Get SDK
+            progressReporter.stage(BuildStage.SDK, "Downloading Defold SDK " + sdkVersion);
             try (DefoldSdk sdk = defoldSdkService.getSdk(sdkVersion)) {
                 metricsWriter.measureSdkDownload(sdkVersion);
 
@@ -105,16 +113,19 @@ public class AsyncBuilder {
                             .setUploadDirectory(uploadDirectory)
                             .setBuildDirectory(buildDirectory)
                             .setMetricsWriter(metricsWriter)
+                            .setProgressReporter(progressReporter)
                             .build();
 
                 // Resolve Gradle dependencies
                 if (platform.contains("android")) {
+                    progressReporter.stage(BuildStage.DEPENDENCIES, "Resolving Gradle dependencies");
                     extender.resolve(gradleService);
                     metricsWriter.measureGradleDownload();
                 }
 
                 // Resolve CocoaPods dependencies
                 if (ExtenderUtil.isAppleTarget(platform)) {
+                    progressReporter.stage(BuildStage.DEPENDENCIES, "Resolving CocoaPods dependencies");
                     extender.resolve(cocoaPodsService);
                     metricsWriter.measureCocoaPodsInstallation();
                 }
@@ -124,6 +135,7 @@ public class AsyncBuilder {
                 metricsWriter.measureEngineBuild(platform);
 
                 // Zip files
+                progressReporter.stage(BuildStage.PACKAGING, "Packaging build results");
                 String zipFilename = jobDirectory.getAbsolutePath() + File.separator + BuilderConstants.BUILD_RESULT_FILENAME;
                 File zipFile = ZipUtils.zip(extender.getOutputFiles(), buildDirectory, zipFilename);
                 metricsWriter.measureZipFiles(zipFile);
@@ -133,6 +145,10 @@ public class AsyncBuilder {
                 File targetResult = new File(resultDir, BuilderConstants.BUILD_RESULT_FILENAME);
                 FileUtils.copyFile(zipFile, tmpResult);
                 Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                // terminal event only after the result file is in place, so
+                // /job_status and /job_result are already consistent for
+                // clients reacting to it
+                progressReporter.terminal(true, "Build succeeded");
             }
         } catch(EofException e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
@@ -140,12 +156,14 @@ public class AsyncBuilder {
             writeExceptionToFile(e, errorFile);
             LOGGER.error(Markers.SERVER_ERROR, "Client closed connection prematurely, build aborted", e);
             isSuccefull = false;
+            progressReporter.terminal(false, "Build aborted: client closed connection");
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             writeExtenderLogsToFile(extender, errorFile);
             writeExceptionToFile(e, errorFile);
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion), e);
             isSuccefull = false;
+            progressReporter.terminal(false, "Build failed: " + e.getMessage());
         } finally {
             metricsWriter.measureCounterBuild(platform, sdkVersion, "async", isSuccefull);
 

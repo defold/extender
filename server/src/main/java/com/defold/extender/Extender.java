@@ -51,6 +51,8 @@ import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessUtils;
+import com.defold.extender.progress.BuildStage;
+import com.defold.extender.progress.ProgressReporter;
 
 class Extender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Extender.class);
@@ -62,6 +64,7 @@ class Extender {
     private final PlatformConfig platformAppConfig;     // "common", platform, arch-platform from game.appmanifest
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
+    private final ProgressReporter progressReporter;
     private MetricsWriter metricsWriter;
     // context flags
     private Boolean needsCSLibraries = false;
@@ -128,6 +131,7 @@ class Extender {
         File uploadDirectory;
         Map<String, String> env = new HashMap<String, String>();
         MetricsWriter metricsWriter;
+        ProgressReporter progressReporter = ProgressReporter.NOOP;
 
         public Builder() { }
 
@@ -166,6 +170,11 @@ class Extender {
             return this;
         }
 
+        public Builder setProgressReporter(ProgressReporter progressReporter) {
+            this.progressReporter = progressReporter;
+            return this;
+        }
+
         public Extender build() throws IOException, ExtenderException {
             return new Extender(this);
         }
@@ -173,6 +182,7 @@ class Extender {
 
     private Extender(Builder builder) throws IOException, ExtenderException {
         this.metricsWriter = builder.metricsWriter;
+        this.progressReporter = builder.progressReporter != null ? builder.progressReporter : ProgressReporter.NOOP;
         this.gradlePackages = new ArrayList<>();
         this.outputFiles = new ArrayList<>();
 
@@ -815,7 +825,9 @@ class Extender {
             }
             objs.add(ExtenderUtil.getRelativePath(buildState.jobDir, o));
         }
-        ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+        final String extensionName = (String)manifestContext.get("extension_name");
+        progressReporter.compileBatchBegin(extensionName, commands.size());
+        ProcessExecutor.executeCommands(processExecutor, commands, () -> progressReporter.fileCompiled(extensionName)); // in parallel
         return objs;
     }
 
@@ -917,7 +929,8 @@ class Extender {
                 compileSwiftCommands.set(i, cmd);
             }
 // ************************************************************************************************************
-            ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands); // in parallel
+            progressReporter.compileBatchBegin(pod.name, compileSwiftCommands.size());
+            ProcessExecutor.executeCommands(processExecutor, compileSwiftCommands, () -> progressReporter.fileCompiled(pod.name)); // in parallel
 
             generateSwiftCompatabilityHeaders(pod, resolvedPods.getCurrentPodsDirectory());
         }
@@ -944,7 +957,8 @@ class Extender {
             objs.add(objPath);
         }
         LOGGER.info("compiling {} source files", commands.size());
-        ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+        progressReporter.compileBatchBegin(pod.name, commands.size());
+        ProcessExecutor.executeCommands(processExecutor, commands, () -> progressReporter.fileCompiled(pod.name)); // in parallel
 
         return objs;
     }
@@ -2384,6 +2398,7 @@ class Extender {
 
         List<File> outputFiles = new ArrayList<>();
         try {
+            progressReporter.stage(BuildStage.COMPILING, "Building pods");
             outputFiles.addAll(buildPods());
 
             // An easy way to disable building an extension, is if the symbol name is
@@ -2402,6 +2417,7 @@ class Extender {
                 Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
                 File manifest = manifestFiles.get(extensionSymbol);
 
+                progressReporter.stage(BuildStage.COMPILING, extensionSymbol);
                 // TODO: Thread this step
                 outputFiles.addAll(buildExtension(manifest, extensionContext));
             }
@@ -2422,6 +2438,7 @@ class Extender {
             }
             Map<String, Object> mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
 
+            progressReporter.stage(BuildStage.LINKING, "Linking engine");
             outputFiles.addAll(linkEngine(symbols, mergedAppContextWithPods, resourceFile));
 
             metricsWriter.measureBuildTarget("engine");
@@ -2818,19 +2835,23 @@ class Extender {
     }
 
     void build() throws ExtenderException {
+        progressReporter.stage(BuildStage.MANIFESTS, "Building manifests");
         outputFiles.addAll(buildManifests(buildState.fullPlatform));
 
         if (shouldBuildLibrary())
         {
+            progressReporter.stage(BuildStage.COMPILING, "Building libraries");
             outputFiles.addAll(buildLibraries());
         }
         else
         {
             // TODO: Thread this step
             if (ExtenderUtil.isAndroidTarget(buildState.fullPlatform)) {
+                progressReporter.stage(BuildStage.PLATFORM, "Building Android resources and code");
                 outputFiles.addAll(buildAndroid(buildState.fullPlatform));
             }
             else if (ExtenderUtil.isAppleTarget(buildState.fullPlatform)) {
+                progressReporter.stage(BuildStage.PLATFORM, "Building Apple platform files");
                 outputFiles.addAll(buildApple(buildState.fullPlatform));
             }
 
