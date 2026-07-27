@@ -21,6 +21,7 @@ class ExtensionManifestValidator {
 
     private static final Pattern VALID_INCLUDE_PATH = Pattern.compile("^[A-Za-z0-9._+\\-/]+$");
     private static final Pattern VALID_SYMBOL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+    private static final Pattern VALID_API_LEVEL = Pattern.compile("^[0-9]+$");
 
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSymbols) {
         this.allowedDefines.add(WhitelistConfig.compile(whitelistConfig.defineRe));
@@ -55,6 +56,16 @@ class ExtensionManifestValidator {
                 throw new ExtenderException(String.format(
                         "Error in app.manifest: invalid '%s' value '%s'. Allowed characters: letters, digits and '._+-/'.",
                         ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH, s));
+            }
+        }
+
+        // Reaches the command line as the argument of d8 --min-api, so it must be a bare number.
+        Object minAndroidSdkVersion = appContext.get(ExtenderBuildState.APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD);
+        if (minAndroidSdkVersion != null && !(minAndroidSdkVersion instanceof Integer)) {
+            if (!(minAndroidSdkVersion instanceof String) || !VALID_API_LEVEL.matcher((String) minAndroidSdkVersion).matches()) {
+                throw new ExtenderException(String.format(
+                        "Error in app.manifest: '%s' must be an integer, got '%s'.",
+                        ExtenderBuildState.APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD, minAndroidSdkVersion));
             }
         }
     }
