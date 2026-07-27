@@ -8,6 +8,9 @@ public class ExtenderBuildState {
     static final String APPMANIFEST_BUILD_ARTIFACTS_KEYWORD = "buildArtifacts";
     static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
     static final String APPMANIFEST_DEBUG_SOURCE_PATH = "debugSourcePath";
+    static final String APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD = "minAndroidSdkVersion";
+
+    static final int DEFAULT_MIN_ANDROID_SDK_VERSION = 21;
 
     File jobDir;
     File uploadDir;
@@ -19,6 +22,7 @@ public class ExtenderBuildState {
     String hostPlatform;
     private final String buildArtifacts;
     private final String debugSourcePath;
+    private final int minAndroidSdkVersion;
 
     private final Boolean withSymbols;
     private final Boolean useJetifier;
@@ -37,6 +41,7 @@ public class ExtenderBuildState {
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
         this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
         this.debugSourcePath = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_DEBUG_SOURCE_PATH, null);
+        this.minAndroidSdkVersion = ExtenderUtil.getAppManifestContextInteger(appManifest, APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD, DEFAULT_MIN_ANDROID_SDK_VERSION);
         // assign configuration names started with upper letter because it used for cocoapods
         if (baseVariant != null && (baseVariant.equals("release") || baseVariant.equals("headless"))) {
             this.buildConfiguration = "Release";
@@ -99,6 +104,10 @@ public class ExtenderBuildState {
 
     public String getDebugSourcePath() {
         return debugSourcePath;
+    }
+
+    public int getMinAndroidSdkVersion() {
+        return minAndroidSdkVersion;
     }
 
     public Boolean isNeedSymbols() {

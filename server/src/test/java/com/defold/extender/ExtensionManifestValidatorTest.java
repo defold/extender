@@ -275,6 +275,44 @@ public class ExtensionManifestValidatorTest {
     }
 
     @Test
+    public void testValidateAppManifestContextMinAndroidSdkVersion() throws ExtenderException {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+
+        // Missing key is accepted: engines older than the --min-api change never send it
+        assertDoesNotThrow(() -> validator.validateAppManifestContext(new HashMap<>()));
+
+        // bob writes the value unquoted, so snakeyaml hands us an Integer; a quoted one is a String
+        for (Object v : new Object[] { 21, 24, "21", "24" }) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("minAndroidSdkVersion", v);
+            assertDoesNotThrow(() -> validator.validateAppManifestContext(ctx),
+                    "expected to accept minAndroidSdkVersion: " + v);
+        }
+
+        // The value ends up as the argument of d8 --min-api, and the rendered command is split on
+        // spaces, so anything that is not a bare number is argv injection
+        Object[] bad = new Object[] {
+                "24 --output /tmp/evil",
+                "24;rm -rf /",
+                "24$(whoami)",
+                "-1",
+                "",
+                "twentyfour",
+                true,
+        };
+        for (Object v : bad) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("minAndroidSdkVersion", v);
+            ExtenderException exc = assertThrows(ExtenderException.class,
+                    () -> validator.validateAppManifestContext(ctx),
+                    "expected rejection of minAndroidSdkVersion: " + v);
+            assertTrue(exc.getMessage().contains("minAndroidSdkVersion"),
+                    "message should mention minAndroidSdkVersion, got: " + exc.getMessage());
+        }
+    }
+
+    @Test
     public void testValidateSymbols() throws ExtenderException {
         List<String> empty = new ArrayList<>();
         ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);

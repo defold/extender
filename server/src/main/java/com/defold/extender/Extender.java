@@ -2199,6 +2199,9 @@ class Extender {
         context.put("jars", jars);
         context.put("engineJars", empty_list);
         context.put("mainDexList", mainDexList.getAbsolutePath());
+        // Always bound, also for engines that don't send it, so that a build.yml referencing
+        // '--min-api {{minAndroidSdkVersion}}' can never render the flag without its argument.
+        context.put("minAndroidSdkVersion", buildState.getMinAndroidSdkVersion());
 
         // replace parameter name because '--main-dex-list' is deprecated and reported as error
         // we can't change command format for older version of engine so replace parameter here.
