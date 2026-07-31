@@ -210,7 +210,7 @@ services:
 # run boot only the builders it needs: IntegrationTest derives them from -PtargetPlatforms.
 # They are purely additive - "test" still selects all of these services.
 #   test-linux   -> x86_64-linux
-#   test-android -> armv7-android, arm64-android
+#   test-android -> armv7-android, arm64-android, x86_64-android
 #   test-web     -> js-web, wasm-web
 #   test-windows -> x86_64-win32
 # Both android builders, and all three winsdk builders, stay grouped together: which one
