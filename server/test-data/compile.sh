@@ -50,7 +50,7 @@ function CompileAndroid {
 	local targetdir=$3
 	local lib_type=$4
 
-	archs=("armv7" "arm64")
+	archs=("armv7" "arm64" "x86_64")
 	for arch in "${archs[@]}"
 	do
 		local archname=$arch-android
@@ -71,6 +71,10 @@ function CompileAndroid {
 			CFLAGS="${CFLAGS} -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__ -march=armv7-a -mfloat-abi=softfp -mfpu=vfp"
 			LDFLAGS="-Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text"
 			GCC=${ANDROID_GCC}armv7a-linux-androideabi${ANDROID_NDK_API_VERSION}-clang++
+		elif [ "x86_64" == "$arch" ]; then
+			# No -march, the NDK x86_64 clang wrapper already targets the mandated ABI baseline
+			LDFLAGS="-Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text"
+			GCC=${ANDROID_GCC}x86_64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++
 		else
 			CFLAGS="${CFLAGS} -D__aarch64__ -march=armv8-a"
 			LDFLAGS="-Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text"

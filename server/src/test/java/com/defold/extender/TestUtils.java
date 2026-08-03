@@ -68,7 +68,7 @@ public class TestUtils {
             } else {
                 throw new IllegalArgumentException(String.format(
                     "Cannot map target platform '%s' to a docker compose profile. Known platforms: "
-                    + "x86_64-linux, armv7-android, arm64-android, js-web, wasm-web, x86_64-win32",
+                    + "x86_64-linux, armv7-android, arm64-android, x86_64-android, js-web, wasm-web, x86_64-win32",
                     platform));
             }
         }

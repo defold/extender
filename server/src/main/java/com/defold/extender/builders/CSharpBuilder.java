@@ -118,6 +118,7 @@ public class CSharpBuilder {
         if (platform.equals("x86_64-osx"))      return "osx-x64";
         if (platform.equals("arm64-android"))   return "linux-bionic-arm64";
         if (platform.equals("armv7-android"))   return "linux-bionic-arm32";
+        if (platform.equals("x86_64-android"))  return "linux-bionic-x64";
         if (platform.equals("arm64-win32"))     return "win-arm64";
         if (platform.equals("x86_64-win32"))    return "win-x64";
         if (platform.equals("x86-win32"))       return "win-x86";

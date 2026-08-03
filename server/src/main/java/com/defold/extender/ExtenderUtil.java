@@ -854,7 +854,8 @@ public class ExtenderUtil
 
     public static boolean isAndroidTarget(String platform) {
         return platform.equals("arm64-android") ||
-               platform.equals("armv7-android");
+               platform.equals("armv7-android") ||
+               platform.equals("x86_64-android");
     }
 
     public static boolean isWebTarget(String platform) {

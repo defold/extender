@@ -98,7 +98,7 @@ class Extender {
     private final String[] ALLOWED_MANIFEST_PLATFORMS = new String[] {
         "common",
         "ios", "armv7-ios","arm64-ios","x86_64-ios",
-        "android", "armv7-android","arm64-android",
+        "android", "armv7-android","arm64-android","x86_64-android",
         "osx", "x86-osx", "x86_64-osx","arm64-osx",
         "linux", "x86-linux", "x86_64-linux", "arm64-linux",
         "win32", "x86-win32", "x86_64-win32",
