@@ -175,4 +175,23 @@ public class HealthReporterServiceTest {
         String result = service.collectHealthReport(true, conf);
         assertEquals(JSONObject.toJSONString(expected), result);
     }
+
+    @Test
+    public void testHealthyNodeNotStarvedBySlowPeer() throws ParseException {
+        // Regression: a slow builder (9681, fixed 15s delay) must not starve the
+        // probe of a healthy builder (9678). Each probe runs on its own thread, so
+        // the fast node reports Operational within the same pass in which the slow
+        // node times out to Unreachable. On the previous shared-pool implementation
+        // the healthy probe could be starved and mis-reported as Unreachable.
+        Map<String, RemoteInstanceConfig> conf = Map.of(
+            "linux-latest", new RemoteInstanceConfig("http://localhost:9678", "linux-latest", true),
+            "windows-latest", new RemoteInstanceConfig("http://localhost:9681", "windows-latest", true)
+        );
+        JSONObject expected = new JSONObject(Map.of(
+            "linux", "Operational",
+            "windows", "Unreachable"
+        ));
+        JSONObject result = (JSONObject) new JSONParser().parse(service.collectHealthReport(true, conf));
+        assertEquals(expected, result);
+    }
 }
