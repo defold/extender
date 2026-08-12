@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Generate version
       id: version
       run: |
@@ -36,7 +36,7 @@ jobs:
         export_environment_variables: true
         create_credentials_file: true
     - name: Install Java
-      uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
       with:
         java-version: '25'
         distribution: 'temurin'
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Generate version
       id: version
       run: |
@@ -94,7 +94,7 @@ jobs:
         export_environment_variables: true
         create_credentials_file: true
     - name: Install Java
-      uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
       with:
         java-version: '25'
         distribution: 'temurin'
@@ -150,7 +150,7 @@ jobs:
         docker-images: true
         swap-storage: true
     - name: Checkout repo
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Generate version
       id: version
       run: |
@@ -161,7 +161,7 @@ jobs:
           echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
           echo "COMMIT_SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
     - name: Install Java
-      uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
       with:
         java-version: '25'
         distribution: 'temurin'
@@ -170,7 +170,7 @@ jobs:
     - name: Build extender
       run: ./gradlew -PextenderVersion=${{ steps.version.outputs.tag_version }} server:bootJar
     - name: Login to Google Artifact registry (Docker)
-      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0
+      uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7
       with:
         registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
         username: _json_key

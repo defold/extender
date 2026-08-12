@@ -26,6 +26,7 @@ public class WebSecurityConfig {
                 case "android":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/armv7-android/**").hasRole("ANDROID")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-android/**").hasRole("ANDROID")).httpBasic(withDefaults());
+                    http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-android/**").hasRole("ANDROID")).httpBasic(withDefaults());
                     break;
                 case "ios":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/armv7-ios/**").hasRole("IOS")).httpBasic(withDefaults());

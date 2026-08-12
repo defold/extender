@@ -68,6 +68,13 @@ platforms:
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
             libs: ["record_null","sound_null","graphics_null","hid_null"]
 
+    x86_64-android:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
+            symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
     arm64-ios:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]

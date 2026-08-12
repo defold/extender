@@ -122,7 +122,9 @@ public class IntegrationTest {
 
         DefoldVersion[] versions = {
                 // "a" is a made up sdk where we can more easily test build.yml fixes
-                // new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-win32"} ),
+                // new DefoldVersion("a", new Version(0, 0, 0), new String[] {"armv7-android", "x86_64-android", "x86_64-win32"} ),
+                // NOTE: x86_64-android can be added to the released SDKs below once a Defold
+                // release ships the platform in its extender/build.yml.
                 // // https://github.com/defold/defold/releases/tag/1.11.1
                 new DefoldVersion("758dfc0ea71dca26d169fddd0c5a1bc6dd0be4b3", new Version(1, 11, 1), new String[] {"armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web"}),
                 // // https://github.com/defold/defold/releases/tag/1.11.2

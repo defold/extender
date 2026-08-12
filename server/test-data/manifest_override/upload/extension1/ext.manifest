@@ -16,6 +16,9 @@ platforms:
     arm64-android:
         context:
             excludeLibs: [profilerext_null]
+    x86_64-android:
+        context:
+            excludeLibs: [profilerext_null]
     x86_64-osx:
         context:
             excludeLibs: [profilerext_null]

@@ -155,7 +155,7 @@ no-ops in CI, so they do not change what CI runs.
   (their toolchains are x86_64-only), so they always run emulated.
 
 * `-PtargetPlatforms=<list>` — build only these targets, and boot only the builders they need.
-  Values: `x86_64-linux`, `armv7-android`, `arm64-android`, `js-web`, `wasm-web`, `x86_64-win32`.
+  Values: `x86_64-linux`, `armv7-android`, `arm64-android`, `x86_64-android`, `js-web`, `wasm-web`, `x86_64-win32`.
 * `-PdefoldVersions=<list>` — which Defold SDK versions to test. `latest`, `ci` (first + last, what
   CI uses), `all`, or a comma list like `1.12.3,1.11.1`.
 * `-PreuseStack=true` — leave the docker stack running after the tests and reuse it next time. The

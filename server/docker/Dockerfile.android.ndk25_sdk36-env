@@ -43,10 +43,7 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
     rm -rf "${ANDROID_NDK_PATH}/sources/third_party" && \
     rm -rf "${ANDROID_NDK_PATH}/sources/cxx-stl" && \
     rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android" && \
-    rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/x86_64-linux-android" && \
     rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-*" && \
-    rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-*" && \
-    rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android" && \
     rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android" && \
 # create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
 # It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
@@ -58,6 +55,7 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
     chmod -R 755 "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}" && \
     which "${ANDROID_NDK_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK_API_VERSION}-clang++" && \
     which "${ANDROID_NDK_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++" && \
+    which "${ANDROID_NDK_BIN_PATH}/x86_64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++" && \
 # check that aapt installed correctly
     "${ANDROID_SDK_BUILD_TOOLS_PATH}/aapt2" version && \
 # download and install R8 utility separatly. It's done in that way because

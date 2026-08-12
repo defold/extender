@@ -376,4 +376,28 @@ public class ExtenderUtilTest {
         String cmd = "javac -source 11 -proc:none Foo.java";
         assertEquals(cmd, ExtenderUtil.sanitizeJavacCmd(cmd));
     }
+
+    @Test
+    public void testGetAppManifestContextInteger() throws ExtenderException {
+        // Exercised with the minAndroidSdkVersion key, the d8 --min-api value
+        AppManifestConfiguration manifest = new AppManifestConfiguration();
+
+        // Engines older than the --min-api change send no context at all, or a context without the
+        // key. Both must fall back to the default instead of failing the build.
+        assertEquals(Integer.valueOf(21), ExtenderUtil.getAppManifestContextInteger(manifest, "minAndroidSdkVersion", 21));
+        manifest.context = new HashMap<>();
+        assertEquals(Integer.valueOf(21), ExtenderUtil.getAppManifestContextInteger(manifest, "minAndroidSdkVersion", 21));
+
+        // bob writes the value unquoted, so snakeyaml parses it as an Integer
+        manifest.context.put("minAndroidSdkVersion", 24);
+        assertEquals(Integer.valueOf(24), ExtenderUtil.getAppManifestContextInteger(manifest, "minAndroidSdkVersion", 21));
+
+        // A quoted value arrives as a String
+        manifest.context.put("minAndroidSdkVersion", "24");
+        assertEquals(Integer.valueOf(24), ExtenderUtil.getAppManifestContextInteger(manifest, "minAndroidSdkVersion", 21));
+
+        manifest.context.put("minAndroidSdkVersion", "not-a-number");
+        assertThrows(ExtenderException.class,
+                () -> ExtenderUtil.getAppManifestContextInteger(manifest, "minAndroidSdkVersion", 21));
+    }
 }
