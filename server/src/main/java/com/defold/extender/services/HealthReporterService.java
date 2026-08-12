@@ -67,8 +67,11 @@ public class HealthReporterService {
             // Probe each builder on its own thread from a dedicated pool: a slow or
             // unresponsive builder must not starve the probes of the healthy ones,
             // which is what happens on the shared common ForkJoinPool under load.
+            // Size to the exact builder count so no probe ever waits in the queue --
+            // completeOnTimeout starts ticking at submission, so a queued probe could
+            // time out to false before its request ever runs.
             ExecutorService healthCheckPool = Executors.newFixedThreadPool(
-                    Math.min(32, Math.max(1, remoteBuilderPlatformMappings.size())),
+                    Math.max(1, remoteBuilderPlatformMappings.size()),
                     runnable -> {
                         Thread thread = new Thread(runnable, "health-check");
                         thread.setDaemon(true);
