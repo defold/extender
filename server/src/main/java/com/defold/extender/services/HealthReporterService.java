@@ -8,10 +8,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
@@ -61,6 +64,17 @@ public class HealthReporterService {
             JSONObject result = new JSONObject();
             Map<String, CompletableFuture<Boolean>> reportResults = new HashMap<>(remoteBuilderPlatformMappings.size());
             List<HttpGet> runningRequests = new ArrayList<>();
+            // Probe each builder on its own thread from a dedicated pool: a slow or
+            // unresponsive builder must not starve the probes of the healthy ones,
+            // which is what happens on the shared common ForkJoinPool under load.
+            ExecutorService healthCheckPool = Executors.newFixedThreadPool(
+                    Math.min(32, Math.max(1, remoteBuilderPlatformMappings.size())),
+                    runnable -> {
+                        Thread thread = new Thread(runnable, "health-check");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+            try {
             for (Map.Entry<String, RemoteInstanceConfig> entry : remoteBuilderPlatformMappings.entrySet()) {
                 String instanceId = entry.getValue().getInstanceId();
                 String platform = getPlatform(entry.getKey());
@@ -80,6 +94,13 @@ public class HealthReporterService {
                 // if instance is not located in GCP - make http request to it asynchronously
                 final String healthUrl = String.format("%s/health_report", entry.getValue().getUrl());
                 final HttpGet request = new HttpGet(healthUrl);
+                // Bound the blocking execute() so a stuck builder releases its worker
+                // near the timeout instead of holding it for the whole socket lifetime.
+                request.setConfig(RequestConfig.custom()
+                        .setConnectTimeout(this.connectionTimeout)
+                        .setSocketTimeout(this.connectionTimeout)
+                        .setConnectionRequestTimeout(this.connectionTimeout)
+                        .build());
                 runningRequests.add(request);
                 CompletableFuture<Boolean> innerRequest = CompletableFuture.supplyAsync(() -> {
                     JSONParser parser = new JSONParser();
@@ -100,7 +121,7 @@ public class HealthReporterService {
                     } catch(Exception exc) {
                         return Boolean.FALSE;
                     }
-                }).completeOnTimeout(Boolean.FALSE, this.connectionTimeout, TimeUnit.MILLISECONDS);
+                }, healthCheckPool).completeOnTimeout(Boolean.FALSE, this.connectionTimeout, TimeUnit.MILLISECONDS);
                 reportResults.put(entry.getKey(), innerRequest);
             }
             for (Map.Entry<String, CompletableFuture<Boolean>> status : reportResults.entrySet()) {
@@ -128,6 +149,9 @@ public class HealthReporterService {
                 result.put(entry.getKey(), entry.getValue().toString());
             }
             return result.toJSONString();
+            } finally {
+                healthCheckPool.shutdownNow();
+            }
         } else {
             return JSONObject.toJSONString(Collections.singletonMap("status", OperationalStatus.Operational.toString()));
         }
