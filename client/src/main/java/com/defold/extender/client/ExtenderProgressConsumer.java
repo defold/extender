@@ -34,6 +34,8 @@ class ExtenderProgressConsumer implements Runnable {
     }
 
     private static final long RECONNECT_BACKOFF_MS = 2000;
+    private static final String RECONNECT_ATTEMPTS_PROPERTY = "com.defold.extender.client.progress-reconnect-attempts";
+    private static final int DEFAULT_RECONNECT_ATTEMPTS = 5;
 
     private final HttpClient httpClient;
     private final String jobProgressUrl;
@@ -51,8 +53,25 @@ class ExtenderProgressConsumer implements Runnable {
         this.jobProgressUrl = String.format("%s/job_progress?jobId=%s", extenderBaseUrl, jobId);
         this.requestFactory = requestFactory;
         this.listener = listener;
-        this.maxReconnectAttempts = Integer.parseInt(
-                System.getProperty("com.defold.extender.client.progress-reconnect-attempts", "5"));
+        this.maxReconnectAttempts = resolveMaxReconnectAttempts();
+    }
+
+    /**
+     * Reads the reconnect-attempts override from a system property, falling back
+     * to the default when the property is absent or not a valid integer.
+     */
+    private static int resolveMaxReconnectAttempts() {
+        String value = System.getProperty(RECONNECT_ATTEMPTS_PROPERTY);
+        if (value == null) {
+            return DEFAULT_RECONNECT_ATTEMPTS;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            logger.log(Level.WARNING, "Ignoring malformed {0} value ''{1}''; using default {2}",
+                    new Object[] { RECONNECT_ATTEMPTS_PROPERTY, value, DEFAULT_RECONNECT_ATTEMPTS });
+            return DEFAULT_RECONNECT_ATTEMPTS;
+        }
     }
 
     /** Stops the consumer and unblocks the stream read. Safe to call more than once. */
