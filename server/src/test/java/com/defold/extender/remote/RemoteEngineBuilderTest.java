@@ -52,6 +52,7 @@ import com.defold.extender.BuilderConstants;
 import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.progress.BuildProgressService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GCPInstanceService;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -135,6 +136,8 @@ public class RemoteEngineBuilderTest {
                                               int socketTimeout) {
         RemoteEngineBuilder builder = new RemoteEngineBuilder(
             instanceService,
+            // progress reporting off: these tests cover the plain remote build flow
+            new BuildProgressService(false, 1000, 16, 4, 1000),
             resultLocation.toString(),
             BUILD_SLEEP_TIMEOUT,
             buildResultWaitTimeout,

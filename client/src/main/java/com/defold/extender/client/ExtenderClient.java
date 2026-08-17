@@ -58,6 +58,7 @@ public class ExtenderClient {
     private ExtenderClientCache cache;
     private long buildSleepTimeout;
     private long buildResultWaitTimeout;
+    private boolean progressEnabled;
     private List<BasicHeader> headers;
     private HttpClient httpClient;
 
@@ -97,6 +98,7 @@ public class ExtenderClient {
         this.cache = cache;
         this.buildSleepTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-sleep-timeout", "5000"));
         this.buildResultWaitTimeout = Long.parseLong(System.getProperty("com.defold.extender.client.build-wait-timeout", "1200000"));
+        this.progressEnabled = Boolean.parseBoolean(System.getProperty("com.defold.extender.client.progress-enabled", "true"));
         this.headers = new ArrayList<BasicHeader>();
         this.httpClient = httpClient;
     }
@@ -238,7 +240,8 @@ public class ExtenderClient {
     }
 
 
-    private void build_async(String platform, String sdkVersion, HttpEntity entity, File destination, File log) throws ExtenderClientException {
+    private void build_async(String platform, String sdkVersion, HttpEntity entity, File destination, File log, ExtenderProgressListener progressListener) throws ExtenderClientException {
+        ExtenderProgressConsumer progressConsumer = null;
         try {
             String url = String.format("%s/build_async/%s/%s", extenderBaseUrl, platform, sdkVersion);
             HttpPost request = createPostRequest(url);
@@ -254,6 +257,15 @@ public class ExtenderClient {
                 String jobId = EntityUtils.toString(response.getEntity());
                 String traceId = response.getFirstHeader(TRACE_ID_HEADER_NAME).getValue();
                 log("Async build request was accepted as job %s (traceId: %s)", jobId, traceId == null ? "null" : traceId);
+                if (progressListener != null && progressEnabled) {
+                    // advisory SSE progress stream; the poll loop below stays
+                    // the sole authority on build completion
+                    progressConsumer = new ExtenderProgressConsumer(httpClient, extenderBaseUrl, jobId,
+                            this::createGetRequest, progressListener);
+                    Thread progressThread = new Thread(progressConsumer, "extender-progress-" + jobId);
+                    progressThread.setDaemon(true);
+                    progressThread.start();
+                }
                 long currentTime = System.currentTimeMillis();
                 Integer jobStatus = 0;
                 Thread.sleep(buildSleepTimeout);
@@ -312,6 +324,10 @@ public class ExtenderClient {
         }
         catch (Exception e) {
             throw new ExtenderClientException("Failed to communicate with Extender service.", e);
+        } finally {
+            if (progressConsumer != null) {
+                progressConsumer.stop();
+            }
         }
     }
 
@@ -362,6 +378,18 @@ public class ExtenderClient {
      * @throws ExtenderClientException
      */
     public void build(String platform, String sdkVersion, List<ExtenderResource> sourceResources, File destination, File log) throws ExtenderClientException {
+        build(platform, sdkVersion, sourceResources, destination, log, null);
+    }
+
+    /**
+     * Builds a new engine and reports live build progress.
+     *
+     * @param progressListener Receives progress updates on a background thread
+     *                         while the build runs, or null. Progress is advisory:
+     *                         it may stop arriving (old server, dropped connection)
+     *                         while the build continues.
+     */
+    public void build(String platform, String sdkVersion, List<ExtenderResource> sourceResources, File destination, File log, ExtenderProgressListener progressListener) throws ExtenderClientException {
         String cacheKey = cache.calcKey(platform, sdkVersion, sourceResources);
         boolean isCached = cache.isCached(platform, cacheKey);
         if (isCached) {
@@ -370,7 +398,7 @@ public class ExtenderClient {
         }
 
         HttpEntity payload = createBuildRequestPayload(sourceResources);
-        build_async(platform, sdkVersion, payload, destination, log);
+        build_async(platform, sdkVersion, payload, destination, log, progressListener);
 
         // Store the new build
         cache.put(platform, cacheKey, destination);

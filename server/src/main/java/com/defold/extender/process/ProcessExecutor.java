@@ -139,11 +139,19 @@ public class ProcessExecutor {
     }
 
     public static void executeCommands(ProcessExecutor processExecutor, List<String> commands) throws IOException, InterruptedException, ExtenderException {
+        executeCommands(processExecutor, commands, null);
+    }
+
+    // onCommandComplete is invoked concurrently from the pool threads, once per successful command
+    public static void executeCommands(ProcessExecutor processExecutor, List<String> commands, Runnable onCommandComplete) throws IOException, InterruptedException, ExtenderException {
         ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         List<Callable<Void>> callables = new ArrayList<>();
         for (String command : commands) {
             callables.add(() -> {
                 processExecutor.execute(command);
+                if (onCommandComplete != null) {
+                    onCommandComplete.run();
+                }
                 return null;
             });
         }

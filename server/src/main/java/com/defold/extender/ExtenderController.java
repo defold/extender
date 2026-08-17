@@ -5,6 +5,9 @@ import com.defold.extender.remote.RemoteHostConfiguration;
 import com.defold.extender.remote.RemoteInstanceConfig;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.progress.BuildProgressService;
+import com.defold.extender.progress.BuildStage;
+import com.defold.extender.progress.ProgressReporter;
 import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.HealthReporterService;
@@ -68,6 +71,7 @@ public class ExtenderController {
     private final UserUpdateService userUpdateService;
     private final AsyncBuilder asyncBuilder;
     private final HealthReporterService healthReporter;
+    private final BuildProgressService buildProgressService;
 
     private final RemoteEngineBuilder remoteEngineBuilder;
     private Map<String, RemoteInstanceConfig> remoteBuilderPlatformMappings;
@@ -108,6 +112,7 @@ public class ExtenderController {
                               RemoteEngineBuilder remoteEngineBuilder,
                               RemoteHostConfiguration remoteHostConfiguration,
                               HealthReporterService healthReporter,
+                              BuildProgressService buildProgressService,
                               @Value("${extender.remote-builder.enabled}") boolean remoteBuilderEnabled,
                               @Value("${spring.servlet.multipart.max-request-size}") String maxPackageSize,
                               @Value("${extender.job-result.location}") String jobResultLocation) {
@@ -116,6 +121,7 @@ public class ExtenderController {
         this.meterRegistry = meterRegistry;
         this.userUpdateService = userUpdateService;
         this.healthReporter = healthReporter;
+        this.buildProgressService = buildProgressService;
 
         this.remoteEngineBuilder = remoteEngineBuilder;
         this.remoteBuilderEnabled = remoteBuilderEnabled;
@@ -215,7 +221,13 @@ public class ExtenderController {
             DataCacheService.DataCacheServiceInfo uploadResultInfo = dataCacheService.cacheFiles(uploadDirectory);
             metricsWriter.measureCacheUpload(uploadResultInfo.cachedFileSize.longValue(), uploadResultInfo.cachedFileCount.intValue());
 
+            // Register progress tracking before the async dispatch so the
+            // reporter is in place when the build starts on a worker thread.
+            ProgressReporter progressReporter = buildProgressService.register(jobDirectory.getName());
+            progressReporter.stage(BuildStage.RECEIVED, "Build request received");
+
             if (instanceType.equals(InstanceType.BUILDER_ONLY)) {
+                progressReporter.stage(BuildStage.QUEUED, "Build queued");
                 asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
             } else {
                 String[] buildEnvDescription = null;
@@ -235,8 +247,10 @@ public class ExtenderController {
                 if (remoteBuilderEnabled && buildEnvDescription != null && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                     LOGGER.info("Building engine on remote builder");
                     RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
+                    progressReporter.stage(BuildStage.QUEUED, "Build queued on remote builder");
                     this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, jobDirectory, metricsWriter);
                 } else if (instanceType.equals(InstanceType.MIXED)) {
+                    progressReporter.stage(BuildStage.QUEUED, "Build queued");
                     asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
                 } else {
                     // no remote builder was found and current instance can't build
@@ -265,6 +279,10 @@ public class ExtenderController {
             }
             if (DM_DEBUG_JOB_FOLDER != null) {
                 deleteDirectory = false;
+            }
+            if (!isBuildStarted) {
+                // the build never dispatched; drop the progress entry
+                buildProgressService.remove(jobDirectory.getName());
             }
             // Delete temporary upload directory
             if (deleteDirectory && !isBuildStarted) {

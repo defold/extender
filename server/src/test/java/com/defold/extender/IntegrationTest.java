@@ -34,6 +34,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -353,6 +355,98 @@ public class IntegrationTest {
         );
 
         doBuild(sourceFiles, configuration);
+    }
+
+    private static class ProgressEvent {
+        final String stage;
+        final int percent;
+        final int currentFile;
+        final int totalFiles;
+
+        ProgressEvent(String stage, int percent, int currentFile, int totalFiles) {
+            this.stage = stage;
+            this.percent = percent;
+            this.currentFile = currentFile;
+            this.totalFiles = totalFiles;
+        }
+    }
+
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void buildEngineWithProgress(TestConfiguration configuration) throws IOException, ExtenderClientException, InterruptedException {
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+                new FileExtenderResource("test-data/ext2/ext.manifest"),
+                new FileExtenderResource("test-data/ext2/src/test_ext.cpp"),
+                new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "alib"))),
+                new FileExtenderResource(String.format("test-data/ext2/lib/%s/%s", configuration.platform, getLibName(configuration.platform, "blib")))
+        );
+
+        File cacheDir = Files.createTempDirectory(String.format("progress-%s-%s", configuration.platform, configuration.version.toString())).toFile();
+        cacheDir.deleteOnExit();
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        List<ProgressEvent> events = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch terminalSeen = new CountDownLatch(1);
+        ExtenderProgressListener listener = (stage, detail, percent, currentFile, totalFiles) -> {
+            events.add(new ProgressEvent(stage, percent, currentFile, totalFiles));
+            if ("SUCCESS".equals(stage) || "ERROR".equals(stage)) {
+                terminalSeen.countDown();
+            }
+        };
+
+        try {
+            extenderClient.build(
+                    configuration.platform,
+                    configuration.version.sha1,
+                    sourceFiles,
+                    destination,
+                    log,
+                    listener
+            );
+        } catch (ExtenderClientException e) {
+            System.out.println("ERROR LOG:");
+            System.out.println(new String(Files.readAllBytes(log.toPath())));
+            throw e;
+        }
+
+        assertTrue(destination.length() > 0, "Resulting engine should be of a size greater than zero.");
+
+        // the terminal event is pushed before /job_status flips, so it should
+        // already be here (or arrive momentarily)
+        assertTrue(terminalSeen.await(10, TimeUnit.SECONDS), "Progress listener never saw a terminal event");
+        List<ProgressEvent> snapshot = new ArrayList<>(events);
+        assertTrue(snapshot.size() >= 2, "Expected multiple progress events, got " + snapshot.size());
+        assertEquals("SUCCESS", snapshot.get(snapshot.size() - 1).stage);
+        assertEquals(100, snapshot.get(snapshot.size() - 1).percent);
+
+        // percent must never decrease
+        int lastPercent = 0;
+        for (ProgressEvent event : snapshot) {
+            assertTrue(event.percent >= lastPercent,
+                    String.format("Percent regressed from %d to %d at stage %s", lastPercent, event.percent, event.stage));
+            lastPercent = event.percent;
+        }
+
+        // per-file compile progress: some extension reported file counts and finished them
+        boolean sawFileCounts = snapshot.stream().anyMatch(e -> "COMPILING".equals(e.stage) && e.totalFiles > 0);
+        boolean sawCompleted = snapshot.stream().anyMatch(e -> "COMPILING".equals(e.stage) && e.totalFiles > 0 && e.currentFile == e.totalFiles);
+        assertTrue(sawFileCounts, "Expected COMPILING events with file counts");
+        assertTrue(sawCompleted, "Expected a COMPILING event with all files completed");
+
+        // stages appear in pipeline order for the ones we saw
+        List<String> stageOrder = Arrays.asList("RECEIVED", "QUEUED", "SDK", "DEPENDENCIES", "MANIFESTS", "PLATFORM", "COMPILING", "LINKING", "PACKAGING");
+        int lastIndex = -1;
+        for (ProgressEvent event : snapshot) {
+            int index = stageOrder.indexOf(event.stage);
+            if (index >= 0 && !"COMPILING".equals(event.stage)) {
+                assertTrue(index >= lastIndex,
+                        String.format("Stage %s arrived after a later stage", event.stage));
+                lastIndex = Math.max(lastIndex, index);
+            }
+        }
     }
 
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")

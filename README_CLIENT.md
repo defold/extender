@@ -12,4 +12,7 @@ There is a client part of the Extender code which is used in Bob.jar.
 
     $ cp -v ./build/libs/extender-client-0.0.1.jar <defold>/com.dynamo.cr/com.dynamo.cr.common/ext/extender-client-0.0.1.jar
 
+The client can report live build progress through an `ExtenderProgressListener` -
+see [README_BUILD_PROGRESS.md](/README_BUILD_PROGRESS.md).
+
 

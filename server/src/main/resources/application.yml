@@ -57,6 +57,19 @@ extender:
         location: /tmp/results
         cleanup-period: 20000
         lifetime: 1200000
+    # live build progress over Server-Sent Events (GET /job_progress?jobId=)
+    progress:
+        enabled: true
+        # SseEmitter timeout, ms (~ remote-builder build-result-wait-timeout)
+        sse-timeout: 1800000
+        # SSE comment keepalive, ms (must be < jetty connection-idle-timeout)
+        heartbeat-interval: 15000
+        # per-job replay ring buffer for Last-Event-ID reconnects
+        event-buffer-size: 256
+        max-subscribers-per-job: 8
+        # orphan sweep for jobs that died without a terminal event
+        registry-ttl: 1200000
+        cleanup-period: 20000
     # see ExtenderController.InstanceType enum
     # FRONTEND_ONLY, BUILDER_ONLY, MIXED
     instance-type: MIXED
