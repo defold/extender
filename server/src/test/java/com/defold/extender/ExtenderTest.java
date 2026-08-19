@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,6 +31,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
 
 public class ExtenderTest {
     static Map<String, String> createEnv()
@@ -247,7 +249,8 @@ public class ExtenderTest {
     static Map<String, String> createAndroidEnv()
     {
         Map<String, String> env = createEnv();
-        env.put("ANDROID_PROGUARD", "/opt/android/proguard.jar");
+        env.put("ANDROID_R8", "/opt/android/r8.jar");
+        env.put("ANDROID_R8_VERSION", "8.13.19");
         env.put("ANDROID_LIBRARYJAR", "/opt/android/android.jar");
         env.put("ANDROID_NDK_PATH", "/opt/android/ndk");
         env.put("ANDROID_NDK_SYSROOT", "/opt/android/ndk/sysroot");
@@ -257,6 +260,186 @@ public class ExtenderTest {
         env.put("ANDROID_SDK_VERSION", "36");
         env.put("ANDROID_SDK_BUILD_TOOLS_PATH", "/opt/android/build-tools");
         return env;
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    public void testAndroidSdkUsesOnlyR8Configuration() throws Exception {
+        File root = new File("test-data");
+        File sdk = new File(root, "sdk/a/defoldsdk");
+        Configuration config = Extender.loadYaml(root, new File(sdk, "extender/build.yml"), Configuration.class);
+        PlatformConfig android = mergePlatformConfig(config, "armv7-android");
+
+        assertTrue(android.r8Cmd.contains("com.android.tools.r8.R8"));
+        assertTrue(android.r8Cmd.contains("{{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules"));
+        assertTrue(android.r8Cmd.contains("--pg-conf \"{{{.}}}\""));
+        assertTrue(android.r8Cmd.contains("{{#jars}}\"{{{.}}}\""));
+        assertTrue(android.dxCmd.contains("--min-api {{minAndroidSdkVersion}}"));
+        assertEquals("{{env.R8_VERSION}}", android.r8Version);
+        assertEquals("(?i).+(\\.keep)$", android.r8RuleSourceRe);
+        assertTrue(android.aapt2linkCmd.contains("{{#useR8}}--proguard \"{{{aaptKeepRules}}}\""));
+        assertTrue(android.aapt2linkCmd.contains(
+                "{{#useR8MainDexRules}}--proguard-main-dex \"{{{aaptMainDexRules}}}\""));
+        assertNull(android.proGuardCmd);
+        assertNull(android.proGuardSourceRe);
+
+        Collection<File> candidates = List.of(
+                new File("manifests/android/extension.keep"),
+                new File("manifests/android/extension.pro"));
+        List<File> rules = ExtenderUtil.filterFiles(candidates, android.r8RuleSourceRe);
+        assertEquals(List.of(new File("manifests/android/extension.keep")), rules);
+    }
+
+    @Test
+    public void testAaptMainDexRulesRequireExactAppKeepAndPre21Api(@TempDir File uploadDir)
+            throws Exception {
+        File appDir = new File(uploadDir, "_app");
+        assertTrue(appDir.mkdirs());
+
+        Files.writeString(new File(appDir, "app.pro").toPath(), "-keep class Legacy");
+        assertFalse(Extender.shouldGenerateAaptMainDexRules(uploadDir, 19));
+
+        Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class Current");
+        assertTrue(Extender.shouldGenerateAaptMainDexRules(uploadDir, 19));
+        assertTrue(Extender.shouldGenerateAaptMainDexRules(uploadDir, 20));
+        assertFalse(Extender.shouldGenerateAaptMainDexRules(uploadDir, 21));
+        assertFalse(Extender.shouldGenerateAaptMainDexRules(uploadDir, 35));
+    }
+
+    @Test
+    public void testAndroidWithoutKeepDoesNotRequireR8Environment(@TempDir File tempDir) throws Exception {
+        File uploadDir = new File(tempDir, "upload");
+        File buildDir = new File(tempDir, "build");
+        assertTrue(uploadDir.mkdirs());
+        assertTrue(buildDir.mkdirs());
+        Map<String, String> env = createAndroidEnv();
+        env.remove("ANDROID_R8");
+        env.remove("ANDROID_R8_VERSION");
+
+        assertDoesNotThrow(() -> new Extender.Builder()
+                .setPlatform("armv7-android")
+                .setSdk(new File("test-data/sdk/a/defoldsdk"))
+                .setJobDirectory(tempDir)
+                .setUploadDirectory(uploadDir)
+                .setBuildDirectory(buildDir)
+                .setEnv(env)
+                .build());
+    }
+
+    @Test
+    public void testAndroidR8EnvironmentIsResolvedOnce(@TempDir File tempDir) throws Exception {
+        File uploadDir = new File(tempDir, "upload");
+        File appDir = new File(uploadDir, "_app");
+        File buildDir = new File(tempDir, "build");
+        assertTrue(appDir.mkdirs());
+        assertTrue(buildDir.mkdirs());
+        Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class Example");
+
+        Map<String, String> env = createAndroidEnv();
+        env.put("ANDROID_R8", "/opt/android/{{literal}}/r8.jar");
+        Extender extender = new Extender.Builder()
+                .setPlatform("armv7-android")
+                .setSdk(new File("test-data/sdk/a/defoldsdk"))
+                .setJobDirectory(tempDir)
+                .setUploadDirectory(uploadDir)
+                .setBuildDirectory(buildDir)
+                .setEnv(env)
+                .build();
+
+        assertEquals("/opt/android/{{literal}}/r8.jar", extender.getPlatformContext().get("env.R8"));
+
+        Map<String, Object> r8BuilderContext =
+                extender.createR8BuilderContext(extender.getMergedAppContext());
+        assertEquals("/opt/android/{{literal}}/r8.jar", r8BuilderContext.get("env.R8"));
+        assertEquals("8.13.19", r8BuilderContext.get("env.R8_VERSION"));
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    public void testLegacyAndroidSdkProguardConfigurationIsAcceptedAndIgnored(@TempDir File tempDir) throws Exception {
+        String buildYaml = Files.readString(
+                new File("test-data/sdk/a/defoldsdk/extender/build.yml").toPath());
+        buildYaml = buildYaml
+                .replace("        R8:                       \"{{env.ANDROID_R8}}\"\n", "")
+                .replace("        R8_VERSION:               \"{{env.ANDROID_R8_VERSION}}\"\n", "")
+                .replace(
+                        "        LIBRARYJAR:               \"{{env.ANDROID_LIBRARYJAR}}\"\n",
+                        "        PROGUARD:                 \"{{env.ANDROID_PROGUARD}}\"\n"
+                                + "        LIBRARYJAR:               \"{{env.ANDROID_LIBRARYJAR}}\"\n")
+                .replace(
+                        "    r8Cmd: 'java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib \"{{{env.LIBRARYJAR}}}\" {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules \"{{{.}}}\" {{/mainDexRules}}{{/useMainDexRules}}--pg-map-output \"{{{mapping}}}\" --no-data-resources --output \"{{{classes_dex_dir}}}\" {{#rules}}--pg-conf \"{{{.}}}\" {{/rules}} {{#jars}}\"{{{.}}}\" {{/jars}}'\n"
+                                + "    r8Version: '{{env.R8_VERSION}}'\n"
+                                + "    r8RuleSourceRe: '(?i).+(\\.keep)$'\n",
+                        "    proGuardCmd: 'legacy-proguard-command'\n"
+                                + "    proGuardSourceRe: '(?i).+(\\.pro)$'\n")
+                .replace(
+                        " {{#useR8}}--proguard \"{{{aaptKeepRules}}}\" {{/useR8}}"
+                                + "{{#useR8MainDexRules}}--proguard-main-dex \"{{{aaptMainDexRules}}}\" {{/useR8MainDexRules}}",
+                        " ");
+
+        File sdk = new File(tempDir, "legacy-sdk");
+        File sdkExtenderDir = new File(sdk, "extender");
+        assertTrue(sdkExtenderDir.mkdirs());
+        File buildFile = new File(sdkExtenderDir, "build.yml");
+        Files.writeString(buildFile.toPath(), buildYaml);
+
+        Configuration config = Extender.loadYaml(tempDir, buildFile, Configuration.class);
+        PlatformConfig android = mergePlatformConfig(config, "armv7-android");
+        assertEquals("legacy-proguard-command", android.proGuardCmd);
+        assertEquals("(?i).+(\\.pro)$", android.proGuardSourceRe);
+        assertEquals("{{env.ANDROID_PROGUARD}}", android.env.get("PROGUARD"));
+        assertNull(android.r8Cmd);
+        assertFalse(android.aapt2linkCmd.contains("useR8"));
+        assertFalse(android.aapt2linkCmd.contains("aaptKeepRules"));
+        assertFalse(android.aapt2linkCmd.contains("aaptMainDexRules"));
+        assertFalse(android.aapt2linkCmd.contains("--proguard"));
+
+        File uploadWithoutProguard = new File(tempDir, "upload-without-proguard");
+        File buildWithoutProguard = new File(tempDir, "build-without-proguard");
+        assertTrue(uploadWithoutProguard.mkdirs());
+        assertTrue(buildWithoutProguard.mkdirs());
+        assertFalse(R8Builder.isRequested(uploadWithoutProguard));
+
+        assertDoesNotThrow(() -> new Extender.Builder()
+                .setPlatform("armv7-android")
+                .setSdk(sdk)
+                .setJobDirectory(tempDir)
+                .setUploadDirectory(uploadWithoutProguard)
+                .setBuildDirectory(buildWithoutProguard)
+                .setEnv(createAndroidEnv())
+                .build());
+
+        File uploadWithProguard = new File(tempDir, "upload-with-proguard");
+        File appDir = new File(uploadWithProguard, "_app");
+        File buildWithProguard = new File(tempDir, "build-with-proguard");
+        assertTrue(appDir.mkdirs());
+        assertTrue(buildWithProguard.mkdirs());
+        Files.writeString(new File(appDir, "app.pro").toPath(), "-keep class Legacy");
+        assertFalse(R8Builder.isRequested(uploadWithProguard));
+
+        assertDoesNotThrow(() -> new Extender.Builder()
+                .setPlatform("armv7-android")
+                .setSdk(sdk)
+                .setJobDirectory(tempDir)
+                .setUploadDirectory(uploadWithProguard)
+                .setBuildDirectory(buildWithProguard)
+                .setEnv(createAndroidEnv())
+                .build());
+    }
+
+    @Test
+    public void testConsumerRulesAreNotCopiedAsRuntimeMetaInfResources() {
+        assertFalse(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/proguard/rules.pro")));
+        assertFalse(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/proguard/rules.keep")));
+        assertFalse(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/com.android.tools/r8/rules.keep")));
+        assertFalse(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry(
+                "META-INF/com.android.tools/r8-from-0.0.0-arbitrary/rules.pro")));
+        assertTrue(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry(
+                "META-INF/com.android.tools/r8foo/not-a-rule.txt")));
+        assertTrue(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry(
+                "META-INF/com.android.tools/lint/model.xml")));
+        assertTrue(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/services/com.example.Service")));
+        assertTrue(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/example/info.pro")));
     }
 
     // An .aar in an extension is unpacked into the same exploded layout as a Maven resolved .aar:
@@ -292,6 +475,18 @@ public class ExtenderTest {
         assertTrue(new File(unpacked, "res/values/strings.xml").exists());
         assertTrue(new File(unpacked, "assets/local_aar.txt").exists());
         assertTrue(new File(unpacked, "AndroidManifest.xml").exists());
+
+        List<String> extensionOwnedJars = extender.getExtensionLocalAarJars(extDir);
+        assertEquals(
+                List.of(
+                        new File(unpacked, "classes.jar").getAbsolutePath(),
+                        new File(unpacked, "libs/InnerJar.jar").getAbsolutePath()),
+                extensionOwnedJars);
+        R8Builder.ExtensionContext r8Context = R8Builder.createExtensionContext(
+                extDir,
+                extensionOwnedJars,
+                "(?i).+(\\.keep)$");
+        assertEquals(extensionOwnedJars, r8Context.protectedJars);
 
         FileUtils.deleteQuietly(jobDir);
     }

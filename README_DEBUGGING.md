@@ -21,7 +21,7 @@ This downloads the latest sdk to the folder `defoldsdk/<sha1>/defoldsdk`; sets t
 # Environment variables
 
 * **DM_DEBUG_COMMANDS** - Prints the command line and result  for each command in a build
-* **DM_DEBUG_DISABLE_PROGUARD** - Disables building with ProGuard (Android only)
+* **DM_DEBUG_DISABLE_R8** - Disables shrinking with R8 and uses D8 directly (Android only)
 * **DM_DEBUG_JOB_FOLDER** - The uploaded job (and build) will always end up in this folder
 * **DM_DEBUG_KEEP_JOB_FOLDER** - Always keep the job folders
 * **DM_DEBUG_JOB_UPLOAD** - Output the file names in the received payload

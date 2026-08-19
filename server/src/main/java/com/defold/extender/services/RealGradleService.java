@@ -6,7 +6,6 @@ import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.Timer;
 import com.defold.extender.ZipUtils;
-import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessUtils;
 
@@ -26,10 +25,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
@@ -41,6 +43,7 @@ import java.util.regex.Pattern;
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "true")
 public class RealGradleService implements GradleServiceInterface {
     private static final Logger LOGGER = LoggerFactory.getLogger(RealGradleService.class);
+    private static final String PROCESSED_DEPENDENCY_CACHE_VERSION = "processed-v1";
 
     private static final List<String> GRADLE_BLOCKLIST = List.of(
         "buildscript", "apply plugin:", "apply from:",
@@ -117,7 +120,7 @@ public class RealGradleService implements GradleServiceInterface {
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
         // download, parse and unpack dependencies
-        List<File> unpackedDependencies = downloadDependencies(workDir);
+        List<File> unpackedDependencies = downloadDependencies(workDir, buildState.isUsedJetifier());
         // add gradle lockfile to outputs
         // configured in template.build.gradle
         outputFiles.add(new File(buildDir, "gradle.lockfile"));
@@ -210,24 +213,6 @@ public class RealGradleService implements GradleServiceInterface {
         Files.write(mainGradleFile.toPath(), contents.getBytes());
     }
 
-    // Helper function to move files/directories
-    private static void Move(Path source, Path target) {
-        try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            // If the target path suddenly exists, and the source path still exists,
-            // then we failed with the atomic move, and we assume another job succeeded with the download
-            if (Files.exists(source) && Files.exists(target)) {
-                LOGGER.info("Gradle package {} was downloaded by another job in the meantime", source.toString());
-                try {
-                    FileUtils.deleteDirectory(source.toFile());
-                } catch (IOException e2) {
-                    LOGGER.error(Markers.SERVER_ERROR, "Failed to delete temp directory {}: {}", source.toString(), e2.getMessage());
-                }
-            }
-        }
-    }
-
     private Map<String, String> parseDependencies(String log) {
         // The output comes from template.build.gradle
         Pattern p = Pattern.compile("PATH:\\s*([\\w-.\\/]*)\\sEXTENSION:\\s*([\\w-.\\/]*)\\sTYPE:\\s*([\\w-.\\/]*)\\sMODULE_GROUP:\\s*([\\w-.\\/]*)\\sMODULE_NAME:\\s*([\\w-.\\/]*)\\sMODULE_VERSION:\\s*([\\w-.\\/]*)");
@@ -251,36 +236,144 @@ public class RealGradleService implements GradleServiceInterface {
         return dependencies;
     }
 
-    private File resolveDependencyAAR(File dependency, String name, File jobDir) throws IOException {
-        File unpackedTarget = new File(baseDirectory, name);
+    static String getDependencyCacheNamespace(String gradlePluginVersion, boolean useJetifier) {
+        String safePluginVersion = gradlePluginVersion == null
+                ? "unknown"
+                : gradlePluginVersion.replaceAll("[^A-Za-z0-9_-]", "_");
+        return String.format(
+                "%s-agp-%s-%s",
+                PROCESSED_DEPENDENCY_CACHE_VERSION,
+                safePluginVersion,
+                useJetifier ? "jetified" : "plain");
+    }
+
+    private File getDependencyCacheDirectory(boolean useJetifier) throws IOException {
+        File directory = new File(
+                baseDirectory,
+                getDependencyCacheNamespace(GRADLE_PLUGIN_VERSION, useJetifier));
+        Files.createDirectories(directory.toPath());
+        return directory;
+    }
+
+    static String getDependencyCacheName(File dependency, String extension) throws IOException {
+        String contentHash;
+        try (InputStream input = new FileInputStream(dependency)) {
+            contentHash = ExtenderUtil.calculateSHA256(input);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException("SHA-256 is not available", e);
+        }
+        return contentHash + extension;
+    }
+
+    private static void deleteTemporaryPath(Path temporary) throws IOException {
+        if (Files.isDirectory(temporary)) {
+            FileUtils.deleteDirectory(temporary.toFile());
+        } else {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    static void publishCacheEntry(Path temporary, Path target) throws IOException {
+        publishCacheEntry(temporary, target, () -> {});
+    }
+
+    static void publishCacheEntry(
+            Path temporary,
+            Path target,
+            Runnable beforeMove) throws IOException {
+        IOException failure = null;
+        if (!Files.exists(target)) {
+            try {
+                beforeMove.run();
+                try {
+                    Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException e) {
+                    Files.move(temporary, target);
+                }
+            } catch (FileAlreadyExistsException e) {
+                if (!Files.exists(target)) {
+                    failure = e;
+                }
+            } catch (IOException e) {
+                // A concurrent writer of the same content-addressed entry may win
+                // with a platform-specific exception (for example, Linux reports
+                // Directory not empty for an atomic directory move).
+                if (!Files.exists(target)) {
+                    failure = e;
+                }
+            }
+        }
+
+        if (Files.exists(temporary)) {
+            try {
+                deleteTemporaryPath(temporary);
+            } catch (IOException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+        if (!Files.exists(target)) {
+            throw new IOException("Failed to publish Gradle dependency cache entry: " + target);
+        }
+    }
+
+    private File resolveDependencyAAR(
+            File dependency,
+            File cacheDirectory) throws IOException {
+        File unpackedTarget = new File(
+                cacheDirectory,
+                getDependencyCacheName(dependency, ".aar"));
         if (unpackedTarget.exists()) {
             return unpackedTarget;
         }
 
-        // use job folder as tmp location
-        File unpackedTmp = new File(jobDir, dependency.getName() + ".tmp");
-        try (InputStream fis = new FileInputStream(dependency)) {
-            ZipUtils.unzip(fis, unpackedTmp.toPath());
+        Path unpackedTmp = Files.createTempDirectory(cacheDirectory.toPath(), ".aar-");
+        try {
+            try (InputStream fis = new FileInputStream(dependency)) {
+                ZipUtils.unzip(fis, unpackedTmp);
+            }
+            publishCacheEntry(unpackedTmp, unpackedTarget.toPath());
+        } finally {
+            if (Files.exists(unpackedTmp)) {
+                deleteTemporaryPath(unpackedTmp);
+            }
         }
-        Move(unpackedTmp.toPath(), unpackedTarget.toPath());
         return unpackedTarget;
     }
 
-    private File resolveDependencyJAR(File dependency, String name, File jobDir) throws IOException {
-        File targetFile = new File(baseDirectory, name);
+    private File resolveDependencyJAR(
+            File dependency,
+            File cacheDirectory) throws IOException {
+        File targetFile = new File(
+                cacheDirectory,
+                getDependencyCacheName(dependency, ".jar"));
         if (targetFile.exists()) {
             return targetFile;
         }
 
-        // use job folder as tmp location
-        File tmpFile = new File(jobDir, dependency.getName() + ".tmp");
-        FileUtils.copyFile(dependency, tmpFile);
-        Move(tmpFile.toPath(), targetFile.toPath());
+        Path tmpFile = Files.createTempFile(cacheDirectory.toPath(), ".jar-", ".tmp");
+        try {
+            Files.copy(dependency.toPath(), tmpFile, StandardCopyOption.REPLACE_EXISTING);
+            publishCacheEntry(tmpFile, targetFile.toPath());
+        } finally {
+            if (Files.exists(tmpFile)) {
+                deleteTemporaryPath(tmpFile);
+            }
+        }
         return targetFile;
     }
 
-    private List<File> unpackDependencies(Map<String, String> dependencies, File jobDir) throws IOException {
+    private List<File> unpackDependencies(
+            Map<String, String> dependencies,
+            boolean useJetifier) throws IOException {
         List<File> resolvedDependencies = new ArrayList<>();
+        File cacheDirectory = getDependencyCacheDirectory(useJetifier);
         Timer timer = new Timer();
         timer.start();
         for (String newName : dependencies.keySet()) {
@@ -291,9 +384,9 @@ public class RealGradleService implements GradleServiceInterface {
                 throw new IOException("File does not exist: %s" + dependency);
             }
             if (dependency.endsWith(".aar")) {
-                resolvedDependencies.add(resolveDependencyAAR(file, newName, jobDir));
+                resolvedDependencies.add(resolveDependencyAAR(file, cacheDirectory));
             } else if (dependency.endsWith(".jar")) {
-                resolvedDependencies.add(resolveDependencyJAR(file, newName, jobDir));
+                resolvedDependencies.add(resolveDependencyJAR(file, cacheDirectory));
             } else {
                 resolvedDependencies.add(file);
             }
@@ -303,7 +396,7 @@ public class RealGradleService implements GradleServiceInterface {
         return resolvedDependencies;
     }
 
-    private List<File> downloadDependencies(File cwd) throws IOException, ExtenderException {
+    private List<File> downloadDependencies(File cwd, boolean useJetifier) throws IOException, ExtenderException {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving dependencies");
 
@@ -322,7 +415,7 @@ public class RealGradleService implements GradleServiceInterface {
 
         Map<String, String> dependencies = parseDependencies(log);
 
-        List<File> unpackedDependencies = unpackDependencies(dependencies, cwd);
+        List<File> unpackedDependencies = unpackDependencies(dependencies, useJetifier);
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
         return unpackedDependencies;

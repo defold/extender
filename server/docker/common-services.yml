@@ -28,7 +28,7 @@ services:
     environment:
       - DYNAMO_HOME${DYNAMO_HOME:+=/dynamo_home}
       - DM_DEBUG_COMMANDS
-      - DM_DEBUG_DISABLE_PROGUARD
+      - DM_DEBUG_DISABLE_R8
       - DM_DEBUG_JOB_FOLDER
       - DM_DEBUG_KEEP_JOB_FOLDER
       - DM_DEBUG_JOB_UPLOAD

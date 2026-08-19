@@ -43,6 +43,17 @@ configurations.all {
 
 repositories {
     mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'GoogleR8'
+                url = uri('https://dl.google.com/dl/android/maven2/')
+            }
+        }
+        filter {
+            includeModule('com.android.tools', 'r8')
+        }
+    }
 }
 
 dependencies {
@@ -102,6 +113,7 @@ dependencies {
     testImplementation('org.springframework.security:spring-security-test')
 
     testImplementation('org.smali:dexlib2:2.5.2')
+    testImplementation('com.android.tools:r8:8.13.19')
     testImplementation project(':client')
     testImplementation('org.wiremock:wiremock-standalone:3.13.2')
 }
