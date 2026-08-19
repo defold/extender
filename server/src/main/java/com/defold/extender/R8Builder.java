@@ -125,18 +125,29 @@ final class R8Builder {
 
     static List<String> getAndroidPackageJars(File androidPackage) {
         Set<String> jars = new TreeSet<>();
-        File classesJar = new File(androidPackage, "classes.jar");
+        File classesJar = getAndroidPackageClassesJar(androidPackage);
         if (classesJar.isFile()) {
             jars.add(classesJar.getAbsolutePath());
         }
-        File libsDir = new File(androidPackage, "libs");
-        File[] libraryJars = libsDir.listFiles(file -> file.isFile() && file.getName().endsWith(".jar"));
-        if (libraryJars != null) {
-            for (File libraryJar : libraryJars) {
-                jars.add(libraryJar.getAbsolutePath());
+        for (File libsDir : List.of(
+                new File(androidPackage, "libs"),
+                new File(androidPackage, "jars/libs"))) {
+            File[] libraryJars = libsDir.listFiles(file -> file.isFile() && file.getName().endsWith(".jar"));
+            if (libraryJars != null) {
+                for (File libraryJar : libraryJars) {
+                    jars.add(libraryJar.getAbsolutePath());
+                }
             }
         }
         return new ArrayList<>(jars);
+    }
+
+    static File getAndroidPackageClassesJar(File androidPackage) {
+        File unpackedClassesJar = new File(androidPackage, "classes.jar");
+        if (unpackedClassesJar.isFile()) {
+            return unpackedClassesJar;
+        }
+        return new File(androidPackage, "jars/classes.jar");
     }
 
     private static final class R8SemanticVersion {
@@ -420,12 +431,12 @@ final class R8Builder {
         List<File> sortedPackages = new ArrayList<>(androidPackages);
         sortedPackages.sort((left, right) -> left.getAbsolutePath().compareTo(right.getAbsolutePath()));
         for (File androidPackage : sortedPackages) {
-            if (!androidPackage.isDirectory() || !androidPackage.getName().endsWith(".aar")) {
+            if (!androidPackage.isDirectory()) {
                 continue;
             }
 
             File legacyRules = new File(androidPackage, "proguard.txt");
-            File classesJar = new File(androidPackage, "classes.jar");
+            File classesJar = getAndroidPackageClassesJar(androidPackage);
             try {
                 boolean hasTargetedRules = classesJar.isFile()
                         && jarHasTargetedRules.getOrDefault(classesJar.getCanonicalPath(), false);

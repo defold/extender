@@ -34,6 +34,18 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 
 public class ExtenderTest {
+    @Test
+    public void testCompiledResourceDirectoryNamesAreCollisionSafe(@TempDir File temporaryDirectory) {
+        File first = new File(temporaryDirectory, "first/common-1.0/res");
+        File second = new File(temporaryDirectory, "second/common-1.0/res");
+
+        assertEquals("0000-common-1.0", Extender.getCompiledResourceDirectoryName(0, first));
+        assertEquals("0001-common-1.0", Extender.getCompiledResourceDirectoryName(1, second));
+        assertNotEquals(
+                Extender.getCompiledResourceDirectoryName(0, first),
+                Extender.getCompiledResourceDirectoryName(1, second));
+    }
+
     static Map<String, String> createEnv()
     {
         Map<String, String> env = new HashMap<>();

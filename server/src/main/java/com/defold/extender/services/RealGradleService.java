@@ -4,12 +4,13 @@ import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
-import com.defold.extender.Timer;
-import com.defold.extender.ZipUtils;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessUtils;
 
-import org.apache.commons.io.FileUtils;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,28 +23,24 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @Service
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "true")
 public class RealGradleService implements GradleServiceInterface {
     private static final Logger LOGGER = LoggerFactory.getLogger(RealGradleService.class);
-    private static final String PROCESSED_DEPENDENCY_CACHE_VERSION = "processed-v1";
 
     private static final List<String> GRADLE_BLOCKLIST = List.of(
         "buildscript", "apply plugin:", "apply from:",
@@ -57,7 +54,6 @@ public class RealGradleService implements GradleServiceInterface {
 
     private final String gradleHome;
 
-    private final File baseDirectory;
     private final MeterRegistry meterRegistry;
     private final String buildGradleTemplateContents;
     private final String gradlePropertiesTemplateContents;
@@ -71,18 +67,11 @@ public class RealGradleService implements GradleServiceInterface {
             this.gradleHome = GRADLE_USER_HOME;
         } else {
             File f = new File(".gradle");
-            if (!f.exists()) {
-                f.mkdirs();
-            }
             this.gradleHome = f.getAbsolutePath();
         }
+        Files.createDirectories(Paths.get(this.gradleHome));
 
         this.meterRegistry = meterRegistry;
-
-        this.baseDirectory = new File(this.gradleHome, "unpacked");
-        if (!this.baseDirectory.exists()) {
-            Files.createDirectories(this.baseDirectory.toPath());
-        }
 
         this.buildGradleTemplateContents = ExtenderUtil.readContentFromResource(buildGradleTemplate);
         this.gradlePropertiesTemplateContents = ExtenderUtil.readContentFromResource(gradlePropertiesTemplate);
@@ -109,7 +98,24 @@ public class RealGradleService implements GradleServiceInterface {
         List<File> gradleFiles = ExtenderUtil.listFilesMatchingRecursive(workDir, "build\\.gradle");
         // This file might exist when testing and debugging the extender using a debug job folder
         gradleFiles.remove(mainGradleFile);
-        createBuildGradleFile(mainGradleFile, gradleFiles, jobEnvContext);
+        boolean hasDependencies = createBuildGradleFile(mainGradleFile, gradleFiles, jobEnvContext);
+
+        Files.createDirectories(buildDir.toPath());
+        File lockFile = new File(buildDir, "gradle.lockfile");
+        File dependencyTreeFile = new File(buildDir, "gradle.dependencytree");
+        File artifactManifestFile = new File(buildDir, "gradle-artifacts.json");
+        outputFiles.add(lockFile);
+        outputFiles.add(dependencyTreeFile);
+
+        if (!hasDependencies) {
+            Files.deleteIfExists(artifactManifestFile.toPath());
+            Files.writeString(lockFile.toPath(), "", StandardCharsets.UTF_8);
+            Files.writeString(
+                    dependencyTreeFile.toPath(),
+                    "No Gradle dependencies were declared.\n",
+                    StandardCharsets.UTF_8);
+            return List.of();
+        }
 
         // create gradle.properties
         File gradlePropertiesFile = new File(workDir, "gradle.properties");
@@ -119,27 +125,19 @@ public class RealGradleService implements GradleServiceInterface {
         File localPropertiesFile = new File(workDir, "local.properties");
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
-        // download, parse and unpack dependencies
-        List<File> unpackedDependencies = downloadDependencies(workDir, buildState.isUsedJetifier());
-        // add gradle lockfile to outputs
-        // configured in template.build.gradle
-        outputFiles.add(new File(buildDir, "gradle.lockfile"));
-
-        // write dependency tree and add to outputs
-        File dependencyTreeFile = new File(buildDir, "gradle.dependencytree");
-        writeDependencyTree(dependencyTreeFile, workDir);
-        outputFiles.add(dependencyTreeFile);
-
-        return unpackedDependencies;
+        // Resolve AGP-processed dependencies and reuse their cache paths directly.
+        return resolveGradleArtifacts(workDir, artifactManifestFile, dependencyTreeFile);
     }
 
     @Override
     public long getCacheSize() throws IOException {
-        Path folder = Paths.get(GRADLE_USER_HOME);
-        return Files.walk(folder)
-          .filter(p -> p.toFile().isFile())
-          .mapToLong(p -> p.toFile().length())
-          .sum();
+        Path folder = Paths.get(this.gradleHome);
+        try (Stream<Path> paths = Files.walk(folder)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .mapToLong(path -> path.toFile().length())
+                    .sum();
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +193,7 @@ public class RealGradleService implements GradleServiceInterface {
         return lines;
     }
 
-    private void createBuildGradleFile(File mainGradleFile, List<File> gradleFiles, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
+    private boolean createBuildGradleFile(File mainGradleFile, List<File> gradleFiles, Map<String, Object> jobEnvContext) throws IOException, ExtenderException {
         List<String> userDependencies = new ArrayList<>();
         List<String> userRepositories = new ArrayList<>();
         for (File file : gradleFiles) {
@@ -211,232 +209,90 @@ public class RealGradleService implements GradleServiceInterface {
         envContext.put("gradle-plugin-version", GRADLE_PLUGIN_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
         Files.write(mainGradleFile.toPath(), contents.getBytes());
+        return !userDependencies.isEmpty();
     }
 
-    private Map<String, String> parseDependencies(String log) {
-        // The output comes from template.build.gradle
-        Pattern p = Pattern.compile("PATH:\\s*([\\w-.\\/]*)\\sEXTENSION:\\s*([\\w-.\\/]*)\\sTYPE:\\s*([\\w-.\\/]*)\\sMODULE_GROUP:\\s*([\\w-.\\/]*)\\sMODULE_NAME:\\s*([\\w-.\\/]*)\\sMODULE_VERSION:\\s*([\\w-.\\/]*)");
-
-        Map<String, String> dependencies = new HashMap<>();
-        String[] lines = log.split(System.getProperty("line.separator"));
-        for (String line : lines) {
-            Matcher m = p.matcher(line);
-            if (m.matches()) {
-                String path = m.group(1);
-                String extension = m.group(2);
-                String group = m.group(4);
-                String name = m.group(5);
-                String version = m.group(6);
-
-                // Map the new name to the original file path
-                dependencies.put(String.format("%s-%s-%s.%s", group, name, version, extension), path);
-            }
-        }
-
-        return dependencies;
-    }
-
-    static String getDependencyCacheNamespace(String gradlePluginVersion, boolean useJetifier) {
-        String safePluginVersion = gradlePluginVersion == null
-                ? "unknown"
-                : gradlePluginVersion.replaceAll("[^A-Za-z0-9_-]", "_");
-        return String.format(
-                "%s-agp-%s-%s",
-                PROCESSED_DEPENDENCY_CACHE_VERSION,
-                safePluginVersion,
-                useJetifier ? "jetified" : "plain");
-    }
-
-    private File getDependencyCacheDirectory(boolean useJetifier) throws IOException {
-        File directory = new File(
-                baseDirectory,
-                getDependencyCacheNamespace(GRADLE_PLUGIN_VERSION, useJetifier));
-        Files.createDirectories(directory.toPath());
-        return directory;
-    }
-
-    static String getDependencyCacheName(File dependency, String extension) throws IOException {
-        String contentHash;
-        try (InputStream input = new FileInputStream(dependency)) {
-            contentHash = ExtenderUtil.calculateSHA256(input);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IOException("SHA-256 is not available", e);
-        }
-        return contentHash + extension;
-    }
-
-    private static void deleteTemporaryPath(Path temporary) throws IOException {
-        if (Files.isDirectory(temporary)) {
-            FileUtils.deleteDirectory(temporary.toFile());
-        } else {
-            Files.deleteIfExists(temporary);
-        }
-    }
-
-    static void publishCacheEntry(Path temporary, Path target) throws IOException {
-        publishCacheEntry(temporary, target, () -> {});
-    }
-
-    static void publishCacheEntry(
-            Path temporary,
-            Path target,
-            Runnable beforeMove) throws IOException {
-        IOException failure = null;
-        if (!Files.exists(target)) {
-            try {
-                beforeMove.run();
-                try {
-                    Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
-                } catch (AtomicMoveNotSupportedException e) {
-                    Files.move(temporary, target);
-                }
-            } catch (FileAlreadyExistsException e) {
-                if (!Files.exists(target)) {
-                    failure = e;
-                }
-            } catch (IOException e) {
-                // A concurrent writer of the same content-addressed entry may win
-                // with a platform-specific exception (for example, Linux reports
-                // Directory not empty for an atomic directory move).
-                if (!Files.exists(target)) {
-                    failure = e;
-                }
-            }
-        }
-
-        if (Files.exists(temporary)) {
-            try {
-                deleteTemporaryPath(temporary);
-            } catch (IOException e) {
-                if (failure == null) {
-                    failure = e;
-                } else {
-                    failure.addSuppressed(e);
-                }
-            }
-        }
-        if (failure != null) {
-            throw failure;
-        }
-        if (!Files.exists(target)) {
-            throw new IOException("Failed to publish Gradle dependency cache entry: " + target);
-        }
-    }
-
-    private File resolveDependencyAAR(
-            File dependency,
-            File cacheDirectory) throws IOException {
-        File unpackedTarget = new File(
-                cacheDirectory,
-                getDependencyCacheName(dependency, ".aar"));
-        if (unpackedTarget.exists()) {
-            return unpackedTarget;
-        }
-
-        Path unpackedTmp = Files.createTempDirectory(cacheDirectory.toPath(), ".aar-");
+    static List<File> parseGradleArtifacts(File artifactManifest) throws IOException, ExtenderException {
+        final Object parsed;
         try {
-            try (InputStream fis = new FileInputStream(dependency)) {
-                ZipUtils.unzip(fis, unpackedTmp);
-            }
-            publishCacheEntry(unpackedTmp, unpackedTarget.toPath());
-        } finally {
-            if (Files.exists(unpackedTmp)) {
-                deleteTemporaryPath(unpackedTmp);
-            }
+            parsed = new JSONParser().parse(Files.readString(
+                    artifactManifest.toPath(),
+                    StandardCharsets.UTF_8));
+        } catch (ParseException e) {
+            throw new ExtenderException(e, "Invalid Gradle artifact manifest: " + artifactManifest);
         }
-        return unpackedTarget;
-    }
-
-    private File resolveDependencyJAR(
-            File dependency,
-            File cacheDirectory) throws IOException {
-        File targetFile = new File(
-                cacheDirectory,
-                getDependencyCacheName(dependency, ".jar"));
-        if (targetFile.exists()) {
-            return targetFile;
+        if (!(parsed instanceof JSONArray)) {
+            throw new ExtenderException("Gradle artifact manifest must contain a JSON array: " + artifactManifest);
         }
 
-        Path tmpFile = Files.createTempFile(cacheDirectory.toPath(), ".jar-", ".tmp");
-        try {
-            Files.copy(dependency.toPath(), tmpFile, StandardCopyOption.REPLACE_EXISTING);
-            publishCacheEntry(tmpFile, targetFile.toPath());
-        } finally {
-            if (Files.exists(tmpFile)) {
-                deleteTemporaryPath(tmpFile);
+        List<File> artifacts = new ArrayList<>();
+        Set<String> seenPaths = new LinkedHashSet<>();
+        for (Object value : (JSONArray) parsed) {
+            if (!(value instanceof JSONObject)) {
+                throw new ExtenderException("Invalid entry in Gradle artifact manifest: " + value);
             }
-        }
-        return targetFile;
-    }
-
-    private List<File> unpackDependencies(
-            Map<String, String> dependencies,
-            boolean useJetifier) throws IOException {
-        List<File> resolvedDependencies = new ArrayList<>();
-        File cacheDirectory = getDependencyCacheDirectory(useJetifier);
-        Timer timer = new Timer();
-        timer.start();
-        for (String newName : dependencies.keySet()) {
-            String dependency = dependencies.get(newName);
-
-            File file = new File(dependency);
-            if (!file.exists()) {
-                throw new IOException("File does not exist: %s" + dependency);
+            JSONObject entry = (JSONObject) value;
+            Object kindValue = entry.get("kind");
+            Object pathValue = entry.get("path");
+            if (!(kindValue instanceof String) || !(pathValue instanceof String)) {
+                throw new ExtenderException("Gradle artifact entry must contain string kind and path fields: " + entry);
             }
-            if (dependency.endsWith(".aar")) {
-                resolvedDependencies.add(resolveDependencyAAR(file, cacheDirectory));
-            } else if (dependency.endsWith(".jar")) {
-                resolvedDependencies.add(resolveDependencyJAR(file, cacheDirectory));
+
+            String kind = (String) kindValue;
+            File artifact = new File((String) pathValue).getCanonicalFile();
+            if ("exploded-aar".equals(kind)) {
+                if (!artifact.isDirectory()) {
+                    throw new ExtenderException("Gradle exploded AAR does not exist: " + artifact);
+                }
+            } else if ("jar".equals(kind)) {
+                if (!artifact.isFile() || !artifact.getName().endsWith(".jar")) {
+                    throw new ExtenderException("Gradle JAR does not exist: " + artifact);
+                }
             } else {
-                resolvedDependencies.add(file);
+                throw new ExtenderException("Unsupported Gradle artifact kind '" + kind + "': " + artifact);
+            }
+
+            if (seenPaths.add(artifact.getAbsolutePath())) {
+                artifacts.add(artifact);
             }
         }
-        long duration = timer.start();
-        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.unpack", duration);
-        return resolvedDependencies;
+        return artifacts;
     }
 
-    private List<File> downloadDependencies(File cwd, boolean useJetifier) throws IOException, ExtenderException {
-        long methodStart = System.currentTimeMillis();
-        LOGGER.info("Resolving dependencies");
-
-        // add --info for additional logging
-        String log = ProcessUtils.execCommand(List.of(
+    static List<String> getGradleResolveCommand() {
+        return List.of(
                 "gradle",
                 "downloadDependencies",
+                "dependencies",
+                "--configuration",
+                "releaseCompileClasspath",
                 "--write-locks",
                 "--stacktrace",
                 "--warning-mode",
                 "all",
-                "--no-daemon"
-            ), cwd,
-            Map.of("GRADLE_USER_HOME", this.gradleHome));
-        LOGGER.debug("\n" + log);
-
-        Map<String, String> dependencies = parseDependencies(log);
-
-        List<File> unpackedDependencies = unpackDependencies(dependencies, useJetifier);
-
-        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
-        return unpackedDependencies;
+                "--no-daemon");
     }
 
-    private void writeDependencyTree(File out, File cwd) throws IOException, ExtenderException {
+    private List<File> resolveGradleArtifacts(
+            File cwd,
+            File artifactManifest,
+            File dependencyTree) throws IOException, ExtenderException {
         long methodStart = System.currentTimeMillis();
-        LOGGER.info("Writing dependency tree");
+        LOGGER.info("Resolving dependencies");
+        Files.deleteIfExists(artifactManifest.toPath());
 
-        String treelog = ProcessUtils.execCommand(List.of(
-                "gradle",
-                "dependencies",
-                "--configuration",
-                "releaseCompileClasspath",
-                "--no-daemon"
-            ), cwd, Map.of("GRADLE_USER_HOME", this.gradleHome));
-        LOGGER.debug("\n" + treelog);
+        String log = ProcessUtils.execCommand(getGradleResolveCommand(), cwd,
+            Map.of("GRADLE_USER_HOME", this.gradleHome));
+        LOGGER.debug("\n" + log);
+        Files.writeString(dependencyTree.toPath(), log, StandardCharsets.UTF_8);
 
-        Files.write(out.toPath(), treelog.getBytes());
+        if (!artifactManifest.isFile()) {
+            throw new ExtenderException("Gradle did not produce its artifact manifest: " + artifactManifest);
+        }
+        List<File> artifacts = parseGradleArtifacts(artifactManifest);
 
-        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.dependencytree", System.currentTimeMillis() - methodStart);
+        MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
+        return artifacts;
     }
 
 }

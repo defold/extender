@@ -78,8 +78,8 @@ class Extender {
 
     private List<File> extDirs;
     private List<File> manifests;       // The list of ext.manifests found in the upload
-    // Unpacked Android dependencies: a .jar file, or a directory named "*.aar" holding an exploded
-    // .aar. They come from Gradle/Maven, or from .aar files shipped inside an extension.
+    // Android dependencies: a standalone .jar, or an exploded .aar directory in either the local
+    // archive layout or AGP's EXPLODED_AAR layout.
     private List<File> androidPackages;
     private List<File> outputFiles;
     private ResolvedPods resolvedPods;
@@ -514,9 +514,9 @@ class Extender {
         // Where we previously stored the dependencies directly inside the extensions
         // we now use gradle to resolve the dependencies
         for (File f : androidPackages) {
-            if (f.getName().endsWith(".jar"))
+            if (f.isFile() && f.getName().endsWith(".jar"))
                 allLibJars.add(f.getAbsolutePath());
-            else if(f.getName().endsWith(".aar")) {
+            else if (f.isDirectory()) {
                 allLibJars.addAll(R8Builder.getAndroidPackageJars(f));
             }
         }
@@ -1706,6 +1706,13 @@ class Extender {
         return dir;
     }
 
+    static String getCompiledResourceDirectoryName(int index, File resourceDirectory) {
+        File packageDirectory = resourceDirectory.getParentFile();
+        String packageName = packageDirectory == null ? "resources" : packageDirectory.getName();
+        String safePackageName = packageName.replaceAll("[^A-Za-z0-9._-]", "_");
+        return String.format("%04d-%s", index, safePackageName);
+    }
+
     /**
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
@@ -1717,13 +1724,15 @@ class Extender {
         outputDirectory.mkdirs();
         try {
             Map<String, Object> context = createContext(mergedAppContext);
+            int resourceDirectoryIndex = 0;
             for (String resDir : resourceDirectories) {
-                // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
                 File resourceDirectory = new File(resDir);
-                // android.arch.lifecycle-livedata-1.1.1.aar
-                String packageName = resourceDirectory.getParentFile().getName();
+                String packageName = getCompiledResourceDirectoryName(
+                        resourceDirectoryIndex++,
+                        resourceDirectory);
 
-                // we compile the package resources to one output directory per package
+                // Keep one output directory per input. Different Maven groups may publish AARs
+                // with the same filename, while AGP's exploded directory names omit the group.
                 File packageDirectoryOut = createDir(outputDirectory, packageName);
                 context.put("outputDirectory", packageDirectoryOut.getAbsolutePath());
 
@@ -2441,9 +2450,13 @@ class Extender {
         List<String> packagesList = new ArrayList<>();
 
         try {
+            int resourceDirectoryIndex = 0;
             for (String androidResourceFolder : androidResourceFolders) {
                 File packageResourceDir = new File(androidResourceFolder);
-                File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
+                String packageName = getCompiledResourceDirectoryName(
+                        resourceDirectoryIndex++,
+                        packageResourceDir);
+                File targetDir = new File(packagesDir, packageName + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);
 
                 String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
@@ -2491,7 +2504,7 @@ class Extender {
         Set<String> extraPackages = new HashSet<String>();
         try {
             for (File f : androidPackages) {
-                if(f.getName().endsWith(".aar")) {
+                if (f.isDirectory()) {
                     File res = new File(f, "res");
                     File androidManifest = new File(f, "AndroidManifest.xml");
                     if (res.exists() && androidManifest.exists()) {
@@ -2732,15 +2745,15 @@ class Extender {
 
     // Unpack the .aar files shipped inside the extensions into the same exploded layout that the
     // Gradle service produces, so that their classes.jar, libs/, res/, assets/, jni/ and
-    // AndroidManifest.xml are consumed just like those of a Maven resolved .aar.
+    // AndroidManifest.xml are consumed just like AGP's exploded Maven dependencies.
     void resolveLocalAars() throws ExtenderException {
         File aarsDir = new File(buildState.buildDir, "local_aars");
 
         for (File extDir : this.extDirs) {
             for (String path : getExtensionLibAars(extDir)) {
                 File aar = new File(path);
-                // The name must be unique among all packages and must end with ".aar", since that is
-                // what the consumers key off, and it also names the resource package of the .aar.
+                // The name must be unique among all local packages. Keeping the .aar suffix also
+                // makes retained debug jobs easy to inspect; consumers identify packages by layout.
                 File unpacked = SandboxedPath.resolve(aarsDir, extDir.getName() + "-" + aar.getName());
                 if (unpacked.exists()) {
                     // the same .aar was found in both lib/android and lib/<arch>-android

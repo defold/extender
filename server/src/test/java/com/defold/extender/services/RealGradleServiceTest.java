@@ -1,176 +1,178 @@
 package com.defold.extender.services;
 
+import com.defold.extender.ExtenderBuildState;
+import com.defold.extender.ExtenderException;
+
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.ClassPathResource;
 
-import java.io.IOException;
+import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RealGradleServiceTest {
-    @Test
-    public void testBuildTemplateUsesProcessedAndroidArtifacts() throws Exception {
-        String template;
-        try (InputStream input = RealGradleServiceTest.class.getResourceAsStream(
-                "/template.build.gradle")) {
+    private static String readResource(String path) throws Exception {
+        try (InputStream input = RealGradleServiceTest.class.getResourceAsStream(path)) {
             assertNotNull(input);
-            template = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
 
-        assertTrue(template.contains("AndroidArtifacts.ArtifactType.PROCESSED_AAR.type"));
+    @Test
+    public void testBuildTemplateReusesAgpArtifacts() throws Exception {
+        String template = readResource("/template.build.gradle");
+
+        assertTrue(template.contains("AndroidArtifacts.ArtifactType.EXPLODED_AAR.type"));
         assertTrue(template.contains("AndroidArtifacts.ArtifactType.PROCESSED_JAR.type"));
-        assertTrue(template.contains("project.findProperty(\"android.enableJetifier\")"));
-        assertTrue(template.contains("if (!useJetifier)"));
-        assertTrue(template.contains("getResolvedConfiguration().getResolvedArtifacts()"));
-        assertTrue(template.contains("instanceof ModuleComponentIdentifier"));
-        assertEquals(2, template.split("componentFilter", -1).length - 1);
-        assertFalse(template.contains("findAll(isModuleArtifact)"));
-        assertTrue(template.contains("aarArtifactKeys"));
-        assertTrue(template.contains("getOriginalFileName"));
-        assertTrue(template.contains("identifier.originalFileName"));
-        assertTrue(template.contains("artifact.file.name"));
-        assertFalse(template.contains("aarComponentIds"));
-        assertFalse(template.contains("Unsupported non-module Android dependency"));
+        assertFalse(template.contains("AndroidArtifacts.ArtifactType.PROCESSED_AAR.type"));
+        assertTrue(template.contains("standaloneJarComponents"));
+        assertTrue(template.contains("standaloneJarComponents.contains(it)"));
+        assertTrue(template.contains("if (useJetifier && !standaloneJarComponents.isEmpty())"));
+        assertTrue(template.contains("kind: \"exploded-aar\""));
+        assertTrue(template.contains("kind: \"jar\""));
+        assertTrue(template.contains("gradle-artifacts.json"));
+        assertTrue(template.contains("JsonOutput.toJson(artifacts)"));
+        assertFalse(template.contains("println \"PATH:"));
     }
 
     @Test
-    public void testProcessedDependencyCachesAreSeparatedByJetifierAndAgpVersion() {
-        String jetified = RealGradleService.getDependencyCacheNamespace("8.13.0", true);
-        String plain = RealGradleService.getDependencyCacheNamespace("8.13.0", false);
-        String otherAgp = RealGradleService.getDependencyCacheNamespace("8.14.0", true);
+    public void testAndroidXIsIndependentFromJetifier() throws Exception {
+        String template = readResource("/template.gradle.properties");
 
-        assertNotEquals(jetified, plain);
-        assertNotEquals(jetified, otherAgp);
-        assertTrue(jetified.contains("processed-v1"));
-        assertTrue(jetified.endsWith("jetified"));
-        assertTrue(plain.endsWith("plain"));
+        assertTrue(template.contains("android.enableJetifier={{android-enable-jetifier}}"));
+        assertTrue(template.contains("android.useAndroidX=true"));
+        assertFalse(template.contains("android.useAndroidX={{android-enable-jetifier}}"));
     }
 
     @Test
-    public void testProcessedDependencyCacheNamespaceIsPathSafe() {
-        String namespace = RealGradleService.getDependencyCacheNamespace("8.13.0/../../raw", true);
-
-        assertFalse(namespace.contains("/"));
-        assertFalse(namespace.contains("\\"));
-        assertFalse(namespace.contains(".."));
+    public void testDependencyResolutionAndReportShareOneGradleInvocation() {
+        assertEquals(
+                List.of(
+                        "gradle",
+                        "downloadDependencies",
+                        "dependencies",
+                        "--configuration",
+                        "releaseCompileClasspath",
+                        "--write-locks",
+                        "--stacktrace",
+                        "--warning-mode",
+                        "all",
+                        "--no-daemon"),
+                RealGradleService.getGradleResolveCommand());
     }
 
     @Test
-    public void testDependencyCacheNameIncludesProcessedArtifactContent(@TempDir Path temporaryDirectory)
+    @SuppressWarnings("unchecked")
+    public void testArtifactManifestReturnsGradleCachePathsDirectly(@TempDir Path temporaryDirectory)
             throws Exception {
-        Path first = temporaryDirectory.resolve("first.jar");
-        Path second = temporaryDirectory.resolve("second.jar");
-        Path duplicate = temporaryDirectory.resolve("duplicate.jar");
-        Files.writeString(first, "first processed artifact");
-        Files.writeString(second, "second processed artifact");
-        Files.writeString(duplicate, "first processed artifact");
+        Path explodedAar = Files.createDirectory(temporaryDirectory.resolve("jetified-library"));
+        Files.createDirectories(explodedAar.resolve("jars"));
+        Files.writeString(explodedAar.resolve("jars/classes.jar"), "classes");
+        Path jar = temporaryDirectory.resolve("jetified-library.jar");
+        Files.writeString(jar, "jar");
 
-        String firstName = RealGradleService.getDependencyCacheName(
-                first.toFile(),
-                ".jar");
-        String secondName = RealGradleService.getDependencyCacheName(
-                second.toFile(),
-                ".jar");
-        String duplicateName = RealGradleService.getDependencyCacheName(
-                duplicate.toFile(),
-                ".jar");
+        JSONArray manifest = new JSONArray();
+        JSONObject aarEntry = new JSONObject();
+        aarEntry.put("component", "com.example:library:1.0");
+        aarEntry.put("originalFileName", "library-1.0.aar");
+        aarEntry.put("kind", "exploded-aar");
+        aarEntry.put("path", explodedAar.toString());
+        manifest.add(aarEntry);
+        JSONObject jarEntry = new JSONObject();
+        jarEntry.put("component", "com.example:library:1.0");
+        jarEntry.put("originalFileName", "library-1.0.jar");
+        jarEntry.put("kind", "jar");
+        jarEntry.put("path", jar.toString());
+        manifest.add(jarEntry);
+        manifest.add(jarEntry);
 
-        assertNotEquals(firstName, secondName);
-        assertEquals(firstName, duplicateName);
-        assertTrue(firstName.matches("[0-9a-f]{64}\\.jar"));
+        Path manifestFile = temporaryDirectory.resolve("gradle-artifacts.json");
+        Files.writeString(manifestFile, manifest.toJSONString());
+
+        assertEquals(
+                List.of(explodedAar.toFile().getCanonicalFile(), jar.toFile().getCanonicalFile()),
+                RealGradleService.parseGradleArtifacts(manifestFile.toFile()));
     }
 
     @Test
-    public void testPublishCacheEntryKeepsExistingFileAndDirectory(@TempDir Path temporaryDirectory)
+    @SuppressWarnings("unchecked")
+    public void testArtifactManifestRejectsInvalidEntries(@TempDir Path temporaryDirectory)
             throws Exception {
-        Path fileTarget = temporaryDirectory.resolve("winner.jar");
-        Path fileTemporary = temporaryDirectory.resolve("loser.jar.tmp");
-        Files.writeString(fileTarget, "winner");
-        Files.writeString(fileTemporary, "loser");
+        Path missing = temporaryDirectory.resolve("missing.jar");
+        JSONObject entry = new JSONObject();
+        entry.put("kind", "jar");
+        entry.put("path", missing.toString());
+        JSONArray manifest = new JSONArray();
+        manifest.add(entry);
 
-        RealGradleService.publishCacheEntry(fileTemporary, fileTarget);
-
-        assertEquals("winner", Files.readString(fileTarget));
-        assertFalse(Files.exists(fileTemporary));
-
-        Path directoryTarget = temporaryDirectory.resolve("winner.aar");
-        Path directoryTemporary = temporaryDirectory.resolve("loser.aar.tmp");
-        Files.createDirectory(directoryTarget);
-        Files.writeString(directoryTarget.resolve("winner"), "winner");
-        Files.createDirectory(directoryTemporary);
-        Files.writeString(directoryTemporary.resolve("loser"), "loser");
-
-        RealGradleService.publishCacheEntry(directoryTemporary, directoryTarget);
-
-        assertTrue(Files.exists(directoryTarget.resolve("winner")));
-        assertFalse(Files.exists(directoryTemporary));
-    }
-
-    @Test
-    public void testPublishCacheEntryRethrowsUnexpectedMoveFailure(@TempDir Path temporaryDirectory)
-            throws Exception {
-        Path temporary = temporaryDirectory.resolve("dependency.jar.tmp");
-        Path target = temporaryDirectory.resolve("missing-parent/dependency.jar");
-        Files.writeString(temporary, "dependency");
-
+        Path manifestFile = temporaryDirectory.resolve("gradle-artifacts.json");
+        Files.writeString(manifestFile, manifest.toJSONString());
         assertThrows(
-                IOException.class,
-                () -> RealGradleService.publishCacheEntry(temporary, target));
-        assertFalse(Files.exists(temporary));
-        assertFalse(Files.exists(target));
+                ExtenderException.class,
+                () -> RealGradleService.parseGradleArtifacts(manifestFile.toFile()));
+
+        Files.writeString(manifestFile, "not-json");
+        assertThrows(
+                ExtenderException.class,
+                () -> RealGradleService.parseGradleArtifacts(manifestFile.toFile()));
     }
 
     @Test
-    public void testConcurrentDirectoryPublishAcceptsContentAddressedWinner(@TempDir Path temporaryDirectory)
-            throws Exception {
-        Path first = temporaryDirectory.resolve("first.aar.tmp");
-        Path second = temporaryDirectory.resolve("second.aar.tmp");
-        Path target = temporaryDirectory.resolve("dependency.aar");
-        Files.createDirectory(first);
-        Files.writeString(first.resolve("content"), "same processed artifact");
-        Files.createDirectory(second);
-        Files.writeString(second.resolve("content"), "same processed artifact");
+    public void testNoDependenciesSkipsGradle(@TempDir Path temporaryDirectory) throws Exception {
+        Path jobDirectory = Files.createDirectory(temporaryDirectory.resolve("job"));
+        Path buildDirectory = Files.createDirectory(jobDirectory.resolve("build"));
+        ExtenderBuildState buildState = mock(ExtenderBuildState.class);
+        when(buildState.getJobDir()).thenReturn(jobDirectory.toFile());
+        when(buildState.getBuildDir()).thenReturn(buildDirectory.toFile());
+        when(buildState.isUsedJetifier()).thenReturn(true);
 
-        CyclicBarrier beforeMove = new CyclicBarrier(2);
-        Runnable awaitBothWriters = () -> {
-            try {
-                beforeMove.await();
-            } catch (Exception e) {
-                throw new IllegalStateException(e);
-            }
-        };
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<?> firstPublish = executor.submit(() -> {
-                RealGradleService.publishCacheEntry(first, target, awaitBothWriters);
-                return null;
-            });
-            Future<?> secondPublish = executor.submit(() -> {
-                RealGradleService.publishCacheEntry(second, target, awaitBothWriters);
-                return null;
-            });
+        RealGradleService service = new RealGradleService(
+                new ByteArrayResource((
+                        "dependencies {\n" +
+                        "{{#user-dependencies}}{{{.}}}{{/user-dependencies}}\n" +
+                        "}\n").getBytes(StandardCharsets.UTF_8)),
+                new ClassPathResource("template.gradle.properties"),
+                new ClassPathResource("template.local.properties"),
+                new SimpleMeterRegistry());
+        List<File> outputFiles = new ArrayList<>();
 
-            firstPublish.get();
-            secondPublish.get();
-        } finally {
-            executor.shutdownNow();
-        }
+        List<File> artifacts = service.resolveDependencies(
+                buildState,
+                Map.of(
+                        "env.ANDROID_SDK_ROOT", "/unused/android-sdk",
+                        "env.ANDROID_SDK_VERSION", "36"),
+                outputFiles);
 
-        assertEquals("same processed artifact", Files.readString(target.resolve("content")));
-        assertFalse(Files.exists(first));
-        assertFalse(Files.exists(second));
+        assertTrue(artifacts.isEmpty());
+        assertEquals(
+                List.of(
+                        buildDirectory.resolve("gradle.lockfile").toFile(),
+                        buildDirectory.resolve("gradle.dependencytree").toFile()),
+                outputFiles);
+        assertEquals("", Files.readString(buildDirectory.resolve("gradle.lockfile")));
+        assertEquals(
+                "No Gradle dependencies were declared.\n",
+                Files.readString(buildDirectory.resolve("gradle.dependencytree")));
+        assertFalse(Files.exists(jobDirectory.resolve("gradle.properties")));
+        assertFalse(Files.exists(jobDirectory.resolve("local.properties")));
+        assertFalse(Files.exists(buildDirectory.resolve("gradle-artifacts.json")));
     }
 }

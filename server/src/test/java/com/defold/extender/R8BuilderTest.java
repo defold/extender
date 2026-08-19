@@ -763,6 +763,33 @@ public class R8BuilderTest {
     }
 
     @Test
+    public void testAndroidPackageJarsSupportLocalAndAgpExplodedLayouts(@TempDir File tempDir)
+            throws Exception {
+        File localAar = new File(tempDir, "local.aar");
+        assertTrue(new File(localAar, "libs").mkdirs());
+        File localClasses = new File(localAar, "classes.jar");
+        File localLibrary = new File(localAar, "libs/local-library.jar");
+        Files.writeString(localClasses.toPath(), "classes");
+        Files.writeString(localLibrary.toPath(), "library");
+
+        File explodedAar = new File(tempDir, "jetified-library");
+        assertTrue(new File(explodedAar, "jars/libs").mkdirs());
+        File explodedClasses = new File(explodedAar, "jars/classes.jar");
+        File explodedLibrary = new File(explodedAar, "jars/libs/embedded-library.jar");
+        Files.writeString(explodedClasses.toPath(), "classes");
+        Files.writeString(explodedLibrary.toPath(), "library");
+
+        assertEquals(localClasses, R8Builder.getAndroidPackageClassesJar(localAar));
+        assertEquals(explodedClasses, R8Builder.getAndroidPackageClassesJar(explodedAar));
+        assertEquals(
+                List.of(localClasses.getAbsolutePath(), localLibrary.getAbsolutePath()),
+                R8Builder.getAndroidPackageJars(localAar));
+        assertEquals(
+                List.of(explodedClasses.getAbsolutePath(), explodedLibrary.getAbsolutePath()),
+                R8Builder.getAndroidPackageJars(explodedAar));
+    }
+
+    @Test
     public void testCollectJarAndAarConsumerRulesDeterministically(@TempDir File tempDir) throws Exception {
         File standaloneJar = createJar(
                 new File(tempDir, "standalone.jar"),
@@ -770,10 +797,10 @@ public class R8BuilderTest {
                         "META-INF/proguard/legacy.pro", "-keep class JarLegacy",
                         "META-INF/com.android.tools/r8-from-8.0.0/rules.keep", "-keep class JarTarget"));
 
-        File targetedAar = new File(tempDir, "targeted.aar");
-        assertTrue(targetedAar.mkdirs());
+        File targetedAar = new File(tempDir, "jetified-targeted");
+        assertTrue(new File(targetedAar, "jars").mkdirs());
         File targetedClasses = createJar(
-                new File(targetedAar, "classes.jar"),
+                new File(targetedAar, "jars/classes.jar"),
                 Map.of("META-INF/com.android.tools/r8/rules.keep", "-keep class AarTarget"));
         Files.writeString(new File(targetedAar, "proguard.txt").toPath(), "-keep class AarRootIgnored");
 
@@ -793,7 +820,7 @@ public class R8BuilderTest {
         }
 
         assertEquals(
-                List.of("-keep class JarTarget", "-keep class AarTarget", "-keep class AarLegacy"),
+                List.of("-keep class AarTarget", "-keep class JarTarget", "-keep class AarLegacy"),
                 contents);
     }
 
