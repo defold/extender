@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -88,7 +89,7 @@ public class RealGradleService implements GradleServiceInterface {
     }
 
     @Override
-    public List<File> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles) throws IOException, ExtenderException {
+    public List<GradleArtifact> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles) throws IOException, ExtenderException {
         // cwd -> jobDir
         File workDir = buildState.getJobDir();
         File buildDir = buildState.getBuildDir();
@@ -212,7 +213,31 @@ public class RealGradleService implements GradleServiceInterface {
         return !userDependencies.isEmpty();
     }
 
-    static List<File> parseGradleArtifacts(File artifactManifest) throws IOException, ExtenderException {
+    private static String getResourcePackageName(String component, String originalFileName) {
+        String[] coordinate = component.split(":", 3);
+        if (coordinate.length == 3
+                && !coordinate[0].isBlank()
+                && !coordinate[1].isBlank()
+                && !coordinate[2].isBlank()) {
+            // Match the package directory names returned by the pre-AGP-cache implementation.
+            return (coordinate[0] + "-" + coordinate[1] + "-" + coordinate[2] + ".aar")
+                    .replaceAll("[^A-Za-z0-9._-]", "_");
+        }
+
+        String fileName = new File(originalFileName).getName();
+        if (fileName.isBlank()) {
+            fileName = "dependency.aar";
+        }
+        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".aar")) {
+            fileName += ".aar";
+        }
+
+        // Gradle uses incomplete coordinates such as :LocalAar: for flatDir dependencies. The
+        // externally visible name is cosmetic, so fall back instead of rejecting a valid build.
+        return fileName.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    static List<GradleArtifact> parseGradleArtifacts(File artifactManifest) throws IOException, ExtenderException {
         final Object parsed;
         try {
             parsed = new JSONParser().parse(Files.readString(
@@ -225,35 +250,54 @@ public class RealGradleService implements GradleServiceInterface {
             throw new ExtenderException("Gradle artifact manifest must contain a JSON array: " + artifactManifest);
         }
 
-        List<File> artifacts = new ArrayList<>();
+        List<GradleArtifact> artifacts = new ArrayList<>();
         Set<String> seenPaths = new LinkedHashSet<>();
         for (Object value : (JSONArray) parsed) {
             if (!(value instanceof JSONObject)) {
                 throw new ExtenderException("Invalid entry in Gradle artifact manifest: " + value);
             }
             JSONObject entry = (JSONObject) value;
+            Object componentValue = entry.get("component");
+            Object originalFileNameValue = entry.get("originalFileName");
             Object kindValue = entry.get("kind");
             Object pathValue = entry.get("path");
-            if (!(kindValue instanceof String) || !(pathValue instanceof String)) {
-                throw new ExtenderException("Gradle artifact entry must contain string kind and path fields: " + entry);
+            if (!(componentValue instanceof String)
+                    || !(originalFileNameValue instanceof String)
+                    || !(kindValue instanceof String)
+                    || !(pathValue instanceof String)) {
+                throw new ExtenderException(
+                        "Gradle artifact entry must contain string component, originalFileName, kind and path fields: "
+                                + entry);
             }
 
+            String component = (String) componentValue;
+            String originalFileName = (String) originalFileNameValue;
             String kind = (String) kindValue;
             File artifact = new File((String) pathValue).getCanonicalFile();
+            GradleArtifact.Kind artifactKind;
+            String resourcePackageName = null;
             if ("exploded-aar".equals(kind)) {
                 if (!artifact.isDirectory()) {
                     throw new ExtenderException("Gradle exploded AAR does not exist: " + artifact);
                 }
+                artifactKind = GradleArtifact.Kind.EXPLODED_AAR;
+                resourcePackageName = getResourcePackageName(component, originalFileName);
             } else if ("jar".equals(kind)) {
                 if (!artifact.isFile() || !artifact.getName().endsWith(".jar")) {
                     throw new ExtenderException("Gradle JAR does not exist: " + artifact);
                 }
+                artifactKind = GradleArtifact.Kind.JAR;
             } else {
                 throw new ExtenderException("Unsupported Gradle artifact kind '" + kind + "': " + artifact);
             }
 
             if (seenPaths.add(artifact.getAbsolutePath())) {
-                artifacts.add(artifact);
+                artifacts.add(new GradleArtifact(
+                        artifact,
+                        component,
+                        originalFileName,
+                        artifactKind,
+                        resourcePackageName));
             }
         }
         return artifacts;
@@ -273,7 +317,7 @@ public class RealGradleService implements GradleServiceInterface {
                 "--no-daemon");
     }
 
-    private List<File> resolveGradleArtifacts(
+    private List<GradleArtifact> resolveGradleArtifacts(
             File cwd,
             File artifactManifest,
             File dependencyTree) throws IOException, ExtenderException {
@@ -289,7 +333,7 @@ public class RealGradleService implements GradleServiceInterface {
         if (!artifactManifest.isFile()) {
             throw new ExtenderException("Gradle did not produce its artifact manifest: " + artifactManifest);
         }
-        List<File> artifacts = parseGradleArtifacts(artifactManifest);
+        List<GradleArtifact> artifacts = parseGradleArtifacts(artifactManifest);
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.gradle.get", System.currentTimeMillis() - methodStart);
         return artifacts;

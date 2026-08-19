@@ -48,7 +48,7 @@ public class ExtenderTest {
 
     @Test
     public void testReturnedResourcePackageNamesPreserveLegacyNamesAndResolveCollisions(
-            @TempDir File temporaryDirectory) {
+            @TempDir File temporaryDirectory) throws IOException {
         List<String> resourceDirectories = List.of(
                 new File(temporaryDirectory, "first/common-1.0/res").getAbsolutePath(),
                 new File(temporaryDirectory, "second/common-1.0/res").getAbsolutePath(),
@@ -61,7 +61,26 @@ public class ExtenderTest {
                         "common-1.0-0001-1",
                         "common-1.0-0001",
                         "unique-1.0"),
-                Extender.getReturnedResourcePackageNames(resourceDirectories));
+                Extender.getReturnedResourcePackageNames(resourceDirectories, Map.of()));
+    }
+
+    @Test
+    public void testReturnedResourcePackageNamesUseGradleArtifactIdentity(
+            @TempDir File temporaryDirectory) throws IOException {
+        File firstPackage = new File(temporaryDirectory, "transforms/first/jetified-library");
+        File secondPackage = new File(temporaryDirectory, "transforms/second/jetified-library");
+        List<String> resourceDirectories = List.of(
+                new File(firstPackage, "res").getAbsolutePath(),
+                new File(secondPackage, "res").getAbsolutePath());
+        String legacyName = "com.example-library-1.0.aar";
+
+        assertEquals(
+                List.of(legacyName, legacyName + "-0001"),
+                Extender.getReturnedResourcePackageNames(
+                        resourceDirectories,
+                        Map.of(
+                                firstPackage.getCanonicalFile(), legacyName,
+                                secondPackage.getCanonicalFile(), legacyName)));
     }
 
     static Map<String, String> createEnv()

@@ -680,9 +680,8 @@ public class IntegrationTest {
             assertFalse(dexClasses.contains(unexpectedAnnotation));
             try (ZipFile zipFile = new ZipFile(destination)) {
                 assertNotNull(zipFile.getEntry("assets/local_aar.txt"));
-                assertTrue(zipFile.stream().anyMatch(entry ->
-                        entry.getName().startsWith("packages/")
-                                && entry.getName().endsWith("/res/values/strings.xml")));
+                assertNotNull(zipFile.getEntry(
+                        "packages/com.defold.test-handoff-1.0.aar/res/values/strings.xml"));
                 assertNotNull(zipFile.getEntry("gradle.lockfile"));
                 assertNotNull(zipFile.getEntry("gradle.dependencytree"));
             }

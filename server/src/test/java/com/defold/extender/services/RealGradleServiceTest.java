@@ -23,6 +23,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -86,6 +87,12 @@ public class RealGradleServiceTest {
         Path explodedAar = Files.createDirectory(temporaryDirectory.resolve("jetified-library"));
         Files.createDirectories(explodedAar.resolve("jars"));
         Files.writeString(explodedAar.resolve("jars/classes.jar"), "classes");
+        Path flatDirAar = Files.createDirectory(temporaryDirectory.resolve("jetified-local-aar"));
+        Files.createDirectories(flatDirAar.resolve("jars"));
+        Files.writeString(flatDirAar.resolve("jars/classes.jar"), "classes");
+        Path classifierAar = Files.createDirectory(temporaryDirectory.resolve("jetified-classifier-aar"));
+        Files.createDirectories(classifierAar.resolve("jars"));
+        Files.writeString(classifierAar.resolve("jars/classes.jar"), "classes");
         Path jar = temporaryDirectory.resolve("jetified-library.jar");
         Files.writeString(jar, "jar");
 
@@ -96,6 +103,18 @@ public class RealGradleServiceTest {
         aarEntry.put("kind", "exploded-aar");
         aarEntry.put("path", explodedAar.toString());
         manifest.add(aarEntry);
+        JSONObject flatDirEntry = new JSONObject();
+        flatDirEntry.put("component", ":LocalAar:");
+        flatDirEntry.put("originalFileName", "LocalAar.aar");
+        flatDirEntry.put("kind", "exploded-aar");
+        flatDirEntry.put("path", flatDirAar.toString());
+        manifest.add(flatDirEntry);
+        JSONObject classifierEntry = new JSONObject();
+        classifierEntry.put("component", "com.example:library:1.0");
+        classifierEntry.put("originalFileName", "library-1.0-debug.aar");
+        classifierEntry.put("kind", "exploded-aar");
+        classifierEntry.put("path", classifierAar.toString());
+        manifest.add(classifierEntry);
         JSONObject jarEntry = new JSONObject();
         jarEntry.put("component", "com.example:library:1.0");
         jarEntry.put("originalFileName", "library-1.0.jar");
@@ -107,9 +126,20 @@ public class RealGradleServiceTest {
         Path manifestFile = temporaryDirectory.resolve("gradle-artifacts.json");
         Files.writeString(manifestFile, manifest.toJSONString());
 
-        assertEquals(
-                List.of(explodedAar.toFile().getCanonicalFile(), jar.toFile().getCanonicalFile()),
-                RealGradleService.parseGradleArtifacts(manifestFile.toFile()));
+        List<GradleArtifact> artifacts = RealGradleService.parseGradleArtifacts(manifestFile.toFile());
+        assertEquals(4, artifacts.size());
+        assertEquals(explodedAar.toFile().getCanonicalFile(), artifacts.get(0).getFile());
+        assertEquals("com.example:library:1.0", artifacts.get(0).getComponent());
+        assertEquals("library-1.0.aar", artifacts.get(0).getOriginalFileName());
+        assertEquals(GradleArtifact.Kind.EXPLODED_AAR, artifacts.get(0).getKind());
+        assertEquals("com.example-library-1.0.aar", artifacts.get(0).getResourcePackageName());
+        assertEquals(flatDirAar.toFile().getCanonicalFile(), artifacts.get(1).getFile());
+        assertEquals("LocalAar.aar", artifacts.get(1).getResourcePackageName());
+        assertEquals(classifierAar.toFile().getCanonicalFile(), artifacts.get(2).getFile());
+        assertEquals("com.example-library-1.0.aar", artifacts.get(2).getResourcePackageName());
+        assertEquals(jar.toFile().getCanonicalFile(), artifacts.get(3).getFile());
+        assertEquals(GradleArtifact.Kind.JAR, artifacts.get(3).getKind());
+        assertNull(artifacts.get(3).getResourcePackageName());
     }
 
     @Test
@@ -154,7 +184,7 @@ public class RealGradleServiceTest {
                 new SimpleMeterRegistry());
         List<File> outputFiles = new ArrayList<>();
 
-        List<File> artifacts = service.resolveDependencies(
+        List<GradleArtifact> artifacts = service.resolveDependencies(
                 buildState,
                 Map.of(
                         "env.ANDROID_SDK_ROOT", "/unused/android-sdk",

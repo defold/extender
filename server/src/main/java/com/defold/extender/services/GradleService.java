@@ -24,7 +24,7 @@ public class GradleService {
         Gauge.builder("extender.job.gradle.cacheSize", this, GradleService::getCacheSize).baseUnit(BaseUnits.BYTES).register(registry);
     }
 
-    public List<File> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles)
+    public List<GradleArtifact> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles)
         throws IOException, ExtenderException {
         return gradleService.resolveDependencies(buildState, env, outputFiles);
     }

@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import com.defold.extender.services.GradleArtifact;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.cocoapods.PodBuildSpec;
@@ -81,6 +82,9 @@ class Extender {
     // Android dependencies: a standalone .jar, or an exploded .aar directory in either the local
     // archive layout or AGP's EXPLODED_AAR layout.
     private List<File> androidPackages;
+    // Maven AARs keep their legacy externally visible package names even though their content is
+    // consumed directly from AGP's transform cache.
+    private Map<File, String> androidPackageResourceNames;
     private List<File> outputFiles;
     private ResolvedPods resolvedPods;
     private int nameCounter = 0;
@@ -173,6 +177,7 @@ class Extender {
         this.metricsWriter = builder.metricsWriter;
         this.progressReporter = builder.progressReporter != null ? builder.progressReporter : ProgressReporter.NOOP;
         this.androidPackages = new ArrayList<>();
+        this.androidPackageResourceNames = new HashMap<>();
         this.outputFiles = new ArrayList<>();
 
         // Read config from SDK
@@ -1713,12 +1718,19 @@ class Extender {
         return String.format("%04d-%s", index, safePackageName);
     }
 
-    static List<String> getReturnedResourcePackageNames(List<String> resourceDirectories) {
-        List<String> baseNames = resourceDirectories.stream()
-                .map(File::new)
-                .map(File::getParentFile)
-                .map(directory -> directory == null ? "resources" : directory.getName())
-                .collect(Collectors.toList());
+    static List<String> getReturnedResourcePackageNames(
+            List<String> resourceDirectories,
+            Map<File, String> preferredPackageNames) throws IOException {
+        List<String> baseNames = new ArrayList<>();
+        for (String resourceDirectory : resourceDirectories) {
+            File packageDirectory = new File(resourceDirectory).getParentFile();
+            String preferredName = packageDirectory == null
+                    ? null
+                    : preferredPackageNames.get(packageDirectory.getCanonicalFile());
+            baseNames.add(preferredName != null
+                    ? preferredName
+                    : packageDirectory == null ? "resources" : packageDirectory.getName());
+        }
         Set<String> reservedNames = new HashSet<>(baseNames);
         Set<String> assignedNames = new HashSet<>();
         List<String> result = new ArrayList<>();
@@ -2478,7 +2490,9 @@ class Extender {
         List<String> packagesList = new ArrayList<>();
 
         try {
-            List<String> packageNames = getReturnedResourcePackageNames(androidResourceFolders);
+            List<String> packageNames = getReturnedResourcePackageNames(
+                    androidResourceFolders,
+                    androidPackageResourceNames);
             for (int index = 0; index < androidResourceFolders.size(); index++) {
                 String androidResourceFolder = androidResourceFolders.get(index);
                 File packageResourceDir = new File(androidResourceFolder);
@@ -2763,7 +2777,17 @@ class Extender {
 
     void resolve(GradleService gradleService) throws ExtenderException {
         try {
-            androidPackages.addAll(gradleService.resolveDependencies(this.buildState, this.platformConfig.context, outputFiles));
+            for (GradleArtifact artifact : gradleService.resolveDependencies(
+                    this.buildState,
+                    this.platformConfig.context,
+                    outputFiles)) {
+                androidPackages.add(artifact.getFile());
+                if (artifact.getResourcePackageName() != null) {
+                    androidPackageResourceNames.put(
+                            artifact.getFile().getCanonicalFile(),
+                            artifact.getResourcePackageName());
+                }
+            }
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
