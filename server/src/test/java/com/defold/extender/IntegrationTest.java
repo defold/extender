@@ -20,6 +20,7 @@ import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggingSystem;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,6 +31,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -38,6 +41,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.jar.JarOutputStream;
+
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 
 @Tag("integration")
 @Execution(ExecutionMode.SAME_THREAD)
@@ -479,7 +486,7 @@ public class IntegrationTest {
         doBuild(sourceFiles, configuration);
     }
 
-    private boolean checkClassesDexClasses(File buildZip, List<String> classes) throws IOException {
+    private Set<String> getClassesDexClasses(File buildZip) throws IOException {
         Set<String> dexClasses = new HashSet<>();
 
         try (ZipFile zipFile = new ZipFile(buildZip)) {
@@ -503,6 +510,12 @@ public class IntegrationTest {
             }
         }
 
+        return dexClasses;
+    }
+
+    private boolean checkClassesDexClasses(File buildZip, List<String> classes) throws IOException {
+        Set<String> dexClasses = getClassesDexClasses(buildZip);
+
         for (String cls : classes) {
             if (!dexClasses.contains(cls)) {
                 System.err.println(String.format("Missing class %s", cls));
@@ -510,6 +523,170 @@ public class IntegrationTest {
             }
         }
         return true;
+    }
+
+    private Path createGradleHandoffClassifierJar(Path fixtureDirectory) throws IOException {
+        Path source = fixtureDirectory.resolve("android/support/annotation/Nullable.java");
+        Path classes = fixtureDirectory.resolve("classifier-classes");
+        Files.createDirectories(source.getParent());
+        Files.createDirectories(classes);
+        Files.writeString(
+                source,
+                "package android.support.annotation;\n" +
+                "public @interface Nullable {}\n",
+                StandardCharsets.UTF_8);
+
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        assertNotNull(compiler, "The integration test requires a JDK");
+        assertEquals(
+                0,
+                compiler.run(
+                        null,
+                        null,
+                        null,
+                        "--release",
+                        "8",
+                        "-d",
+                        classes.toString(),
+                        source.toString()));
+
+        Path outputJar = fixtureDirectory.resolve("handoff-1.0-extras.jar");
+        try (ZipFile sourceJar = new ZipFile("test-data/ext/lib/android/JarDep.jar");
+             OutputStream fileOutput = Files.newOutputStream(outputJar);
+             JarOutputStream jarOutput = new JarOutputStream(fileOutput)) {
+            ZipEntry jarDependency = sourceJar.getEntry("com/defold/JarDep.class");
+            assertNotNull(jarDependency);
+            jarOutput.putNextEntry(new ZipEntry(jarDependency.getName()));
+            try (InputStream input = sourceJar.getInputStream(jarDependency)) {
+                input.transferTo(jarOutput);
+            }
+            jarOutput.closeEntry();
+
+            Path nullableClass = classes.resolve("android/support/annotation/Nullable.class");
+            jarOutput.putNextEntry(new ZipEntry("android/support/annotation/Nullable.class"));
+            Files.copy(nullableClass, jarOutput);
+            jarOutput.closeEntry();
+        }
+        return outputJar;
+    }
+
+    private TestConfiguration latestAndroidConfiguration() {
+        return data().stream()
+                .filter(configuration -> configuration.platform.endsWith("-android"))
+                .max(Comparator
+                        .comparingInt((TestConfiguration configuration) -> configuration.version.version.major)
+                        .thenComparingInt(configuration -> configuration.version.version.middle)
+                        .thenComparingInt(configuration -> configuration.version.version.minor)
+                        .thenComparing(configuration -> configuration.platform))
+                .orElseThrow(() -> new IllegalArgumentException("No Android integration configuration selected"));
+    }
+
+    private List<ExtenderResource> gradleArtifactHandoffResources(
+            Path fixtureDirectory,
+            TestConfiguration configuration,
+            boolean useJetifier) throws IOException {
+        Path repositoryVersion = fixtureDirectory.resolve("repo/com/defold/test/handoff/1.0");
+        Files.createDirectories(repositoryVersion);
+        Path aar = repositoryVersion.resolve("handoff-1.0.aar");
+        Path classifierJar = repositoryVersion.resolve("handoff-1.0-extras.jar");
+        Path pom = repositoryVersion.resolve("handoff-1.0.pom");
+        Files.copy(
+                Path.of("test-data/ext/lib/android/LocalAar.aar"),
+                aar,
+                StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(
+                createGradleHandoffClassifierJar(fixtureDirectory),
+                classifierJar,
+                StandardCopyOption.REPLACE_EXISTING);
+        Files.writeString(
+                pom,
+                "<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n" +
+                "  <modelVersion>4.0.0</modelVersion>\n" +
+                "  <groupId>com.defold.test</groupId>\n" +
+                "  <artifactId>handoff</artifactId>\n" +
+                "  <version>1.0</version>\n" +
+                "  <packaging>aar</packaging>\n" +
+                "</project>\n",
+                StandardCharsets.UTF_8);
+
+        Path buildGradle = fixtureDirectory.resolve("build.gradle");
+        Files.writeString(
+                buildGradle,
+                "repositories {\n" +
+                "    maven { url uri(\"$rootDir/upload/ext/manifests/android/repo\") }\n" +
+                "}\n" +
+                "dependencies {\n" +
+                "    implementation 'com.defold.test:handoff:1.0@aar'\n" +
+                "    implementation 'com.defold.test:handoff:1.0:extras@jar'\n" +
+                "}\n",
+                StandardCharsets.UTF_8);
+        Path appManifest = fixtureDirectory.resolve("app.manifest");
+        Files.writeString(
+                appManifest,
+                "platforms:\n" +
+                "    android:\n" +
+                "        context:\n" +
+                "            jetifier: " + useJetifier + "\n",
+                StandardCharsets.UTF_8);
+
+        String repositoryZipRoot = "ext/manifests/android/repo/com/defold/test/handoff/1.0/";
+        return Lists.newArrayList(
+                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+                new FileExtenderResource("test-data/ext/ext.manifest"),
+                new FileExtenderResource("test-data/ext/src/test_ext.cpp"),
+                new FileExtenderResource("test-data/ext/src/TestGradleHandoff.java"),
+                new FileExtenderResource(
+                        String.format("test-data/ext/lib/%s/libalib.a", configuration.platform)),
+                new FileExtenderResource(buildGradle.toString(), "ext/manifests/android/build.gradle"),
+                new FileExtenderResource(appManifest.toString(), "_app/app.manifest"),
+                new FileExtenderResource(aar.toString(), repositoryZipRoot + aar.getFileName()),
+                new FileExtenderResource(
+                        classifierJar.toString(),
+                        repositoryZipRoot + classifierJar.getFileName()),
+                new FileExtenderResource(pom.toString(), repositoryZipRoot + pom.getFileName()));
+    }
+
+    @Test
+    public void buildAndroidGradleArtifactHandoff(@org.junit.jupiter.api.io.TempDir Path fixtureDirectory)
+            throws IOException, ExtenderClientException {
+        Set<String> selectedPlatforms = TestUtils.selectedPlatforms();
+        assumeTrue(
+                selectedPlatforms.isEmpty()
+                        || selectedPlatforms.stream().anyMatch(platform -> platform.endsWith("-android")),
+                "This test is only run when an Android target is selected");
+        TestConfiguration configuration = latestAndroidConfiguration();
+
+        for (boolean useJetifier : List.of(true, false)) {
+            Path buildFixture = Files.createDirectory(
+                    fixtureDirectory.resolve(useJetifier ? "jetifier-on" : "jetifier-off"));
+            File destination = doBuild(
+                    gradleArtifactHandoffResources(buildFixture, configuration, useJetifier),
+                    configuration);
+
+            Set<String> dexClasses = getClassesDexClasses(destination);
+            assertTrue(dexClasses.containsAll(List.of(
+                    "Lcom/defold/GradleHandoffTest;",
+                    "Lcom/defold/JarDep;",
+                    "Lcom/defold/localaar/InnerJar;",
+                    "Lcom/defold/localaar/LocalAar;",
+                    "Lcom/defold/localaar/R;")));
+            String expectedAnnotation = useJetifier
+                    ? "Landroidx/annotation/Nullable;"
+                    : "Landroid/support/annotation/Nullable;";
+            String unexpectedAnnotation = useJetifier
+                    ? "Landroid/support/annotation/Nullable;"
+                    : "Landroidx/annotation/Nullable;";
+            assertTrue(dexClasses.contains(expectedAnnotation));
+            assertFalse(dexClasses.contains(unexpectedAnnotation));
+            try (ZipFile zipFile = new ZipFile(destination)) {
+                assertNotNull(zipFile.getEntry("assets/local_aar.txt"));
+                assertTrue(zipFile.stream().anyMatch(entry ->
+                        entry.getName().startsWith("packages/")
+                                && entry.getName().endsWith("/res/values/strings.xml")));
+                assertNotNull(zipFile.getEntry("gradle.lockfile"));
+                assertNotNull(zipFile.getEntry("gradle.dependencytree"));
+            }
+        }
     }
 
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")

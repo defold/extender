@@ -46,6 +46,24 @@ public class ExtenderTest {
                 Extender.getCompiledResourceDirectoryName(1, second));
     }
 
+    @Test
+    public void testReturnedResourcePackageNamesPreserveLegacyNamesAndResolveCollisions(
+            @TempDir File temporaryDirectory) {
+        List<String> resourceDirectories = List.of(
+                new File(temporaryDirectory, "first/common-1.0/res").getAbsolutePath(),
+                new File(temporaryDirectory, "second/common-1.0/res").getAbsolutePath(),
+                new File(temporaryDirectory, "third/common-1.0-0001/res").getAbsolutePath(),
+                new File(temporaryDirectory, "fourth/unique-1.0/res").getAbsolutePath());
+
+        assertEquals(
+                List.of(
+                        "common-1.0",
+                        "common-1.0-0001-1",
+                        "common-1.0-0001",
+                        "unique-1.0"),
+                Extender.getReturnedResourcePackageNames(resourceDirectories));
+    }
+
     static Map<String, String> createEnv()
     {
         Map<String, String> env = new HashMap<>();

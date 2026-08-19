@@ -1713,6 +1713,34 @@ class Extender {
         return String.format("%04d-%s", index, safePackageName);
     }
 
+    static List<String> getReturnedResourcePackageNames(List<String> resourceDirectories) {
+        List<String> baseNames = resourceDirectories.stream()
+                .map(File::new)
+                .map(File::getParentFile)
+                .map(directory -> directory == null ? "resources" : directory.getName())
+                .collect(Collectors.toList());
+        Set<String> reservedNames = new HashSet<>(baseNames);
+        Set<String> assignedNames = new HashSet<>();
+        List<String> result = new ArrayList<>();
+
+        for (int index = 0; index < baseNames.size(); index++) {
+            String baseName = baseNames.get(index);
+            if (assignedNames.add(baseName)) {
+                // Preserve the existing externally visible package name whenever possible.
+                result.add(baseName);
+                continue;
+            }
+
+            String candidate = String.format("%s-%04d", baseName, index);
+            int retry = 1;
+            while (reservedNames.contains(candidate) || !assignedNames.add(candidate)) {
+                candidate = String.format("%s-%04d-%d", baseName, index, retry++);
+            }
+            result.add(candidate);
+        }
+        return result;
+    }
+
     /**
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
@@ -2450,12 +2478,11 @@ class Extender {
         List<String> packagesList = new ArrayList<>();
 
         try {
-            int resourceDirectoryIndex = 0;
-            for (String androidResourceFolder : androidResourceFolders) {
+            List<String> packageNames = getReturnedResourcePackageNames(androidResourceFolders);
+            for (int index = 0; index < androidResourceFolders.size(); index++) {
+                String androidResourceFolder = androidResourceFolders.get(index);
                 File packageResourceDir = new File(androidResourceFolder);
-                String packageName = getCompiledResourceDirectoryName(
-                        resourceDirectoryIndex++,
-                        packageResourceDir);
+                String packageName = packageNames.get(index);
                 File targetDir = new File(packagesDir, packageName + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);
 
