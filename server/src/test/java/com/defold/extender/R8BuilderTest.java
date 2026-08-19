@@ -201,7 +201,9 @@ public class R8BuilderTest {
                 (command, context) -> {
                     captured.put("command", command);
                     try {
-                        Files.writeString(new File(buildDir, "classes.dex").toPath(), "dex");
+                        Files.writeString(
+                                new File((String) context.get("classes_dex_dir"), "classes.dex").toPath(),
+                                "dex");
                         Files.writeString(new File((String) context.get("mapping")).toPath(), "mapping");
                     } catch (IOException e) {
                         throw new ExtenderException(e, "Failed to create fake R8 outputs");
@@ -212,6 +214,7 @@ public class R8BuilderTest {
         return captured.get("command");
     }
 
+    // Verifies that only _app/app.keep opts into R8; app.pro and extension consumer rules alone do not.
     @Test
     public void testOnlyAppKeepRequestsR8(@TempDir File uploadDir) throws Exception {
         File appDir = new File(uploadDir, "_app");
@@ -219,10 +222,18 @@ public class R8BuilderTest {
         Files.writeString(new File(appDir, "app.pro").toPath(), "-keep class Legacy");
         assertFalse(R8Builder.isRequested(uploadDir));
 
+        File extensionRulesDir = new File(uploadDir, "extension/manifests/android");
+        assertTrue(extensionRulesDir.mkdirs());
+        Files.writeString(
+                new File(extensionRulesDir, "consumer.keep").toPath(),
+                "-keep class ExtensionConsumer");
+        assertFalse(R8Builder.isRequested(uploadDir));
+
         Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class Current");
         assertTrue(R8Builder.isRequested(uploadDir));
     }
 
+    // Verifies that a build without _app/app.keep skips R8 before requiring aapt rules or executing its command.
     @Test
     public void testNoAppKeepSkipsR8WithoutAaptRules(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -248,6 +259,7 @@ public class R8BuilderTest {
         assertNull(builder.build(List.of(), Map.of(), mainDexRules, null, null));
     }
 
+    // Verifies that pre-21 builds pass sanitized engine and aapt main-dex rules while API 21+ builds pass none.
     @Test
     public void testMainDexRulesAreOnlyPassedBelowApi21(@TempDir File tempDir) throws Exception {
         File api19Dir = new File(tempDir, "api19");
@@ -279,6 +291,7 @@ public class R8BuilderTest {
         assertFalse(api21Command.contains("--main-dex-rules"));
     }
 
+    // Verifies that R8/aapt commands preserve exact quoting and literals, conditional rule flags, and data resources.
     @Test
     public void testConfiguredCommandPreservesQuotedPathSpecialCharacters() throws Exception {
         File root = new File("test-data");
@@ -316,6 +329,7 @@ public class R8BuilderTest {
         List<String> arguments = CommandLineTokenizer.parse(rendered);
 
         assertFalse(rendered.contains("&amp;"));
+        assertFalse(arguments.contains("--no-data-resources"));
         assertTrue(rendered.contains("{{literal}}"));
         assertTrue(arguments.contains(r8Jar));
         assertTrue(arguments.contains(androidJar));
@@ -353,6 +367,7 @@ public class R8BuilderTest {
         assertTrue(aaptArguments.contains(aaptMainDexRules));
     }
 
+    // Verifies that requested R8 builds fail before command execution when aapt-generated keep rules are missing.
     @Test
     public void testMissingAaptGeneratedRulesIsAnError(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -391,6 +406,7 @@ public class R8BuilderTest {
         assertFalse(commandExecuted[0]);
     }
 
+    // Verifies that pre-21 R8 builds fail before command execution when aapt main-dex rules are missing.
     @Test
     public void testMissingPre21AaptMainDexRulesIsAnError(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -429,6 +445,7 @@ public class R8BuilderTest {
         assertFalse(commandExecuted[0]);
     }
 
+    // Verifies that aapt-generated keep rules pass the filesystem-directive policy before R8 can execute.
     @Test
     public void testAaptGeneratedRulesUseFilesystemPolicy(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -461,6 +478,7 @@ public class R8BuilderTest {
         assertFalse(commandExecuted[0]);
     }
 
+    // Verifies that aapt-generated main-dex rules pass the filesystem-directive policy before R8 can execute.
     @Test
     public void testAaptMainDexRulesUseFilesystemPolicy(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -502,6 +520,7 @@ public class R8BuilderTest {
         assertFalse(commandExecuted[0]);
     }
 
+    // Verifies that missing SDK R8 configuration is reported before secondary missing-rule validation.
     @Test
     public void testMissingR8ConfigurationIsReportedBeforeMissingAaptRules(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -532,6 +551,7 @@ public class R8BuilderTest {
         assertFalse(exception.getMessage().contains("aapt-generated.keep"));
     }
 
+    // Verifies that a blank resolved R8 path produces a clear configuration error without invoking R8.
     @Test
     public void testBlankResolvedR8EnvironmentProducesClearConfigurationError(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -569,6 +589,7 @@ public class R8BuilderTest {
         assertTrue(exception.getOutput().contains("does not provide r8Cmd and r8Version"));
     }
 
+    // Verifies that absent R8 command fields and malformed pinned versions are rejected with distinct errors.
     @Test
     public void testMissingConfigurationIsAnError() {
         ExtenderException missing = assertThrows(
@@ -582,6 +603,7 @@ public class R8BuilderTest {
         assertTrue(invalid.getMessage().contains("Invalid r8Version"));
     }
 
+    // Verifies that supported R8 rule-directory ranges and suffixes use inclusive from and exclusive upto matching.
     @Test
     public void testRuleVersionRanges() {
         assertTrue(R8Builder.isApplicableRuleDirectory("r8", "8.13.19"));
@@ -596,6 +618,7 @@ public class R8BuilderTest {
         assertFalse(R8Builder.isApplicableRuleDirectory("r8foo", "8.13.19"));
     }
 
+    // Verifies that targeted-rule selection is deterministic and falls back to legacy META-INF/proguard rules when needed.
     @Test
     public void testSelectTargetedRulesWithLegacyFallback(@TempDir File tempDir) throws Exception {
         Map<String, String> entries = new HashMap<>();
@@ -619,6 +642,7 @@ public class R8BuilderTest {
                 R8Builder.selectEmbeddedRuleEntries(legacyJar, "8.13.19"));
     }
 
+    // Verifies that pinned R8 handles prerelease, arbitrary, future, and lookalike rule-directory suffixes correctly.
     @Test
     public void testSelectTargetedRulesMatchesPinnedR8SuffixHandling(@TempDir File tempDir)
             throws Exception {
@@ -641,6 +665,7 @@ public class R8BuilderTest {
                 R8Builder.selectEmbeddedRuleEntries(jar, "8.13.19"));
     }
 
+    // Verifies that duplicate embedded consumer-rule entry names are rejected instead of being applied ambiguously.
     @Test
     public void testDuplicateEmbeddedRuleNamesAreRejected(@TempDir File tempDir) throws Exception {
         File jar = createJarWithDuplicateEntries(
@@ -656,6 +681,7 @@ public class R8BuilderTest {
         assertTrue(exception.getMessage().contains("Duplicate embedded R8 rule entry"));
     }
 
+    // Verifies that stripping consumer rules removes every supported rule namespace while preserving all other JAR entries.
     @Test
     public void testStripEmbeddedRulesRetainsAllOtherRawJarEntries(@TempDir File tempDir)
             throws Exception {
@@ -697,6 +723,7 @@ public class R8BuilderTest {
         }
     }
 
+    // Verifies that a JAR without embedded consumer rules is returned unchanged and no replacement JAR is written.
     @Test
     public void testStripEmbeddedRulesReturnsOriginalWhenNoRulesExist(@TempDir File tempDir)
             throws Exception {
@@ -713,6 +740,7 @@ public class R8BuilderTest {
         assertFalse(requestedOutput.exists());
     }
 
+    // Verifies that rule stripping preserves directory entries, compression methods, and retained entry contents.
     @Test
     public void testStripEmbeddedRulesPreservesStoredDeflatedAndDirectoryEntries(@TempDir File tempDir)
             throws Exception {
@@ -762,6 +790,7 @@ public class R8BuilderTest {
         }
     }
 
+    // Verifies that JAR discovery supports both locally unpacked AARs and AGP exploded-AAR directory layouts.
     @Test
     public void testAndroidPackageJarsSupportLocalAndAgpExplodedLayouts(@TempDir File tempDir)
             throws Exception {
@@ -789,6 +818,7 @@ public class R8BuilderTest {
                 R8Builder.getAndroidPackageJars(explodedAar));
     }
 
+    // Verifies that JAR/AAR consumer rules have deterministic ordering, targeted precedence, and proguard.txt fallback.
     @Test
     public void testCollectJarAndAarConsumerRulesDeterministically(@TempDir File tempDir) throws Exception {
         File standaloneJar = createJar(
@@ -824,6 +854,7 @@ public class R8BuilderTest {
                 contents);
     }
 
+    // Verifies that valid bytecode names generate protection rules across Unicode, package-info, and module edge cases.
     @Test
     public void testGeneratedRulesProtectValidJarClasses(@TempDir File tempDir) throws Exception {
         Map<String, byte[]> entries = new LinkedHashMap<>();
@@ -866,6 +897,7 @@ public class R8BuilderTest {
         assertFalse(contents.contains("module-info"));
     }
 
+    // Verifies that generated keep rules trust the class file's internal name rather than its potentially misleading ZIP path.
     @Test
     public void testGeneratedRulesUseClassFileNameInsteadOfZipEntryName(@TempDir File tempDir)
             throws Exception {
@@ -881,6 +913,7 @@ public class R8BuilderTest {
         assertFalse(contents.contains("x.Entry"));
     }
 
+    // Verifies that class-name metacharacters and directive-like text are neutralized in generated keep patterns.
     @Test
     public void testGeneratedRulesNeutralizeClassNameMetacharacters(@TempDir File tempDir)
             throws Exception {
@@ -913,6 +946,7 @@ public class R8BuilderTest {
         assertFalse(pattern.codePoints().anyMatch(Character::isWhitespace));
     }
 
+    // Verifies that a malicious ZIP entry name cannot inject directives when the bytecode contains a safe class name.
     @Test
     public void testGeneratedRulesIgnoreMaliciousZipEntryName(@TempDir File tempDir)
             throws Exception {
@@ -932,6 +966,7 @@ public class R8BuilderTest {
         assertEquals(2, contents.lines().count());
     }
 
+    // Verifies that malformed JVM internal class names are rejected without leaving a partial generated rules file.
     @ParameterizedTest
     @ValueSource(strings = {"p//Foo", "p/Foo.Bar", "p/Foo;Bar", "p/Foo[Bar", "/Foo", "Foo/"})
     public void testGeneratedRulesRejectMalformedInternalClassNames(
@@ -950,6 +985,7 @@ public class R8BuilderTest {
         assertFalse(output.exists());
     }
 
+    // Verifies that malformed class-file bytes produce a precise error and no generated rules output.
     @Test
     public void testGeneratedRulesRejectMalformedClassFile(@TempDir File tempDir) throws Exception {
         File jar = createJar(
@@ -966,6 +1002,7 @@ public class R8BuilderTest {
         assertFalse(output.exists());
     }
 
+    // Verifies that class-file header inflation is bounded before a compressed input can exhaust memory.
     @Test
     public void testGeneratedRulesBoundClassFileHeaderDecompression(@TempDir File tempDir)
             throws Exception {
@@ -982,6 +1019,7 @@ public class R8BuilderTest {
         assertFalse(output.exists());
     }
 
+    // Verifies that generated extension rules enforce the maximum number of enumerated classes.
     @Test
     public void testGeneratedRuleClassCountIsBoundedDuringJarEnumeration(@TempDir File tempDir)
             throws Exception {
@@ -1001,6 +1039,7 @@ public class R8BuilderTest {
         assertFalse(output.exists());
     }
 
+    // Verifies that generated extension rules enforce a total output-size budget during JAR enumeration.
     @Test
     public void testGeneratedRuleBytesAreBoundedDuringJarEnumeration(@TempDir File tempDir)
             throws Exception {
@@ -1021,6 +1060,7 @@ public class R8BuilderTest {
         assertFalse(output.exists());
     }
 
+    // Verifies that .keep discovery is recursive only under manifests/android and explicit rules disable automatic JAR protection.
     @Test
     public void testExtensionRuleDiscoveryIsRecursiveAndFolderScoped(@TempDir File tempDir) throws Exception {
         File extensionDir = new File(tempDir, "extension");
@@ -1046,6 +1086,7 @@ public class R8BuilderTest {
         assertTrue(context.protectedJars.isEmpty());
     }
 
+    // Verifies that a rules-only extension placeholder is never forwarded to R8 as a program JAR.
     @Test
     public void testRulesOnlyPlaceholderNeverBecomesAProgramJar() {
         R8Builder.ExtensionContext context = new R8Builder.ExtensionContext();
@@ -1056,6 +1097,7 @@ public class R8BuilderTest {
         assertEquals(List.of("/tmp/real.jar"), R8Builder.getCompiledJars(extensionJars));
     }
 
+    // Verifies that a full build assembles and sanitizes rules, strips consumer entries, and returns dex and mapping outputs.
     @Test
     public void testBuildAssemblesExtensionAndAarRulesAndReturnsMapping(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -1115,7 +1157,9 @@ public class R8BuilderTest {
                     executedCommand.put("command", command);
                     executedContext.putAll(context);
                     try {
-                        Files.writeString(new File(buildDir, "classes.dex").toPath(), "dex");
+                        Files.writeString(
+                                new File((String) context.get("classes_dex_dir"), "classes.dex").toPath(),
+                                "dex");
                         Files.writeString(new File((String) context.get("mapping")).toPath(), "mapping");
                     } catch (IOException e) {
                         throw new ExtenderException(e, "Failed to create fake R8 outputs");
@@ -1132,6 +1176,7 @@ public class R8BuilderTest {
         assertNotNull(output);
         assertEquals(List.of("classes.dex"), Arrays.stream(output.dexFiles).map(File::getName).toList());
         assertEquals("mapping.txt", output.mappingFile.getName());
+        assertEquals(0, output.metaInformationFiles.length);
         assertEquals(output.mappingFile.getAbsolutePath(), executedContext.get("mapping"));
 
         @SuppressWarnings("unchecked")
@@ -1205,6 +1250,7 @@ public class R8BuilderTest {
         }
     }
 
+    // Verifies that supported annotation-based R8 class and member specifications pass rule validation.
     @Test
     public void testRulePolicyAllowsAnnotationRules() {
         String rules = String.join("\n",
@@ -1223,6 +1269,7 @@ public class R8BuilderTest {
         assertDoesNotThrow(() -> R8RulePolicy.validateRules(rules, "safe.keep"));
     }
 
+    // Verifies that rule sanitization normalizes a BOM, uses an empty isolated base, and rejects a contaminated sandbox.
     @Test
     public void testSanitizedRuleUsesSeparateEmptyBaseAndNormalizesBom(@TempDir File tempDir)
             throws Exception {
@@ -1255,6 +1302,7 @@ public class R8BuilderTest {
         assertTrue(exception.getMessage().contains("sandbox is not empty"));
     }
 
+    // Verifies that the pinned R8-only class-spec options accepted by dependencies pass policy validation.
     @ParameterizedTest
     @ValueSource(strings = {
             "-alwaysinline",
@@ -1269,6 +1317,7 @@ public class R8BuilderTest {
                 "class-spec.keep"));
     }
 
+    // Verifies that direct and obfuscated filesystem directives are rejected across includes, paths, and output options.
     @ParameterizedTest
     @ValueSource(strings = {
             "@/etc/passwd",
@@ -1315,6 +1364,7 @@ public class R8BuilderTest {
         assertTrue(exception.getMessage().contains("forbidden filesystem directive"));
     }
 
+    // Verifies that the number of embedded consumer-rule files is bounded before extraction.
     @Test
     public void testEmbeddedRuleEntryCountIsBounded(@TempDir File tempDir) throws Exception {
         Map<String, String> entries = new LinkedHashMap<>();
@@ -1330,6 +1380,7 @@ public class R8BuilderTest {
         assertTrue(exception.getMessage().contains("Too many embedded R8 rule files"));
     }
 
+    // Verifies that expanded embedded rule data is size-bounded and leaves no partial extracted files on failure.
     @Test
     public void testEmbeddedRuleExpandedSizeIsBounded(@TempDir File tempDir) throws Exception {
         String oversizedRule = " ".repeat((int) R8RulePolicy.MAX_RULE_FILE_BYTES + 1);
@@ -1350,6 +1401,7 @@ public class R8BuilderTest {
         assertEquals(0, outputDir.listFiles().length);
     }
 
+    // Verifies that legacy embedded consumer rules are subjected to the same filesystem-directive policy as app rules.
     @Test
     public void testEmbeddedConsumerRuleUsesFilesystemPolicy(@TempDir File tempDir) throws Exception {
         File jar = createJar(
@@ -1367,6 +1419,7 @@ public class R8BuilderTest {
         assertTrue(exception.getMessage().contains("forbidden filesystem directive"));
     }
 
+    // Verifies that rules under malformed-but-applicable R8 suffix directories cannot bypass filesystem policy checks.
     @Test
     public void testMalformedR8SuffixConsumerRuleUsesFilesystemPolicy(@TempDir File tempDir)
             throws Exception {

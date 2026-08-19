@@ -2618,6 +2618,7 @@ class Extender {
         if (r8Output != null) {
             outputFiles.addAll(Arrays.asList(r8Output.dexFiles));
             outputFiles.add(r8Output.mappingFile);
+            outputFiles.addAll(Arrays.asList(r8Output.metaInformationFiles));
         } else {
             File[] classesDex = buildClassesDex(allJars, mainDexList);
             if (classesDex.length > 0) {
@@ -2629,7 +2630,9 @@ class Extender {
         outputFiles.addAll(copyAndroidAssetFolders(platform));
         outputFiles.addAll(copyAndroidJniFolders(platform));
 
-        outputFiles.addAll(copyMetaInformationFiles(allJars));
+        if (r8Output == null) {
+            outputFiles.addAll(copyMetaInformationFiles(allJars));
+        }
 
         return outputFiles;
     }

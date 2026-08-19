@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,10 +52,12 @@ final class R8Builder {
     static final class BuildOutput {
         final File[] dexFiles;
         final File mappingFile;
+        final File[] metaInformationFiles;
 
-        BuildOutput(File[] dexFiles, File mappingFile) {
+        BuildOutput(File[] dexFiles, File mappingFile, File[] metaInformationFiles) {
             this.dexFiles = dexFiles;
             this.mappingFile = mappingFile;
+            this.metaInformationFiles = metaInformationFiles;
         }
     }
 
@@ -831,6 +834,70 @@ final class R8Builder {
         return escaped;
     }
 
+    private File createR8OutputDirectory() throws ExtenderException {
+        File r8OutputDir = new File(buildDir, "r8-output");
+        try {
+            FileUtils.deleteDirectory(r8OutputDir);
+            Files.createDirectories(r8OutputDir.toPath());
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to create R8 output directory " + r8OutputDir);
+        }
+        return r8OutputDir;
+    }
+
+    private File moveR8OutputFile(File r8OutputDir, File source) throws ExtenderException, IOException {
+        String relativePath = r8OutputDir.toPath()
+                .relativize(source.toPath())
+                .toString()
+                .replace(File.separatorChar, '/');
+        File target = SandboxedPath.resolve(buildDir, relativePath);
+        Files.createDirectories(target.getParentFile().toPath());
+        Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        return target;
+    }
+
+    private File[] collectR8DexFiles(File r8OutputDir) throws ExtenderException {
+        File[] generatedDexFiles = ExtenderUtil.listFilesMatching(
+                r8OutputDir,
+                "^classes(|[0-9]+)\\.dex$");
+        Arrays.sort(generatedDexFiles, (left, right) -> left.getName().compareTo(right.getName()));
+
+        File[] dexFiles = new File[generatedDexFiles.length];
+        try {
+            for (int index = 0; index < generatedDexFiles.length; ++index) {
+                dexFiles[index] = moveR8OutputFile(r8OutputDir, generatedDexFiles[index]);
+            }
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to collect R8 dex output");
+        }
+        return dexFiles;
+    }
+
+    private File[] collectR8MetaInformationFiles(File r8OutputDir) throws ExtenderException {
+        File metaInfDir = new File(r8OutputDir, "META-INF");
+        if (!metaInfDir.isDirectory()) {
+            return new File[0];
+        }
+
+        List<File> generatedFiles = new ArrayList<>(FileUtils.listFiles(metaInfDir, null, true));
+        generatedFiles.sort((left, right) -> left.getAbsolutePath().compareTo(right.getAbsolutePath()));
+        List<File> metaInformationFiles = new ArrayList<>();
+        try {
+            for (File generatedFile : generatedFiles) {
+                String entryName = r8OutputDir.toPath()
+                        .relativize(generatedFile.toPath())
+                        .toString()
+                        .replace(File.separatorChar, '/');
+                if (ExtenderUtil.isMetaInfEntryValuable(new ZipEntry(entryName))) {
+                    metaInformationFiles.add(moveR8OutputFile(r8OutputDir, generatedFile));
+                }
+            }
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to collect R8 META-INF output");
+        }
+        return metaInformationFiles.toArray(File[]::new);
+    }
+
     BuildOutput build(
             List<String> allJars,
             Map<String, ExtensionContext> extensionJarMap,
@@ -955,9 +1022,10 @@ final class R8Builder {
         List<String> programJars = prepareProgramJars(
                 allJars,
                 new File(buildDir, "r8-program-jars"));
+        File r8OutputDir = createR8OutputDirectory();
         File mappingFile = new File(buildDir, "mapping.txt");
 
-        context.put("classes_dex_dir", buildDir.getAbsolutePath());
+        context.put("classes_dex_dir", r8OutputDir.getAbsolutePath());
         context.put("jars", programJars);
         context.put("rules", new ArrayList<>(ruleFiles));
         context.put("mainDexRules", mainDexRules);
@@ -975,11 +1043,11 @@ final class R8Builder {
         }
         commandExecutor.execute(r8Command, context);
 
-        File[] dexFiles = ExtenderUtil.listFilesMatching(buildDir, "^classes(|[0-9]+)\\.dex$");
-        Arrays.sort(dexFiles, (left, right) -> left.getName().compareTo(right.getName()));
+        File[] dexFiles = collectR8DexFiles(r8OutputDir);
         if (dexFiles.length == 0 || !mappingFile.isFile()) {
             throw new ExtenderException("R8 completed without producing classes.dex and mapping.txt");
         }
-        return new BuildOutput(dexFiles, mappingFile);
+        File[] metaInformationFiles = collectR8MetaInformationFiles(r8OutputDir);
+        return new BuildOutput(dexFiles, mappingFile, metaInformationFiles);
     }
 }

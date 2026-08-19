@@ -37,6 +37,7 @@ public class RealGradleServiceTest {
         }
     }
 
+    // Verifies that the Gradle template reuses AGP's exploded AARs and processed JARs and writes a structured artifact manifest.
     @Test
     public void testBuildTemplateReusesAgpArtifacts() throws Exception {
         String template = readResource("/template.build.gradle");
@@ -54,6 +55,7 @@ public class RealGradleServiceTest {
         assertFalse(template.contains("println \"PATH:"));
     }
 
+    // Verifies that AndroidX stays enabled even when Jetifier itself is disabled.
     @Test
     public void testAndroidXIsIndependentFromJetifier() throws Exception {
         String template = readResource("/template.gradle.properties");
@@ -63,6 +65,7 @@ public class RealGradleServiceTest {
         assertFalse(template.contains("android.useAndroidX={{android-enable-jetifier}}"));
     }
 
+    // Verifies that dependency resolution, reporting, and lock generation use one deterministic Gradle invocation.
     @Test
     public void testDependencyResolutionAndReportShareOneGradleInvocation() {
         assertEquals(
@@ -80,6 +83,7 @@ public class RealGradleServiceTest {
                 RealGradleService.getGradleResolveCommand());
     }
 
+    // Verifies that artifact-manifest parsing preserves canonical Gradle cache paths, metadata, ordering, and de-duplicates entries.
     @Test
     @SuppressWarnings("unchecked")
     public void testArtifactManifestReturnsGradleCachePathsDirectly(@TempDir Path temporaryDirectory)
@@ -142,6 +146,7 @@ public class RealGradleServiceTest {
         assertNull(artifacts.get(3).getResourcePackageName());
     }
 
+    // Verifies that missing artifact paths and malformed artifact-manifest JSON are rejected with Extender errors.
     @Test
     @SuppressWarnings("unchecked")
     public void testArtifactManifestRejectsInvalidEntries(@TempDir Path temporaryDirectory)
@@ -165,6 +170,7 @@ public class RealGradleServiceTest {
                 () -> RealGradleService.parseGradleArtifacts(manifestFile.toFile()));
     }
 
+    // Verifies that an empty dependency set skips Gradle while still emitting empty lock and explanatory dependency reports.
     @Test
     public void testNoDependenciesSkipsGradle(@TempDir Path temporaryDirectory) throws Exception {
         Path jobDirectory = Files.createDirectory(temporaryDirectory.resolve("job"));

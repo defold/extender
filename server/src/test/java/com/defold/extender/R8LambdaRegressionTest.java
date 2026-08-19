@@ -76,6 +76,7 @@ public class R8LambdaRegressionTest {
         }
     }
 
+    // Verifies that pinned R8 8.13.19 desugars a real Java 8 lambda without requiring LambdaMetafactory or suppression rules.
     @Test
     void pinnedR8CompilesJava8LambdaWithoutLambdaMetafactorySuppression(@TempDir Path tempDir)
             throws Exception {

@@ -646,6 +646,7 @@ public class IntegrationTest {
                 new FileExtenderResource(pom.toString(), repositoryZipRoot + pom.getFileName()));
     }
 
+    // Verifies that AAR and classifier-JAR artifacts survive Gradle handoff, Jetifier selection, dexing, and packaging end to end.
     @Test
     public void buildAndroidGradleArtifactHandoff(@org.junit.jupiter.api.io.TempDir Path fixtureDirectory)
             throws IOException, ExtenderClientException {

@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 
 public class ExtenderTest {
+    // Verifies that compiled Android resource directories include their input index so equal AAR names cannot collide.
     @Test
     public void testCompiledResourceDirectoryNamesAreCollisionSafe(@TempDir File temporaryDirectory) {
         File first = new File(temporaryDirectory, "first/common-1.0/res");
@@ -46,6 +47,7 @@ public class ExtenderTest {
                 Extender.getCompiledResourceDirectoryName(1, second));
     }
 
+    // Verifies that returned resource packages keep legacy names when unique and add deterministic suffixes on collisions.
     @Test
     public void testReturnedResourcePackageNamesPreserveLegacyNamesAndResolveCollisions(
             @TempDir File temporaryDirectory) throws IOException {
@@ -64,6 +66,7 @@ public class ExtenderTest {
                 Extender.getReturnedResourcePackageNames(resourceDirectories, Map.of()));
     }
 
+    // Verifies that Gradle artifact identities, rather than transient exploded-directory names, determine returned package names.
     @Test
     public void testReturnedResourcePackageNamesUseGradleArtifactIdentity(
             @TempDir File temporaryDirectory) throws IOException {
@@ -311,6 +314,7 @@ public class ExtenderTest {
         return env;
     }
 
+    // Verifies that the Android SDK fixture uses only R8 configuration and discovers only the new .keep rule format.
     @Test
     @SuppressWarnings("deprecation")
     public void testAndroidSdkUsesOnlyR8Configuration() throws Exception {
@@ -339,6 +343,7 @@ public class ExtenderTest {
         assertEquals(List.of(new File("manifests/android/extension.keep")), rules);
     }
 
+    // Verifies that aapt2 main-dex rules are requested only by _app/app.keep for Android API levels below 21.
     @Test
     public void testAaptMainDexRulesRequireExactAppKeepAndPre21Api(@TempDir File uploadDir)
             throws Exception {
@@ -355,6 +360,7 @@ public class ExtenderTest {
         assertFalse(Extender.shouldGenerateAaptMainDexRules(uploadDir, 35));
     }
 
+    // Verifies that an Android build without _app/app.keep can initialize without any R8 path or version in the environment.
     @Test
     public void testAndroidWithoutKeepDoesNotRequireR8Environment(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -375,6 +381,7 @@ public class ExtenderTest {
                 .build());
     }
 
+    // Verifies that resolved R8 environment values are carried literally into the command context without a second template pass.
     @Test
     public void testAndroidR8EnvironmentIsResolvedOnce(@TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
@@ -403,6 +410,7 @@ public class ExtenderTest {
         assertEquals("8.13.19", r8BuilderContext.get("env.R8_VERSION"));
     }
 
+    // Verifies that legacy ProGuard-era SDK YAML still loads while app.pro remains ignored and does not request R8.
     @Test
     @SuppressWarnings("deprecation")
     public void testLegacyAndroidSdkProguardConfigurationIsAcceptedAndIgnored(@TempDir File tempDir) throws Exception {
@@ -416,7 +424,7 @@ public class ExtenderTest {
                         "        PROGUARD:                 \"{{env.ANDROID_PROGUARD}}\"\n"
                                 + "        LIBRARYJAR:               \"{{env.ANDROID_LIBRARYJAR}}\"\n")
                 .replace(
-                        "    r8Cmd: 'java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib \"{{{env.LIBRARYJAR}}}\" {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules \"{{{.}}}\" {{/mainDexRules}}{{/useMainDexRules}}--pg-map-output \"{{{mapping}}}\" --no-data-resources --output \"{{{classes_dex_dir}}}\" {{#rules}}--pg-conf \"{{{.}}}\" {{/rules}} {{#jars}}\"{{{.}}}\" {{/jars}}'\n"
+                        "    r8Cmd: 'java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib \"{{{env.LIBRARYJAR}}}\" {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules \"{{{.}}}\" {{/mainDexRules}}{{/useMainDexRules}}--pg-map-output \"{{{mapping}}}\" --output \"{{{classes_dex_dir}}}\" {{#rules}}--pg-conf \"{{{.}}}\" {{/rules}} {{#jars}}\"{{{.}}}\" {{/jars}}'\n"
                                 + "    r8Version: '{{env.R8_VERSION}}'\n"
                                 + "    r8RuleSourceRe: '(?i).+(\\.keep)$'\n",
                         "    proGuardCmd: 'legacy-proguard-command'\n"
@@ -476,6 +484,7 @@ public class ExtenderTest {
                 .build());
     }
 
+    // Verifies that embedded consumer-rule entries are excluded from runtime META-INF copying without excluding unrelated metadata.
     @Test
     public void testConsumerRulesAreNotCopiedAsRuntimeMetaInfResources() {
         assertFalse(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/proguard/rules.pro")));
