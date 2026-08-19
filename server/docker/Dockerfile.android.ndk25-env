@@ -13,7 +13,6 @@ ARG ANDROID_NDK25_BIN_PATH=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-
 ARG ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
 ARG ANDROID_SDK_BUILD_TOOLS_PATH_34=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_34}
 ARG ANDROID_SDK_BUILD_TOOLS_PATH_35=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION_35}
-ARG R8_VERSION=8.13.19
 
 FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.1.0 AS build
 
@@ -36,7 +35,7 @@ ARG ANDROID_SDK_BUILD_TOOLS_PATH_35
 ARG ANDROID_SDK_FILENAME_34=android-sdk-linux-android-${ANDROID_SDK_VERSION_34}-${ANDROID_BUILD_TOOLS_VERSION_34}.tar.gz
 ARG ANDROID_SDK_FILENAME_35=android-sdk-linux-android-${ANDROID_SDK_VERSION_35}-${ANDROID_BUILD_TOOLS_VERSION_35}.tar.gz
 ARG ANDROID_NDK25_FILENAME=android-ndk-r${ANDROID_NDK25_VERSION}-linux.tar.gz
-ARG R8_VERSION
+ARG R8_VERSION=8.7.0-dev
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
@@ -91,7 +90,6 @@ ARG ANDROID_NDK25_BIN_PATH
 ARG ANDROID_SDK_HOME
 ARG ANDROID_SDK_BUILD_TOOLS_PATH_34
 ARG ANDROID_SDK_BUILD_TOOLS_PATH_35
-ARG R8_VERSION
 
 ENV ANDROID_ROOT=${ANDROID_ROOT} \
 # ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
@@ -133,8 +131,7 @@ ENV ANDROID_ROOT=${ANDROID_ROOT} \
     ANDROID_NDK_PATH=${ANDROID_NDK25_PATH} \
     ANDROID_NDK_BIN_PATH=${ANDROID_NDK25_BIN_PATH} \
     ANDROID_NDK_SYSROOT=${ANDROID_NDK25_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
-    ANDROID_R8=${ANDROID_SDK_BUILD_TOOLS_PATH_35}/lib/d8.jar \
-    ANDROID_R8_VERSION=${R8_VERSION} \
+    ANDROID_PROGUARD=/usr/share/java/proguard.jar \
 # We specify it in build_input.yml by setting it the first in PATH for new SDK
 # But at least one SDK should be specified by default in Dockerfile
     PATH=${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH_34}:${ANDROID_NDK25_BIN_PATH}
@@ -142,9 +139,16 @@ ENV ANDROID_ROOT=${ANDROID_ROOT} \
 COPY --from=build ${ANDROID_ROOT} ${ANDROID_ROOT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends proguard && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* && \
 # Since dotnet cannot really cross compile, we need to create a "ar" shim for "llvm-ar"
 # As long as it's in the path, it will be picked up
-RUN echo '#!/usr/bin/env bash' > /usr/bin/ar && \
+  echo '#!/usr/bin/env bash' > /usr/bin/ar && \
   LLVM_AR=$(find /opt/platformsdk/android -iname "llvm-ar" | tail -1) && \
   echo "${LLVM_AR} \$*" >> /usr/bin/ar && \
   chmod +x /usr/bin/ar
