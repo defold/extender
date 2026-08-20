@@ -208,6 +208,27 @@ Tags should be in the following format:
 
 For more details see [application workflow](../.github/workflows/application-build.yml).
 
+## Development snapshots
+Every push to `dev` that touches Java or Gradle sources rebuilds all three jars and refreshes a
+single rolling GitHub pre-release tagged **`dev-snapshot`**. The asset names are stable, so the
+download URLs never change:
+
+* https://github.com/defold/extender/releases/download/dev-snapshot/extender-snapshot.jar
+* https://github.com/defold/extender/releases/download/dev-snapshot/manifestmergetool-snapshot.jar
+* https://github.com/defold/extender/releases/download/dev-snapshot/extender-client-snapshot.jar
+
+The tag is force-moved to the commit it was built from, and the release notes name that commit.
+The server jar also carries its own provenance - `com.defold.extender.Version` holds `gitVersion`,
+`buildTime` and `appVersion` (e.g. `2.15.2-SNAPSHOT`, the next patch after the newest
+`extender-v*` tag).
+
+Snapshots are **not** supported releases: they are unsigned, are not published to the Maven
+repository, and are verified by unit tests only - the workflow runs with
+`-PexcludeTags="integration"`, so the integration and auth suites (which need the full Docker
+toolchain stack) only run on tagged releases.
+
+For more details see [snapshot workflow](../.github/workflows/snapshot-release.yml).
+
 ## How to change and release new version of Docker image
 As an example here is how to change Android NDK25 Docker image.
 1. Make changes in `server/docker/Dockerfile.android.ndk25-env` file and save it.
