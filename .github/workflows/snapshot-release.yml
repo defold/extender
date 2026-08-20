@@ -59,6 +59,9 @@ jobs:
         CLIENT_VERSION="$(next_patch 'client-v*' '0.5.0')-SNAPSHOT"
         MANIFESTMERGETOOL_VERSION="$(next_patch 'manifestmergetool-v*' '0.5.0')-SNAPSHOT"
 
+        # baseline for the "merged PRs since last release" section of the notes
+        echo "previous_tag=$(git tag -l 'extender-v*' --sort=-v:refname | head -1)" >> $GITHUB_OUTPUT
+
         echo "extender=${EXTENDER_VERSION}" >> $GITHUB_OUTPUT
         echo "client=${CLIENT_VERSION}" >> $GITHUB_OUTPUT
         echo "manifestmergetool=${MANIFESTMERGETOOL_VERSION}" >> $GITHUB_OUTPUT
@@ -120,9 +123,29 @@ jobs:
         CLIENT_VERSION: ${{ steps.version.outputs.client }}
         MANIFESTMERGETOOL_VERSION: ${{ steps.version.outputs.manifestmergetool }}
         SHORT_SHA: ${{ steps.version.outputs.short_sha }}
+        PREVIOUS_TAG: ${{ steps.version.outputs.previous_tag }}
       run: |
         NOTES_FILE="${RUNNER_TEMP}/snapshot-notes.md"
         DOWNLOAD_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${SNAPSHOT_TAG}"
+
+        git tag -f "${SNAPSHOT_TAG}" "${GITHUB_SHA}"
+        git push -f origin "refs/tags/${SNAPSHOT_TAG}"
+
+        # Let GitHub build the merged-PR list, so it matches what --generate-notes produces on a
+        # real release (authors, labels/categories, new contributors, compare link). Baseline is
+        # the newest extender-v* tag; with none, GitHub falls back to the previous release.
+        # Non-fatal: a snapshot is still worth publishing without its changelog.
+        NOTES_API_ARGS=(-X POST -f tag_name="${SNAPSHOT_TAG}" -f target_commitish="${GITHUB_SHA}")
+        if [ -n "${PREVIOUS_TAG}" ]; then
+          NOTES_API_ARGS+=(-f previous_tag_name="${PREVIOUS_TAG}")
+        fi
+        # gh api writes the error body to stdout on failure, so guard on the exit status too -
+        # otherwise a 404 payload would be pasted straight into the release notes.
+        if ! CHANGELOG="$(gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" "${NOTES_API_ARGS[@]}" --jq '.body' 2>/dev/null)" || [ -z "${CHANGELOG}" ]; then
+          CHANGELOG=""
+          echo "::warning::could not generate the merged-PR list; publishing notes without it"
+        fi
+
         {
           printf '%s\n\n' 'Rolling build of the latest `dev` commit. **Not a supported release** - unsigned, and verified by unit tests only (the integration suite runs on tagged releases).'
           printf '| Artifact | Version | Download |\n'
@@ -132,10 +155,10 @@ jobs:
           printf '| client | `%s` | [extender-client-snapshot.jar](%s/extender-client-snapshot.jar) |\n\n' "${CLIENT_VERSION}" "${DOWNLOAD_URL}"
           printf '**Commit** [`%s`](%s/%s/commit/%s) - %s\n\n' "${SHORT_SHA}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_SHA}" "$(git log -1 --pretty=%s)"
           printf '**Built** %s from [run #%s](%s/%s/actions/runs/%s)\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "${GITHUB_RUN_NUMBER}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_RUN_ID}"
+          if [ -n "${CHANGELOG}" ]; then
+            printf '\n---\n\n%s\n' "${CHANGELOG}"
+          fi
         } > "${NOTES_FILE}"
-
-        git tag -f "${SNAPSHOT_TAG}" "${GITHUB_SHA}"
-        git push -f origin "refs/tags/${SNAPSHOT_TAG}"
 
         if ! gh release view "${SNAPSHOT_TAG}" > /dev/null 2>&1; then
           gh release create "${SNAPSHOT_TAG}" \
