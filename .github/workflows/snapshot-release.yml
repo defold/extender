@@ -1,0 +1,165 @@
+name: Snapshot release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'dev'
+    paths:
+      - '**/*.java'
+      - '**/*.gradle'
+      - 'gradle/wrapper/**'
+      - 'server/src/main/resources/**'
+      - '.github/workflows/snapshot-release.yml'
+
+concurrency:
+  group: snapshot-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  SNAPSHOT_TAG: dev-snapshot
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # full history so the version step can see the extender-v*/client-v*/manifestmergetool-v* tags
+        fetch-depth: 0
+
+    - name: Generate version
+      id: version
+      run: |
+        SHORT_SHA="$(echo ${GITHUB_SHA} | cut -c1-8)"
+
+        # Newest release tag for an artifact, patch-bumped. The hardcoded defaults in the build
+        # files (server 1.4.47, client/manifestmergetool 0.5.0) are stale, so derive from git.
+        next_patch() {
+          local glob="$1" fallback="$2" tag ver major minor patch
+          tag="$(git tag -l "${glob}" --sort=-v:refname | head -1)"
+          if [ -z "${tag}" ]; then
+            echo "${fallback}"
+            return
+          fi
+          ver="${tag#*-v}"
+          major="${ver%%.*}"
+          patch="${ver##*.}"
+          minor="${ver#*.}"; minor="${minor%%.*}"
+          echo "${major}.${minor}.$((patch + 1))"
+        }
+
+        EXTENDER_VERSION="$(next_patch 'extender-v*' '1.4.47')-SNAPSHOT"
+        CLIENT_VERSION="$(next_patch 'client-v*' '0.5.0')-SNAPSHOT"
+        MANIFESTMERGETOOL_VERSION="$(next_patch 'manifestmergetool-v*' '0.5.0')-SNAPSHOT"
+
+        echo "extender=${EXTENDER_VERSION}" >> $GITHUB_OUTPUT
+        echo "client=${CLIENT_VERSION}" >> $GITHUB_OUTPUT
+        echo "manifestmergetool=${MANIFESTMERGETOOL_VERSION}" >> $GITHUB_OUTPUT
+        echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+        # consumed by server/build.gradle:createVersionFile -> Version.gitVersion
+        echo "COMMIT_SHORT_SHA=${SHORT_SHA}" >> $GITHUB_ENV
+
+        echo "server=${EXTENDER_VERSION} client=${CLIENT_VERSION} manifestmergetool=${MANIFESTMERGETOOL_VERSION}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Install Java
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      with:
+        java-version: '25'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+    # only unit tests
+    - name: Build and test jars
+      run: |
+        ./gradlew \
+          -PextenderVersion=${{ steps.version.outputs.extender }} \
+          -PclientVersion=${{ steps.version.outputs.client }} \
+          -PmanifestMergetoolVersion=${{ steps.version.outputs.manifestmergetool }} \
+          -PexcludeTags="integration" \
+          server:bootJar :manifestmergetool:mainJar client:jar \
+          server:test client:test :manifestmergetool:test
+
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: snapshot-test-result
+        path: ${{ github.workspace }}/server/build/reports/tests/
+        retention-days: 10
+
+    # Fixed asset names so the download URLs never change. The build sha and versions live in
+    # the release notes, and Version.java bakes them into the server jar itself.
+    - name: Prepare jars for GH release
+      run: |
+        mkdir -p ${{ github.workspace }}/gh_release
+        cp ${{ github.workspace }}/server/build/libs/extender-${{ steps.version.outputs.extender }}.jar \
+          ${{ github.workspace }}/gh_release/extender-snapshot.jar
+        cp ${{ github.workspace }}/server/manifestmergetool/build/libs/manifestmergetool-${{ steps.version.outputs.manifestmergetool }}.jar \
+          ${{ github.workspace }}/gh_release/manifestmergetool-snapshot.jar
+        cp ${{ github.workspace }}/client/build/libs/extender-client-${{ steps.version.outputs.client }}.jar \
+          ${{ github.workspace }}/gh_release/extender-client-snapshot.jar
+        chmod 0444 ${{ github.workspace }}/gh_release/*.jar
+        ls -l ${{ github.workspace }}/gh_release
+
+    # The release is edited in place rather than deleted and recreated: recreating it would fire
+    # a "new release" notification at every repo watcher on each push to dev.
+    - name: Publish to Github pre-release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        EXTENDER_VERSION: ${{ steps.version.outputs.extender }}
+        CLIENT_VERSION: ${{ steps.version.outputs.client }}
+        MANIFESTMERGETOOL_VERSION: ${{ steps.version.outputs.manifestmergetool }}
+        SHORT_SHA: ${{ steps.version.outputs.short_sha }}
+      run: |
+        NOTES_FILE="${RUNNER_TEMP}/snapshot-notes.md"
+        DOWNLOAD_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${SNAPSHOT_TAG}"
+        {
+          printf '%s\n\n' 'Rolling build of the latest `dev` commit. **Not a supported release** - unsigned, and verified by unit tests only (the integration suite runs on tagged releases).'
+          printf '| Artifact | Version | Download |\n'
+          printf '| --- | --- | --- |\n'
+          printf '| server | `%s` | [extender-snapshot.jar](%s/extender-snapshot.jar) |\n' "${EXTENDER_VERSION}" "${DOWNLOAD_URL}"
+          printf '| manifestmergetool | `%s` | [manifestmergetool-snapshot.jar](%s/manifestmergetool-snapshot.jar) |\n' "${MANIFESTMERGETOOL_VERSION}" "${DOWNLOAD_URL}"
+          printf '| client | `%s` | [extender-client-snapshot.jar](%s/extender-client-snapshot.jar) |\n\n' "${CLIENT_VERSION}" "${DOWNLOAD_URL}"
+          printf '**Commit** [`%s`](%s/%s/commit/%s) - %s\n\n' "${SHORT_SHA}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_SHA}" "$(git log -1 --pretty=%s)"
+          printf '**Built** %s from [run #%s](%s/%s/actions/runs/%s)\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "${GITHUB_RUN_NUMBER}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_RUN_ID}"
+        } > "${NOTES_FILE}"
+
+        git tag -f "${SNAPSHOT_TAG}" "${GITHUB_SHA}"
+        git push -f origin "refs/tags/${SNAPSHOT_TAG}"
+
+        if ! gh release view "${SNAPSHOT_TAG}" > /dev/null 2>&1; then
+          gh release create "${SNAPSHOT_TAG}" \
+            --prerelease \
+            --title "Development snapshot (dev)" \
+            --notes-file "${NOTES_FILE}"
+        fi
+
+        # --latest=false is belt-and-braces: pre-releases are already excluded from "Latest",
+        # so the newest extender-v* release keeps that badge.
+        gh release edit "${SNAPSHOT_TAG}" \
+          --prerelease \
+          --latest=false \
+          --title "Development snapshot (dev)" \
+          --notes-file "${NOTES_FILE}"
+
+        gh release upload "${SNAPSHOT_TAG}" ${{ github.workspace }}/gh_release/*.jar --clobber
+
+        cat "${NOTES_FILE}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Notify if build failed
+      uses: lazy-actions/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
+      if: failure()
+      with:
+        type: ${{ job.status }}
+        job_name: 'Extender dev snapshot'
+        channel: '#defold-alarms-build'
+        url: ${{ secrets.SLACK_WEBHOOK }}
