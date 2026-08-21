@@ -211,9 +211,7 @@ public class R8ServiceLoaderRegressionTest {
         R8Builder.BuildOutput output = builder.build(
                 List.of(programJar.toString()),
                 Map.of(),
-                null,
-                aaptRules.toFile(),
-                null);
+                aaptRules.toFile());
 
         assertEquals(1, output.dexFiles.length);
         assertEquals(buildDir.resolve("classes.dex"), output.dexFiles[0].toPath());

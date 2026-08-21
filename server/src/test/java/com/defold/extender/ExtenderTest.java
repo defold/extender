@@ -324,15 +324,14 @@ public class ExtenderTest {
         PlatformConfig android = mergePlatformConfig(config, "armv7-android");
 
         assertTrue(android.r8Cmd.contains("com.android.tools.r8.R8"));
-        assertTrue(android.r8Cmd.contains("{{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules"));
+        assertFalse(android.r8Cmd.contains("--main-dex-rules"));
         assertTrue(android.r8Cmd.contains("--pg-conf \"{{{.}}}\""));
         assertTrue(android.r8Cmd.contains("{{#jars}}\"{{{.}}}\""));
         assertTrue(android.dxCmd.contains("--min-api {{minAndroidSdkVersion}}"));
         assertEquals("{{env.R8_VERSION}}", android.r8Version);
         assertEquals("(?i).+(\\.keep)$", android.r8RuleSourceRe);
         assertTrue(android.aapt2linkCmd.contains("{{#useR8}}--proguard \"{{{aaptKeepRules}}}\""));
-        assertTrue(android.aapt2linkCmd.contains(
-                "{{#useR8MainDexRules}}--proguard-main-dex \"{{{aaptMainDexRules}}}\""));
+        assertFalse(android.aapt2linkCmd.contains("--proguard-main-dex"));
         assertNull(android.proGuardCmd);
         assertNull(android.proGuardSourceRe);
 
@@ -341,23 +340,6 @@ public class ExtenderTest {
                 new File("manifests/android/extension.pro"));
         List<File> rules = ExtenderUtil.filterFiles(candidates, android.r8RuleSourceRe);
         assertEquals(List.of(new File("manifests/android/extension.keep")), rules);
-    }
-
-    // Verifies that aapt2 main-dex rules are requested only by _app/app.keep for Android API levels below 21.
-    @Test
-    public void testAaptMainDexRulesRequireExactAppKeepAndPre21Api(@TempDir File uploadDir)
-            throws Exception {
-        File appDir = new File(uploadDir, "_app");
-        assertTrue(appDir.mkdirs());
-
-        Files.writeString(new File(appDir, "app.pro").toPath(), "-keep class Legacy");
-        assertFalse(Extender.shouldGenerateAaptMainDexRules(uploadDir, 19));
-
-        Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class Current");
-        assertTrue(Extender.shouldGenerateAaptMainDexRules(uploadDir, 19));
-        assertTrue(Extender.shouldGenerateAaptMainDexRules(uploadDir, 20));
-        assertFalse(Extender.shouldGenerateAaptMainDexRules(uploadDir, 21));
-        assertFalse(Extender.shouldGenerateAaptMainDexRules(uploadDir, 35));
     }
 
     // Verifies that an Android build without _app/app.keep can initialize without any R8 path or version in the environment.
@@ -424,14 +406,13 @@ public class ExtenderTest {
                         "        PROGUARD:                 \"{{env.ANDROID_PROGUARD}}\"\n"
                                 + "        LIBRARYJAR:               \"{{env.ANDROID_LIBRARYJAR}}\"\n")
                 .replace(
-                        "    r8Cmd: 'java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib \"{{{env.LIBRARYJAR}}}\" {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules \"{{{.}}}\" {{/mainDexRules}}{{/useMainDexRules}}--pg-map-output \"{{{mapping}}}\" --output \"{{{classes_dex_dir}}}\" {{#rules}}--pg-conf \"{{{.}}}\" {{/rules}} {{#jars}}\"{{{.}}}\" {{/jars}}'\n"
+                        "    r8Cmd: 'java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib \"{{{env.LIBRARYJAR}}}\" --pg-map-output \"{{{mapping}}}\" --output \"{{{classes_dex_dir}}}\" {{#rules}}--pg-conf \"{{{.}}}\" {{/rules}} {{#jars}}\"{{{.}}}\" {{/jars}}'\n"
                                 + "    r8Version: '{{env.R8_VERSION}}'\n"
                                 + "    r8RuleSourceRe: '(?i).+(\\.keep)$'\n",
                         "    proGuardCmd: 'legacy-proguard-command'\n"
                                 + "    proGuardSourceRe: '(?i).+(\\.pro)$'\n")
                 .replace(
-                        " {{#useR8}}--proguard \"{{{aaptKeepRules}}}\" {{/useR8}}"
-                                + "{{#useR8MainDexRules}}--proguard-main-dex \"{{{aaptMainDexRules}}}\" {{/useR8MainDexRules}}",
+                        " {{#useR8}}--proguard \"{{{aaptKeepRules}}}\" {{/useR8}}",
                         " ");
 
         File sdk = new File(tempDir, "legacy-sdk");
@@ -448,7 +429,6 @@ public class ExtenderTest {
         assertNull(android.r8Cmd);
         assertFalse(android.aapt2linkCmd.contains("useR8"));
         assertFalse(android.aapt2linkCmd.contains("aaptKeepRules"));
-        assertFalse(android.aapt2linkCmd.contains("aaptMainDexRules"));
         assertFalse(android.aapt2linkCmd.contains("--proguard"));
 
         File uploadWithoutProguard = new File(tempDir, "upload-without-proguard");

@@ -814,14 +814,13 @@ final class R8Builder {
                 "env.R8",
                 "env.LIBRARYJAR",
                 "classes_dex_dir",
-                "mainDexList",
                 "mapping")) {
             Object value = escaped.get(key);
             if (value instanceof String) {
                 escaped.put(key, escapeDoubleQuotedCommandValue((String) value));
             }
         }
-        for (String key : List.of("jars", "rules", "mainDexRules")) {
+        for (String key : List.of("jars", "rules")) {
             Object value = escaped.get(key);
             if (value instanceof List<?>) {
                 List<String> escapedValues = ((List<?>) value).stream()
@@ -901,9 +900,7 @@ final class R8Builder {
     BuildOutput build(
             List<String> allJars,
             Map<String, ExtensionContext> extensionJarMap,
-            File mainDexList,
-            File aaptGeneratedRules,
-            File aaptMainDexRules) throws ExtenderException {
+            File aaptGeneratedRules) throws ExtenderException {
         File appRules = new File(uploadDir, APP_RULES_PATH);
         if (!isRequested(uploadDir)) {
             LOGGER.info("No app.keep file present. Skipping R8 step.");
@@ -931,17 +928,6 @@ final class R8Builder {
             throw new ExtenderException(
                     "R8 shrinking was requested, but aapt2 did not generate aapt-generated.keep");
         }
-        if (minAndroidSdkVersion < 21) {
-            if (mainDexList == null || !mainDexList.isFile()) {
-                throw new ExtenderException(
-                        "R8 shrinking was requested below API 21, but the engine main-dex rules are missing");
-            }
-            if (aaptMainDexRules == null || !aaptMainDexRules.isFile()) {
-                throw new ExtenderException(
-                        "R8 shrinking was requested below API 21, but aapt2 did not generate aapt-main-dex-generated.keep");
-            }
-        }
-
         LOGGER.info("Building classes.dex using R8 {}", r8Version);
 
         Set<String> ruleFiles = new LinkedHashSet<>();
@@ -960,19 +946,6 @@ final class R8Builder {
                 R8RulePolicy.readAndValidate(aaptGeneratedRules, ruleBudget),
                 emptyRuleBase);
         ruleFiles.add(sanitizedAaptRules.getAbsolutePath());
-
-        List<String> mainDexRules = new ArrayList<>();
-        if (minAndroidSdkVersion < 21) {
-            File sanitizedAaptMainDexRules = new File(
-                    sanitizedRulesDir,
-                    "aapt-main-dex-generated.keep");
-            R8RulePolicy.writeSanitized(
-                    sanitizedAaptMainDexRules,
-                    R8RulePolicy.readAndValidate(aaptMainDexRules, ruleBudget),
-                    emptyRuleBase);
-            mainDexRules.add(mainDexList.getAbsolutePath());
-            mainDexRules.add(sanitizedAaptMainDexRules.getAbsolutePath());
-        }
 
         Set<String> seenUntrustedRules = new LinkedHashSet<>();
         int sanitizedExtensionRuleIndex = 0;
@@ -1028,8 +1001,6 @@ final class R8Builder {
         context.put("classes_dex_dir", r8OutputDir.getAbsolutePath());
         context.put("jars", programJars);
         context.put("rules", new ArrayList<>(ruleFiles));
-        context.put("mainDexRules", mainDexRules);
-        context.put("useMainDexRules", !mainDexRules.isEmpty());
         context.put("mapping", mappingFile.getAbsolutePath());
         context.put("minAndroidSdkVersion", minAndroidSdkVersion);
         R8RulePolicy.requireEmptyBaseDirectory(emptyRuleBase);

@@ -1793,10 +1793,6 @@ class Extender {
         return outputDirectory;
     }
 
-    static boolean shouldGenerateAaptMainDexRules(File uploadDir, int minAndroidSdkVersion) {
-        return R8Builder.isRequested(uploadDir) && minAndroidSdkVersion < 21;
-    }
-
     private Map<String, File> linkAndroidResources(File compiledResourcesDir, Map<String, Object> mergedAppContext) throws ExtenderException {
         LOGGER.info("Linking Android resources");
 
@@ -1844,21 +1840,13 @@ class Extender {
 
             File aaptKeepRules = new File(buildState.buildDir, "aapt-generated.keep");
             context.put("aaptKeepRules", aaptKeepRules.getAbsolutePath());
-            File aaptMainDexRules = new File(buildState.buildDir, "aapt-main-dex-generated.keep");
-            context.put("aaptMainDexRules", aaptMainDexRules.getAbsolutePath());
             boolean useR8 = R8Builder.isRequested(buildState.uploadDir);
             context.put("useR8", useR8);
-            context.put(
-                    "useR8MainDexRules",
-                    shouldGenerateAaptMainDexRules(
-                            buildState.uploadDir,
-                            buildState.getMinAndroidSdkVersion()));
 
             files.put("resourceIdsFile", resourceIdsFile);
             files.put("outApkFile", outApkFile);
             files.put("outJavaDirectory", outputJavaDirectory);
             files.put("aaptKeepRules", aaptKeepRules);
-            files.put("aaptMainDexRules", aaptMainDexRules);
 
             executeCommand(platformConfig.aapt2linkCmd, context);
         } catch (IOException e) {
@@ -2575,7 +2563,6 @@ class Extender {
 
         File rJavaDir = null;
         File aaptKeepRules = null;
-        File aaptMainDexRules = null;
         // 1.2.174
         if (platformConfig.aapt2compileCmd != null) {
             // compile and link all of the resource files
@@ -2588,7 +2575,6 @@ class Extender {
             outputFiles.add(files.get("resourceIdsFile"));
             rJavaDir = files.get("outJavaDirectory");
             aaptKeepRules = files.get("aaptKeepRules");
-            aaptMainDexRules = files.get("aaptMainDexRules");
         }
         else {
             rJavaDir = generateRJava(androidResourceFolders, mergedAppContext);
@@ -2599,7 +2585,6 @@ class Extender {
 
         Map<String, R8Builder.ExtensionContext> extensionJarMap = buildJava(rJar);
         List<String> allJars = getAllJars(extensionJarMap);
-        File mainDexList = buildMainDexList(allJars);
         R8Builder r8Builder = new R8Builder(
                 buildState.uploadDir,
                 buildState.buildDir,
@@ -2612,14 +2597,13 @@ class Extender {
         R8Builder.BuildOutput r8Output = r8Builder.build(
                 allJars,
                 extensionJarMap,
-                mainDexList,
-                aaptKeepRules,
-                aaptMainDexRules);
+                aaptKeepRules);
         if (r8Output != null) {
             outputFiles.addAll(Arrays.asList(r8Output.dexFiles));
             outputFiles.add(r8Output.mappingFile);
             outputFiles.addAll(Arrays.asList(r8Output.metaInformationFiles));
         } else {
+            File mainDexList = buildMainDexList(allJars);
             File[] classesDex = buildClassesDex(allJars, mainDexList);
             if (classesDex.length > 0) {
                 outputFiles.addAll(Arrays.asList(classesDex));

@@ -169,51 +169,6 @@ public class R8BuilderTest {
         return new File(firstLine.substring(quoteStart + 1, quoteEnd));
     }
 
-    private static String buildAndRenderR8Command(File tempDir, int minAndroidSdkVersion) throws Exception {
-        File uploadDir = new File(tempDir, "upload");
-        File appDir = new File(uploadDir, "_app");
-        File buildDir = new File(tempDir, "build");
-        assertTrue(appDir.mkdirs());
-        assertTrue(buildDir.mkdirs());
-        Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class App");
-        File aaptRules = new File(buildDir, "aapt-generated.keep");
-        Files.writeString(aaptRules.toPath(), "-keep class AaptGenerated");
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
-        File aaptMainDexRules = null;
-        if (minAndroidSdkVersion < 21) {
-            aaptMainDexRules = new File(buildDir, "aapt-main-dex-generated.keep");
-            Files.writeString(aaptMainDexRules.toPath(), "-keep class AaptMainDex");
-        }
-
-        PlatformConfig config = new PlatformConfig();
-        config.r8Cmd = "r8 {{#useMainDexRules}}{{#mainDexRules}}--main-dex-rules \"{{{.}}}\" {{/mainDexRules}}{{/useMainDexRules}}--output \"{{{classes_dex_dir}}}\"";
-        config.r8Version = "8.13.19";
-        Map<String, String> captured = new HashMap<>();
-        R8Builder builder = new R8Builder(
-                uploadDir,
-                buildDir,
-                config,
-                List.of(),
-                new HashMap<>(),
-                minAndroidSdkVersion,
-                new TemplateExecutor(),
-                (command, context) -> {
-                    captured.put("command", command);
-                    try {
-                        Files.writeString(
-                                new File((String) context.get("classes_dex_dir"), "classes.dex").toPath(),
-                                "dex");
-                        Files.writeString(new File((String) context.get("mapping")).toPath(), "mapping");
-                    } catch (IOException e) {
-                        throw new ExtenderException(e, "Failed to create fake R8 outputs");
-                    }
-                });
-
-        builder.build(List.of(), Map.of(), mainDexRules, aaptRules, aaptMainDexRules);
-        return captured.get("command");
-    }
-
     // Verifies that only _app/app.keep opts into R8; app.pro and extension consumer rules alone do not.
     @Test
     public void testOnlyAppKeepRequestsR8(@TempDir File uploadDir) throws Exception {
@@ -240,8 +195,6 @@ public class R8BuilderTest {
         File buildDir = new File(tempDir, "build");
         assertTrue(uploadDir.mkdirs());
         assertTrue(buildDir.mkdirs());
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
         PlatformConfig config = new PlatformConfig();
 
         R8Builder builder = new R8Builder(
@@ -250,45 +203,13 @@ public class R8BuilderTest {
                 config,
                 List.of(),
                 new HashMap<>(),
-                19,
+                21,
                 new TemplateExecutor(),
                 (command, context) -> {
                     throw new AssertionError("R8 command must not execute without app.keep");
                 });
 
-        assertNull(builder.build(List.of(), Map.of(), mainDexRules, null, null));
-    }
-
-    // Verifies that pre-21 builds pass sanitized engine and aapt main-dex rules while API 21+ builds pass none.
-    @Test
-    public void testMainDexRulesAreOnlyPassedBelowApi21(@TempDir File tempDir) throws Exception {
-        File api19Dir = new File(tempDir, "api19");
-        File api21Dir = new File(tempDir, "api21");
-        assertTrue(api19Dir.mkdirs());
-        assertTrue(api21Dir.mkdirs());
-
-        String api19Command = buildAndRenderR8Command(api19Dir, 19);
-        String api21Command = buildAndRenderR8Command(api21Dir, 21);
-
-        assertEquals(
-                2,
-                CommandLineTokenizer.parse(api19Command).stream()
-                        .filter("--main-dex-rules"::equals)
-                        .count());
-        List<String> api19Arguments = CommandLineTokenizer.parse(api19Command);
-        assertTrue(api19Arguments.contains(new File(api19Dir, "main-dex.keep").getAbsolutePath()));
-        assertFalse(api19Arguments.contains(
-                new File(api19Dir, "build/aapt-main-dex-generated.keep").getAbsolutePath()));
-        assertTrue(api19Arguments.stream().anyMatch(
-                argument -> argument.endsWith(new File(
-                        "r8-sanitized-rules",
-                        "aapt-main-dex-generated.keep").getPath())));
-        File sanitizedAaptMainDexRules = new File(
-                api19Dir,
-                "build/r8-sanitized-rules/aapt-main-dex-generated.keep");
-        assertEquals("-keep class AaptMainDex", sanitizedRuleBody(sanitizedAaptMainDexRules));
-        assertEquals(0, sanitizedRuleBase(sanitizedAaptMainDexRules).listFiles().length);
-        assertFalse(api21Command.contains("--main-dex-rules"));
+        assertNull(builder.build(List.of(), Map.of(), null));
     }
 
     // Verifies that R8/aapt commands preserve exact quoting and literals, conditional rule flags, and data resources.
@@ -304,20 +225,16 @@ public class R8BuilderTest {
 
         String r8Jar = "/tmp/R8 tools/{{literal}}/r8\\\"tool.jar";
         String androidJar = "/tmp/Android SDK/android\\lib.jar";
-        String mainDexRules = "/tmp/Main Dex/main\"dex.keep";
         String mapping = "/tmp/Output dir/mapping\\symbols.txt";
         String dexDir = "/tmp/Output dir/dex {{literal}} & files";
         String appRules = "/tmp/Rules dir/app\"rules.keep";
         String aaptRules = "/tmp/Rules dir/aapt&generated.keep";
-        String aaptMainDexRules = "/tmp/Main Dex/aapt&main.keep";
         String programJar = "/tmp/Program jars/game\\code.jar";
 
         Map<String, Object> context = new HashMap<>();
         context.put("env.R8", r8Jar);
         context.put("env.LIBRARYJAR", androidJar);
-        context.put("minAndroidSdkVersion", 19);
-        context.put("useMainDexRules", true);
-        context.put("mainDexRules", List.of(mainDexRules, aaptMainDexRules));
+        context.put("minAndroidSdkVersion", 21);
         context.put("mapping", mapping);
         context.put("classes_dex_dir", dexDir);
         context.put("rules", List.of(appRules, aaptRules));
@@ -333,8 +250,6 @@ public class R8BuilderTest {
         assertTrue(rendered.contains("{{literal}}"));
         assertTrue(arguments.contains(r8Jar));
         assertTrue(arguments.contains(androidJar));
-        assertTrue(arguments.contains(mainDexRules));
-        assertTrue(arguments.contains(aaptMainDexRules));
         assertTrue(arguments.contains(mapping));
         assertTrue(arguments.contains(dexDir));
         assertTrue(arguments.contains(appRules));
@@ -347,11 +262,9 @@ public class R8BuilderTest {
         context.put("outApkFile", "/tmp/Compiled resources/resources.apk");
         context.put("resourceIdsFile", "/tmp/Compiled resources/resource ids.txt");
         context.put("aaptKeepRules", aaptRules);
-        context.put("aaptMainDexRules", aaptMainDexRules);
         context.put("resourceListFile", "/tmp/Compiled resources/list.txt");
         context.put("extraPackages", "");
         context.put("useR8", false);
-        context.put("useR8MainDexRules", false);
         String d8AaptCommand = new TemplateExecutor().execute(android.aapt2linkCmd, context);
         assertFalse(d8AaptCommand.contains("--proguard"));
 
@@ -359,12 +272,6 @@ public class R8BuilderTest {
         String r8AaptCommand = new TemplateExecutor().execute(android.aapt2linkCmd, context);
         assertTrue(r8AaptCommand.contains("--proguard"));
         assertTrue(CommandLineTokenizer.parse(r8AaptCommand).contains(aaptRules));
-
-        context.put("useR8MainDexRules", true);
-        String pre21R8AaptCommand = new TemplateExecutor().execute(android.aapt2linkCmd, context);
-        List<String> aaptArguments = CommandLineTokenizer.parse(pre21R8AaptCommand);
-        assertTrue(aaptArguments.contains("--proguard-main-dex"));
-        assertTrue(aaptArguments.contains(aaptMainDexRules));
     }
 
     // Verifies that requested R8 builds fail before command execution when aapt-generated keep rules are missing.
@@ -376,10 +283,6 @@ public class R8BuilderTest {
         assertTrue(appDir.mkdirs());
         assertTrue(buildDir.mkdirs());
         Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class App");
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
-        File aaptMainDexRules = new File(buildDir, "aapt-main-dex-generated.keep");
-        Files.writeString(aaptMainDexRules.toPath(), "-keep class AaptMainDex");
         PlatformConfig config = new PlatformConfig();
         config.r8Cmd = "r8-command";
         config.r8Version = "8.13.19";
@@ -390,7 +293,7 @@ public class R8BuilderTest {
                 config,
                 List.of(),
                 new HashMap<>(),
-                19,
+                21,
                 new TemplateExecutor(),
                 (command, context) -> commandExecuted[0] = true);
 
@@ -399,49 +302,8 @@ public class R8BuilderTest {
                 () -> builder.build(
                         List.of(),
                         Map.of(),
-                        mainDexRules,
-                        new File(buildDir, "missing-aapt-generated.keep"),
-                        aaptMainDexRules));
+                        new File(buildDir, "missing-aapt-generated.keep")));
         assertTrue(exception.getMessage().contains("aapt-generated.keep"));
-        assertFalse(commandExecuted[0]);
-    }
-
-    // Verifies that pre-21 R8 builds fail before command execution when aapt main-dex rules are missing.
-    @Test
-    public void testMissingPre21AaptMainDexRulesIsAnError(@TempDir File tempDir) throws Exception {
-        File uploadDir = new File(tempDir, "upload");
-        File appDir = new File(uploadDir, "_app");
-        File buildDir = new File(tempDir, "build");
-        assertTrue(appDir.mkdirs());
-        assertTrue(buildDir.mkdirs());
-        Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class App");
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
-        File aaptRules = new File(buildDir, "aapt-generated.keep");
-        Files.writeString(aaptRules.toPath(), "-keep class AaptGenerated");
-        PlatformConfig config = new PlatformConfig();
-        config.r8Cmd = "r8-command";
-        config.r8Version = "8.13.19";
-        boolean[] commandExecuted = {false};
-        R8Builder builder = new R8Builder(
-                uploadDir,
-                buildDir,
-                config,
-                List.of(),
-                new HashMap<>(),
-                19,
-                new TemplateExecutor(),
-                (command, context) -> commandExecuted[0] = true);
-
-        ExtenderException exception = assertThrows(
-                ExtenderException.class,
-                () -> builder.build(
-                        List.of(),
-                        Map.of(),
-                        mainDexRules,
-                        aaptRules,
-                        new File(buildDir, "missing-aapt-main-dex-generated.keep")));
-        assertTrue(exception.getMessage().contains("aapt-main-dex-generated.keep"));
         assertFalse(commandExecuted[0]);
     }
 
@@ -472,49 +334,7 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> builder.build(List.of(), Map.of(), null, aaptRules, null));
-
-        assertTrue(exception.getMessage().contains("forbidden filesystem directive"));
-        assertFalse(commandExecuted[0]);
-    }
-
-    // Verifies that aapt-generated main-dex rules pass the filesystem-directive policy before R8 can execute.
-    @Test
-    public void testAaptMainDexRulesUseFilesystemPolicy(@TempDir File tempDir) throws Exception {
-        File uploadDir = new File(tempDir, "upload");
-        File appDir = new File(uploadDir, "_app");
-        File buildDir = new File(tempDir, "build");
-        assertTrue(appDir.mkdirs());
-        assertTrue(buildDir.mkdirs());
-        Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class App");
-        File aaptRules = new File(buildDir, "aapt-generated.keep");
-        Files.writeString(aaptRules.toPath(), "-keep class AaptGenerated");
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
-        File aaptMainDexRules = new File(buildDir, "aapt-main-dex-generated.keep");
-        Files.writeString(aaptMainDexRules.toPath(), "}-include /etc/hosts");
-        PlatformConfig config = new PlatformConfig();
-        config.r8Cmd = "r8-command";
-        config.r8Version = "8.13.19";
-        boolean[] commandExecuted = {false};
-        R8Builder builder = new R8Builder(
-                uploadDir,
-                buildDir,
-                config,
-                List.of(),
-                new HashMap<>(),
-                19,
-                new TemplateExecutor(),
-                (command, context) -> commandExecuted[0] = true);
-
-        ExtenderException exception = assertThrows(
-                ExtenderException.class,
-                () -> builder.build(
-                        List.of(),
-                        Map.of(),
-                        mainDexRules,
-                        aaptRules,
-                        aaptMainDexRules));
+                () -> builder.build(List.of(), Map.of(), aaptRules));
 
         assertTrue(exception.getMessage().contains("forbidden filesystem directive"));
         assertFalse(commandExecuted[0]);
@@ -529,16 +349,13 @@ public class R8BuilderTest {
         assertTrue(appDir.mkdirs());
         assertTrue(buildDir.mkdirs());
         Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class App");
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
-
         R8Builder builder = new R8Builder(
                 uploadDir,
                 buildDir,
                 new PlatformConfig(),
                 List.of(),
                 new HashMap<>(),
-                19,
+                21,
                 new TemplateExecutor(),
                 (command, context) -> {
                     throw new AssertionError("R8 command must not execute with missing configuration");
@@ -546,7 +363,7 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> builder.build(List.of(), Map.of(), mainDexRules, null, null));
+                () -> builder.build(List.of(), Map.of(), null));
         assertTrue(exception.getMessage().contains("does not provide r8Cmd and r8Version"));
         assertFalse(exception.getMessage().contains("aapt-generated.keep"));
     }
@@ -562,8 +379,6 @@ public class R8BuilderTest {
         Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class App");
         File aaptRules = new File(buildDir, "aapt-generated.keep");
         Files.writeString(aaptRules.toPath(), "-keep class AaptGenerated");
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
         PlatformConfig config = new PlatformConfig();
         config.env.put("R8", "{{env.ANDROID_R8}}");
         config.r8Cmd = "java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8";
@@ -577,7 +392,7 @@ public class R8BuilderTest {
                 config,
                 List.of(),
                 commandContext,
-                19,
+                21,
                 new TemplateExecutor(),
                 (command, context) -> {
                     throw new AssertionError("R8 command must not execute with unresolved configuration");
@@ -585,7 +400,7 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> builder.build(List.of(), Map.of(), mainDexRules, aaptRules, null));
+                () -> builder.build(List.of(), Map.of(), aaptRules));
         assertTrue(exception.getOutput().contains("does not provide r8Cmd and r8Version"));
     }
 
@@ -1136,8 +951,6 @@ public class R8BuilderTest {
                         "-keep class Dependency"));
         Files.writeString(new File(dependencyAar, "proguard.txt").toPath(), "-keep class Dependency");
 
-        File mainDexRules = new File(tempDir, "main-dex.keep");
-        Files.writeString(mainDexRules.toPath(), "-keep class Main");
         PlatformConfig config = new PlatformConfig();
         config.r8Cmd = "r8-command {{#jars}}\"{{{.}}}\" {{/jars}}";
         config.r8Version = "8.13.19";
@@ -1169,9 +982,7 @@ public class R8BuilderTest {
         R8Builder.BuildOutput output = builder.build(
                 List.of(extensionJar.getAbsolutePath(), dependencyJar.getAbsolutePath()),
                 Map.of(extensionJar.getAbsolutePath(), extensionContext),
-                mainDexRules,
-                aaptRules,
-                null);
+                aaptRules);
 
         assertNotNull(output);
         assertEquals(List.of("classes.dex"), Arrays.stream(output.dexFiles).map(File::getName).toList());
@@ -1201,7 +1012,7 @@ public class R8BuilderTest {
         assertFalse(assembledRules.contains(unselectedEngineRules.getAbsolutePath()));
         assertFalse(assembledRules.contains(extensionRules.getAbsolutePath()));
         assertFalse(assembledRules.stream().anyMatch(path -> path.endsWith("ignored.pro")));
-        assertFalse((Boolean) executedContext.get("useMainDexRules"));
+        assertFalse(executedContext.containsKey("mainDexRules"));
         List<File> sanitizedRules = assembledRules.stream()
                 .map(File::new)
                 .filter(rule -> {
