@@ -1,0 +1,6 @@
+{
+  "platform": "ios",
+  "packages": [
+    { "url": "git@github.com:foo/bar.git", "version": "1.0.0", "products": ["X"] }
+  ]
+}

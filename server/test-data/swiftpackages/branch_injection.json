@@ -1,0 +1,6 @@
+{
+  "platform": "ios",
+  "packages": [
+    { "url": "https://github.com/foo/bar.git", "branch": "main\"); import Foundation//", "products": ["X"] }
+  ]
+}

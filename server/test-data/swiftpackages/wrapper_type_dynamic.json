@@ -1,0 +1,7 @@
+{
+  "platform": "ios",
+  "wrapperType": "dynamic",
+  "packages": [
+    { "url": "https://github.com/foo/bar.git", "version": "1.0.0", "products": ["X"] }
+  ]
+}

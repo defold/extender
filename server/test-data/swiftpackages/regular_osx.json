@@ -1,0 +1,11 @@
+{
+  "platform": "osx",
+  "minVersion": "11.0",
+  "packages": [
+    {
+      "url": "https://github.com/apple/swift-argument-parser.git",
+      "version": "1.5.0",
+      "products": ["ArgumentParser"]
+    }
+  ]
+}

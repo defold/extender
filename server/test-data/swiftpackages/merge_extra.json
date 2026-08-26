@@ -1,0 +1,16 @@
+{
+  "platform": "ios",
+  "minVersion": "15.0",
+  "packages": [
+    {
+      "url": "https://GitHub.com/firebase/firebase-ios-sdk",
+      "version": "12.0.0",
+      "products": ["FirebaseCrashlytics"]
+    },
+    {
+      "url": "https://github.com/facebook/facebook-ios-sdk.git",
+      "from": "18.0.0",
+      "products": ["FacebookCore"]
+    }
+  ]
+}

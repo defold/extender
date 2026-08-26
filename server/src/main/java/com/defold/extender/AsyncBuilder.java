@@ -20,6 +20,7 @@ import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.data.DefoldSdk;
+import com.defold.extender.services.spm.SwiftPackageManagerService;
 
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.io.EofException;
@@ -38,6 +39,7 @@ public class AsyncBuilder {
     private DefoldSdkService defoldSdkService;
     private GradleService gradleService;
     private CocoaPodsService cocoaPodsService;
+    private SwiftPackageManagerService swiftPackageManagerService;
     private BuildProgressService buildProgressService;
     private File jobResultLocation;
     private long resultLifetime;
@@ -46,12 +48,14 @@ public class AsyncBuilder {
     public AsyncBuilder(DefoldSdkService defoldSdkService,
                         GradleService gradleService,
                         Optional<CocoaPodsService> cocoaPodsService,
+                        Optional<SwiftPackageManagerService> swiftPackageManagerService,
                         BuildProgressService buildProgressService,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
         this.gradleService = gradleService;
         cocoaPodsService.ifPresent(val -> { this.cocoaPodsService = val; });
+        swiftPackageManagerService.ifPresent(val -> { this.swiftPackageManagerService = val; });
         this.buildProgressService = buildProgressService;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
@@ -124,11 +128,15 @@ public class AsyncBuilder {
                     metricsWriter.measureGradleDownload();
                 }
 
-                // Resolve CocoaPods dependencies
+                // Resolve CocoaPods and Swift package dependencies
                 if (ExtenderUtil.isAppleTarget(platform)) {
                     progressReporter.stage(BuildStage.DEPENDENCIES, "Resolving CocoaPods dependencies");
                     extender.resolve(cocoaPodsService);
                     metricsWriter.measureCocoaPodsInstallation();
+
+                    progressReporter.stage(BuildStage.DEPENDENCIES, "Resolving Swift package dependencies");
+                    extender.resolve(swiftPackageManagerService);
+                    metricsWriter.measureSpmResolution();
                 }
 
                 // Build engine

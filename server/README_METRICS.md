@@ -14,6 +14,7 @@ Below is the table with metrics description that collected inside application. T
 |extender.job.sdk                  |Counter      |Unit         |How many times exact Defold sdk was used for building                            |
 |extender.job.gradle.download      |Timer        |Milliseconds |How long Gradle was downloading dependencies                                     |
 |extender.job.cocoapods.install    |Timer        |Milliseconds |How long Cocoapods was installing dependencies                                   |
+|extender.job.spm.resolve          |Timer        |Milliseconds |How long Swift package dependencies were resolving and building                  |
 |extender.job.build                |Timer        |Milliseconds |How long build was                                                               |
 |extender.job.remoteBuild          |Timer        |Milliseconds |How long the remote build was                                                    |
 |extender.job.zip                  |Timer        |Milliseconds |How long result was zipping                                                      |
@@ -22,6 +23,7 @@ Below is the table with metrics description that collected inside application. T
 |extender.job.cache.download       |Timer        |Milliseconds |How long cache downloading operation was                                         |
 |extender.build.task               |Counter      |Unit         |How many builds were handled                                                     |
 |extender.service.cocoapods.get    |Timer        |Milliseconds |How long Cocoapods dependecies downloading was                                   |
+|extender.service.spm.get          |Timer        |Milliseconds |How long Swift package resolution inside the SPM service was                     |
 |extender.service.sdk.get.download |Counter      |Unit         |How many times Defold sdk was downloaded                                         |
 |extender.service.sdk.get.duration |Timer        |Milliseconds |How long Defold sdk was downloading                                              |
 |extender.service.gradle.unpack    |Timer        |Milliseconds |How long Gradle was unpacking dependencies                                       |

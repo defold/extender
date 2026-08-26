@@ -1,0 +1,6 @@
+{
+  "platform": "ios",
+  "packages": [
+    { "url": "file:///etc/passwd", "version": "1.0.0", "products": ["X"] }
+  ]
+}

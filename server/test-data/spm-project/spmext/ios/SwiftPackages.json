@@ -1,0 +1,11 @@
+{
+  "platform": "ios",
+  "minVersion": "15.0",
+  "packages": [
+    {
+      "url": "https://github.com/getsentry/sentry-cocoa.git",
+      "from": "9.0.0",
+      "products": ["Sentry"]
+    }
+  ]
+}

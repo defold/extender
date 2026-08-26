@@ -51,6 +51,10 @@ public class MetricsWriter {
         metricsTimer(this.registry, "extender.job.cocoapods.install", timer.start());
     }
 
+    public void measureSpmResolution() {
+        metricsTimer(this.registry, "extender.job.spm.resolve", timer.start());
+    }
+
     public void measureEngineBuild(final String platform) {
         metricsTimer(this.registry, "extender.job.build", timer.start(), "platform", platform);
     }

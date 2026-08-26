@@ -236,7 +236,9 @@ test {
     //                                           builders they need (see docker-compose.yml profiles)
     //   -PdefoldVersions=all|ci|latest|1.12.3   which Defold SDK versions to test against
     //   -PreuseStack=true                       leave the docker stack running between runs
-    ["targetPlatforms", "defoldVersions", "reuseStack"].each { name ->
+    //   -PspmE2e=true                           run the network-touching SPM service test on a Mac
+    //                                           with Xcode + xcodegen installed
+    ["targetPlatforms", "defoldVersions", "reuseStack", "spmE2e"].each { name ->
         if (project.hasProperty(name)) {
             systemProperty "extender.test.${name}", project.getProperty(name)
         }
