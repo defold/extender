@@ -12,16 +12,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /** Applies the server-side policy for untrusted R8/ProGuard-compatible rule files. */
 final class R8RulePolicy {
-    static final int MAX_RULE_FILES = 1024;
-    static final long MAX_RULE_FILE_BYTES = 1024L * 1024L;
-    static final long MAX_TOTAL_RULE_BYTES = 16L * 1024L * 1024L;
-
     // Match exact lowercase prefixes anywhere in the raw text. R8 only accepts these lowercase
     // spellings. Deliberate false positives in comments, strings, or malformed tokens keep this
     // check independent of R8's evolving grammar.
@@ -41,45 +38,59 @@ final class R8RulePolicy {
             "laststageoutput");
 
     static final class Budget {
+        private final R8Configuration configuration;
         private int fileCount;
         private long totalBytes;
 
+        Budget() {
+            this(new R8Configuration());
+        }
+
+        Budget(R8Configuration configuration) {
+            this.configuration = Objects.requireNonNull(configuration);
+        }
+
         private void beginFile(String source, long declaredSize) throws ExtenderException {
             ++fileCount;
-            if (fileCount > MAX_RULE_FILES) {
+            if (fileCount > configuration.getMaxRuleFiles()) {
                 throw new ExtenderException(String.format(
                         "Too many R8 rule files (maximum %d), while reading %s",
-                        MAX_RULE_FILES,
+                        configuration.getMaxRuleFiles(),
                         source));
             }
-            if (declaredSize > MAX_RULE_FILE_BYTES) {
+            if (declaredSize > configuration.getMaxRuleFileBytes()) {
                 throw new ExtenderException(String.format(
                         "R8 rule file is too large (maximum %d bytes): %s",
-                        MAX_RULE_FILE_BYTES,
+                        configuration.getMaxRuleFileBytes(),
                         source));
             }
-            if (declaredSize >= 0 && totalBytes + declaredSize > MAX_TOTAL_RULE_BYTES) {
+            if (declaredSize >= 0
+                    && totalBytes + declaredSize > configuration.getMaxTotalRuleBytes()) {
                 throw new ExtenderException(String.format(
                         "R8 rule files are too large in total (maximum %d bytes), while reading %s",
-                        MAX_TOTAL_RULE_BYTES,
+                        configuration.getMaxTotalRuleBytes(),
                         source));
             }
         }
 
         private void addBytes(String source, long fileBytes, int bytesRead) throws ExtenderException {
-            if (fileBytes > MAX_RULE_FILE_BYTES) {
+            if (fileBytes > configuration.getMaxRuleFileBytes()) {
                 throw new ExtenderException(String.format(
                         "R8 rule file is too large (maximum %d bytes): %s",
-                        MAX_RULE_FILE_BYTES,
+                        configuration.getMaxRuleFileBytes(),
                         source));
             }
             totalBytes += bytesRead;
-            if (totalBytes > MAX_TOTAL_RULE_BYTES) {
+            if (totalBytes > configuration.getMaxTotalRuleBytes()) {
                 throw new ExtenderException(String.format(
                         "R8 rule files are too large in total (maximum %d bytes), while reading %s",
-                        MAX_TOTAL_RULE_BYTES,
+                        configuration.getMaxTotalRuleBytes(),
                         source));
             }
+        }
+
+        private long getMaxRuleFileBytes() {
+            return configuration.getMaxRuleFileBytes();
         }
     }
 
@@ -173,7 +184,9 @@ final class R8RulePolicy {
             Budget budget) throws IOException, ExtenderException {
         budget.beginFile(source, declaredSize);
         ByteArrayOutputStream output = new ByteArrayOutputStream(
-                (int) Math.min(Math.max(declaredSize, 0), MAX_RULE_FILE_BYTES));
+                (int) Math.min(
+                        Math.min(Math.max(declaredSize, 0), budget.getMaxRuleFileBytes()),
+                        Integer.MAX_VALUE));
         byte[] buffer = new byte[8192];
         long fileBytes = 0;
         int read;

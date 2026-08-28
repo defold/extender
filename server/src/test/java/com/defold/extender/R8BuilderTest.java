@@ -130,13 +130,13 @@ public class R8BuilderTest {
         return bytes.toByteArray();
     }
 
-    private static byte[] createOversizedClassFileHeader() throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream(R8Builder.MAX_CLASSFILE_HEADER_BYTES + 65536);
+    private static byte[] createOversizedClassFileHeader(int maxClassfileHeaderBytes) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream(maxClassfileHeaderBytes + 65536);
         try (DataOutputStream output = new DataOutputStream(bytes)) {
             output.writeInt(0xCAFEBABE);
             output.writeShort(0);
             output.writeShort(52);
-            int utf8Count = R8Builder.MAX_CLASSFILE_HEADER_BYTES / 65538 + 2;
+            int utf8Count = maxClassfileHeaderBytes / 65538 + 2;
             output.writeShort(utf8Count + 1);
             String padding = "a".repeat(65535);
             for (int index = 0; index < utf8Count; ++index) {
@@ -204,6 +204,7 @@ public class R8BuilderTest {
                 List.of(),
                 new HashMap<>(),
                 21,
+                new R8Configuration(),
                 new TemplateExecutor(),
                 (command, context) -> {
                     throw new AssertionError("R8 command must not execute without app.keep");
@@ -294,6 +295,7 @@ public class R8BuilderTest {
                 List.of(),
                 new HashMap<>(),
                 21,
+                new R8Configuration(),
                 new TemplateExecutor(),
                 (command, context) -> commandExecuted[0] = true);
 
@@ -329,6 +331,7 @@ public class R8BuilderTest {
                 List.of(),
                 new HashMap<>(),
                 24,
+                new R8Configuration(),
                 new TemplateExecutor(),
                 (command, context) -> commandExecuted[0] = true);
 
@@ -356,6 +359,7 @@ public class R8BuilderTest {
                 List.of(),
                 new HashMap<>(),
                 21,
+                new R8Configuration(),
                 new TemplateExecutor(),
                 (command, context) -> {
                     throw new AssertionError("R8 command must not execute with missing configuration");
@@ -393,6 +397,7 @@ public class R8BuilderTest {
                 List.of(),
                 commandContext,
                 21,
+                new R8Configuration(),
                 new TemplateExecutor(),
                 (command, context) -> {
                     throw new AssertionError("R8 command must not execute with unresolved configuration");
@@ -821,14 +826,22 @@ public class R8BuilderTest {
     @Test
     public void testGeneratedRulesBoundClassFileHeaderDecompression(@TempDir File tempDir)
             throws Exception {
+        R8Configuration r8Configuration = new R8Configuration();
+        r8Configuration.setMaxClassfileHeaderBytes(1024);
         File jar = createJarWithBytes(
                 new File(tempDir, "oversized-class-header.jar"),
-                Map.of("p/Oversized.class", createOversizedClassFileHeader()));
+                Map.of(
+                        "p/Oversized.class",
+                        createOversizedClassFileHeader(
+                                r8Configuration.getMaxClassfileHeaderBytes())));
         File output = new File(tempDir, "generated.keep");
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> R8Builder.writeProtectedJarKeepRules(List.of(jar.getAbsolutePath()), output));
+                () -> R8Builder.writeProtectedJarKeepRules(
+                        List.of(jar.getAbsolutePath()),
+                        output,
+                        r8Configuration));
 
         assertTrue(exception.getMessage().contains("Class file header exceeds"));
         assertFalse(output.exists());
@@ -838,9 +851,13 @@ public class R8BuilderTest {
     @Test
     public void testGeneratedRuleClassCountIsBoundedDuringJarEnumeration(@TempDir File tempDir)
             throws Exception {
+        R8Configuration r8Configuration = new R8Configuration();
+        r8Configuration.setMaxGeneratedExtensionClasses(3);
         Map<String, byte[]> entries = new LinkedHashMap<>();
         byte[] classFile = createMinimalClassFile("p/Repeated");
-        for (int index = 0; index <= R8Builder.MAX_GENERATED_EXTENSION_CLASSES; ++index) {
+        for (int index = 0;
+                index <= r8Configuration.getMaxGeneratedExtensionClasses();
+                ++index) {
             entries.put(String.format("p/C%05d.class", index), classFile);
         }
         File jar = createJarWithBytes(new File(tempDir, "too-many-classes.jar"), entries);
@@ -848,7 +865,10 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> R8Builder.writeProtectedJarKeepRules(List.of(jar.getAbsolutePath()), output));
+                () -> R8Builder.writeProtectedJarKeepRules(
+                        List.of(jar.getAbsolutePath()),
+                        output,
+                        r8Configuration));
 
         assertTrue(exception.getMessage().contains("Too many classes"));
         assertFalse(output.exists());
@@ -858,9 +878,11 @@ public class R8BuilderTest {
     @Test
     public void testGeneratedRuleBytesAreBoundedDuringJarEnumeration(@TempDir File tempDir)
             throws Exception {
+        R8Configuration r8Configuration = new R8Configuration();
+        r8Configuration.setMaxRuleFileBytes(512);
         Map<String, byte[]> entries = new LinkedHashMap<>();
-        String longName = "a".repeat(6000);
-        for (int index = 0; index < 200; ++index) {
+        String longName = "a".repeat(200);
+        for (int index = 0; index < 3; ++index) {
             String internalName = String.format("p/C%03d%s", index, longName);
             entries.put(internalName + ".class", createMinimalClassFile(internalName));
         }
@@ -869,7 +891,10 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> R8Builder.writeProtectedJarKeepRules(List.of(jar.getAbsolutePath()), output));
+                () -> R8Builder.writeProtectedJarKeepRules(
+                        List.of(jar.getAbsolutePath()),
+                        output,
+                        r8Configuration));
 
         assertTrue(exception.getMessage().contains("Generated R8 keep rules are too large"));
         assertFalse(output.exists());
@@ -964,6 +989,7 @@ public class R8BuilderTest {
                 List.of(dependencyAar),
                 new HashMap<>(),
                 24,
+                new R8Configuration(),
                 new TemplateExecutor(),
                 (command, context) -> {
                     assertTrue(command.startsWith("r8-command "));
@@ -1178,15 +1204,20 @@ public class R8BuilderTest {
     // Verifies that the number of embedded consumer-rule files is bounded before extraction.
     @Test
     public void testEmbeddedRuleEntryCountIsBounded(@TempDir File tempDir) throws Exception {
+        R8Configuration r8Configuration = new R8Configuration();
+        r8Configuration.setMaxRuleFiles(3);
         Map<String, String> entries = new LinkedHashMap<>();
-        for (int index = 0; index <= R8RulePolicy.MAX_RULE_FILES; ++index) {
+        for (int index = 0; index <= r8Configuration.getMaxRuleFiles(); ++index) {
             entries.put(String.format("META-INF/proguard/rule-%04d.pro", index), "-keep class Example");
         }
         File jar = createJar(new File(tempDir, "too-many-rules.jar"), entries);
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> R8Builder.selectEmbeddedRuleEntries(jar, "8.13.19"));
+                () -> R8Builder.selectEmbeddedRuleEntries(
+                        jar,
+                        "8.13.19",
+                        r8Configuration));
 
         assertTrue(exception.getMessage().contains("Too many embedded R8 rule files"));
     }
@@ -1194,7 +1225,9 @@ public class R8BuilderTest {
     // Verifies that expanded embedded rule data is size-bounded and leaves no partial extracted files on failure.
     @Test
     public void testEmbeddedRuleExpandedSizeIsBounded(@TempDir File tempDir) throws Exception {
-        String oversizedRule = " ".repeat((int) R8RulePolicy.MAX_RULE_FILE_BYTES + 1);
+        R8Configuration r8Configuration = new R8Configuration();
+        r8Configuration.setMaxRuleFileBytes(32);
+        String oversizedRule = " ".repeat((int) r8Configuration.getMaxRuleFileBytes() + 1);
         File jar = createJar(
                 new File(tempDir, "oversized-rule.jar"),
                 Map.of("META-INF/proguard/oversized.pro", oversizedRule));
@@ -1206,7 +1239,8 @@ public class R8BuilderTest {
                         List.of(jar.getAbsolutePath()),
                         List.of(),
                         "8.13.19",
-                        outputDir));
+                        outputDir,
+                        r8Configuration));
 
         assertTrue(exception.getMessage().contains("R8 rule file is too large"));
         assertEquals(0, outputDir.listFiles().length);

@@ -41,9 +41,6 @@ final class R8Builder {
     private static final String JAR_R8_RULE_PREFIX = "META-INF/com.android.tools/r8";
     private static final String GENERATED_EXTENSION_KEEP_ATTRIBUTES =
             "-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,MethodParameters,Exceptions";
-    static final int MAX_GENERATED_EXTENSION_CLASSES = 32 * 1024;
-    static final int MAX_CLASSFILE_HEADER_BYTES = 4 * 1024 * 1024;
-    static final long MAX_TOTAL_CLASSFILE_HEADER_BYTES = 64L * 1024L * 1024L;
     static final class ExtensionContext {
         final List<String> ruleFiles = new ArrayList<>();
         final List<String> protectedJars = new ArrayList<>();
@@ -72,6 +69,7 @@ final class R8Builder {
     private final List<File> androidPackages;
     private final Map<String, Object> commandContext;
     private final int minAndroidSdkVersion;
+    private final R8Configuration r8Configuration;
     private final TemplateExecutor templateExecutor;
     private final CommandExecutor commandExecutor;
 
@@ -82,6 +80,7 @@ final class R8Builder {
             List<File> androidPackages,
             Map<String, Object> commandContext,
             int minAndroidSdkVersion,
+            R8Configuration r8Configuration,
             TemplateExecutor templateExecutor,
             CommandExecutor commandExecutor) {
         this.uploadDir = uploadDir;
@@ -90,6 +89,7 @@ final class R8Builder {
         this.androidPackages = androidPackages;
         this.commandContext = commandContext;
         this.minAndroidSdkVersion = minAndroidSdkVersion;
+        this.r8Configuration = r8Configuration;
         this.templateExecutor = templateExecutor;
         this.commandExecutor = commandExecutor;
     }
@@ -292,6 +292,13 @@ final class R8Builder {
 
     static List<String> selectEmbeddedRuleEntries(File jar, String r8Version)
             throws IOException, ExtenderException {
+        return selectEmbeddedRuleEntries(jar, r8Version, new R8Configuration());
+    }
+
+    static List<String> selectEmbeddedRuleEntries(
+            File jar,
+            String r8Version,
+            R8Configuration r8Configuration) throws IOException, ExtenderException {
         List<String> targetedRules = new ArrayList<>();
         List<String> legacyRules = new ArrayList<>();
         Set<String> candidateNames = new LinkedHashSet<>();
@@ -312,11 +319,11 @@ final class R8Builder {
                 if (!candidateNames.add(entryName)) {
                     throw new ExtenderException("Duplicate embedded R8 rule entry " + entryName + " in " + jar);
                 }
-                if (++candidateCount > R8RulePolicy.MAX_RULE_FILES) {
+                if (++candidateCount > r8Configuration.getMaxRuleFiles()) {
                     throw new ExtenderException(String.format(
                             "Too many embedded R8 rule files in %s (maximum %d)",
                             jar,
-                            R8RulePolicy.MAX_RULE_FILES));
+                            r8Configuration.getMaxRuleFiles()));
                 }
                 if (entryName.startsWith(JAR_LEGACY_RULE_PREFIX)) {
                     legacyRules.add(entryName);
@@ -369,6 +376,20 @@ final class R8Builder {
             List<File> androidPackages,
             String r8Version,
             File rulesRoot) throws ExtenderException {
+        return collectConsumerRules(
+                allJars,
+                androidPackages,
+                r8Version,
+                rulesRoot,
+                new R8Configuration());
+    }
+
+    static List<String> collectConsumerRules(
+            List<String> allJars,
+            List<File> androidPackages,
+            String r8Version,
+            File rulesRoot,
+            R8Configuration r8Configuration) throws ExtenderException {
         File emptyRuleBase = R8RulePolicy.createEmptyBaseDirectory(
                 rulesRoot.getAbsoluteFile().getParentFile());
         return collectConsumerRules(
@@ -376,7 +397,8 @@ final class R8Builder {
                 androidPackages,
                 r8Version,
                 rulesRoot,
-                new R8RulePolicy.Budget(),
+                r8Configuration,
+                new R8RulePolicy.Budget(r8Configuration),
                 emptyRuleBase);
     }
 
@@ -385,6 +407,7 @@ final class R8Builder {
             List<File> androidPackages,
             String r8Version,
             File rulesRoot,
+            R8Configuration r8Configuration,
             R8RulePolicy.Budget ruleBudget,
             File emptyRuleBase) throws ExtenderException {
         try {
@@ -406,7 +429,10 @@ final class R8Builder {
             }
 
             try (ZipFile zipFile = new ZipFile(jar)) {
-                List<String> selectedEntries = selectEmbeddedRuleEntries(jar, r8Version);
+                List<String> selectedEntries = selectEmbeddedRuleEntries(
+                        jar,
+                        r8Version,
+                        r8Configuration);
                 jarHasTargetedRules.put(jar.getCanonicalPath(), containsTargetedRules(selectedEntries));
                 if (selectedEntries.isEmpty()) {
                     continue;
@@ -541,28 +567,35 @@ final class R8Builder {
 
     private static final class BoundedClassFileInputStream extends FilterInputStream {
         private final ClassFileReadBudget budget;
+        private final int maxClassfileHeaderBytes;
+        private final long maxTotalClassfileHeaderBytes;
         private int classBytes;
 
-        BoundedClassFileInputStream(InputStream input, ClassFileReadBudget budget) {
+        BoundedClassFileInputStream(
+                InputStream input,
+                ClassFileReadBudget budget,
+                R8Configuration r8Configuration) {
             super(input);
             this.budget = budget;
+            this.maxClassfileHeaderBytes = r8Configuration.getMaxClassfileHeaderBytes();
+            this.maxTotalClassfileHeaderBytes = r8Configuration.getMaxTotalClassfileHeaderBytes();
         }
 
         private int allowedBytes(int requested) throws IOException {
             if (requested == 0) {
                 return 0;
             }
-            int classRemaining = MAX_CLASSFILE_HEADER_BYTES - classBytes;
+            int classRemaining = maxClassfileHeaderBytes - classBytes;
             if (classRemaining <= 0) {
                 throw new IOException(String.format(
                         "Class file header exceeds the %d-byte read limit",
-                        MAX_CLASSFILE_HEADER_BYTES));
+                        maxClassfileHeaderBytes));
             }
-            long totalRemaining = MAX_TOTAL_CLASSFILE_HEADER_BYTES - budget.totalBytes;
+            long totalRemaining = maxTotalClassfileHeaderBytes - budget.totalBytes;
             if (totalRemaining <= 0) {
                 throw new IOException(String.format(
                         "Class file headers exceed the %d-byte aggregate read limit",
-                        MAX_TOTAL_CLASSFILE_HEADER_BYTES));
+                        maxTotalClassfileHeaderBytes));
             }
             return (int) Math.min(requested, Math.min(classRemaining, totalRemaining));
         }
@@ -599,10 +632,12 @@ final class R8Builder {
     private static String readClassInternalName(
             ZipFile zipFile,
             ZipEntry entry,
-            ClassFileReadBudget budget) throws IOException {
+            ClassFileReadBudget budget,
+            R8Configuration r8Configuration) throws IOException {
         try (DataInputStream input = new DataInputStream(new BoundedClassFileInputStream(
                 zipFile.getInputStream(entry),
-                budget))) {
+                budget,
+                r8Configuration))) {
             if (input.readInt() != 0xCAFEBABE) {
                 throw new IOException("Invalid class file magic");
             }
@@ -728,6 +763,13 @@ final class R8Builder {
 
     static File writeProtectedJarKeepRules(List<String> jarPaths, File outputFile)
             throws IOException, ExtenderException {
+        return writeProtectedJarKeepRules(jarPaths, outputFile, new R8Configuration());
+    }
+
+    static File writeProtectedJarKeepRules(
+            List<String> jarPaths,
+            File outputFile,
+            R8Configuration r8Configuration) throws IOException, ExtenderException {
         Set<String> classNames = new TreeSet<>();
         int classEntryCount = 0;
         ClassFileReadBudget classFileReadBudget = new ClassFileReadBudget();
@@ -750,15 +792,19 @@ final class R8Builder {
                             || entryName.startsWith("META-INF/")) {
                         continue;
                     }
-                    if (++classEntryCount > MAX_GENERATED_EXTENSION_CLASSES) {
+                    if (++classEntryCount > r8Configuration.getMaxGeneratedExtensionClasses()) {
                         throw new ExtenderException(String.format(
                                 "Too many classes need generated R8 keep rules (maximum %d)",
-                                MAX_GENERATED_EXTENSION_CLASSES));
+                                r8Configuration.getMaxGeneratedExtensionClasses()));
                     }
 
                     String internalName;
                     try {
-                        internalName = readClassInternalName(zipFile, entry, classFileReadBudget);
+                        internalName = readClassInternalName(
+                                zipFile,
+                                entry,
+                                classFileReadBudget,
+                                r8Configuration);
                     } catch (IOException e) {
                         throw new ExtenderException(e, String.format(
                                 "Failed to read class file %s from %s: %s",
@@ -783,10 +829,10 @@ final class R8Builder {
                     if (classNames.add(className)) {
                         String rule = String.format("-keep class %s { *; }\n", className);
                         generatedBytes += rule.getBytes(StandardCharsets.UTF_8).length;
-                        if (generatedBytes > R8RulePolicy.MAX_RULE_FILE_BYTES) {
+                        if (generatedBytes > r8Configuration.getMaxRuleFileBytes()) {
                             throw new ExtenderException(String.format(
                                     "Generated R8 keep rules are too large (maximum %d bytes)",
-                                    R8RulePolicy.MAX_RULE_FILE_BYTES));
+                                    r8Configuration.getMaxRuleFileBytes()));
                         }
                     }
                 }
@@ -931,7 +977,7 @@ final class R8Builder {
         LOGGER.info("Building classes.dex using R8 {}", r8Version);
 
         Set<String> ruleFiles = new LinkedHashSet<>();
-        R8RulePolicy.Budget ruleBudget = new R8RulePolicy.Budget();
+        R8RulePolicy.Budget ruleBudget = new R8RulePolicy.Budget(r8Configuration);
         File emptyRuleBase = R8RulePolicy.createEmptyBaseDirectory(buildDir);
         File sanitizedRulesDir = new File(buildDir, "r8-sanitized-rules");
         File sanitizedAppRules = new File(sanitizedRulesDir, "app.keep");
@@ -977,6 +1023,7 @@ final class R8Builder {
                 androidPackages,
                 r8Version,
                 consumerRulesDir,
+                r8Configuration,
                 ruleBudget,
                 emptyRuleBase));
 
@@ -984,7 +1031,7 @@ final class R8Builder {
         if (!protectedJars.isEmpty()) {
             File generatedRules = new File(buildDir, "generated-extension-rules.keep");
             try {
-                writeProtectedJarKeepRules(protectedJars, generatedRules);
+                writeProtectedJarKeepRules(protectedJars, generatedRules, r8Configuration);
             } catch (IOException e) {
                 throw new ExtenderException(e, "Failed to generate R8 rules for unconfigured extension jars");
             }

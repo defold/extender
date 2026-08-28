@@ -205,6 +205,7 @@ public class R8ServiceLoaderRegressionTest {
                 List.of(),
                 new HashMap<>(),
                 21,
+                new R8Configuration(),
                 new TemplateExecutor(),
                 (command, context) -> runR8(context, libraryJar));
 

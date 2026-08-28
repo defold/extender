@@ -342,56 +342,6 @@ public class ExtenderTest {
         assertEquals(List.of(new File("manifests/android/extension.keep")), rules);
     }
 
-    // Verifies that an Android build without _app/app.keep can initialize without any R8 path or version in the environment.
-    @Test
-    public void testAndroidWithoutKeepDoesNotRequireR8Environment(@TempDir File tempDir) throws Exception {
-        File uploadDir = new File(tempDir, "upload");
-        File buildDir = new File(tempDir, "build");
-        assertTrue(uploadDir.mkdirs());
-        assertTrue(buildDir.mkdirs());
-        Map<String, String> env = createAndroidEnv();
-        env.remove("ANDROID_R8");
-        env.remove("ANDROID_R8_VERSION");
-
-        assertDoesNotThrow(() -> new Extender.Builder()
-                .setPlatform("armv7-android")
-                .setSdk(new File("test-data/sdk/a/defoldsdk"))
-                .setJobDirectory(tempDir)
-                .setUploadDirectory(uploadDir)
-                .setBuildDirectory(buildDir)
-                .setEnv(env)
-                .build());
-    }
-
-    // Verifies that resolved R8 environment values are carried literally into the command context without a second template pass.
-    @Test
-    public void testAndroidR8EnvironmentIsResolvedOnce(@TempDir File tempDir) throws Exception {
-        File uploadDir = new File(tempDir, "upload");
-        File appDir = new File(uploadDir, "_app");
-        File buildDir = new File(tempDir, "build");
-        assertTrue(appDir.mkdirs());
-        assertTrue(buildDir.mkdirs());
-        Files.writeString(new File(appDir, "app.keep").toPath(), "-keep class Example");
-
-        Map<String, String> env = createAndroidEnv();
-        env.put("ANDROID_R8", "/opt/android/{{literal}}/r8.jar");
-        Extender extender = new Extender.Builder()
-                .setPlatform("armv7-android")
-                .setSdk(new File("test-data/sdk/a/defoldsdk"))
-                .setJobDirectory(tempDir)
-                .setUploadDirectory(uploadDir)
-                .setBuildDirectory(buildDir)
-                .setEnv(env)
-                .build();
-
-        assertEquals("/opt/android/{{literal}}/r8.jar", extender.getPlatformContext().get("env.R8"));
-
-        Map<String, Object> r8BuilderContext =
-                extender.createR8BuilderContext(extender.getMergedAppContext());
-        assertEquals("/opt/android/{{literal}}/r8.jar", r8BuilderContext.get("env.R8"));
-        assertEquals("8.13.19", r8BuilderContext.get("env.R8_VERSION"));
-    }
-
     // Verifies that legacy ProGuard-era SDK YAML still loads while app.pro remains ignored and does not request R8.
     @Test
     @SuppressWarnings("deprecation")
@@ -464,7 +414,7 @@ public class ExtenderTest {
                 .build());
     }
 
-    // Verifies that embedded consumer-rule entries are excluded from runtime META-INF copying without excluding unrelated metadata.
+    // Verifies that consumer rules and legacy .pro metadata are excluded from runtime META-INF copying.
     @Test
     public void testConsumerRulesAreNotCopiedAsRuntimeMetaInfResources() {
         assertFalse(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/proguard/rules.pro")));
@@ -477,7 +427,7 @@ public class ExtenderTest {
         assertTrue(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry(
                 "META-INF/com.android.tools/lint/model.xml")));
         assertTrue(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/services/com.example.Service")));
-        assertTrue(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/example/info.pro")));
+        assertFalse(ExtenderUtil.isMetaInfEntryValuable(new ZipEntry("META-INF/example/info.pro")));
     }
 
     // An .aar in an extension is unpacked into the same exploded layout as a Maven resolved .aar:

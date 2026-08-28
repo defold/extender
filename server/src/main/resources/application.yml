@@ -38,6 +38,14 @@ extender:
     gradle:
         enabled: false
         location: /tmp/.gradle
+    # Resource limits for untrusted R8 input; byte limits use expanded sizes.
+    r8:
+        max-generated-extension-classes: 32768
+        max-classfile-header-bytes: 4194304
+        max-total-classfile-header-bytes: 67108864
+        max-rule-files: 1024
+        max-rule-file-bytes: 1048576
+        max-total-rule-bytes: 16777216
     cocoapods:
         enabled: false
         cdn-concurrency: 10 # value for COCOAPODS_CDN_MAX_CONCURRENCY

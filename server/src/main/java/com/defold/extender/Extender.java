@@ -69,6 +69,7 @@ class Extender {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private final ProgressReporter progressReporter;
+    private final R8Configuration r8Configuration;
     private MetricsWriter metricsWriter;
     // context flags
     private Boolean needsCSLibraries = false;
@@ -125,6 +126,7 @@ class Extender {
         Map<String, String> env = new HashMap<String, String>();
         MetricsWriter metricsWriter;
         ProgressReporter progressReporter = ProgressReporter.NOOP;
+        R8Configuration r8Configuration = new R8Configuration();
 
         public Builder() { }
 
@@ -168,6 +170,11 @@ class Extender {
             return this;
         }
 
+        public Builder setR8Configuration(R8Configuration r8Configuration) {
+            this.r8Configuration = r8Configuration;
+            return this;
+        }
+
         public Extender build() throws IOException, ExtenderException {
             return new Extender(this);
         }
@@ -176,6 +183,7 @@ class Extender {
     private Extender(Builder builder) throws IOException, ExtenderException {
         this.metricsWriter = builder.metricsWriter;
         this.progressReporter = builder.progressReporter != null ? builder.progressReporter : ProgressReporter.NOOP;
+        this.r8Configuration = builder.r8Configuration;
         this.androidPackages = new ArrayList<>();
         this.androidPackageResourceNames = new HashMap<>();
         this.outputFiles = new ArrayList<>();
@@ -293,25 +301,12 @@ class Extender {
             for (String k : keys) {
                 // Older SDKs declare PROGUARD in build.yml. The old command is never
                 // used, so do not require the removed ANDROID_PROGUARD environment.
+                // TODO: Remove this compatibility workaround after 2027-02-26.
                 if (k.equals("PROGUARD")) {
                     continue;
                 }
-                boolean r8Environment = k.equals("R8") || k.equals("R8_VERSION");
-                if (r8Environment && !R8Builder.isRequested(builder.uploadDirectory)) {
-                    continue;
-                }
                 String v = this.platformConfig.env.get(k);
-                try {
-                    v = r8Environment
-                            ? templateExecutor.executeOnceWithoutLogging(v, envContext)
-                            : templateExecutor.execute(v, envContext);
-                } catch (RuntimeException e) {
-                    if (r8Environment) {
-                        LOGGER.warn("Deferring unresolved {} until the requested R8 build", k);
-                        continue;
-                    }
-                    throw e;
-                }
+                v = templateExecutor.execute(v, envContext);
                 processExecutor.putEnv(k, v);
             }
 
@@ -429,22 +424,6 @@ class Extender {
         context.put("host_platform", buildState.hostPlatform);
 
         resolveVariables(context);
-        return context;
-    }
-
-    Map<String, Object> createR8BuilderContext(Map<String, Object> src) throws ExtenderException {
-        // These two values were deliberately resolved exactly once in the constructor.
-        // Keep literal Mustache text in their resolved values out of createContext's recursive pass.
-        Map<String, Object> contextWithoutR8Environment = new HashMap<>(src);
-        Map<String, Object> resolvedR8Environment = new HashMap<>();
-        for (String key : List.of("env.R8", "env.R8_VERSION")) {
-            if (contextWithoutR8Environment.containsKey(key)) {
-                resolvedR8Environment.put(key, contextWithoutR8Environment.remove(key));
-            }
-        }
-
-        Map<String, Object> context = createContext(contextWithoutR8Environment);
-        context.putAll(resolvedR8Environment);
         return context;
     }
 
@@ -2590,8 +2569,9 @@ class Extender {
                 buildState.buildDir,
                 platformConfig,
                 androidPackages,
-                createR8BuilderContext(mergedAppContext),
+                createContext(mergedAppContext),
                 buildState.getMinAndroidSdkVersion(),
+                r8Configuration,
                 templateExecutor,
                 (command, commandContext) -> executeCommandLine(command));
         R8Builder.BuildOutput r8Output = r8Builder.build(

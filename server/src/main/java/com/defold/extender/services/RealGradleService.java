@@ -50,6 +50,8 @@ public class RealGradleService implements GradleServiceInterface {
     );
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
     private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
+    private static final String ARTIFACT_KIND_EXPLODED_AAR = "exploded-aar";
+    private static final String ARTIFACT_KIND_JAR = "jar";
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
@@ -276,13 +278,13 @@ public class RealGradleService implements GradleServiceInterface {
             File artifact = new File((String) pathValue).getCanonicalFile();
             GradleArtifact.Kind artifactKind;
             String resourcePackageName = null;
-            if ("exploded-aar".equals(kind)) {
+            if (ARTIFACT_KIND_EXPLODED_AAR.equals(kind)) {
                 if (!artifact.isDirectory()) {
                     throw new ExtenderException("Gradle exploded AAR does not exist: " + artifact);
                 }
                 artifactKind = GradleArtifact.Kind.EXPLODED_AAR;
                 resourcePackageName = getResourcePackageName(component, originalFileName);
-            } else if ("jar".equals(kind)) {
+            } else if (ARTIFACT_KIND_JAR.equals(kind)) {
                 if (!artifact.isFile() || !artifact.getName().endsWith(".jar")) {
                     throw new ExtenderException("Gradle JAR does not exist: " + artifact);
                 }
