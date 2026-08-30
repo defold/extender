@@ -1125,9 +1125,9 @@ class Extender {
 
         LOGGER.info("buildNativeDepsArtifacts - adding resources to build output");
         File resourcesBuildDir = new File(buildState.buildDir, "resources");
-        resourcesBuildDir.mkdir();
+        Files.createDirectories(resourcesBuildDir.toPath());
         File frameworksBuildDir = new File(buildState.buildDir, "frameworks");
-        frameworksBuildDir.mkdir();
+        Files.createDirectories(frameworksBuildDir.toPath());
 
         for (ResolvedNativeDeps deps : resolvedNativeDeps) {
             for (File resourceFile : deps.getResources()) {

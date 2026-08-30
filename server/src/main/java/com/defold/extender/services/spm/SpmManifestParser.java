@@ -266,7 +266,7 @@ public class SpmManifestParser {
         if (node == null || node.isNull()) {
             return null;
         }
-        String wrapperType = node.isTextual() ? node.asString() : null;
+        String wrapperType = node.isString() ? node.asString() : null;
         if (!"static".equals(wrapperType) && !"dynamic".equals(wrapperType)) {
             throw new SpmManifestParsingException(
                 String.format("Invalid 'wrapperType' in Swift package manifest: '%s' (expected 'static' or 'dynamic')", node.asString()));
@@ -288,7 +288,7 @@ public class SpmManifestParser {
         if (node == null || node.isNull()) {
             return null;
         }
-        String minVersion = node.isTextual() ? node.asString() : null;
+        String minVersion = node.isString() ? node.asString() : null;
         if (minVersion == null || !MIN_VERSION_PATTERN.matcher(minVersion).matches()) {
             throw new SpmManifestParsingException(
                 String.format("Invalid 'minVersion' in Swift package manifest: '%s'", node.asString()));
@@ -325,7 +325,7 @@ public class SpmManifestParser {
                 throw new SpmManifestParsingException(
                     String.format("Swift package '%s' declares more than one of version/from/branch/revision", url));
             }
-            String value = node.isTextual() ? node.asString() : null;
+            String value = node.isString() ? node.asString() : null;
             if (value == null || !patternFor(kind).matcher(value).matches()) {
                 throw new SpmManifestParsingException(
                     String.format("Invalid '%s' for Swift package '%s': '%s'", field, url, node.asString()));
@@ -350,7 +350,7 @@ public class SpmManifestParser {
         }
         List<String> products = new java.util.ArrayList<>();
         for (JsonNode productNode : productsNode) {
-            String product = productNode.isTextual() ? productNode.asString() : null;
+            String product = productNode.isString() ? productNode.asString() : null;
             if (product == null || !PRODUCT_PATTERN.matcher(product).matches()) {
                 throw new SpmManifestParsingException(
                     String.format("Invalid product name for Swift package '%s': '%s'", url, productNode.asString()));
@@ -400,7 +400,7 @@ public class SpmManifestParser {
 
     private static String textValue(JsonNode node, String field) throws SpmManifestParsingException {
         JsonNode value = node.get(field);
-        if (value == null || !value.isTextual() || value.asString().isEmpty()) {
+        if (value == null || !value.isString() || value.asString().isEmpty()) {
             throw new SpmManifestParsingException(
                 String.format("Missing or invalid '%s' in Swift package manifest", field));
         }

@@ -302,7 +302,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
 
     @Deprecated
     public List<File> getPodsPrivacyManifests() {
-        return ExtenderUtil.listFilesMatchingRecursive(podsDir, "PrivacyInfo.xcprivacy");
+        return getPrivacyManifests();
     }
 
     public File getTargetSupportFilesDir() {
@@ -327,9 +327,8 @@ public class ResolvedPods implements ResolvedNativeDeps {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public List<File> getPrivacyManifests() {
-        return getPodsPrivacyManifests();
+        return ExtenderUtil.listFilesMatchingRecursive(podsDir, "PrivacyInfo.xcprivacy");
     }
 
     @Override
