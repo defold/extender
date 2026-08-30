@@ -6,7 +6,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.1.0'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.1.1'
     }
 }
 
@@ -25,13 +25,24 @@ apply plugin: 'io.spring.dependency-management'
 
 ext {
     extenderVersion = findProperty('extenderVersion') ?: '1.4.47'
+    // Source of truth for the platform() pins in dependencies{} below.
+    jacksonBomVersion = '3.2.2'
+    junitBomVersion = '6.1.3'
 }
+
+// Spring Boot's BOM manages both of these (4.1.1: jackson 3.1.5, junit 6.0.3), and
+// io.spring.dependency-management wins over a plain platform() constraint - so the pins only
+// take effect when the managed property is set here as well.
+ext.set('jackson-bom.version', ext.jacksonBomVersion)
+ext.set('junit-jupiter.version', ext.junitBomVersion)
 
 configurations.all {
     resolutionStrategy.eachDependency { details ->
         if (details.requested.group == 'com.fasterxml.jackson.core') {
-            // jackson-annotations tags only the minor version (e.g. "2.21"), unlike jackson-core/-databind's patch releases
-            details.useVersion(details.requested.name == 'jackson-annotations' ? '2.21' : '2.21.5')
+            // jackson-annotations tags only the minor version (e.g. "2.22"), unlike jackson-core/-databind's patch releases.
+            // It must stay >= the version jackson-bom expects (3.2.2 -> 2.22, which adds JsonApplyView);
+            // pinning it lower makes Spring's Jackson 3 integration fail at runtime, not compile time.
+            details.useVersion(details.requested.name == 'jackson-annotations' ? '2.22' : '2.21.5')
             details.because 'CVE-2026-54512/54513/54514/54515/54516/54517/54518 - align transitive Jackson 2.x pulled in by google-cloud-storage'
         }
         if (details.requested.group == 'ch.qos.logback') {
@@ -46,9 +57,9 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:8.1.0"))
-    implementation(platform("tools.jackson:jackson-bom:3.2.2"))
-    testImplementation(platform("org.junit:junit-bom:6.1.3"))
+    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:8.1.1"))
+    implementation(platform("tools.jackson:jackson-bom:${jacksonBomVersion}"))
+    testImplementation(platform("org.junit:junit-bom:${junitBomVersion}"))
 
     implementation('org.springframework.boot:spring-boot-starter-webmvc') {
         exclude module: 'spring-boot-starter-tomcat'
@@ -60,7 +71,7 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.105.0')
+    implementation('com.google.cloud:google-cloud-compute:1.106.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('tools.jackson.core:jackson-databind')
