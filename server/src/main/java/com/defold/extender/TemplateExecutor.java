@@ -13,14 +13,22 @@ import java.util.Map;
 public class TemplateExecutor {
     private static final Logger LOGGER = LoggerFactory.getLogger(TemplateExecutor.class);
 
+    String executeOnceWithoutLogging(String template, Map<String, Object> context) {
+        return Mustache.compiler().compile(template).execute(context);
+    }
+
+    String executeWithoutLogging(String template, Map<String, Object> context) {
+        String result = executeOnceWithoutLogging(template, context);
+        while (!result.equals(template)) {
+            template = result;
+            result = executeOnceWithoutLogging(template, context);
+        }
+        return result;
+    }
+
     public String execute(String template, Map<String, Object> context) {
         try {
-        	String result = Mustache.compiler().compile(template).execute(context);
-            while (!result.equals(template)) {
-                template = result;
-                result = Mustache.compiler().compile(template).execute(context);
-            }
-            return result;
+            return executeWithoutLogging(template, context);
         } catch (Exception e) {
             LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string '%s'", (String)template));
             ExtenderUtil.debugPrint(context, 0);

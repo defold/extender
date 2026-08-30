@@ -930,6 +930,7 @@ public class ExtenderUtil
             && !entryName.endsWith(".kotlin_module")
             && !entryName.endsWith(".class")
             && !entryName.endsWith(".pro")
+            && !R8Builder.isEmbeddedRuleEntryName(entryName)
             && !entryName.endsWith("pom.xml")
             && !entryName.endsWith("pom.properties");
     }

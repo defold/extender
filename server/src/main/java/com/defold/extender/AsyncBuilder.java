@@ -39,6 +39,7 @@ public class AsyncBuilder {
     private GradleService gradleService;
     private CocoaPodsService cocoaPodsService;
     private BuildProgressService buildProgressService;
+    private R8Configuration r8Configuration;
     private File jobResultLocation;
     private long resultLifetime;
     private boolean keepJobDirectory = false;
@@ -47,12 +48,14 @@ public class AsyncBuilder {
                         GradleService gradleService,
                         Optional<CocoaPodsService> cocoaPodsService,
                         BuildProgressService buildProgressService,
+                        R8Configuration r8Configuration,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
         this.gradleService = gradleService;
         cocoaPodsService.ifPresent(val -> { this.cocoaPodsService = val; });
         this.buildProgressService = buildProgressService;
+        this.r8Configuration = r8Configuration;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
         this.resultLifetime = jobResultLifetime;
@@ -114,6 +117,7 @@ public class AsyncBuilder {
                             .setBuildDirectory(buildDirectory)
                             .setMetricsWriter(metricsWriter)
                             .setProgressReporter(progressReporter)
+                            .setR8Configuration(r8Configuration)
                             .build();
 
                 // Resolve Gradle dependencies and .aar files shipped inside the extensions

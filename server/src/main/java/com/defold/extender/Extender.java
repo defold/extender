@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HashMap;
@@ -42,6 +43,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import com.defold.extender.services.GradleArtifact;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.cocoapods.PodBuildSpec;
@@ -67,6 +69,7 @@ class Extender {
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private final ProgressReporter progressReporter;
+    private final R8Configuration r8Configuration;
     private MetricsWriter metricsWriter;
     // context flags
     private Boolean needsCSLibraries = false;
@@ -77,9 +80,12 @@ class Extender {
 
     private List<File> extDirs;
     private List<File> manifests;       // The list of ext.manifests found in the upload
-    // Unpacked Android dependencies: a .jar file, or a directory named "*.aar" holding an exploded
-    // .aar. They come from Gradle/Maven, or from .aar files shipped inside an extension.
+    // Android dependencies: a standalone .jar, or an exploded .aar directory in either the local
+    // archive layout or AGP's EXPLODED_AAR layout.
     private List<File> androidPackages;
+    // Maven AARs keep their legacy externally visible package names even though their content is
+    // consumed directly from AGP's transform cache.
+    private Map<File, String> androidPackageResourceNames;
     private List<File> outputFiles;
     private ResolvedPods resolvedPods;
     private int nameCounter = 0;
@@ -111,22 +117,6 @@ class Extender {
         "ps5", "x86_64-ps5",
     };
 
-    // This class specifies the set of files that are used when running proguard on
-    // the project jars that were found during the build process. This class is only
-    // relevant on Android.
-    //
-    // * proGuardFiles - Array of .pro files that contain settings and rules that specify
-    //                   what ProGuard should do with the input jars.
-    // * libraryJars - Array of .jar files should be passed to ProGuard as '-libraryjar' entries.
-    //                 Everything from a libraryjar will be kept by ProGuard, i.e no optimization or
-    //                 obfuscation will be performed.
-    private static class ProGuardContext {
-        public List<String> proGuardFiles = new ArrayList<>();
-        public List<String> libraryJars   = new ArrayList<>();
-    }
-
-    private static final boolean DM_DEBUG_DISABLE_PROGUARD = System.getenv("DM_DEBUG_DISABLE_PROGUARD") != null;
-
     static public class Builder {
         String platform;
         File sdk;
@@ -136,6 +126,7 @@ class Extender {
         Map<String, String> env = new HashMap<String, String>();
         MetricsWriter metricsWriter;
         ProgressReporter progressReporter = ProgressReporter.NOOP;
+        R8Configuration r8Configuration = new R8Configuration();
 
         public Builder() { }
 
@@ -179,6 +170,11 @@ class Extender {
             return this;
         }
 
+        public Builder setR8Configuration(R8Configuration r8Configuration) {
+            this.r8Configuration = r8Configuration;
+            return this;
+        }
+
         public Extender build() throws IOException, ExtenderException {
             return new Extender(this);
         }
@@ -187,7 +183,9 @@ class Extender {
     private Extender(Builder builder) throws IOException, ExtenderException {
         this.metricsWriter = builder.metricsWriter;
         this.progressReporter = builder.progressReporter != null ? builder.progressReporter : ProgressReporter.NOOP;
+        this.r8Configuration = builder.r8Configuration;
         this.androidPackages = new ArrayList<>();
+        this.androidPackageResourceNames = new HashMap<>();
         this.outputFiles = new ArrayList<>();
 
         // Read config from SDK
@@ -301,6 +299,12 @@ class Extender {
 
             Set<String> keys = this.platformConfig.env.keySet();
             for (String k : keys) {
+                // Older SDKs declare PROGUARD in build.yml. The old command is never
+                // used, so do not require the removed ANDROID_PROGUARD environment.
+                // TODO: Remove this compatibility workaround after 2027-02-26.
+                if (k.equals("PROGUARD")) {
+                    continue;
+                }
                 String v = this.platformConfig.env.get(k);
                 v = templateExecutor.execute(v, envContext);
                 processExecutor.putEnv(k, v);
@@ -355,6 +359,10 @@ class Extender {
 
     private String executeCommand(String template, Map<String, Object> context) throws ExtenderException {
         String command = templateExecutor.execute(template, context);
+        return executeCommandLine(command);
+    }
+
+    private String executeCommandLine(String command) throws ExtenderException {
         try {
             if (processExecutor.execute(command) != 0) {
                 throw new ExtenderException(processExecutor.getOutput());
@@ -470,6 +478,17 @@ class Extender {
         return aars;
     }
 
+    List<String> getExtensionLocalAarJars(File extDir) throws ExtenderException {
+        Set<String> jars = new TreeSet<>();
+        File localAarsDir = new File(buildState.buildDir, "local_aars");
+        for (String path : getExtensionLibAars(extDir)) {
+            File aar = new File(path);
+            File unpacked = SandboxedPath.resolve(localAarsDir, extDir.getName() + "-" + aar.getName());
+            jars.addAll(R8Builder.getAndroidPackageJars(unpacked));
+        }
+        return new ArrayList<>(jars);
+    }
+
     private List<String> getAllExtensionsLibJars() {
         List<String> allLibJars = new ArrayList<>();
         for (File extDir : this.extDirs) {
@@ -479,23 +498,10 @@ class Extender {
         // Where we previously stored the dependencies directly inside the extensions
         // we now use gradle to resolve the dependencies
         for (File f : androidPackages) {
-            if (f.getName().endsWith(".jar"))
+            if (f.isFile() && f.getName().endsWith(".jar"))
                 allLibJars.add(f.getAbsolutePath());
-            else if(f.getName().endsWith(".aar")) {
-                File classesJar = new File(f, "classes.jar");
-                if (classesJar.exists()) {
-                    allLibJars.add(classesJar.getAbsolutePath());
-                }
-
-                // There can be an optional libs/ folder with jar files.
-                // Make sure to copy these!
-                // https://developer.android.com/studio/projects/android-library.html#aar-contents
-                File libs = new File(f, "libs");
-                if (libs.exists() && libs.isDirectory()) {
-                    for(File lib : libs.listFiles()) {
-                        allLibJars.add(lib.getAbsolutePath());
-                    }
-                }
+            else if (f.isDirectory()) {
+                allLibJars.addAll(R8Builder.getAndroidPackageJars(f));
             }
         }
 
@@ -1684,6 +1690,48 @@ class Extender {
         return dir;
     }
 
+    static String getCompiledResourceDirectoryName(int index, File resourceDirectory) {
+        File packageDirectory = resourceDirectory.getParentFile();
+        String packageName = packageDirectory == null ? "resources" : packageDirectory.getName();
+        String safePackageName = packageName.replaceAll("[^A-Za-z0-9._-]", "_");
+        return String.format("%04d-%s", index, safePackageName);
+    }
+
+    static List<String> getReturnedResourcePackageNames(
+            List<String> resourceDirectories,
+            Map<File, String> preferredPackageNames) throws IOException {
+        List<String> baseNames = new ArrayList<>();
+        for (String resourceDirectory : resourceDirectories) {
+            File packageDirectory = new File(resourceDirectory).getParentFile();
+            String preferredName = packageDirectory == null
+                    ? null
+                    : preferredPackageNames.get(packageDirectory.getCanonicalFile());
+            baseNames.add(preferredName != null
+                    ? preferredName
+                    : packageDirectory == null ? "resources" : packageDirectory.getName());
+        }
+        Set<String> reservedNames = new HashSet<>(baseNames);
+        Set<String> assignedNames = new HashSet<>();
+        List<String> result = new ArrayList<>();
+
+        for (int index = 0; index < baseNames.size(); index++) {
+            String baseName = baseNames.get(index);
+            if (assignedNames.add(baseName)) {
+                // Preserve the existing externally visible package name whenever possible.
+                result.add(baseName);
+                continue;
+            }
+
+            String candidate = String.format("%s-%04d", baseName, index);
+            int retry = 1;
+            while (reservedNames.contains(candidate) || !assignedNames.add(candidate)) {
+                candidate = String.format("%s-%04d-%d", baseName, index, retry++);
+            }
+            result.add(candidate);
+        }
+        return result;
+    }
+
     /**
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
@@ -1695,13 +1743,15 @@ class Extender {
         outputDirectory.mkdirs();
         try {
             Map<String, Object> context = createContext(mergedAppContext);
+            int resourceDirectoryIndex = 0;
             for (String resDir : resourceDirectories) {
-                // /tmp/.gradle/unpacked/android.arch.lifecycle-livedata-1.1.1.aar/res
                 File resourceDirectory = new File(resDir);
-                // android.arch.lifecycle-livedata-1.1.1.aar
-                String packageName = resourceDirectory.getParentFile().getName();
+                String packageName = getCompiledResourceDirectoryName(
+                        resourceDirectoryIndex++,
+                        resourceDirectory);
 
-                // we compile the package resources to one output directory per package
+                // Keep one output directory per input. Different Maven groups may publish AARs
+                // with the same filename, while AGP's exploded directory names omit the group.
                 File packageDirectoryOut = createDir(outputDirectory, packageName);
                 context.put("outputDirectory", packageDirectoryOut.getAbsolutePath());
 
@@ -1767,9 +1817,15 @@ class Extender {
             File outApkFile = new File(buildState.buildDir, "compiledresources.apk");
             context.put("outApkFile", outApkFile.getAbsolutePath());
 
+            File aaptKeepRules = new File(buildState.buildDir, "aapt-generated.keep");
+            context.put("aaptKeepRules", aaptKeepRules.getAbsolutePath());
+            boolean useR8 = R8Builder.isRequested(buildState.uploadDir);
+            context.put("useR8", useR8);
+
             files.put("resourceIdsFile", resourceIdsFile);
             files.put("outApkFile", outApkFile);
             files.put("outJavaDirectory", outputJavaDirectory);
+            files.put("aaptKeepRules", aaptKeepRules);
 
             executeCommand(platformConfig.aapt2linkCmd, context);
         } catch (IOException e) {
@@ -1866,10 +1922,8 @@ class Extender {
         return null;
     }
 
-    // returns:
-    //   a pair of the .jar file and a list of all of the proguard files that were found
-    //   in the manifests/android folder. If proGuard isn't supported (i.e old build.yml), a null pointer will be returned.
-    private Map.Entry<File, ProGuardContext> buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
+    // Returns the compiled extension jar together with its R8 rules/protection context.
+    private Map.Entry<File, R8Builder.ExtensionContext> buildJavaExtension(File manifest, Map<String, Object> manifestContext, File rJar) throws ExtenderException {
         try {
             // Collect all Java source files
             File extDir = manifest.getParentFile();
@@ -1880,38 +1934,21 @@ class Extender {
                 javaSrcFiles = ExtenderUtil.filterFiles(javaSrcFiles, platformConfig.javaSourceRe);
             }
 
-            File manifestDir = new File(extDir, "manifests/android/");
-            Collection<File> proGuardSrcFiles = new ArrayList<>();
-            if (manifestDir.isDirectory()) {
-                proGuardSrcFiles = FileUtils.listFiles(manifestDir, null, true);
-                proGuardSrcFiles = ExtenderUtil.filterFiles(proGuardSrcFiles, platformConfig.proGuardSourceRe);
-            }
-            // We want to collect ProGuards files even if we don't have java or jar files for the build
-            // because it's possible that this extention depends on some base extension
-            if (javaSrcFiles.size() == 0 && proGuardSrcFiles.size() == 0) {
+            List<String> extensionLibJars = getExtensionLibJars(extDir);
+            extensionLibJars.addAll(getExtensionLocalAarJars(extDir));
+            R8Builder.ExtensionContext r8Context = R8Builder.createExtensionContext(
+                    extDir,
+                    extensionLibJars,
+                    platformConfig.r8RuleSourceRe);
+
+            // Rules can apply to a base extension with no Java sources, and a jar-only
+            // extension still needs a protection context when it has no rules.
+            if (javaSrcFiles.size() == 0 && r8Context.ruleFiles.isEmpty() && extensionLibJars.size() == 0) {
                 LOGGER.info("No Java sources. Skipping");
                 return null;
             }
 
             LOGGER.info("Building Java sources with extension source {}", buildState.uploadDir);
-
-            ProGuardContext proGuardContext = new ProGuardContext();
-
-            // * If we found proguard files, we add all of them to the proguard context
-            //   for this extension. It is implied that if there are .pro files present,
-            //   then the extension developer is responsible to make sure the correct classes and symbols are kept.
-            // * However, if no proguard files were found, we need to add all potential jar files
-            //   from the extension lib folder into the context so that we can set them as -libraryjar when
-            //   running proguard.
-            if (proGuardSrcFiles.size() > 0) {
-                for (File pFile : proGuardSrcFiles) {
-                    proGuardContext.proGuardFiles.add(pFile.getAbsolutePath());
-                }
-            } else {
-                // Get extension supplied Jar libraries
-                List<String> extJars = getExtensionLibJars(extDir);
-                proGuardContext.libraryJars = new ArrayList<>(extJars);
-            }
 
             // Create temp working directory, which will include;
             // * classes/    - Output directory of javac compilation
@@ -1923,11 +1960,9 @@ class Extender {
             tmpDir.mkdir();
 
             if (javaSrcFiles.size() == 0) {
-                // If we collect proguard files without building `jar`
-                // we have to use special name to avoid "File doesn't exist"
-                // error. We check it later with `(.*)/proguard_files_without_jar` pattern.
-                File proguardFakeJar = new File(tmpDir, "proguard_files_without_jar");
-                return new AbstractMap.SimpleEntry<File, ProGuardContext>(proguardFakeJar, proGuardContext);
+                // Preserve the context even when this extension has no compiled jar.
+                File r8FakeJar = new File(tmpDir, R8Builder.RULES_WITHOUT_JAR);
+                return new AbstractMap.SimpleEntry<File, R8Builder.ExtensionContext>(r8FakeJar, r8Context);
             }
 
             File classesDir = new File(tmpDir, "classes");
@@ -1970,20 +2005,15 @@ class Extender {
             context.put("classesDir", classesDir.getAbsolutePath());
             executeCommand(platformConfig.jarCmd, context);
 
-            return new AbstractMap.SimpleEntry<File, ProGuardContext>(outputJar, proGuardContext);
+            return new AbstractMap.SimpleEntry<File, R8Builder.ExtensionContext>(outputJar, r8Context);
 
         } catch (IOException e) {
             throw new ExtenderException(e, "Building java extension");
         }
     }
 
-    // returns:
-    //   a file path to the built jar as well as a (potential) list
-    //   of proguard files that should be applied to the final application jar.
-    //   If the collection contains zero entries, then the jar should be treated as a library jar,
-    //   which means that it should not be obfuscated or optimized.
-    private Map<String,ProGuardContext> buildJava(File rJar) throws ExtenderException {
-        Map<String,ProGuardContext> builtJars = new HashMap<>();
+    private Map<String, R8Builder.ExtensionContext> buildJava(File rJar) throws ExtenderException {
+        Map<String, R8Builder.ExtensionContext> builtJars = new HashMap<>();
 
         if (rJar != null) {
             builtJars.put(rJar.getAbsolutePath(), null);
@@ -1994,7 +2024,7 @@ class Extender {
             Map<String, Object> extensionContext = manifestConfigs.get(extensionSymbol);
             File extensionManifest = manifestFiles.get(extensionSymbol);
 
-            Map.Entry<File, ProGuardContext> javaExtensionsEntry = buildJavaExtension(extensionManifest, extensionContext, rJar);
+            Map.Entry<File, R8Builder.ExtensionContext> javaExtensionsEntry = buildJavaExtension(extensionManifest, extensionContext, rJar);
             if (javaExtensionsEntry != null) {
                 builtJars.put(javaExtensionsEntry.getKey().getAbsolutePath(), javaExtensionsEntry.getValue());
             }
@@ -2002,140 +2032,20 @@ class Extender {
         return builtJars;
     }
 
-    // arguments:
-    //   extensionJarMap - a mapping from a jar file to a list of its corresponding proGuard files
     // returns:
     //   all jar files from each extension, as well as the engine defined jar files
-    private List<String> getAllJars(Map<String,ProGuardContext> extensionJarMap) throws ExtenderException {
+    private List<String> getAllJars(Map<String, R8Builder.ExtensionContext> extensionJarMap) throws ExtenderException {
         List<String> includeJars = ExtenderUtil.getStringList(mergedAppContext, "includeJars");
         List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
 
         List<String> extensionJars = getAllExtensionsLibJars();
 
-        for (Map.Entry<String,ProGuardContext> extensionJar : extensionJarMap.entrySet()) {
-            extensionJars.add(extensionJar.getKey());
-        }
+        extensionJars.addAll(R8Builder.getCompiledJars(extensionJarMap));
 
         Map<String, Object> context = createContext(mergedAppContext);
         List<String> allJars = ExtenderUtil.pruneItems( (List<String>)context.get("engineJars"), includeJars, excludeJars);
         allJars.addAll( ExtenderUtil.pruneItems( extensionJars, includeJars, excludeJars) );
         return allJars;
-    }
-
-    // arguments:
-    //   jars            - the list of all available jar files gathered from the build
-    //   extensionJarMap - a mapping from a jar file to a list of its corresponding proGuard contexts
-    private Map<String, ProGuardContext> getProGuardMapping(List<String> jars, Map<String,ProGuardContext> extensionJarMap) {
-        Map<String,ProGuardContext> jarToProGuardContextMap = new HashMap<>();
-
-        for (String jar : jars) {
-            jarToProGuardContextMap.put(jar, null);
-        }
-
-        for (Map.Entry<String,ProGuardContext> extensionJarEntry : extensionJarMap.entrySet()) {
-            String jar          = extensionJarEntry.getKey();
-            ProGuardContext ctx = extensionJarEntry.getValue();
-
-            // rJars from the buildRJar function will exist in the extensionJarMap,
-            // but associated with a null context.
-            if (ctx == null) {
-                continue;
-            }
-
-            jarToProGuardContextMap.put(jar,ctx);
-
-            // If we couldn't find any proguard files for this extension,
-            // we need to make sure that there is a context available
-            // for all the .jar files we found in the extension
-            if (ctx.proGuardFiles.size() == 0) {
-                for (String libraryJar : ctx.libraryJars) {
-                    ProGuardContext libraryCtx = jarToProGuardContextMap.get(libraryJar);
-
-                    if (libraryCtx == null) {
-                        libraryCtx = new ProGuardContext();
-                        libraryCtx.proGuardFiles.addAll(ctx.proGuardFiles);
-                        jarToProGuardContextMap.put(libraryJar,libraryCtx);
-                    }
-                }
-            }
-        }
-
-        return jarToProGuardContextMap;
-    }
-
-    // arguments:
-    //   allJars         - the list of all available jar files gathered from the build
-    //   extensionJarMap - a mapping from a jar file to a list of its corresponding proGuard contexts
-    // returns:
-    //   a pair of the built & optimized proGuard jar and its corresponding mappings.txt file.
-    //   the mappings file can be uploaded to google play and then used for symbolication
-    private Map.Entry<File,File> buildProGuard(List<String> allJars, Map<String,ProGuardContext> extensionJarMap) throws ExtenderException {
-        // To support older versions of build.yml where proGuardCmd is not defined:
-        String proGuardCmd = platformConfig.proGuardCmd;
-        if (proGuardCmd == null || proGuardCmd.isEmpty() || DM_DEBUG_DISABLE_PROGUARD) {
-            if (DM_DEBUG_DISABLE_PROGUARD) {
-                LOGGER.info("ProGuard support disabled by environment flag DM_DEBUG_DISABLE_PROGUARD");
-            } else {
-                LOGGER.info("No SDK support. Skipping ProGuard step.");
-            }
-            return null;
-        }
-
-        File appPro = new File(buildState.uploadDir, "/_app/app.pro");
-        if (!appPro.exists()) {
-            LOGGER.info("No .pro file present. Skipping ProGuard step.");
-            return null;
-        }
-
-        LOGGER.info("Building using ProGuard {}", buildState.uploadDir);
-
-        String appProPath = appPro.getAbsolutePath();
-        Map<String,ProGuardContext> allJarsMap = getProGuardMapping(allJars, extensionJarMap);
-
-        List<String> allPro = new ArrayList<>();
-        allPro.add(appProPath);
-
-        File targetFile  = new File(buildState.buildDir, "dmengine.jar");
-        File mappingFile = new File(buildState.buildDir, "mapping.txt");
-
-        List<String> jarList          = new ArrayList<>();
-        List<String> jarLibrariesList = new ArrayList<>();
-
-        for (Map.Entry<String,ProGuardContext> jarMapEntry : allJarsMap.entrySet())
-        {
-            String jar = jarMapEntry.getKey();
-            ProGuardContext jarProGuardContext = jarMapEntry.getValue();
-
-            // jarProGuardContext is null for all the jars that are affected by the
-            // 'global' appPro file. We could make a context for them, but it's not necessary
-            if (jarProGuardContext == null || jarProGuardContext.proGuardFiles.size() > 0) {
-                jarList.add(jar);
-
-                if (jarProGuardContext != null) {
-                    for (String proGuardFile : jarProGuardContext.proGuardFiles) {
-                        allPro.add(proGuardFile);
-                    }
-                }
-            } else {
-                jarLibrariesList.add(jar);
-            }
-        }
-        //exclude fake `jar` paths for extensions without java code
-        List<String> excludeJars = new ArrayList<>();
-        excludeJars.add("(.*)/proguard_files_without_jar");
-        jarLibrariesList = ExtenderUtil.excludeItems(jarLibrariesList, excludeJars);
-        jarList = ExtenderUtil.excludeItems(jarList, excludeJars);
-
-        Map<String, Object> context = createContext(mergedAppContext);
-        context.put("jars", jarList);
-        context.put("libraryjars", jarLibrariesList);
-        context.put("src", allPro);
-        context.put("tgt", targetFile.getAbsolutePath());
-        context.put("mapping", mappingFile.getAbsolutePath());
-
-        executeCommand(proGuardCmd, context);
-
-        return new AbstractMap.SimpleEntry<File, File>(targetFile, mappingFile);
     }
 
     public void validateManifestPlatforms(ManifestConfiguration manifestConfig) throws ExtenderException {
@@ -2192,7 +2102,7 @@ class Extender {
         try {
             mainList.createNewFile();
             for (String classFile : mainClassNames) {
-                // create main dex list in form of Proguards rules. Additional info https://github.com/defold/extender/issues/393
+                // Create the main dex list in R8 keep-rule form. Additional info: https://github.com/defold/extender/issues/393
                 classFile = classFile.replace("/", ".").replace(".class", "");
                 FileUtils.writeStringToFile(mainList, String.format("-keep class %s { *; }\n", classFile), Charset.defaultCharset(), true);
             }
@@ -2331,11 +2241,6 @@ class Extender {
         mergedAppContext.put("dynamo_home", ExtenderUtil.getRelativePath(buildState.jobDir, buildState.sdk));
         mergedAppContext.put("platform", buildState.fullPlatform);
         mergedAppContext.put("host_platform", buildState.getHostPlatform());
-
-        //exclude fake `jar` path for extensions without java code
-        List<String> excludeJars = ExtenderUtil.getStringList(mergedAppContext, "excludeJars");
-        excludeJars.add("(.*)/proguard_files_without_jar");
-        mergedAppContext.put("excludeJars", excludeJars);
 
         mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, debugContext);
     }
@@ -2552,9 +2457,14 @@ class Extender {
         List<String> packagesList = new ArrayList<>();
 
         try {
-            for (String androidResourceFolder : androidResourceFolders) {
+            List<String> packageNames = getReturnedResourcePackageNames(
+                    androidResourceFolders,
+                    androidPackageResourceNames);
+            for (int index = 0; index < androidResourceFolders.size(); index++) {
+                String androidResourceFolder = androidResourceFolders.get(index);
                 File packageResourceDir = new File(androidResourceFolder);
-                File targetDir = new File(packagesDir, packageResourceDir.getParentFile().getName() + "/res");
+                String packageName = packageNames.get(index);
+                File targetDir = new File(packagesDir, packageName + "/res");
                 FileUtils.copyDirectory(packageResourceDir, targetDir);
 
                 String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
@@ -2602,7 +2512,7 @@ class Extender {
         Set<String> extraPackages = new HashSet<String>();
         try {
             for (File f : androidPackages) {
-                if(f.getName().endsWith(".aar")) {
+                if (f.isDirectory()) {
                     File res = new File(f, "res");
                     File androidManifest = new File(f, "AndroidManifest.xml");
                     if (res.exists() && androidManifest.exists()) {
@@ -2631,6 +2541,7 @@ class Extender {
         final List<String> androidResourceFolders = getAndroidResourceFolders(platform);
 
         File rJavaDir = null;
+        File aaptKeepRules = null;
         // 1.2.174
         if (platformConfig.aapt2compileCmd != null) {
             // compile and link all of the resource files
@@ -2642,6 +2553,7 @@ class Extender {
             outputFiles.add(files.get("outApkFile"));
             outputFiles.add(files.get("resourceIdsFile"));
             rJavaDir = files.get("outJavaDirectory");
+            aaptKeepRules = files.get("aaptKeepRules");
         }
         else {
             rJavaDir = generateRJava(androidResourceFolders, mergedAppContext);
@@ -2650,44 +2562,41 @@ class Extender {
         // take the generated R.java files and compile them to jar files
         File rJar = buildRJar(rJavaDir);
 
-        Map<String, ProGuardContext> extensionJarMap = buildJava(rJar);
-        List<String> allJars                         = getAllJars(extensionJarMap);
-        Map.Entry<File,File> proGuardFiles           = buildProGuard(allJars, extensionJarMap);
-
-        File mainDexList = buildMainDexList(allJars);
-
-        // If we have proGuard support, we need to reset the allJars list so that
-        // we don't get duplicate symbols.
-        if (proGuardFiles != null) {
-            allJars.clear();
-            allJars.add(proGuardFiles.getKey().getAbsolutePath()); // built jar
-            outputFiles.add(proGuardFiles.getValue()); // mappings file
-
-            // Add the jars that were not run through ProGuard
-            for (Map.Entry<String,ProGuardContext> extensionJarEntry : extensionJarMap.entrySet()) {
-                String extensionJar = extensionJarEntry.getKey();
-                ProGuardContext proGuardContext = extensionJarEntry.getValue();
-
-                if (proGuardContext != null && proGuardContext.proGuardFiles.size() == 0) {
-                    allJars.add(extensionJar);
-
-                    for (String extensionLibraryJar : proGuardContext.libraryJars) {
-                        allJars.add(extensionLibraryJar);
-                    }
-                }
+        Map<String, R8Builder.ExtensionContext> extensionJarMap = buildJava(rJar);
+        List<String> allJars = getAllJars(extensionJarMap);
+        R8Builder r8Builder = new R8Builder(
+                buildState.uploadDir,
+                buildState.buildDir,
+                platformConfig,
+                androidPackages,
+                createContext(mergedAppContext),
+                buildState.getMinAndroidSdkVersion(),
+                r8Configuration,
+                templateExecutor,
+                (command, commandContext) -> executeCommandLine(command));
+        R8Builder.BuildOutput r8Output = r8Builder.build(
+                allJars,
+                extensionJarMap,
+                aaptKeepRules);
+        if (r8Output != null) {
+            outputFiles.addAll(Arrays.asList(r8Output.dexFiles));
+            outputFiles.add(r8Output.mappingFile);
+            outputFiles.addAll(Arrays.asList(r8Output.metaInformationFiles));
+        } else {
+            File mainDexList = buildMainDexList(allJars);
+            File[] classesDex = buildClassesDex(allJars, mainDexList);
+            if (classesDex.length > 0) {
+                outputFiles.addAll(Arrays.asList(classesDex));
             }
-        }
-
-        File[] classesDex = buildClassesDex(allJars, mainDexList);
-        if (classesDex.length > 0) {
-            outputFiles.addAll(Arrays.asList(classesDex));
         }
 
         outputFiles.addAll(copyAndroidResourceFolders(androidResourceFolders));
         outputFiles.addAll(copyAndroidAssetFolders(platform));
         outputFiles.addAll(copyAndroidJniFolders(platform));
 
-        outputFiles.addAll(copyMetaInformationFiles(allJars));
+        if (r8Output == null) {
+            outputFiles.addAll(copyMetaInformationFiles(allJars));
+        }
 
         return outputFiles;
     }
@@ -2835,7 +2744,17 @@ class Extender {
 
     void resolve(GradleService gradleService) throws ExtenderException {
         try {
-            androidPackages.addAll(gradleService.resolveDependencies(this.buildState, this.platformConfig.context, outputFiles));
+            for (GradleArtifact artifact : gradleService.resolveDependencies(
+                    this.buildState,
+                    this.platformConfig.context,
+                    outputFiles)) {
+                androidPackages.add(artifact.getFile());
+                if (artifact.getResourcePackageName() != null) {
+                    androidPackageResourceNames.put(
+                            artifact.getFile().getCanonicalFile(),
+                            artifact.getResourcePackageName());
+                }
+            }
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
@@ -2844,15 +2763,15 @@ class Extender {
 
     // Unpack the .aar files shipped inside the extensions into the same exploded layout that the
     // Gradle service produces, so that their classes.jar, libs/, res/, assets/, jni/ and
-    // AndroidManifest.xml are consumed just like those of a Maven resolved .aar.
+    // AndroidManifest.xml are consumed just like AGP's exploded Maven dependencies.
     void resolveLocalAars() throws ExtenderException {
         File aarsDir = new File(buildState.buildDir, "local_aars");
 
         for (File extDir : this.extDirs) {
             for (String path : getExtensionLibAars(extDir)) {
                 File aar = new File(path);
-                // The name must be unique among all packages and must end with ".aar", since that is
-                // what the consumers key off, and it also names the resource package of the .aar.
+                // The name must be unique among all local packages. Keeping the .aar suffix also
+                // makes retained debug jobs easy to inspect; consumers identify packages by layout.
                 File unpacked = SandboxedPath.resolve(aarsDir, extDir.getName() + "-" + aar.getName());
                 if (unpacked.exists()) {
                     // the same .aar was found in both lib/android and lib/<arch>-android

@@ -1,3 +1,7 @@
+import com.android.build.gradle.internal.publishing.AndroidArtifacts
+import groovy.json.JsonOutput
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+
 buildscript {
     repositories {
         google()
@@ -53,13 +57,84 @@ dependencyLocking {
 
 task downloadDependencies {
     doLast {
-        project.configurations.releaseRuntimeClasspath.getResolvedConfiguration().getResolvedArtifacts().each {
-            println "PATH: " + it.file + \
-                    " EXTENSION: " + it.extension + \
-                    " TYPE: " +  it.type + \
-                    " MODULE_GROUP: " + it.moduleVersion.id.group + \
-                    " MODULE_NAME: " + it.moduleVersion.id.name + \
-                    " MODULE_VERSION: " + it.moduleVersion.id.version
+        def runtimeClasspath = project.configurations.releaseRuntimeClasspath
+        def useJetifier = (project.findProperty("android.enableJetifier") ?: "false").toBoolean()
+        def rawModuleArtifacts = runtimeClasspath.incoming.artifacts.artifacts.findAll {
+            it.id.componentIdentifier instanceof ModuleComponentIdentifier
         }
+        def standaloneJarComponents = rawModuleArtifacts.findAll {
+            it.file.name.toLowerCase(Locale.ROOT).endsWith(".jar")
+        }.collect {
+            it.id.componentIdentifier
+        } as Set
+
+        def explodedAars = runtimeClasspath.incoming.artifactView {
+            componentFilter {
+                it instanceof ModuleComponentIdentifier
+            }
+            attributes {
+                attribute(
+                    AndroidArtifacts.ARTIFACT_TYPE,
+                    AndroidArtifacts.ArtifactType.EXPLODED_AAR.type)
+            }
+        }.artifacts.artifacts
+        def getOriginalFileName = { artifact ->
+            def identifier = artifact.id
+            identifier.metaClass.hasProperty(identifier, "originalFileName") != null
+                    ? identifier.originalFileName
+                    : artifact.file.name
+        }
+        def aarArtifactKeys = explodedAars.collect {
+            [it.id.componentIdentifier, getOriginalFileName(it)]
+        } as Set
+
+        def standaloneJars
+        if (useJetifier && !standaloneJarComponents.isEmpty()) {
+            standaloneJars = runtimeClasspath.incoming.artifactView {
+                componentFilter {
+                    it instanceof ModuleComponentIdentifier && standaloneJarComponents.contains(it)
+                }
+                attributes {
+                    attribute(
+                        AndroidArtifacts.ARTIFACT_TYPE,
+                        AndroidArtifacts.ArtifactType.PROCESSED_JAR.type)
+                }
+            }.artifacts.artifacts.findAll {
+                def artifactKey = [it.id.componentIdentifier, getOriginalFileName(it)]
+                !aarArtifactKeys.contains(artifactKey)
+            }
+        } else {
+            standaloneJars = rawModuleArtifacts.findAll {
+                it.file.name.toLowerCase(Locale.ROOT).endsWith(".jar")
+            }
+        }
+
+        def artifacts = []
+        explodedAars.each {
+            artifacts << [
+                component: it.id.componentIdentifier.toString(),
+                originalFileName: getOriginalFileName(it),
+                kind: "exploded-aar",
+                path: it.file.absolutePath
+            ]
+        }
+        standaloneJars.each {
+            artifacts << [
+                component: it.id.componentIdentifier.toString(),
+                originalFileName: getOriginalFileName(it),
+                kind: "jar",
+                path: it.file.absolutePath
+            ]
+        }
+        artifacts.sort { left, right ->
+            def componentComparison = left.component <=> right.component
+            if (componentComparison != 0) return componentComparison
+            def fileComparison = left.originalFileName <=> right.originalFileName
+            fileComparison != 0 ? fileComparison : left.kind <=> right.kind
+        }
+
+        def artifactManifest = file("$buildDir/gradle-artifacts.json")
+        artifactManifest.parentFile.mkdirs()
+        artifactManifest.text = JsonOutput.prettyPrint(JsonOutput.toJson(artifacts))
     }
 }

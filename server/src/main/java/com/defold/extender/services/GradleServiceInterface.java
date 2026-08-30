@@ -10,7 +10,7 @@ import com.defold.extender.ExtenderException;
 
 public interface GradleServiceInterface {
     // Resolve dependencies, download them, extract to
-    public List<File> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles) throws IOException, ExtenderException;
+    public List<GradleArtifact> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles) throws IOException, ExtenderException;
     
     public long getCacheSize() throws IOException;
 }

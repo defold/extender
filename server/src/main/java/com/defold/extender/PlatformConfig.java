@@ -29,8 +29,12 @@ public class PlatformConfig {
     public String manifestName;
     public String manifestMergeCmd;
     public String bitcodeStripCmd;  // deprecated
-    public String proGuardSourceRe;
-    public String proGuardCmd;
+    public String r8RuleSourceRe;
+    public String r8Cmd;
+    public String r8Version;
+    // Legacy SDK deserialization only. Extender deliberately never reads these fields.
+    @Deprecated public String proGuardCmd;
+    @Deprecated public String proGuardSourceRe;
     public String windresCmd;
     public String symbolCmd;
     public String symbolsPattern;

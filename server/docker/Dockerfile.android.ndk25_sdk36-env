@@ -13,6 +13,7 @@ ARG ANDROID_NDK_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 ARG ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
 ARG ANDROID_NDK_BIN_PATH=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
 ARG ANDROID_SDK_BUILD_TOOLS_PATH=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
+ARG R8_VERSION=8.13.19
 
 FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.1.0 AS build
 
@@ -29,7 +30,7 @@ ARG ANDROID_NDK_VERSION
 ARG ANDROID_NDK_API_VERSION
 ARG ANDROID_64_NDK_API_VERSION
 ARG ANDROID_NDK_FILENAME=android-ndk-r${ANDROID_NDK_VERSION}-linux.tar.gz
-ARG R8_VERSION=8.13.19
+ARG R8_VERSION
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
@@ -77,6 +78,7 @@ ARG ANDROID_SDK_BUILD_TOOLS_PATH
 ARG ANDROID_NDK_VERSION
 ARG ANDROID_NDK_API_VERSION
 ARG ANDROID_64_NDK_API_VERSION
+ARG R8_VERSION
 
 ENV ANDROID_ROOT=${ANDROID_ROOT} \
 # ANDROID_HOME has been replaced with ANDROID_SDK_ROOT
@@ -101,21 +103,15 @@ ENV ANDROID_ROOT=${ANDROID_ROOT} \
     ANDROID_NDK_SYSROOT=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
 # We specify it in build_input.yml by setting it the first in PATH
     PATH=${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK_BIN_PATH} \
-    ANDROID_PROGUARD=/usr/share/java/proguard.jar
+    ANDROID_R8=${ANDROID_SDK_BUILD_TOOLS_PATH}/lib/d8.jar \
+    ANDROID_R8_VERSION=${R8_VERSION}
 
 COPY --from=build ${ANDROID_ROOT} ${ANDROID_ROOT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-# android proguard was version 4.7, this is at least 5.2.1 which seems to work with OpenJDK 11
-RUN \
-  apt-get update && \
-  apt-get install -y --no-install-recommends proguard && \
-  apt-get autoremove -y && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/* && \
 # Since dotnet cannot really cross compile, we need to create a "ar" shim for "llvm-ar"
 # As long as it's in the path, it will be picked up
-  echo '#!/usr/bin/env bash' > /usr/bin/ar && \
+RUN echo '#!/usr/bin/env bash' > /usr/bin/ar && \
   LLVM_AR=$(find /opt/platformsdk/android -iname "llvm-ar" | tail -1) && \
   echo "${LLVM_AR} \$*" >> /usr/bin/ar && \
   chmod +x /usr/bin/ar

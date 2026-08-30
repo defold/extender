@@ -15,7 +15,7 @@ import com.defold.extender.ExtenderException;
 @ConditionalOnProperty(name = "extender.gradle.enabled", havingValue = "false", matchIfMissing = true)
 public class MockGradleService implements GradleServiceInterface {
     @Override
-    public List<File> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles)
+    public List<GradleArtifact> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles)
             throws IOException, ExtenderException {
         return List.of();
     }
