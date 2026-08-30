@@ -16,19 +16,20 @@ import org.slf4j.LoggerFactory;
 import com.defold.extender.log.Markers;
 
 /**
- * Error handler installed on the Jetty {@link org.eclipse.jetty.server.Server}. Jetty uses it for
- * requests that fail before they enter the servlet context - malformed HTTP, too large headers,
+ * Error handler installed on the Jetty {@link org.eclipse.jetty.server.Server}, i.e. the one used
+ * for requests that fail before they enter the servlet context - malformed HTTP, too large headers,
  * too long URI, unsupported HTTP version. Those never reach Spring, so neither the controller
  * exception handlers nor {@link com.defold.extender.RequestErrorAdvice} can see them; without this
- * handler they are answered with an HTML page and are not logged at all.
- *
- * Errors raised inside the servlet context still go through Spring Boot's context error handler.
+ * handler they are answered with an HTML page and are not logged at all. Errors raised inside the
+ * context still go through Spring Boot's own context error handler.
  */
 public class ExtenderJettyErrorHandler extends ErrorHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderJettyErrorHandler.class);
 
     private static final String MIME_TYPE = "text/plain";
+
+    private static final String LOG_MESSAGE = "Jetty rejected request {} {} from {} with status {}: {}";
 
     public ExtenderJettyErrorHandler() {
         setShowStacks(false);
@@ -43,8 +44,12 @@ public class ExtenderJettyErrorHandler extends ErrorHandler {
         final Throwable cause = (Throwable)request.getAttribute(ERROR_EXCEPTION);
         final int code = (cause instanceof HttpException httpException) ? httpException.getCode() : response.getStatus();
 
-        LOGGER.error(Markers.SERVER_ERROR, "Jetty rejected request {} {} from {} with status {}: {}",
-                request.getMethod(), request.getHttpURI(), Request.getRemoteAddr(request), code, message, cause);
+        final Object[] details = { request.getMethod(), request.getHttpURI(), Request.getRemoteAddr(request), code, message, cause };
+        if (HttpStatus.isServerError(code)) {
+            LOGGER.error(Markers.SERVER_ERROR, LOG_MESSAGE, details);
+        } else {
+            LOGGER.warn(LOG_MESSAGE, details);
+        }
 
         return super.handle(request, response, callback);
     }
@@ -55,10 +60,7 @@ public class ExtenderJettyErrorHandler extends ErrorHandler {
         Content.Sink.write(response, true, describe(code), callback);
     }
 
-    /**
-     * The body the user gets to see. Only the status is derived from the failure, the details of
-     * what Jetty disliked stay in the log.
-     */
+    /** The body the user gets to see. What exactly Jetty disliked stays in the log. */
     static String describe(int code) {
         final String explanation = switch (code) {
             case HttpStatus.BAD_REQUEST_400 ->

@@ -1,11 +1,10 @@
 server:
     port: 9000
-    # Requests with larger headers are rejected by Jetty before any application code runs
     max-http-request-header-size: 16KB
     jetty:
         connection-idle-timeout: 600000
-        # Jetty uses maxFormKeys as the maximum number of multipart parts. The client uploads one
-        # part per file, so this is effectively the max number of files in a build request.
+        # Jetty reuses maxFormKeys as the multipart part limit, i.e. the max number of files
+        # in a build request.
         max-form-keys: 5000
 
 extender:

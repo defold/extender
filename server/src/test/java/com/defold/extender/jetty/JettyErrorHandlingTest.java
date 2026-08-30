@@ -1,6 +1,7 @@
 package com.defold.extender.jetty;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -36,6 +37,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
@@ -90,6 +93,11 @@ public class JettyErrorHandlingTest {
         String upload(MultipartHttpServletRequest request) {
             return String.valueOf(request.getFileMap().size());
         }
+
+        @GetMapping("/boom")
+        ResponseEntity<String> boom() {
+            return ResponseEntity.internalServerError().body("boom");
+        }
     }
 
     private static final List<Class<?>> LOGGERS_UNDER_TEST = List.of(
@@ -129,8 +137,6 @@ public class JettyErrorHandlingTest {
                 "Unexpected body: " + response.body());
 
         assertLogged("too many files");
-        // The request completed inside the servlet context, so this also proves that the events
-        // handler is part of the handler chain.
         assertLogged("completed with status 413");
     }
 
@@ -143,12 +149,23 @@ public class JettyErrorHandlingTest {
     }
 
     @Test
+    public void statusesLoggedByTheControllerAreNotLoggedAgain() throws IOException {
+        assertEquals(500, execute(new HttpGet(url("/boom"))).status());
+        // Sequential, so the 500 has certainly been seen by the time the 404 is logged.
+        assertEquals(404, execute(new HttpGet(url("/not-mapped"))).status());
+
+        assertLogged("completed with status 404");
+        assertFalse(loggedMessages.stream().anyMatch(logged -> logged.contains("status 500")),
+                "The 500 is logged by ExtenderController's exception handlers, not here: " + loggedMessages);
+    }
+
+    @Test
     public void malformedMultipartBodiesAreRejectedWithAnExplanation() throws IOException {
-        // A body that never contains the announced boundary. Jetty fails to parse it before the
-        // request is mapped to a controller method.
+        // A body that never contains the announced boundary.
         String body = "not a multipart body\r\n";
         String response = sendRaw("POST /upload HTTP/1.1\r\n"
                 + "Host: localhost\r\n"
+                + "Connection: close\r\n"
                 + "Content-Type: multipart/form-data; boundary=aBoundary\r\n"
                 + "Content-Length: " + body.length() + "\r\n"
                 + "\r\n"
@@ -174,7 +191,7 @@ public class JettyErrorHandlingTest {
 
     @Test
     public void malformedRequestsAreRejectedByTheJettyErrorHandler() throws IOException {
-        String response = sendRaw("GET / HTTP/1.1\r\nHost: localhost\r\nthis-is-not-a-header\r\n\r\n");
+        String response = sendRaw("GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nthis-is-not-a-header\r\n\r\n");
 
         assertTrue(response.startsWith("HTTP/1.1 400"), "Unexpected response: " + response);
         assertTrue(response.contains("text/plain"), "Unexpected response: " + response);
@@ -184,10 +201,7 @@ public class JettyErrorHandlingTest {
 
     private record Response(int status, String contentType, String body) {}
 
-    /**
-     * Some of these messages are logged after the response has been written (the events handler is
-     * notified when the request is recycled), so give them a moment to arrive.
-     */
+    /** Some of these are logged after the response is written, so give them a moment to arrive. */
     private void assertLogged(String message) {
         for (int attempt = 0; attempt < 100; attempt++) {
             if (loggedMessages.stream().anyMatch(logged -> logged.contains(message))) {
@@ -230,8 +244,14 @@ public class JettyErrorHandlingTest {
         }
     }
 
+    /**
+     * Reads until the server closes the connection, so every request passed in must ask for
+     * "Connection: close" - the timeout is there to fail fast rather than stall a CI run for the
+     * ten minute idle timeout if one ever does not.
+     */
     private String sendRaw(String request) throws IOException {
         try (Socket socket = new Socket("localhost", port)) {
+            socket.setSoTimeout(10_000);
             OutputStream output = socket.getOutputStream();
             output.write(request.getBytes(StandardCharsets.ISO_8859_1));
             output.flush();

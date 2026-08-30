@@ -1,5 +1,8 @@
 package com.defold.extender;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,8 +18,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 
-import com.defold.extender.log.Markers;
-
 /**
  * Handles uploads that fail while Jetty parses the multipart body. Parsing happens in
  * DispatcherServlet.checkMultipart(), i.e. before the request is mapped to a controller method, so
@@ -29,13 +30,15 @@ public class RequestErrorAdvice {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RequestErrorAdvice.class);
 
-    // Jetty caps the number of multipart parts at ServletContextHandler.getMaxFormKeys()
-    // (server.jetty.max-form-keys) and reports it as: Form with too many keys [1043 > 1000]
+    // Matches Jetty's message for the part limit: Form with too many keys [1043 > 1000]
     private static final Pattern TOO_MANY_PARTS_RE = Pattern.compile("too many keys \\[(\\d+) > (\\d+)]");
 
+    private final String maxFileSize;
     private final String maxRequestSize;
 
-    public RequestErrorAdvice(@Value("${spring.servlet.multipart.max-request-size}") String maxRequestSize) {
+    public RequestErrorAdvice(@Value("${spring.servlet.multipart.max-file-size}") String maxFileSize,
+                              @Value("${spring.servlet.multipart.max-request-size}") String maxRequestSize) {
+        this.maxFileSize = maxFileSize;
         this.maxRequestSize = maxRequestSize;
     }
 
@@ -46,31 +49,31 @@ public class RequestErrorAdvice {
             final String message = String.format(
                     "The build request contains too many files (%s, the limit is %s). Reduce the number of files in the project extensions, or update the editor to a version that uploads the sources as a single archive.",
                     tooManyParts.group(1), tooManyParts.group(2));
-            LOGGER.error(Markers.SERVER_ERROR, message, ex);
+            LOGGER.warn(message);
             return textResponse(HttpStatus.PAYLOAD_TOO_LARGE, message);
         }
 
         if (ex instanceof MaxUploadSizeExceededException) {
-            final String message = String.format("The build request is too large. Max allowed size is %s.", maxRequestSize);
-            LOGGER.error(Markers.SERVER_ERROR, message, ex);
+            // Spring raises this for both limits without saying which one was hit.
+            final String message = String.format("The build request is too large. Max allowed size is %s per file and %s per request.",
+                    maxFileSize, maxRequestSize);
+            LOGGER.warn(message);
             return textResponse(HttpStatus.PAYLOAD_TOO_LARGE, message);
         }
 
         final String message = "The build request is not a valid multipart request and could not be read by the server.";
-        LOGGER.error(Markers.SERVER_ERROR, message, ex);
+        LOGGER.warn(message, ex);
         return textResponse(HttpStatus.BAD_REQUEST, message);
     }
 
     private static Matcher findTooManyParts(Throwable ex) {
-        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable cause = ex; cause != null && seen.add(cause); cause = cause.getCause()) {
             if (cause.getMessage() != null) {
                 final Matcher matcher = TOO_MANY_PARTS_RE.matcher(cause.getMessage());
                 if (matcher.find()) {
                     return matcher;
                 }
-            }
-            if (cause.getCause() == cause) {
-                break;
             }
         }
         return null;
