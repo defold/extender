@@ -70,6 +70,30 @@ public class ResolvedPackages implements ResolvedNativeDeps {
             }
         }
 
+        // a package library product declared `type: .dynamic` does not merge into the
+        // wrapper; it builds as a dylib framework under PackageFrameworks and must be
+        // linked and embedded like any other dynamic framework
+        File packageFrameworksDir = new File(productsDir, "PackageFrameworks");
+        File[] packageFrameworkEntries = packageFrameworksDir.listFiles();
+        if (packageFrameworkEntries != null) {
+            Arrays.sort(packageFrameworkEntries);
+            for (File entry : packageFrameworkEntries) {
+                String name = entry.getName();
+                if (!name.endsWith(".framework") || !entry.isDirectory()) {
+                    continue;
+                }
+                String frameworkName = name.substring(0, name.length() - ".framework".length());
+                if (productFrameworks.containsKey(frameworkName)) {
+                    continue;
+                }
+                boolean dynamic = FrameworkUtil.isDynamicallyLinked(entry);
+                productFrameworks.put(frameworkName, dynamic);
+                if (dynamic) {
+                    resolved.dynamicFrameworks.add(entry);
+                }
+            }
+        }
+
         // every products-dir framework stays on the engine link: a wrapper pulls static
         // framework members only on demand, so the framework remains the authoritative
         // home of ObjC classes the extension code references itself
@@ -96,9 +120,7 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         resolved.frameworks.addAll(frameworkNames);
 
         resolved.frameworksSearchPaths.add(productsDir.getAbsolutePath());
-        File packageFrameworksDir = new File(productsDir, "PackageFrameworks");
-        String[] packageFrameworks = packageFrameworksDir.list();
-        if (packageFrameworks != null && packageFrameworks.length > 0) {
+        if (packageFrameworkEntries != null && packageFrameworkEntries.length > 0) {
             resolved.frameworksSearchPaths.add(packageFrameworksDir.getAbsolutePath());
         }
 

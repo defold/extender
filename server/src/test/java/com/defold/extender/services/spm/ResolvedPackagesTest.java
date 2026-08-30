@@ -189,6 +189,31 @@ public class ResolvedPackagesTest {
     }
 
     @Test
+    public void testHarvestPackageFrameworks(@TempDir File rootDir) throws IOException, ExtenderException {
+        SpmServiceBuildState buildState = createBuildState(rootDir);
+        createCommonProducts(buildState);
+        createFramework(buildState.getProductsDir(), "SpmWrapper", false);
+        File packageFrameworksDir = new File(buildState.getProductsDir(), "PackageFrameworks");
+        createFramework(packageFrameworksDir, "SentryDynamic", true);
+        // a name that also exists at the products root is classified once, root wins
+        createFramework(packageFrameworksDir, "Sentry", true);
+
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null);
+
+        assertEquals(List.of("FirebaseAnalytics", "Sentry", "SpmWrapper", "SentryDynamic"), resolved.getFrameworks());
+        assertEquals(List.of(
+            buildState.getProductsDir().getAbsolutePath(),
+            packageFrameworksDir.getAbsolutePath()),
+            resolved.getFrameworksSearchPaths());
+
+        assertEquals(2, resolved.getDynamicFrameworks().size());
+        assertTrue(resolved.getDynamicFrameworks().stream().anyMatch(f -> f.getName().equals("SentryDynamic.framework")
+            && f.getParentFile().getName().equals("PackageFrameworks")));
+        assertTrue(resolved.getDynamicFrameworks().stream().anyMatch(f -> f.getName().equals("Sentry.framework")
+            && !f.getParentFile().getName().equals("PackageFrameworks")));
+    }
+
+    @Test
     public void testHarvestWithoutLinkInfoAndLockFile(@TempDir File rootDir) throws IOException, ExtenderException {
         SpmServiceBuildState buildState = createBuildState(rootDir);
         File productsDir = buildState.getProductsDir();
