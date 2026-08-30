@@ -44,11 +44,12 @@ public class ExtenderJettyErrorHandler extends ErrorHandler {
         final Throwable cause = (Throwable)request.getAttribute(ERROR_EXCEPTION);
         final int code = (cause instanceof HttpException httpException) ? httpException.getCode() : response.getStatus();
 
-        final Object[] details = { request.getMethod(), request.getHttpURI(), Request.getRemoteAddr(request), code, message, cause };
         if (HttpStatus.isServerError(code)) {
-            LOGGER.error(Markers.SERVER_ERROR, LOG_MESSAGE, details);
+            LOGGER.error(Markers.SERVER_ERROR, LOG_MESSAGE,
+                    request.getMethod(), request.getHttpURI(), Request.getRemoteAddr(request), code, message, cause);
         } else {
-            LOGGER.warn(LOG_MESSAGE, details);
+            LOGGER.warn(LOG_MESSAGE,
+                    request.getMethod(), request.getHttpURI(), Request.getRemoteAddr(request), code, message, cause);
         }
 
         return super.handle(request, response, callback);
