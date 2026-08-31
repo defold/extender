@@ -219,3 +219,6 @@ install_dotnet
 
 echo "[setup] Install hmap utility"
 brew install milend/taps/hmap
+
+echo "[setup] Install xcodegen (Swift Package Manager support)"
+brew install xcodegen

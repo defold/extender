@@ -1,0 +1,10 @@
+{
+  "platform": "ios",
+  "packages": [
+    {
+      "url": "https://github.com/apple/swift-collections.git",
+      "revision": "94cf62b3ba8d4bed62680341ce53483da1d0c1a7",
+      "products": ["Collections"]
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+{
+ "platform": "ios",
+ "packages": [
+  {
+   "url": "https://github.com/foo/repo0.git",
+   "version": "1.0.0",
+   "products": [
+    "P0"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo1.git",
+   "version": "1.0.0",
+   "products": [
+    "P1"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo2.git",
+   "version": "1.0.0",
+   "products": [
+    "P2"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo3.git",
+   "version": "1.0.0",
+   "products": [
+    "P3"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo4.git",
+   "version": "1.0.0",
+   "products": [
+    "P4"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo5.git",
+   "version": "1.0.0",
+   "products": [
+    "P5"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo6.git",
+   "version": "1.0.0",
+   "products": [
+    "P6"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo7.git",
+   "version": "1.0.0",
+   "products": [
+    "P7"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo8.git",
+   "version": "1.0.0",
+   "products": [
+    "P8"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo9.git",
+   "version": "1.0.0",
+   "products": [
+    "P9"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo10.git",
+   "version": "1.0.0",
+   "products": [
+    "P10"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo11.git",
+   "version": "1.0.0",
+   "products": [
+    "P11"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo12.git",
+   "version": "1.0.0",
+   "products": [
+    "P12"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo13.git",
+   "version": "1.0.0",
+   "products": [
+    "P13"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo14.git",
+   "version": "1.0.0",
+   "products": [
+    "P14"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo15.git",
+   "version": "1.0.0",
+   "products": [
+    "P15"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo16.git",
+   "version": "1.0.0",
+   "products": [
+    "P16"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo17.git",
+   "version": "1.0.0",
+   "products": [
+    "P17"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo18.git",
+   "version": "1.0.0",
+   "products": [
+    "P18"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo19.git",
+   "version": "1.0.0",
+   "products": [
+    "P19"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo20.git",
+   "version": "1.0.0",
+   "products": [
+    "P20"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo21.git",
+   "version": "1.0.0",
+   "products": [
+    "P21"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo22.git",
+   "version": "1.0.0",
+   "products": [
+    "P22"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo23.git",
+   "version": "1.0.0",
+   "products": [
+    "P23"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo24.git",
+   "version": "1.0.0",
+   "products": [
+    "P24"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo25.git",
+   "version": "1.0.0",
+   "products": [
+    "P25"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo26.git",
+   "version": "1.0.0",
+   "products": [
+    "P26"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo27.git",
+   "version": "1.0.0",
+   "products": [
+    "P27"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo28.git",
+   "version": "1.0.0",
+   "products": [
+    "P28"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo29.git",
+   "version": "1.0.0",
+   "products": [
+    "P29"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo30.git",
+   "version": "1.0.0",
+   "products": [
+    "P30"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo31.git",
+   "version": "1.0.0",
+   "products": [
+    "P31"
+   ]
+  },
+  {
+   "url": "https://github.com/foo/repo32.git",
+   "version": "1.0.0",
+   "products": [
+    "P32"
+   ]
+  }
+ ]
+}

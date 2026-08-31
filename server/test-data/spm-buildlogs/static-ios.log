@@ -1,0 +1,20 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project /tmp/job123/SwiftPackageManagerService/Wrapper/SpmWrapper.xcodeproj -scheme SpmWrapper -destination generic/platform=iOS -configuration Release -scmProvider system -derivedDataPath /tmp/job123/SwiftPackageManagerService/DerivedData -clonedSourcePackagesDirPath /tmp/extender/.swiftpm/cache/clonedSourcePackages -packageCachePath /tmp/extender/.swiftpm/cache/packageCache -skipPackagePluginValidation CLANG_MODULE_CACHE_PATH=/tmp/job123/SwiftPackageManagerService/ModuleCache CODE_SIGNING_ALLOWED=NO MACH_O_TYPE=staticlib build
+
+Build settings from command line:
+    CLANG_MODULE_CACHE_PATH = /tmp/job123/SwiftPackageManagerService/ModuleCache
+    CODE_SIGNING_ALLOWED = NO
+
+Libtool /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Products/Release-iphoneos/Firebase.o normal (in target 'Firebase' from project 'Firebase')
+    cd /tmp/extender/.swiftpm/cache/clonedSourcePackages/checkouts/firebase-ios-sdk
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool -static -arch_only arm64 -D -syslibroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -L/tmp/job123/SwiftPackageManagerService/DerivedData/Build/Products/Release-iphoneos -L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib -filelist /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Intermediates.noindex/Firebase.build/Release-iphoneos/Firebase.build/Objects-normal/arm64/Firebase.LinkFileList -dependency_info /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Intermediates.noindex/Firebase.build/Release-iphoneos/Firebase.build/Objects-normal/arm64/Firebase_libtool_dependency_info.dat -o /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Products/Release-iphoneos/Firebase.o
+
+
+Libtool /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Products/Release-iphoneos/SpmWrapper.framework/SpmWrapper normal (in target 'SpmWrapper' from project 'SpmWrapper')
+    cd /tmp/job123/SwiftPackageManagerService/Wrapper
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool -static -arch_only arm64 -D -syslibroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -L/tmp/job123/SwiftPackageManagerService/DerivedData/Build/Products/Release-iphoneos -filelist /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Intermediates.noindex/SpmWrapper.build/Release-iphoneos/SpmWrapper.build/Objects-normal/arm64/SpmWrapper.LinkFileList -dependency_info /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Intermediates.noindex/SpmWrapper.build/Release-iphoneos/SpmWrapper.build/Objects-normal/arm64/SpmWrapper_libtool_dependency_info.dat -o /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Products/Release-iphoneos/SpmWrapper.framework/SpmWrapper
+
+    /usr/bin/touch -c /tmp/job123/SwiftPackageManagerService/DerivedData/Build/Products/Release-iphoneos/SpmWrapper.framework
+
+** BUILD SUCCEEDED **
+

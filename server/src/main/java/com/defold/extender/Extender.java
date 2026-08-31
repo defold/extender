@@ -45,11 +45,15 @@ import java.util.zip.ZipFile;
 
 import com.defold.extender.services.GradleArtifact;
 import com.defold.extender.services.GradleService;
+import com.defold.extender.services.ResolvedNativeDeps;
+import com.defold.extender.services.spm.ResolvedPackages;
+import com.defold.extender.services.spm.SwiftPackageManagerService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.cocoapods.PodBuildSpec;
 import com.defold.extender.services.cocoapods.PodUtils;
 import com.defold.extender.services.cocoapods.ResolvedPods;
 import com.defold.extender.utils.PodBuildUtil;
+import com.defold.extender.utils.VersionUtil;
 import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
@@ -88,6 +92,8 @@ class Extender {
     private Map<File, String> androidPackageResourceNames;
     private List<File> outputFiles;
     private ResolvedPods resolvedPods;
+    // every resolved dependency manager (CocoaPods, SPM); consumed uniformly
+    private final List<ResolvedNativeDeps> resolvedNativeDeps = new ArrayList<>();
     private int nameCounter = 0;
 
 
@@ -570,10 +576,10 @@ class Extender {
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(resolvedPods.getFrameworks());
+        frameworks.addAll(collectDepFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
-        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
+        frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
         File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
 
@@ -594,10 +600,10 @@ class Extender {
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(resolvedPods.getFrameworks());
+        frameworks.addAll(collectDepFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
-        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
+        frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
         File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
 
@@ -644,9 +650,9 @@ class Extender {
         includes.addAll(getPodIncludeDir(pod));
 
         List<String> frameworks = new ArrayList<>();
-        frameworks.addAll(resolvedPods.getFrameworks());
+        frameworks.addAll(collectDepFrameworks());
         List<String> frameworkPaths = new ArrayList<>();
-        frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
+        frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
         File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, swiftSourceFilePaths);
         File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, Set.of(swiftPrimarySourceFile));
@@ -674,10 +680,8 @@ class Extender {
         frameworks.addAll(getFrameworks(extDir));
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(getFrameworkPaths(extDir));
-        if (resolvedPods != null) {
-            frameworks.addAll(resolvedPods.getFrameworks());
-            frameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
-        }
+        frameworks.addAll(collectDepFrameworks());
+        frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, src));
@@ -823,7 +827,7 @@ class Extender {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
 
-        List<String> additionalIncludes = resolvedPods != null ? resolvedPods.getAdditionalIncludePaths() : List.of();
+        List<String> additionalIncludes = collectDepAdditionalIncludePaths();
         for (File src : srcFiles) {
             final int i = getAndIncreaseNameCount();
 
@@ -1116,54 +1120,70 @@ class Extender {
             }
         }
 
-        LOGGER.info("buildPods - adding framework resource to build output");
+        return outputFiles;
+    }
+
+    private List<File> buildNativeDepsArtifacts() throws IOException, InterruptedException, ExtenderException {
+        List<File> outputFiles = new ArrayList<>();
+        if (resolvedNativeDeps.isEmpty()) {
+            return outputFiles;
+        }
+
+        LOGGER.info("buildNativeDepsArtifacts - adding resources to build output");
         File resourcesBuildDir = new File(buildState.buildDir, "resources");
-        resourcesBuildDir.mkdir();
-
-        List<File> resources = resolvedPods.getAllPodResources();
-        for (File resourceFile : resources) {
-            if (resourceFile.isFile()) {
-                File resourceDestFile = new File(resourcesBuildDir, resourceFile.getName());
-                resourceDestFile.getParentFile().mkdirs();
-                Files.copy(resourceFile.toPath(), resourceDestFile.toPath());
-                outputFiles.add(resourceDestFile);
-            } else {
-                File resourceDestDir = new File(resourcesBuildDir, resourceFile.getName());
-                resourceDestDir.mkdirs();
-                FileUtils.copyDirectory(resourceFile, resourceDestDir);
-                outputFiles.add(resourceDestDir);
-            }
-        }
-
-        LOGGER.info("buildPods - creating and adding resource bundles");
-        outputFiles.addAll(resolvedPods.createResourceBundles(resourcesBuildDir, buildState.fullPlatform));
-
-        LOGGER.info("buildPods - adding dynamic frameworks to build output");
+        Files.createDirectories(resourcesBuildDir.toPath());
         File frameworksBuildDir = new File(buildState.buildDir, "frameworks");
-        frameworksBuildDir.mkdir();
+        Files.createDirectories(frameworksBuildDir.toPath());
 
-        List<File> dynamicFrameworks = resolvedPods.getDynamicFrameworks();
-        for (File framework : dynamicFrameworks) {
-            // copy framework and filter out certain files and folders
-            LOGGER.info("buildPods - adding {}", framework.getName());
-            File frameworkDestDir = new File(frameworksBuildDir, framework.getName());
-            FileUtils.copyDirectory(framework, frameworkDestDir, new FileFilter() {
-                @Override
-                public boolean accept(File pathname) {
-                    String name = pathname.getName();
-                    return !name.equals("Headers")
-                        && !name.equals("Modules");
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            for (File resourceFile : deps.getResources()) {
+                // the resources of every dependency manager are flattened into one directory,
+                // so a pod and a Swift package can vendor the same name - overwrite and report
+                // it instead of failing the build on the second copy
+                File resourceDest = new File(resourcesBuildDir, resourceFile.getName());
+                boolean collision = resourceDest.exists();
+                if (collision) {
+                    LOGGER.warn("buildNativeDepsArtifacts - duplicate resource {}, overwriting", resourceFile.getName());
+                    if (resourceDest.isDirectory() != resourceFile.isDirectory()) {
+                        FileUtils.forceDelete(resourceDest);
+                    }
                 }
-            });
-            outputFiles.add(frameworkDestDir);
-        }
+                if (resourceFile.isFile()) {
+                    resourceDest.getParentFile().mkdirs();
+                    Files.copy(resourceFile.toPath(), resourceDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                } else {
+                    resourceDest.mkdirs();
+                    FileUtils.copyDirectory(resourceFile, resourceDest);
+                }
+                if (!collision) {
+                    outputFiles.add(resourceDest);
+                }
+            }
 
-        File podfileLock = resolvedPods.getPodfileLock();
-        if (podfileLock != null) {
-            LOGGER.info("buildPods - adding Podfile.lock to build output");
-            File destPodFileLock = new File(buildState.buildDir, "Podfile.lock");
-            FileUtils.copyFile(podfileLock, destPodFileLock);
-            outputFiles.add(destPodFileLock);
+            outputFiles.addAll(deps.createResourceBundles(resourcesBuildDir, buildState.fullPlatform));
+
+            for (File framework : deps.getDynamicFrameworks()) {
+                // copy framework and filter out certain files and folders
+                LOGGER.info("buildNativeDepsArtifacts - adding {}", framework.getName());
+                File frameworkDestDir = new File(frameworksBuildDir, framework.getName());
+                FileUtils.copyDirectory(framework, frameworkDestDir, new FileFilter() {
+                    @Override
+                    public boolean accept(File pathname) {
+                        String name = pathname.getName();
+                        return !name.equals("Headers")
+                            && !name.equals("Modules");
+                    }
+                });
+                outputFiles.add(frameworkDestDir);
+            }
+
+            File lockFile = deps.getLockFile();
+            if (lockFile != null) {
+                LOGGER.info("buildNativeDepsArtifacts - adding {} to build output", lockFile.getName());
+                File destLockFile = new File(buildState.buildDir, lockFile.getName());
+                FileUtils.copyFile(lockFile, destLockFile);
+                outputFiles.add(destLockFile);
+            }
         }
 
         return outputFiles;
@@ -1434,13 +1454,11 @@ class Extender {
         extShLibs.addAll(ExtenderUtil.collectFilesByName(buildState.buildDir, platformConfig.shlibRe));
         extLibs.addAll(ExtenderUtil.collectFilesByName(buildState.buildDir, platformConfig.stlibRe));
 
-        if (resolvedPods != null) {
-            extFrameworks.addAll(resolvedPods.getFrameworks());
-            extFrameworks.addAll(resolvedPods.getBuiltFrameworks());
-            extFrameworkPaths.addAll(resolvedPods.getFrameworksSearchPaths());
-            extLibs.addAll(resolvedPods.getStaticLibraries());
-            extLibPaths.addAll(resolvedPods.getLibrarySearchPaths());
-        }
+        extFrameworks.addAll(collectDepFrameworks());
+        extFrameworks.addAll(collectDepBuiltFrameworks());
+        extFrameworkPaths.addAll(collectDepFrameworkSearchPaths());
+        extLibs.addAll(collectDepStaticLibraries());
+        extLibPaths.addAll(collectDepLibrarySearchPaths());
 
         for (File extDir : this.extDirs) {
             File libDir = new File(extDir, "lib" + File.separator + buildState.fullPlatform); // e.g. arm64-ios
@@ -2322,6 +2340,7 @@ class Extender {
         try {
             progressReporter.stage(BuildStage.COMPILING, "Building pods");
             outputFiles.addAll(buildPods());
+            outputFiles.addAll(buildNativeDepsArtifacts());
 
             // An easy way to disable building an extension, is if the symbol name is
             // disabled at the .appmanifest level
@@ -2349,16 +2368,19 @@ class Extender {
                 resourceFile = buildWin32Resources(mergedAppContext);
             }
 
-            Map<String, Object> podAppContext = new HashMap<>();
-            if (resolvedPods != null) {
-                podAppContext.put("frameworks", resolvedPods.getFrameworks());
-                podAppContext.put("weakFrameworks", resolvedPods.getWeakFrameworks());
-                podAppContext.put("libs", resolvedPods.getStaticLibraries());
-                podAppContext.put("linkFlags", resolvedPods.getAllPodLinkFlags());
-                podAppContext.put("osMinVersion", resolvedPods.getPlatformMinVersion());
-                podAppContext.put("env.IOS_VERSION_MIN", resolvedPods.getPlatformMinVersion());
+            Map<String, Object> nativeDepsContext = new HashMap<>();
+            if (!resolvedNativeDeps.isEmpty()) {
+                nativeDepsContext.put("frameworks", collectDepFrameworks());
+                nativeDepsContext.put("weakFrameworks", collectDepWeakFrameworks());
+                nativeDepsContext.put("libs", collectDepStaticLibraries());
+                nativeDepsContext.put("linkFlags", collectDepLinkFlags());
+                String minVersion = maxDepMinVersion(null);
+                if (minVersion != null) {
+                    nativeDepsContext.put("osMinVersion", minVersion);
+                    nativeDepsContext.put("env.IOS_VERSION_MIN", minVersion);
+                }
             }
-            Map<String, Object> mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, podAppContext);
+            Map<String, Object> mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, nativeDepsContext);
 
             progressReporter.stage(BuildStage.LINKING, "Linking engine");
             outputFiles.addAll(linkEngine(symbols, mergedAppContextWithPods, resourceFile));
@@ -2613,9 +2635,7 @@ class Extender {
         privacyManifests.addAll(ExtenderUtil.listFilesMatchingRecursive(buildState.uploadDir, "PrivacyInfo.xcprivacy"));
         // no need to deal with PrivacyInfo manifests from pods because they will be packed into resource bundle
         // but that functionality saved for the backward compatability with older engine's versions (before 1.10.12)
-        if (resolvedPods != null) {
-            privacyManifests.addAll(resolvedPods.getPodsPrivacyManifests());
-        }
+        privacyManifests.addAll(collectDepPrivacyManifests());
 
         // do nothing if there are no privacy manifests
         if (privacyManifests.isEmpty()) {
@@ -2790,12 +2810,121 @@ class Extender {
         }
     }
 
+    private List<String> collectDepFrameworks() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getFrameworks());
+        }
+        return result;
+    }
+
+    private Set<String> collectDepBuiltFrameworks() {
+        Set<String> result = new HashSet<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getBuiltFrameworks());
+        }
+        return result;
+    }
+
+    private List<String> collectDepFrameworkSearchPaths() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getFrameworksSearchPaths());
+        }
+        return result;
+    }
+
+    private List<String> collectDepStaticLibraries() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getStaticLibraries());
+        }
+        return result;
+    }
+
+    private List<String> collectDepLibrarySearchPaths() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getLibrarySearchPaths());
+        }
+        return result;
+    }
+
+    private List<String> collectDepWeakFrameworks() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getWeakFrameworks());
+        }
+        return result;
+    }
+
+    private List<String> collectDepLinkFlags() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getLinkFlags());
+        }
+        return result;
+    }
+
+    private List<String> collectDepAdditionalIncludePaths() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getAdditionalIncludePaths());
+        }
+        return result;
+    }
+
+    private List<File> collectDepPrivacyManifests() {
+        List<File> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getPrivacyManifests());
+        }
+        return result;
+    }
+
+    private String maxDepMinVersion(String fallback) throws ExtenderException {
+        String result = fallback;
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            String minVersion = deps.getPlatformMinVersion();
+            if (minVersion == null) {
+                continue;
+            }
+            if (result == null || VersionUtil.compareVersions(minVersion, result) > 0) {
+                result = minVersion;
+            }
+        }
+        return result;
+    }
+
     void resolve(CocoaPodsService cocoaPodsService) throws ExtenderException {
+        if (cocoaPodsService == null) {
+            LOGGER.warn("CocoaPods service is not available, skipping CocoaPods dependency resolution");
+            return;
+        }
         try {
             resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, buildState);
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());
+        }
+        if (resolvedPods != null) {
+            resolvedNativeDeps.add(resolvedPods);
+        }
+    }
+
+    void resolve(SwiftPackageManagerService swiftPackageManagerService) throws ExtenderException {
+        if (swiftPackageManagerService == null) {
+            LOGGER.info("SPM service is not available, skipping Swift package dependency resolution");
+            return;
+        }
+        try {
+            ResolvedPackages resolvedPackages = swiftPackageManagerService.resolveDependencies(platformConfig, buildState);
+            if (resolvedPackages != null) {
+                resolvedNativeDeps.add(resolvedPackages);
+            }
+        }
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to resolve Swift package dependencies. " + e.getMessage());
         }
     }
 

@@ -1,0 +1,6 @@
+{
+  "platform": "ios",
+  "packages": [
+    { "url": "https://github.com/foo/../../internal/repo.git", "version": "1.0.0", "products": ["X"] }
+  ]
+}

@@ -20,6 +20,7 @@ import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.data.DefoldSdk;
+import com.defold.extender.services.spm.SwiftPackageManagerService;
 
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jetty.io.EofException;
@@ -38,6 +39,7 @@ public class AsyncBuilder {
     private DefoldSdkService defoldSdkService;
     private GradleService gradleService;
     private CocoaPodsService cocoaPodsService;
+    private SwiftPackageManagerService swiftPackageManagerService;
     private BuildProgressService buildProgressService;
     private R8Configuration r8Configuration;
     private File jobResultLocation;
@@ -47,6 +49,7 @@ public class AsyncBuilder {
     public AsyncBuilder(DefoldSdkService defoldSdkService,
                         GradleService gradleService,
                         Optional<CocoaPodsService> cocoaPodsService,
+                        Optional<SwiftPackageManagerService> swiftPackageManagerService,
                         BuildProgressService buildProgressService,
                         R8Configuration r8Configuration,
                         @Value("${extender.job-result.location}") String jobResultLocation,
@@ -54,6 +57,7 @@ public class AsyncBuilder {
         this.defoldSdkService = defoldSdkService;
         this.gradleService = gradleService;
         cocoaPodsService.ifPresent(val -> { this.cocoaPodsService = val; });
+        swiftPackageManagerService.ifPresent(val -> { this.swiftPackageManagerService = val; });
         this.buildProgressService = buildProgressService;
         this.r8Configuration = r8Configuration;
         this.jobResultLocation = new File(jobResultLocation);
@@ -128,11 +132,15 @@ public class AsyncBuilder {
                     metricsWriter.measureGradleDownload();
                 }
 
-                // Resolve CocoaPods dependencies
+                // Resolve CocoaPods and Swift package dependencies
                 if (ExtenderUtil.isAppleTarget(platform)) {
                     progressReporter.stage(BuildStage.DEPENDENCIES, "Resolving CocoaPods dependencies");
                     extender.resolve(cocoaPodsService);
                     metricsWriter.measureCocoaPodsInstallation();
+
+                    progressReporter.stage(BuildStage.DEPENDENCIES, "Resolving Swift package dependencies");
+                    extender.resolve(swiftPackageManagerService);
+                    metricsWriter.measureSpmResolution();
                 }
 
                 // Build engine

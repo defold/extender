@@ -19,10 +19,11 @@ import org.slf4j.LoggerFactory;
 import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
+import com.defold.extender.services.ResolvedNativeDeps;
 import com.defold.extender.services.cocoapods.PlistBuddyWrapper.CreateBundlePlistArgs;
 import com.defold.extender.utils.FrameworkUtil;
 
-public class ResolvedPods {
+public class ResolvedPods implements ResolvedNativeDeps {
     private static final Logger LOGGER = LoggerFactory.getLogger(ResolvedPods.class);
     private List<PodBuildSpec> pods = new ArrayList<>();
     private File podsDir;
@@ -301,11 +302,33 @@ public class ResolvedPods {
 
     @Deprecated
     public List<File> getPodsPrivacyManifests() {
-        return ExtenderUtil.listFilesMatchingRecursive(podsDir, "PrivacyInfo.xcprivacy");
+        return getPrivacyManifests();
     }
 
     public File getTargetSupportFilesDir() {
         return targetSupportFilesDir;
+    }
+
+    // ResolvedNativeDeps aliases for the pod-named getters
+
+    @Override
+    public List<String> getLinkFlags() {
+        return getAllPodLinkFlags();
+    }
+
+    @Override
+    public List<File> getResources() {
+        return getAllPodResources();
+    }
+
+    @Override
+    public File getLockFile() {
+        return getPodfileLock();
+    }
+
+    @Override
+    public List<File> getPrivacyManifests() {
+        return ExtenderUtil.listFilesMatchingRecursive(podsDir, "PrivacyInfo.xcprivacy");
     }
 
     @Override

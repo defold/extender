@@ -57,6 +57,19 @@ extender:
         repo-update-cron: "0 0 * * * *" # update spec repo every 1 h
         cache-dir-rotate-cron: "0 10 2 * * *" # once per day
         old-cache-clean-cron: "0 10 6 * * *" # once per day after directory rotation
+    spm:
+        enabled: false
+        home-dir-prefix: /tmp/.swiftpm
+        # DEVELOPER_DIR is selected per build: the job's XCODE_VERSION is looked up in
+        # the (optional) xcode-developer-dirs map, falling back to default-developer-dir:
+        #   xcode-developer-dirs:
+        #       "26.2": /Applications/Xcode_26.2.app/Contents/Developer
+        default-developer-dir: /Applications/Xcode.app/Contents/Developer
+        xcodegen-path: xcodegen
+        wrapper-mach-o-type: staticlib # staticlib | mh_dylib
+        swift-version: "6.0"
+        cache-dir-rotate-cron: "0 20 2 * * *" # once per day
+        old-cache-clean-cron: "0 20 6 * * *" # once per day after directory rotation
     # refer to README_SECURITY.md for information on securing your server
     authentication:
         # empty string, all platforms allowed without authentication
