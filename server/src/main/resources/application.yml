@@ -1,7 +1,11 @@
 server:
     port: 9000
+    max-http-request-header-size: 16KB
     jetty:
         connection-idle-timeout: 600000
+        # Jetty reuses maxFormKeys as the multipart part limit, i.e. the max number of files
+        # in a build request.
+        max-form-keys: 5000
 
 extender:
     sdk:
