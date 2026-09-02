@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,6 +14,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.io.TempDir;
 
 public class ProcessExecutorTest {
 
@@ -69,5 +73,101 @@ public class ProcessExecutorTest {
         assertEquals(2, pe.getEnv().size());
         assertEquals("/tmp/.cocoapods", pe.getEnv().get("CP_HOME_DIR"));
         assertEquals("Release", pe.getEnv().get("CONFIGURATION"));
+    }
+
+    @Test
+    public void testCommandTimeoutKillsProcess() {
+        ProcessExecutor pe = new ProcessExecutor();
+        pe.setCommandTimeout(1000);
+        long start = System.currentTimeMillis();
+        IOException e = assertThrows(IOException.class, () -> pe.execute("sleep 30"));
+        long elapsed = System.currentTimeMillis() - start;
+        assertTrue(e.getMessage().contains("timed out"), e.getMessage());
+        assertTrue(elapsed < 15_000, "took " + elapsed + " ms");
+    }
+
+    @Test
+    public void testCommandWithinTimeoutSucceeds() throws Exception {
+        ProcessExecutor pe = new ProcessExecutor();
+        pe.setCommandTimeout(10_000);
+        assertEquals(0, pe.execute("echo ok"));
+        assertTrue(pe.getOutput().contains("ok"));
+    }
+
+    @Test
+    public void testTimeoutIsOffWhenSandboxIsDisabled() {
+        assertEquals(0, new ProcessExecutor().getCommandTimeout());
+        assertEquals(SandboxPolicy.Network.NONE, new ProcessExecutor().getPolicy().network());
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    public void testSandboxedCommandRunsThroughLauncher(@TempDir Path dir) throws Exception {
+        Path launcher = FakeSandboxLauncher.write(dir);
+        Path jobDir = java.nio.file.Files.createDirectory(dir.resolve("job"));
+        ProcessExecutor pe = new ProcessExecutor(new ProcessSandbox(FakeSandboxLauncher.configuration(launcher)));
+        pe.setCwd(jobDir.toFile());
+
+        assertEquals(0, pe.execute("echo hi"));
+
+        assertTrue(pe.getOutput().contains("hi"), pe.getOutput());
+        // the log shows the command as written, not the launcher line
+        assertTrue(pe.getOutput().startsWith("echo hi\n"), pe.getOutput());
+        List<String> argv = FakeSandboxLauncher.recordedArgv(dir);
+        assertTrue(argv.contains("--net"), argv.toString());
+        assertTrue(argv.contains("none"), argv.toString());
+        assertTrue(argv.contains("--rw"), argv.toString());
+        assertTrue(argv.contains(jobDir.toAbsolutePath().normalize().toString()), argv.toString());
+        assertTrue(argv.contains("--strict"), argv.toString());
+        assertEquals(List.of("--", "echo", "hi"), argv.subList(argv.indexOf("--"), argv.size()));
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    public void testExecuteCommandsAcceptsPolicyOverride(@TempDir Path dir) throws Exception {
+        Path launcher = FakeSandboxLauncher.write(dir);
+        Path jobDir = java.nio.file.Files.createDirectory(dir.resolve("job"));
+        ProcessExecutor pe = new ProcessExecutor(new ProcessSandbox(FakeSandboxLauncher.configuration(launcher)));
+        pe.setCwd(jobDir.toFile());
+
+        ProcessExecutor.executeCommands(pe, List.of("echo a"), null, SandboxPolicy.dependencyResolver(List.of()));
+
+        List<String> argv = FakeSandboxLauncher.recordedArgv(dir);
+        assertEquals("all", argv.get(argv.indexOf("--net") + 1), argv.toString());
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    public void testSandboxedEnvironmentIsRebuilt(@TempDir Path dir) throws Exception {
+        Path launcher = FakeSandboxLauncher.write(dir);
+        Path jobDir = java.nio.file.Files.createDirectory(dir.resolve("job"));
+        ProcessExecutor pe = new ProcessExecutor(new ProcessSandbox(FakeSandboxLauncher.configuration(launcher)));
+        pe.setCwd(jobDir.toFile());
+        pe.putEnv("DYNAMO_HOME", "/sdk/from/overlay");
+
+        pe.execute(List.of("sh", "-c", "echo HOME=$HOME DYNAMO_HOME=$DYNAMO_HOME"));
+
+        String home = jobDir.toAbsolutePath().normalize().resolve("home").toString();
+        assertTrue(pe.getOutput().contains("HOME=" + home), pe.getOutput());
+        assertTrue(pe.getOutput().contains("DYNAMO_HOME=/sdk/from/overlay"), pe.getOutput());
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    public void testSandboxedExecutorFailsClosedWithoutCwd(@TempDir Path dir) throws Exception {
+        Path launcher = FakeSandboxLauncher.write(dir);
+        ProcessExecutor pe = new ProcessExecutor(new ProcessSandbox(FakeSandboxLauncher.configuration(launcher)));
+        assertThrows(IOException.class, () -> pe.execute("echo hi"));
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    public void testProcessUtilsPassesPolicyThrough(@TempDir Path dir) throws Exception {
+        // ProcessUtils creates its own executor from ProcessSandbox.current(), which the tests
+        // never install; the policy is still applied to the executor it builds.
+        Path jobDir = java.nio.file.Files.createDirectory(dir.resolve("job"));
+        String out = ProcessUtils.execCommand(List.of("echo", "utils"), jobDir.toFile(), Map.of(),
+                SandboxPolicy.dependencyResolver(List.of()));
+        assertTrue(out.contains("utils"), out);
     }
 }

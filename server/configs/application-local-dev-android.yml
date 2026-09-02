@@ -1,4 +1,8 @@
 extender:
     instance-type: BUILDER_ONLY
+    # every builder image built from extender-base-env >= 1.8.0 ships the launcher;
+    # override with EXTENDER_SANDBOX_ENABLED=false / EXTENDER_SANDBOX_STRICT=false on older hosts
+    sandbox:
+        enabled: true
     gradle:
         enabled: true

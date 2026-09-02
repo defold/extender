@@ -22,11 +22,12 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.process.ProcessExecutor;
+import com.defold.extender.process.SandboxPolicy;
 
 public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);
 
-    private static final String DOTNET_CLI_HOME = System.getenv("DOTNET_CLI_HOME");
+    private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
     private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
 
@@ -58,7 +59,7 @@ public class CSharpBuilder {
         this.template = ExtenderUtil.readContentFromResource(csProjectResource);
         this.context = context;
 
-        LOGGER.info(String.format("DOTNET_CLI_HOME: %s", DOTNET_CLI_HOME));
+        LOGGER.info(String.format("DOTNET_ROOT: %s", DOTNET_ROOT));
         LOGGER.info(String.format("NUGET_PACKAGES: %s", NUGET_PACKAGES));
     }
 
@@ -154,17 +155,25 @@ public class CSharpBuilder {
 
     private File runDotnet(File project, String platform) throws IOException, InterruptedException, ExtenderException {
 
-        if (DOTNET_CLI_HOME == null) {
-            throw new ExtenderException("DOTNET_CLI_HOME is not setup correctly! Cannot build C#.");
+        if (DOTNET_ROOT == null) {
+            throw new ExtenderException("DOTNET_ROOT is not setup correctly! Cannot build C#.");
         }
 
         String csplatform = convertPlatform(this.platform);
-        String cmd = String.format("%s/dotnet publish --nologo -c Release -r %s ", DOTNET_CLI_HOME, csplatform);
+        String cmd = String.format("%s/dotnet publish --nologo -c Release -r %s ", DOTNET_ROOT, csplatform);
         cmd += project.getAbsolutePath();
 
         List<String> commands = new ArrayList<>();
         commands.add(cmd);
-        ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+
+        // NuGet restore needs the network and the package cache must be executable: a NativeAOT
+        // publish runs ilc out of the ilcompiler package. The CLI's own state (first-run
+        // sentinel, telemetry) goes to a per-job DOTNET_CLI_HOME instead of the shared install.
+        SandboxPolicy policy = SandboxPolicy
+                .dependencyResolver(List.of())
+                .withReadWriteExecPaths(NUGET_PACKAGES != null ? List.of(NUGET_PACKAGES) : List.of())
+                .withEnv(Map.of("DOTNET_CLI_HOME", new File(this.outputDir, ".dotnet").getAbsolutePath()));
+        ProcessExecutor.executeCommands(processExecutor, commands, null, policy); // in parallel
 
         String name = outputName;
         if (name.startsWith("lib"))

@@ -11,38 +11,83 @@ import java.util.*;
 import com.defold.extender.ExtenderException;
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProcessExecutor {
+    private static final long FORCE_KILL_DELAY_SECONDS = 5;
+    private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "process-watchdog");
+        t.setDaemon(true);
+        return t;
+    });
+
     private final StringBuffer output = new StringBuffer();
     private final Map<String, String> env = new HashMap<>();
+    private final ProcessSandbox sandbox;
+    private volatile SandboxPolicy policy = SandboxPolicy.toolchain();
+    private volatile long commandTimeoutMillis;
     private File cwd = null;
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
     private static AtomicInteger commandCounter = new AtomicInteger(0);
 
+    public ProcessExecutor() {
+        this(ProcessSandbox.current());
+    }
+
+    public ProcessExecutor(ProcessSandbox sandbox) {
+        this.sandbox = sandbox;
+        this.commandTimeoutMillis = sandbox.commandTimeoutMillis();
+    }
+
     public int execute(String command) throws IOException, InterruptedException {
+        return execute(command, null);
+    }
+
+    public int execute(String command, SandboxPolicy policy) throws IOException, InterruptedException {
         // To avoid an issue where an extra space was interpreted as an argument
         List<String> args = CommandLineTokenizer.parse(command);
-        return execute(args);
+        return execute(args, policy);
     }
 
     public int execute(List<String> args) throws IOException, InterruptedException {
+        return execute(args, null);
+    }
+
+    /**
+     * Runs one command. The log always shows the command as written; when the sandbox is
+     * enabled the process actually started is the launcher wrapping it.
+     *
+     * @param policy per-call override, or null for this executor's default policy
+     */
+    public int execute(List<String> args, SandboxPolicy policy) throws IOException, InterruptedException {
         putLog(String.join(" ", args) + "\n");
 
         int commandId = commandCounter.incrementAndGet();
         long startTime = System.currentTimeMillis();
-        ProcessBuilder pb = new ProcessBuilder(args);
+        SandboxPolicy effectivePolicy = policy != null ? policy : this.policy;
+        ProcessSandbox.Launch launch = sandbox.prepare(args, cwd, env, effectivePolicy);
+
+        ProcessBuilder pb = new ProcessBuilder(launch.argv());
         if (cwd != null) {
             pb.directory(cwd);
         }
         pb.redirectErrorStream(true);
 
         Map<String, String> pbEnv = pb.environment();
-        pbEnv.putAll(this.env);
+        if (launch.env() != null) {
+            pbEnv.clear();
+            pbEnv.putAll(launch.env());
+        } else {
+            pbEnv.putAll(this.env);
+        }
 
         if (DM_DEBUG_COMMANDS) {
             StringBuffer debugBuffer = new StringBuffer();
             debugBuffer.append(String.format("CMD %d: %s\n", commandId, String.join(" ", args)));
+            if (launch.env() != null) {
+                debugBuffer.append(String.format("\tSandboxed: %s\n", String.join(" ", launch.argv())));
+            }
             debugBuffer.append(String.format("\tWorking dir: %s\n", this.cwd == null ? "(null)" : this.cwd.toString()));
             debugBuffer.append("\tEnvironment:\n");
             for (Map.Entry<String, String> envEntry : this.env.entrySet()) {
@@ -52,19 +97,36 @@ public class ProcessExecutor {
         }
         Process p = pb.start();
 
-        byte[] buf = new byte[16 * 1024];
-        InputStream is = p.getInputStream();
+        long timeout = this.commandTimeoutMillis;
+        AtomicBoolean timedOut = new AtomicBoolean(false);
+        ScheduledFuture<?> watchdog = null;
+        if (timeout > 0) {
+            watchdog = WATCHDOG.schedule(() -> {
+                timedOut.set(true);
+                terminate(p);
+            }, timeout, TimeUnit.MILLISECONDS);
+        }
 
-        int n;
-        do {
-            n = is.read(buf);
-            if (n > 0) {
-                putLog(new String(buf, 0, n));
+        int exitValue;
+        try {
+            byte[] buf = new byte[16 * 1024];
+            InputStream is = p.getInputStream();
+
+            int n;
+            do {
+                n = is.read(buf);
+                if (n > 0) {
+                    putLog(new String(buf, 0, n));
+                }
+            }
+            while (n > 0);
+
+            exitValue = p.waitFor();
+        } finally {
+            if (watchdog != null) {
+                watchdog.cancel(false);
             }
         }
-        while (n > 0);
-
-        int exitValue = p.waitFor();
 
         if (DM_DEBUG_COMMANDS) {
             StringBuffer debugBuffer = new StringBuffer();
@@ -83,6 +145,12 @@ public class ProcessExecutor {
             System.out.println(debugBuffer.toString());
         }
 
+        if (timedOut.get()) {
+            String message = String.format("Command timed out after %d ms: %s\n", timeout, String.join(" ", args));
+            putLog(message);
+            throw new IOException(message + output.toString());
+        }
+
         // note: a negative exit value means the process was terminated by a signal,
         // which is a failure just like a positive exit code
         if (exitValue != 0) {
@@ -90,6 +158,21 @@ public class ProcessExecutor {
         }
 
         return exitValue;
+    }
+
+    /**
+     * Stops a command that overran its timeout. With the launcher, SIGTERM makes it kill its
+     * whole process tree; without it (macOS, tests) the descendants are signalled directly so
+     * nothing keeps the stdout pipe, and therefore the read loop, open.
+     */
+    private static void terminate(Process p) {
+        List<ProcessHandle> descendants = p.descendants().toList();
+        p.destroy();
+        descendants.forEach(ProcessHandle::destroy);
+        WATCHDOG.schedule(() -> {
+            descendants.forEach(ProcessHandle::destroyForcibly);
+            p.destroyForcibly();
+        }, FORCE_KILL_DELAY_SECONDS, TimeUnit.SECONDS);
     }
 
     public String getOutput() {
@@ -125,6 +208,32 @@ public class ProcessExecutor {
         this.cwd = cwd;
     }
 
+    public File getCwd() {
+        return cwd;
+    }
+
+    /** Default policy for commands run through this executor; toolchain (no network) unless changed. */
+    public void setPolicy(SandboxPolicy policy) {
+        this.policy = Objects.requireNonNull(policy);
+    }
+
+    public SandboxPolicy getPolicy() {
+        return policy;
+    }
+
+    /** Wall-clock limit per command in milliseconds; 0 disables it. */
+    public void setCommandTimeout(long millis) {
+        this.commandTimeoutMillis = millis;
+    }
+
+    public long getCommandTimeout() {
+        return commandTimeoutMillis;
+    }
+
+    public ProcessSandbox getSandbox() {
+        return sandbox;
+    }
+
     public void putLog(String msg) {
         // OOM can happen when running tests with org.gradle.logging.level=debug
         try {
@@ -139,16 +248,23 @@ public class ProcessExecutor {
     }
 
     public static void executeCommands(ProcessExecutor processExecutor, List<String> commands) throws IOException, InterruptedException, ExtenderException {
-        executeCommands(processExecutor, commands, null);
+        executeCommands(processExecutor, commands, null, null);
     }
 
     // onCommandComplete is invoked concurrently from the pool threads, once per successful command
     public static void executeCommands(ProcessExecutor processExecutor, List<String> commands, Runnable onCommandComplete) throws IOException, InterruptedException, ExtenderException {
+        executeCommands(processExecutor, commands, onCommandComplete, null);
+    }
+
+    /**
+     * @param policy per-call sandbox policy for every command, or null for the executor's default
+     */
+    public static void executeCommands(ProcessExecutor processExecutor, List<String> commands, Runnable onCommandComplete, SandboxPolicy policy) throws IOException, InterruptedException, ExtenderException {
         ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         List<Callable<Void>> callables = new ArrayList<>();
         for (String command : commands) {
             callables.add(() -> {
-                processExecutor.execute(command);
+                processExecutor.execute(command, policy);
                 if (onCommandComplete != null) {
                     onCommandComplete.run();
                 }

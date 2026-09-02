@@ -124,6 +124,15 @@ jobs:
           ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.short_sha }}
           ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:latest
 
+    # The base image carries the process sandbox launcher; exercise it on the (Landlock-capable)
+    # runner kernel so a broken launcher never reaches the platform images built on top.
+    - name: Sandbox launcher self-test
+      if: steps.name_postprocess.outputs.platform == 'base'
+      run: |
+        docker run --rm --pull always \
+          ${{ steps.name_postprocess.outputs.target_registry }}/extender-base-env:${{ steps.name_postprocess.outputs.image_version }} \
+          sh /usr/local/share/extender-sandbox/selftest.sh
+
     - name: Notify if tests failed
       uses: lazy-actions/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
       if: failure()

@@ -350,6 +350,107 @@ public class IntegrationTest {
         return destination;
     }
 
+    // ---- process sandbox (extender.sandbox.*, enabled in the local-dev profiles) ----------------
+
+    // Runs a build that must fail and returns what the server reported: the client writes the
+    // job's error body (extender log + exception) into the log file, not into the exception.
+    private String doBuildExpectingFailure(List<ExtenderResource> sourceFiles, TestConfiguration configuration) throws IOException {
+        File cacheDir = Files.createTempDirectory(String.format("sandbox-%s-%s", configuration.platform, configuration.version.toString())).toFile();
+        cacheDir.deleteOnExit();
+        ExtenderClient extenderClient = new ExtenderClient("http://localhost:" + EXTENDER_PORT, cacheDir);
+        File destination = Files.createTempFile("dmengine", ".zip").toFile();
+        File log = Files.createTempFile("dmengine", ".log").toFile();
+
+        assertThrows(ExtenderClientException.class, () -> extenderClient.build(
+                configuration.platform,
+                configuration.version.sha1,
+                sourceFiles,
+                destination,
+                log));
+        return Files.readString(log.toPath(), StandardCharsets.UTF_8);
+    }
+
+    private static String probeLine(String log) {
+        for (String line : log.split("\\r?\\n")) {
+            int index = line.indexOf("SANDBOX_PROBE ");
+            if (index >= 0) {
+                return line.substring(index).trim();
+            }
+        }
+        return null;
+    }
+
+    // Output of a host command without the echoed command line; empty when it exits non-zero.
+    private static String runOnHost(String... command) throws InterruptedException {
+        ProcessExecutor processExecutor = new ProcessExecutor();
+        try {
+            processExecutor.execute(List.of(command));
+        } catch (IOException e) {
+            return "";
+        }
+        String output = processExecutor.getOutput();
+        return output.substring(output.indexOf('\n') + 1).trim();
+    }
+
+    // emcc evaluates every --js-library file in Node while linking: that is user code running
+    // inside the web builder. The fixture probes the escapes the sandbox must block and fails the
+    // link with a summary line (see test-data/ext_sandbox_probe/lib/web/library_sandbox_probe.js).
+    @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
+    @MethodSource("data")
+    public void sandboxConfinesWebLinkStep(TestConfiguration configuration) throws IOException, InterruptedException {
+        assumeTrue(configuration.platform.endsWith("-web"), "This test is only run for web targets");
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/ext_sandbox_probe/ext.manifest"),
+                new FileExtenderResource("test-data/ext_sandbox_probe/src/probe.cpp"),
+                new FileExtenderResource("test-data/ext_sandbox_probe/lib/web/library_sandbox_probe.js")
+        );
+
+        String log = doBuildExpectingFailure(sourceFiles, configuration);
+        String probe = probeLine(log);
+        assertNotNull(probe, "No SANDBOX_PROBE line in the build log:\n" + log);
+        for (String expected : List.of(
+                "fs_write_outside=EACCES", "results=EACCES", "tmp=EACCES", "sdk_write=EACCES",
+                "net_local=EAFNOSUPPORT", "net_metadata=EAFNOSUPPORT",
+                "decoy=absent", "home=job", "detached=spawned")) {
+            assertTrue(probe.contains(expected), expected + " expected in: " + probe);
+        }
+
+        // the daemonised sleep the probe started must have died with the link command
+        String container = runOnHost("docker", "ps", "--filter", "name=emscripten_406-integration-test", "--format", "{{.ID}}");
+        assertFalse(container.isEmpty(), "web builder container not found");
+        String survivors = runOnHost("docker", "exec", container.split("\\s+")[0], "sh", "-c",
+                "for p in /proc/[0-9]*/cmdline; do tr '\\0' ' ' < \"$p\" 2>/dev/null; echo; done | grep 'sleep 6[0]0' || true");
+        assertTrue(survivors.isBlank(), "A process outlived the sandboxed link step: " + survivors);
+    }
+
+    // Gradle evaluates the Groovy of a user's build.gradle inside the android builder. The Gradle
+    // step keeps network access by design (it downloads dependencies), so the fixture probes the
+    // filesystem and environment only (see test-data/ext_sandbox_probe/manifests/android/build.gradle).
+    @Test
+    public void sandboxConfinesGradleStep() throws IOException {
+        Set<String> selectedPlatforms = TestUtils.selectedPlatforms();
+        assumeTrue(
+                selectedPlatforms.isEmpty()
+                        || selectedPlatforms.stream().anyMatch(platform -> platform.endsWith("-android")),
+                "This test is only run when an Android target is selected");
+        TestConfiguration configuration = latestAndroidConfiguration();
+        List<ExtenderResource> sourceFiles = Lists.newArrayList(
+                new FileExtenderResource("test-data/AndroidManifest.xml", "AndroidManifest.xml"),
+                new FileExtenderResource("test-data/ext_sandbox_probe/ext.manifest"),
+                new FileExtenderResource("test-data/ext_sandbox_probe/src/probe.cpp"),
+                new FileExtenderResource("test-data/ext_sandbox_probe/manifests/android/build.gradle")
+        );
+
+        String log = doBuildExpectingFailure(sourceFiles, configuration);
+        String probe = probeLine(log);
+        assertNotNull(probe, "No SANDBOX_PROBE line in the build log:\n" + log);
+        for (String expected : List.of(
+                "fs_write_outside=denied", "results=denied", "tmp=denied", "sdk_write=denied",
+                "decoy=absent", "home=job")) {
+            assertTrue(probe.contains(expected), expected + " expected in: " + probe);
+        }
+    }
+
     @ParameterizedTest(name = "[{index}] {displayName} {arguments}")
     @MethodSource("data")
     public void buildEngine(TestConfiguration configuration) throws IOException, ExtenderClientException {

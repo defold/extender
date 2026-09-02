@@ -26,7 +26,17 @@ public class ProcessUtils {
     }
 
     public static String execCommand(List<String> args, File cwd, Map<String, String> env) throws ExtenderException {
+        return execCommand(args, cwd, env, SandboxPolicy.toolchain());
+    }
+
+    /**
+     * @param policy sandbox policy for this command; callers that need network (dependency
+     *               resolution) must ask for it explicitly, everything else defaults to the
+     *               toolchain policy
+     */
+    public static String execCommand(List<String> args, File cwd, Map<String, String> env, SandboxPolicy policy) throws ExtenderException {
         ProcessExecutor pe = new ProcessExecutor();
+        pe.setPolicy(policy);
 
         if (cwd != null) {
             pe.setCwd(cwd);

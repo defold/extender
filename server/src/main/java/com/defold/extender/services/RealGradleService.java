@@ -6,6 +6,7 @@ import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessUtils;
+import com.defold.extender.process.SandboxPolicy;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -327,8 +328,11 @@ public class RealGradleService implements GradleServiceInterface {
         LOGGER.info("Resolving dependencies");
         Files.deleteIfExists(artifactManifest.toPath());
 
+        // Gradle must reach the Maven repositories and write its dependency cache; every other
+        // subprocess in a build runs with the default no-network toolchain policy.
         String log = ProcessUtils.execCommand(getGradleResolveCommand(), cwd,
-            Map.of("GRADLE_USER_HOME", this.gradleHome));
+            Map.of("GRADLE_USER_HOME", this.gradleHome),
+            SandboxPolicy.dependencyResolver(List.of(this.gradleHome)));
         LOGGER.debug("\n" + log);
         Files.writeString(dependencyTree.toPath(), log, StandardCharsets.UTF_8);
 

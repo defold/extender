@@ -26,7 +26,6 @@ ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 
 COPY --from=build /opt/gradle /opt/gradle
 RUN \
-  chown -R extender: /opt/gradle && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
   python3 \

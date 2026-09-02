@@ -55,7 +55,6 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
     chmod ugo+rw -R "${ANDROID_SDK_HOME}" && \
 # fix permissions
     chmod +r -R "${ANDROID_ROOT}" && \
-    chmod +w -R "${ANDROID_HOME}" && \
     chmod -R 755 "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}" && \
     which "${ANDROID_NDK_BIN_PATH}/armv7a-linux-androideabi${ANDROID_NDK_API_VERSION}-clang++" && \
     which "${ANDROID_NDK_BIN_PATH}/aarch64-linux-android${ANDROID_64_NDK_API_VERSION}-clang++" && \
@@ -108,6 +107,9 @@ ENV ANDROID_ROOT=${ANDROID_ROOT} \
     PATH=${PATH}:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK_BIN_PATH} \
     ANDROID_R8=${ANDROID_SDK_BUILD_TOOLS_PATH}/lib/d8.jar \
     ANDROID_R8_VERSION=${R8_VERSION}
+
+# writable for sandboxed gradle: the Android Gradle plugin writes into .android
+ENV EXTENDER_SANDBOX_IMAGEREADWRITEPATHS=${ANDROID_SDK_HOME}
 
 COPY --from=build ${ANDROID_ROOT} ${ANDROID_ROOT}
 
