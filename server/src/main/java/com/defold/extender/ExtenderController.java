@@ -210,9 +210,9 @@ public class ExtenderController {
         LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
 
         File uploadDirectory = new File(jobDirectory, "upload");
-        uploadDirectory.mkdir();
+        Files.createDirectories(uploadDirectory.toPath());
         File buildDirectory = new File(jobDirectory, "build");
-        buildDirectory.mkdir();
+        Files.createDirectories(buildDirectory.toPath());
 
         final MetricsWriter metricsWriter = new MetricsWriter(meterRegistry);
         final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);

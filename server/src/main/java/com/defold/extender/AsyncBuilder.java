@@ -101,7 +101,7 @@ public class AsyncBuilder {
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation, jobName);
-        resultDir.mkdir();
+        Files.createDirectories(resultDir.toPath());
         Extender extender = null;
         Boolean isSuccefull = true;
         ProgressReporter progressReporter = buildProgressService.reporterFor(jobName);

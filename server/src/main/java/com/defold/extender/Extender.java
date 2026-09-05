@@ -796,7 +796,7 @@ class Extender {
         else if (language.equals("python"))
             suffix = "_pb2.py";
         else
-            throw new ExtenderException("Proto output doesn't support language: " + (language!=null?language:"null"));
+            throw new ExtenderException("Proto output doesn't support language: " + language);
 
         for (File protoFile : protoFiles) {
 
@@ -995,9 +995,7 @@ class Extender {
             File frameworkDir = new File(spec.buildDir, String.format("%s.framework", spec.moduleName));
             frameworkDir.mkdirs();
             File frameworkHeaders = new File(frameworkDir, "Headers");
-            frameworkHeaders.mkdir();
             File frameworkModules = new File(frameworkDir, "Modules");
-            frameworkModules.mkdir();
 
             String frameworkHeadersDirPath = frameworkHeaders.toString();
             // Collect headers
@@ -1033,7 +1031,6 @@ class Extender {
             File swiftModule = new File(spec.buildDir, spec.moduleName + ".swiftmodule");
             if (swiftModule.exists()) {
                 File targetSwiftModuleDir = new File(frameworkModules, spec.moduleName + ".swiftmodule");
-                targetSwiftModuleDir.mkdir();
                 File targetSwiftModuleName = new File(targetSwiftModuleDir, String.format("%s.swiftmodule", PodUtils.swiftModuleNameFromPlatform(targetPlatform)));
                 FileUtils.copyFile(swiftModule, targetSwiftModuleName, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -1332,7 +1329,6 @@ class Extender {
 
         File extDir = manifest.getParentFile();
         File extBuildDir = createDir(buildState.buildDir, extDir.getName());
-        extBuildDir.mkdir();
         File[] srcDirs = { new File(extDir, FOLDER_COMMON_SRC), new File(extDir, FOLDER_PLUGIN_SRC) };
 
         List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, ExtenderConst.PROTO_RE);
@@ -1387,7 +1383,6 @@ class Extender {
                 srcFiles.addAll(generatedFiles);
 
                 File sourcesListFile = new File(extBuildDir, "sources.txt");
-                sourcesListFile.createNewFile();
 
                 // Write source paths to sources.txt
                 for (File javaFile : srcFiles) {
@@ -1395,8 +1390,7 @@ class Extender {
                 }
 
                 File classesDir = new File(extBuildDir, "classes");
-                classesDir.delete();
-                classesDir.mkdir();
+                Files.createDirectories(classesDir.toPath());
 
                 {
                     Map<String, Object> context = createContext(manifestContext);
@@ -1866,7 +1860,11 @@ class Extender {
 
         // From 1.2.165
         rJavaDir = new File(buildState.buildDir, "rjava");
-        rJavaDir.mkdir();
+        try {
+            Files.createDirectories(rJavaDir.toPath());
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to create " + rJavaDir.getAbsolutePath());
+        }
 
         if (platformConfig.rjavaCmd == null) {
             LOGGER.info("No rjavaCmd found. Skipping");
@@ -1899,20 +1897,16 @@ class Extender {
 
                 // Create temp directories
                 File tmpDir = uniqueTmpFile("tmp", "rjava");
-                tmpDir.delete();
-                tmpDir.mkdir();
 
                 // <tmpDir>/classes - Output folder for compiling R.java files into classes
                 File classesDir = new File(tmpDir, "classes");
-                classesDir.delete();
-                classesDir.mkdir();
+                Files.createDirectories(classesDir.toPath());
 
                 // <tmpDir>/R.jar - Jar file containing all R.classes
                 File outputJar = new File(tmpDir, "R.jar");
 
                 // <tmpDir>/sources.txt - Text file listing all R.java source paths, used by javac command
                 File sourcesListFile = new File(tmpDir, "sources.txt");
-                sourcesListFile.createNewFile();
 
                 // Write source paths to sources.txt
                 for (File javaFile : files) {
@@ -1975,8 +1969,6 @@ class Extender {
             // * output.jar  - Resulting Jar file with all compiled Java classes
             // The temporary working directory should be removed when done.
             File tmpDir = uniqueTmpFile("tmp", "javac");
-            tmpDir.delete();
-            tmpDir.mkdir();
 
             if (javaSrcFiles.size() == 0) {
                 // Preserve the context even when this extension has no compiled jar.
@@ -1985,11 +1977,9 @@ class Extender {
             }
 
             File classesDir = new File(tmpDir, "classes");
-            classesDir.delete();
-            classesDir.mkdir();
+            Files.createDirectories(classesDir.toPath());
 
             File sourcesListFile = new File(tmpDir, "sources.txt");
-            sourcesListFile.createNewFile();
 
             File outputJar = new File(tmpDir, "output.jar");
 
@@ -2118,13 +2108,12 @@ class Extender {
 
         File mainList = new File(buildState.buildDir, "main_dex_list.txt");
 
+        // Create the main dex list in R8 keep-rule form. Additional info: https://github.com/defold/extender/issues/393
+        List<String> keepRules = mainClassNames.stream()
+                .map(classFile -> String.format("-keep class %s { *; }", classFile.replace("/", ".").replace(".class", "")))
+                .collect(Collectors.toList());
         try {
-            mainList.createNewFile();
-            for (String classFile : mainClassNames) {
-                // Create the main dex list in R8 keep-rule form. Additional info: https://github.com/defold/extender/issues/393
-                classFile = classFile.replace("/", ".").replace(".class", "");
-                FileUtils.writeStringToFile(mainList, String.format("-keep class %s { *; }\n", classFile), Charset.defaultCharset(), true);
-            }
+            Files.write(mainList.toPath(), keepRules, Charset.defaultCharset());
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to write to " + mainList.getAbsolutePath());
         }
@@ -2438,7 +2427,6 @@ class Extender {
             return new ArrayList<>();
         }
         File targetDir = new File(buildState.buildDir, "jni");
-        targetDir.mkdir();
 
         try {
             for (File jni : jniFolders) {
@@ -2457,7 +2445,6 @@ class Extender {
             return new ArrayList<>();
         }
         File targetDir = new File(buildState.buildDir, "assets");
-        targetDir.mkdir();
 
         try {
             for (File a : assets) {
@@ -2475,11 +2462,11 @@ class Extender {
             return new ArrayList<>();
         }
         File packagesDir = new File(buildState.buildDir, "packages");
-        packagesDir.mkdir();
 
         List<String> packagesList = new ArrayList<>();
 
         try {
+            Files.createDirectories(packagesDir.toPath());
             List<String> packageNames = getReturnedResourcePackageNames(
                     androidResourceFolders,
                     androidPackageResourceNames);
@@ -2505,8 +2492,6 @@ class Extender {
 
     private Set<File> copyMetaInformationFiles(List<String> allJars) {
         Set<File> result = new HashSet<>();
-        File metaInfDir = new File(buildState.buildDir, "META-INF");
-        metaInfDir.mkdir();
         for (String jarPath : allJars) {
             try (ZipFile jarFile = new ZipFile(jarPath)) {
                 Enumeration<? extends ZipEntry> entries = jarFile.entries();

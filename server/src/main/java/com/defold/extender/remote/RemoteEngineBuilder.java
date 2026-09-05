@@ -184,10 +184,9 @@ public class RemoteEngineBuilder {
         buildTimer.start();
 
         File tmpDirectory = new File(jobDirectory, "tmp");
-        tmpDirectory.mkdir();
+        Files.createDirectories(tmpDirectory.toPath());
 
         File tmpUploadArchive = new File(tmpDirectory, String.format("__remote_upload_%s.zip", ExtenderUtil.generateRandomFileName()));
-        tmpUploadArchive.createNewFile();
         try {
             httpEntity = buildHttpEntity(projectDirectory, tmpUploadArchive);
         } catch(IllegalStateException | IOException | ExtenderException e) {

@@ -71,19 +71,13 @@ public class LocalDiskDataCache implements DataCache {
         return String.format("%s/%s/%s", baseDirectory, subDirectory, key);
     }
 
-    private File createDestinationPath(final String key) {
+    private File createDestinationPath(final String key) throws IOException {
         final File destination = new File(getDestinationPath(key));
         createParentDirectory(destination);
         return destination;
     }
 
-    private void createParentDirectory(File destination) {
-        final File parentDirectory = destination.getParentFile();
-
-        if (! parentDirectory.exists()) {
-            parentDirectory.mkdir();
-        } else if (! parentDirectory.isDirectory()) {
-            throw new IllegalArgumentException("Cached file parent directory is not a directory: " + parentDirectory.getPath());
-        }
+    private void createParentDirectory(File destination) throws IOException {
+        Files.createDirectories(destination.getParentFile().toPath());
     }
 }

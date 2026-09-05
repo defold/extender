@@ -193,9 +193,10 @@ public final class PodSpecParser {
             } else if (value instanceof JSONArray) {
                 result = (JSONArray)value;
             }
-            if (result != null) {
-                result.remove("$(inherited)");
+            if (result == null) {
+                return null;
             }
+            result.remove("$(inherited)");
 
             Pattern p = Pattern.compile("\\$\\((\\w+)\\)");
 
