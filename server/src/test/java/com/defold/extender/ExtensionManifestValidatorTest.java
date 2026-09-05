@@ -224,6 +224,7 @@ public class ExtensionManifestValidatorTest {
             ctx.put("excludeLibs", Arrays.asList("alib"));
             ctx.put("stackSize", "1048576");
             ctx.put("jetifier", true);
+            ctx.put("externalJsPorts", null);
             validator.validate("ext", extensionFolder, ctx);
         });
 

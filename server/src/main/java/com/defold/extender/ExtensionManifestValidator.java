@@ -74,6 +74,9 @@ class ExtensionManifestValidator {
     // These values are rendered unquoted into command templates and the result is split on
     // whitespace, so a space would inject extra argv elements and a leading '@' a response file.
     private static void validateArgvSafe(String extensionName, String key, Object value) throws ExtenderException {
+        if (value == null) {
+            return;
+        }
         List<?> values = value instanceof List ? (List<?>) value : List.of(value);
         for (Object o : values) {
             if (o instanceof String s && ARGV_UNSAFE.matcher(s).find()) {
