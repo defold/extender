@@ -43,6 +43,8 @@ final class FakeSandboxLauncher {
         configuration.setEnabled(true);
         configuration.setLauncherPath(launcher.toString());
         configuration.setStrict(true);
+        // the fake speaks the Landlock dialect, whatever the host OS
+        configuration.setBackend(SandboxConfiguration.Backend.LANDLOCK);
         return configuration;
     }
 }

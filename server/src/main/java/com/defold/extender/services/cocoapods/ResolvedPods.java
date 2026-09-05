@@ -28,6 +28,8 @@ public class ResolvedPods implements ResolvedNativeDeps {
     private List<PodBuildSpec> pods = new ArrayList<>();
     private File podsDir;
     private File frameworksDir;
+    // the sandboxed helper tools (file, PlistBuddy) run in the job directory
+    File jobDir;
     private File targetSupportFilesDir;
     private String platformMinVersion;
     private File podFileLock;
@@ -45,6 +47,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
         this.podsDir = cocoapodsBuildState.getPodsDir();
         this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
         this.frameworksDir = cocoapodsBuildState.getUnpackedFrameworksDir();
+        this.jobDir = cocoapodsBuildState.getJobDir();
         this.podFileLock = podfileLock;
         this.useFrameworks = mainPodfile.useFrameworks;
 
@@ -152,7 +155,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
                 if (m.matches()) {
                     File framework = path.toFile();
                     try {
-                        if (FrameworkUtil.isDynamicallyLinked(framework)) {
+                        if (FrameworkUtil.isDynamicallyLinked(framework, jobDir)) {
                             dynamicFrameworks.add(framework);
                         }
                     } catch (ExtenderException e) {
@@ -190,10 +193,13 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return new ArrayList<String>(weakFrameworks);
     }
 
-    public static List<File> createPodResourceBundles(PodBuildSpec spec, File targetDir, String platform) throws IOException, ExtenderException {
+    /**
+     * @param jobDir the job directory: the sandboxed PlistBuddy runs there
+     */
+    public static List<File> createPodResourceBundles(PodBuildSpec spec, File targetDir, String platform, File jobDir) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : spec.resourceBundles.entrySet()) {
-            result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue()));
+            result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue(), jobDir));
         }
         return result;
     }
@@ -202,12 +208,12 @@ public class ResolvedPods implements ResolvedNativeDeps {
     public List<File> createResourceBundles(File targetDir, String platform) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
         for (PodBuildSpec spec : pods) {
-            result.addAll(createPodResourceBundles(spec, targetDir, platform));
+            result.addAll(createPodResourceBundles(spec, targetDir, platform, jobDir));
         }
         return result;
     }
 
-    static File createResourceBundle(File targetDir, String platform, PodBuildSpec pod, String bundleName, List<String> content) throws IOException, ExtenderException {
+    static File createResourceBundle(File targetDir, String platform, PodBuildSpec pod, String bundleName, List<String> content, File jobDir) throws IOException, ExtenderException {
         File resultFolder = new File(targetDir, bundleName + ".bundle");
         resultFolder.mkdirs();
         for (String contentElement : content) {
@@ -225,7 +231,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
         args.minVersion = pod.platformVersion;
         // TODO: if build several archs we need to merge supported platforms
         args.supportedPlatforms = PodUtils.toPlistPlatforms(new String[] { platform });
-        PlistBuddyWrapper.createBundleInfoPlist(infoPlist, args);
+        PlistBuddyWrapper.createBundleInfoPlist(infoPlist, args, jobDir);
         return resultFolder;
     }
 

@@ -113,16 +113,19 @@ seccomp and rlimits without needing any capabilities:
 * **Network**: off. `socket()` fails for every address family except `AF_UNIX`. Only the two
   dependency resolvers (Gradle, NuGet restore for C#) run with network.
 * **Environment**: rebuilt for each command. Variables matching `env-deny-patterns`
-  (tokens, secrets, `GOOGLE_APPLICATION_CREDENTIALS`, ...) are never inherited; `HOME` and
-  `TMPDIR` point into the job directory.
+  (tokens, secrets, `GOOGLE_APPLICATION_CREDENTIALS`, ...) are never inherited; `HOME`,
+  `TMPDIR` and clang's module cache point into the job directory.
 * **Lifecycle**: a wall-clock timeout per command, and the whole process tree is killed when the
   command ends, so nothing outlives a build.
 
 Configuration (`extender.sandbox.*` in `application.yml`; environment variables such as
 `EXTENDER_SANDBOX_ENABLED` override them as usual):
 
-* `enabled` - off by default; `true` in the `local-dev` profiles used by the Docker images. With
-  `enabled: true` the server refuses to start if the launcher is missing.
+* `enabled` - off by default; `true` in the `local-dev` profiles used by the Docker images and
+  in `standalone-dev` on macOS. With `enabled: true` the server refuses to start if the
+  launcher is missing.
+* `backend` - `landlock`, `seatbelt` or `auto` (by operating system); `launcher-path` names the
+  launcher for that backend.
 * `strict` - refuse to start when the host kernel offers no Landlock or seccomp (default `true`).
   Production builders run on Ubuntu 24.04 (kernel 6.8, Landlock ABI 4). Set `strict: false`
   (`EXTENDER_SANDBOX_STRICT=false` with docker compose) only for local development where the
@@ -133,7 +136,14 @@ Configuration (`extender.sandbox.*` in `application.yml`; environment variables 
 * `read-only-paths`, `read-write-paths`, `read-write-exec-paths` - the allowlist. Landlock has no
   deny rules, so `/etc` is granted as an enumerated subset: **never mount a secret under a
   granted path**. `/etc/extender/credentials`, `/etc/extender/configs` and `/etc/defold/users`
-  are not granted.
+  are not granted. Paths that do not exist on a host are skipped, so the one list also carries
+  the macOS entries (`/System`, `/Library/Developer`, ...).
+* `read-only-env-variables` - variables whose values are granted read-only + execute per command:
+  the Defold SDK (`DYNAMO_HOME`), the manifest merge tool, the macOS `PLATFORMSDK_DIR` and
+  xctoolchain, zig, the JDK, dotnet, and `DEVELOPER_DIR` (widened to its `Xcode.app`).
+* `darwin.*` - Seatbelt only: extra Mach services and preference domains, the deny lists for
+  secrets and privileged executables, `home-links`, and `extra-rules` (raw SBPL) for iterating
+  on a host without a release.
 * `image-read-write-paths` - writable tool state that a particular image needs (emscripten cache,
   wine prefix, `.android`); each Dockerfile sets it via `EXTENDER_SANDBOX_IMAGEREADWRITEPATHS`.
 * `env-deny-patterns`, `command-timeout`, `limits.*` - see the comments in `application.yml`.
@@ -142,3 +152,68 @@ Known limits of the current design: the tool runs as the same uid as the server,
 send signals to the server process on kernels older than 6.12 (Landlock ABI 6 scopes signals);
 caches that stay writable for a platform (emscripten cache, Gradle and NuGet caches, the wine
 prefix) are shared between builds; the Gradle and dotnet steps keep network access by necessity.
+
+### macOS standalone builders
+
+The same `extender.sandbox.*` configuration and `SandboxPolicy` vocabulary drive a second
+backend on the Macs (`backend: auto` picks it by operating system): a small launcher
+(source and details in [`server/scripts/standalone/sandbox/`](/server/scripts/standalone/sandbox/README.md))
+that puts the command in its own process group, applies the rlimits and hands a Seatbelt
+profile rendered by the server to `/usr/bin/sandbox-exec`. The profile is `(deny default)`
+plus an allowlist: the system trees, the `platformsdk` toolchain and SDKs, the Defold SDK and
+the job directory (read-write, not executable); no network except for `pod` and the plain
+`git` that mirrors Swift packages; signals confined to the command's own sandbox, so the
+server cannot be killed; keychains,
+`~/.ssh`, cloud credentials, `sudo`, `security` and `launchctl` denied outright. The profile is
+inherited by every descendant and survives setuid exec. Nothing a command starts outlives it:
+the launcher kills the command's process group, and because `setsid()` cannot be forbidden on
+macOS (Seatbelt has no operation for it and there is no syscall filter), it then kills whatever
+detached from that group, identifying it by a per-command tag carried in the sandbox profile
+itself. It is enabled in the `standalone-dev`
+profile; `scripts/standalone/setup-standalone-env.sh` builds the launcher and
+`envs/generate_user_env.sh` exports its path (`EXTENDER_SANDBOX_LAUNCHERPATH`).
+
+What is proven on macOS 26 with real builds through the standalone server: the xctoolchain
+`clang`/`swiftc`/`ar`/`dsymutil`, ad-hoc `codesign`, `PlistBuddy`, `hmap`, `file`,
+`xcodegen`, `pod install`/`pod spec cat` (static and framework pods) and `xcodebuild`
+resolving and building a Swift package graph all run under the deny-default profile.
+
+Swift package manifests (`Package.swift`) are compiled and executed by SwiftPM, so they are
+untrusted code like a podspec. SwiftPM's own sandbox around that execution denies network
+and writes but allows every read (`(allow file-read*)`), and it cannot start inside the
+process sandbox anyway (a Seatbelt profile cannot be nested), so it is disabled for the
+`xcodebuild` command. Instead the step is split so that no manifest ever runs with network
+access: every repository the graph needs is mirrored with plain `git` (network on, but git
+never evaluates a manifest), and `xcodebuild` then resolves and builds with network denied and
+its git redirected to the mirrors (`url.<mirror>.insteadOf` in a per-job `GIT_CONFIG_GLOBAL`,
+`GIT_ALLOW_PROTOCOL=file`). A manifest that opens a socket gets `EPERM`:
+`SpmManifestNetworkTest` builds a package whose manifest reports its own `connect()` result
+through the build error, `connect FAILED errno=1` under the sandbox against `connect OK`
+without it.
+
+Transitive dependencies are not known before the manifests declaring them have run, so the two
+steps alternate. A round that cannot reach a repository names it (`Fetching from <url>`,
+`Failed to clone repository <url>`), that repository is mirrored, and the round is repeated
+until the graph closes; the round that finds it closed is the build itself, so a resolved graph
+costs no extra `xcodebuild`. An upload therefore needs no `Package.resolved`, and one that has
+it is used as a seed that closes the graph in the first round. Those URLs come from untrusted
+manifests, so they go through the same validation as the declared ones (https only, no
+credentials, no custom port), and both the repository count (256) and the number of rounds (12)
+are capped. A mirror is fetched at most once per `extender.spm.mirror-refresh-interval` (10
+minutes by default), so parallel builds of one graph cost one fetch per repository rather than
+one per build.
+
+Fails closed: a location plain git cannot clone, a graph that outgrows the caps, and a binary
+target (an xcframework SwiftPM downloads over HTTP during resolution) each fail the build with
+a message saying so. Packages with binary targets, such as Sentry and Firebase, are therefore
+not supported.
+
+Known limits: `xcodebuild` (SPM) resolves the home through getpwuid, so
+SwiftPM's manifest/collection databases, its fingerprint store and the clang module cache used
+for manifest compilation stay in per-user locations that are writable for that command and
+shared between jobs, like the Gradle cache on Linux, and manifest code can write there too (a
+poisoning surface, without network); the CocoaPods spec repo and download cache are shared by
+design, and podspecs still evaluate with network on; the
+environment reaching a command is the server's minus `env-deny-patterns`, a denylist, so a
+variable that matches no pattern is visible to manifest and podspec code. Seatbelt denials
+are visible with `/usr/bin/log stream --style compact --predicate 'sender == "Sandbox"'`.

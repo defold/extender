@@ -986,7 +986,7 @@ class Extender {
 
     void buildPodAsFramework(PodBuildSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
         // Collect resource bundles
-        List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform);
+        List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform, buildState.getJobDir());
 
         if (PodUtils.hasSourceFiles(spec)) {
             Map<String, Collection<File>> enumeratedFiles = new HashMap<>();
@@ -1064,7 +1064,7 @@ class Extender {
                 "--timestamp=none",
                 "--generate-entitlement-der",
                 frameworkDir.getAbsolutePath()
-            ), null, null);
+            ), buildState.getJobDir(), null);
         }
     }
 
@@ -1110,7 +1110,7 @@ class Extender {
         boolean asFramework = resolvedPods.useFrameworks();
         LOGGER.info("buildPods - compiling pod source file as {}", asFramework ? "frameworks" : "libraries");
         for (PodBuildSpec pod : resolvedPods.getPodSpecs()) {
-            PodBuildUtil.generateHeaderMap(pod);
+            PodBuildUtil.generateHeaderMap(pod, buildState.getJobDir());
             if (asFramework) {
                 buildPodAsFramework(pod, buildState.fullPlatform, resolvedPods.getTargetSupportFilesDir());
             } else {
@@ -2907,6 +2907,10 @@ class Extender {
             ResolvedPackages resolvedPackages = swiftPackageManagerService.resolveDependencies(platformConfig, buildState);
             if (resolvedPackages != null) {
                 resolvedNativeDeps.add(resolvedPackages);
+                // the link step runs in the toolchain sandbox, which only sees the platformsdk
+                // toolchain; the package products auto-link Xcode's Swift runtime archives
+                processExecutor.setPolicy(processExecutor.getPolicy()
+                        .withReadOnlyPaths(resolvedPackages.getSandboxReadOnlyPaths()));
             }
         }
         catch (IOException e) {

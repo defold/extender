@@ -11,26 +11,47 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Runs {@code extender-sandbox --probe} once at startup and interprets the answer. */
+/**
+ * Runs {@code extender-sandbox --probe} once at startup and interprets the answer. The Linux
+ * launcher reports {@code landlock_abi=<n> seccomp=<yes|no>}, the darwin launcher
+ * {@code seatbelt=<yes|no> ...}.
+ */
 final class SandboxLauncherProbe {
     private static final Logger LOGGER = LoggerFactory.getLogger(SandboxLauncherProbe.class);
-    private static final Pattern OUTPUT = Pattern.compile("landlock_abi=(\\d+)\\s+seccomp=(yes|no)");
+    private static final Pattern LANDLOCK = Pattern.compile("landlock_abi=(\\d+)\\s+seccomp=(yes|no)");
+    private static final Pattern SEATBELT = Pattern.compile("seatbelt=(yes|no)");
     private static final long PROBE_TIMEOUT_SECONDS = 10;
 
     private SandboxLauncherProbe() {}
 
-    record Result(int landlockAbi, boolean seccomp) {
-        boolean landlock() {
-            return landlockAbi > 0;
-        }
-    }
+    /**
+     * @param description the probe line as reported, for the startup log
+     * @param enforceable every kernel layer the launcher needs is available
+     * @param missing     what is missing when not enforceable, else empty
+     */
+    record Result(String description, boolean enforceable, String missing) {}
 
     static Result parse(String probeOutput) {
-        Matcher m = OUTPUT.matcher(probeOutput == null ? "" : probeOutput);
-        if (!m.find()) {
-            throw new IllegalStateException("Unexpected sandbox launcher probe output: " + probeOutput);
+        String output = probeOutput == null ? "" : probeOutput.strip();
+        Matcher landlock = LANDLOCK.matcher(output);
+        if (landlock.find()) {
+            int abi = Integer.parseInt(landlock.group(1));
+            boolean seccomp = "yes".equals(landlock.group(2));
+            StringBuilder missing = new StringBuilder();
+            if (abi == 0) {
+                missing.append("Landlock is unavailable (kernel without CONFIG_SECURITY_LANDLOCK or lsm= list)");
+            }
+            if (!seccomp) {
+                missing.append(missing.length() > 0 ? "; " : "").append("seccomp filters are unavailable");
+            }
+            return new Result(landlock.group(), missing.length() == 0, missing.toString());
         }
-        return new Result(Integer.parseInt(m.group(1)), "yes".equals(m.group(2)));
+        Matcher seatbelt = SEATBELT.matcher(output);
+        if (seatbelt.find()) {
+            boolean available = "yes".equals(seatbelt.group(1));
+            return new Result(output, available, available ? "" : "Seatbelt is unavailable (/usr/bin/sandbox-exec missing or refusing profiles)");
+        }
+        throw new IllegalStateException("Unexpected sandbox launcher probe output: " + probeOutput);
     }
 
     static void requireExecutable(Path launcher) {
@@ -62,22 +83,15 @@ final class SandboxLauncherProbe {
         return parse(output);
     }
 
-    /** Strict mode refuses to start without both kernel layers; otherwise the gap is only logged. */
+    /** Strict mode refuses to start without every kernel layer; otherwise the gap is only logged. */
     static void validate(SandboxConfiguration configuration, Result result) {
-        StringBuilder missing = new StringBuilder();
-        if (!result.landlock()) {
-            missing.append("Landlock is unavailable (kernel without CONFIG_SECURITY_LANDLOCK or lsm= list)");
-        }
-        if (!result.seccomp()) {
-            missing.append(missing.length() > 0 ? "; " : "").append("seccomp filters are unavailable");
-        }
-        if (missing.length() == 0) {
+        if (result.enforceable()) {
             return;
         }
         if (configuration.isStrict()) {
-            throw new IllegalStateException("Process sandbox cannot be enforced: " + missing
+            throw new IllegalStateException("Process sandbox cannot be enforced: " + result.missing()
                     + ". Set extender.sandbox.strict=false to run degraded.");
         }
-        LOGGER.warn("Process sandbox is degraded: {}", missing);
+        LOGGER.warn("Process sandbox is degraded: {}", result.missing());
     }
 }

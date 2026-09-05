@@ -30,7 +30,10 @@ public class PodBuildUtil {
         vfsMap.get(section).add(file);
     }
 
-    public static File generateHeaderMap(PodBuildSpec spec) throws IOException, ExtenderException {
+    /**
+     * @param cwd the job directory; the sandboxed {@code hmap} runs there
+     */
+    public static File generateHeaderMap(PodBuildSpec spec, File cwd) throws IOException, ExtenderException {
         JSONObject root = new JSONObject();
         String moduleName = spec.moduleName;
         for (File header : spec.privateHeaders) {
@@ -53,7 +56,7 @@ public class PodBuildUtil {
             "convert",
             jsonHeaderMap.toString(),
             spec.headerMapFile.toString()
-        ), null, Map.of());
+        ), cwd, Map.of());
         return spec.headerMapFile;
     }
 

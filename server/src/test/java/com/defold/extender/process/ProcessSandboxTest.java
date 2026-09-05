@@ -26,8 +26,20 @@ public class ProcessSandboxTest {
         configuration.setEnabled(true);
         configuration.setLauncherPath(LAUNCHER);
         configuration.setStrict(true);
+        configuration.setBackend(SandboxConfiguration.Backend.LANDLOCK);
         configuration.setReadOnlyPaths(java.util.Arrays.stream(readOnly).map(Path::toString).toList());
         return configuration;
+    }
+
+    private static SandboxConfiguration seatbelt(Path... readOnly) {
+        SandboxConfiguration configuration = enabled(readOnly);
+        configuration.setBackend(SandboxConfiguration.Backend.SEATBELT);
+        return configuration;
+    }
+
+    private static String profileOf(List<String> argv) {
+        assertEquals("--profile", argv.get(1), argv.toString());
+        return argv.get(2);
     }
 
     private static ProcessSandbox sandbox(SandboxConfiguration configuration, Map<String, String> inherited) {
@@ -187,6 +199,15 @@ public class ProcessSandboxTest {
         assertTrue(indexOfFlag(argv, "--fsize", "1024") > 0, argv.toString());
         assertFalse(argv.contains("--nofile"), argv.toString());
         assertFalse(argv.contains("--strict"), argv.toString());
+
+        // a policy may replace the file size limit; 0 drops the flag
+        List<String> unlimited = sandbox(configuration, Map.of())
+                .prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain().withMaxFileSizeBytes(0)).argv();
+        assertFalse(unlimited.contains("--fsize"), unlimited.toString());
+        List<String> bigger = sandbox(configuration, Map.of())
+                .prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain().withMaxFileSizeBytes(4096)).argv();
+        assertTrue(indexOfFlag(bigger, "--fsize", "4096") > 0, bigger.toString());
+        assertThrows(IllegalArgumentException.class, () -> SandboxPolicy.toolchain().withMaxFileSizeBytes(-1));
     }
 
     @Test
@@ -219,6 +240,7 @@ public class ProcessSandboxTest {
         assertEquals(job.resolve("home").toString(), env.get("HOME"));
         assertEquals(job.resolve("tmp").toString(), env.get("TMPDIR"));
         assertEquals(job.resolve("home").resolve(".cache").toString(), env.get("XDG_CACHE_HOME"));
+        assertEquals(job.resolve("home").resolve(".cache/clang/ModuleCache").toString(), env.get("CLANG_MODULE_CACHE_PATH"));
         assertEquals("-Djava.io.tmpdir=" + job.resolve("tmp") + " -XX:-UsePerfData", env.get("JAVA_TOOL_OPTIONS"));
     }
 
@@ -257,6 +279,168 @@ public class ProcessSandboxTest {
     }
 
     @Test
+    public void seatbeltArgvCarriesTheProfileAndTheCommand(@TempDir Path jobDir) throws IOException {
+        SandboxConfiguration configuration = seatbelt();
+        configuration.getDarwin().setUserTempPatterns(List.of());
+        ProcessSandbox sandbox = sandbox(configuration, Map.of());
+        List<String> argv = sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain()).argv();
+        assertFalse(profileOf(argv).contains("TemporaryItems"), profileOf(argv));
+
+        assertEquals(LAUNCHER, argv.get(0));
+        String profile = profileOf(argv);
+        assertTrue(profile.startsWith("(version 1)\n(deny default)\n(import \"system.sb\")"), profile);
+        assertTrue(profile.contains("(subpath " + SeatbeltProfile.quote(jobDir.toRealPath().toString()) + ")"), profile);
+        assertTrue(profile.contains("(allow network* (local unix-socket) (remote unix-socket))"), profile);
+        assertFalse(profile.contains("(allow network*)\n"), profile);
+        assertTrue(argv.contains("--strict"));
+        assertTrue(indexOfFlag(argv, "--nproc", "4096") > 0, argv.toString());
+        assertFalse(argv.contains("--ro"), argv.toString());
+        int separator = argv.indexOf("--");
+        assertEquals(COMMAND, argv.subList(separator + 1, argv.size()));
+        assertTrue(Files.isDirectory(jobDir.resolve("home")));
+        assertTrue(Files.isDirectory(jobDir.resolve("tmp")));
+    }
+
+    @Test
+    public void seatbeltGrantsRealPathsOnly(@TempDir Path root) throws IOException {
+        Path real = Files.createDirectory(root.resolve("real"));
+        Path link = Files.createSymbolicLink(root.resolve("link"), real);
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+
+        String profile = profileOf(sandbox(seatbelt(link), Map.of())
+                .prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain()).argv());
+
+        assertTrue(profile.contains(SeatbeltProfile.quote(real.toRealPath().toString())), profile);
+        assertFalse(profile.contains(SeatbeltProfile.quote(link.toString())), profile);
+    }
+
+    @Test
+    public void seatbeltWidensDeveloperDirToTheAppBundle(@TempDir Path root) throws IOException {
+        Path developerDir = Files.createDirectories(root.resolve("Xcode.app/Contents/Developer"));
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        SandboxConfiguration configuration = seatbelt();
+        configuration.setReadOnlyEnvVariables(List.of("DEVELOPER_DIR"));
+
+        String profile = profileOf(sandbox(configuration, Map.of())
+                .prepare(COMMAND, jobDir.toFile(), Map.of("DEVELOPER_DIR", developerDir.toString()), SandboxPolicy.toolchain()).argv());
+
+        Path bundle = root.resolve("Xcode.app").toRealPath();
+        assertTrue(profile.contains("(subpath " + SeatbeltProfile.quote(bundle.toString()) + ")"), profile);
+        assertFalse(profile.contains(SeatbeltProfile.quote(developerDir.toRealPath().toString())), profile);
+    }
+
+    @Test
+    public void seatbeltSeedsHomeLinksAndGrantsTheirTargets(@TempDir Path root) throws IOException {
+        Path realHome = Files.createDirectory(root.resolve("realhome"));
+        Path developer = Files.createDirectories(realHome.resolve("Library/Developer"));
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        SandboxConfiguration configuration = seatbelt();
+        configuration.getDarwin().setHomeLinks(List.of("Library/Developer", "Library/Missing", "/etc"));
+
+        ProcessSandbox sandbox = new ProcessSandbox(configuration, Map.of(), realHome);
+        String profile = profileOf(sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain()).argv());
+
+        Path link = jobDir.resolve("home/Library/Developer");
+        assertTrue(Files.isSymbolicLink(link), link.toString());
+        assertEquals(developer.toRealPath(), Files.readSymbolicLink(link).toRealPath());
+        assertTrue(profile.contains("(subpath " + SeatbeltProfile.quote(developer.toRealPath().toString()) + ")"), profile);
+        assertFalse(Files.exists(jobDir.resolve("home/Library/Missing")));
+        // a second command reuses the link
+        sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain());
+        assertTrue(Files.isSymbolicLink(link));
+    }
+
+    @Test
+    public void seatbeltDenyRulesExpandHomeAndComeLast(@TempDir Path root) throws IOException {
+        Path realHome = Files.createDirectory(root.resolve("realhome"));
+        Path ssh = Files.createDirectory(realHome.resolve(".ssh"));
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        SandboxConfiguration configuration = seatbelt(realHome);
+        configuration.setReadOnlyPaths(List.of("~/Library", "~/.missing"));
+        Files.createDirectory(realHome.resolve("Library"));
+        configuration.getDarwin().setDenyPaths(List.of("~/.ssh", "~/.missing", "/nonexistent/keychains"));
+        configuration.getDarwin().setDenyExecPaths(List.of("/usr/bin/sudo", " "));
+        configuration.getDarwin().setExtraRules(List.of("(allow sysctl-write)", ""));
+
+        String profile = profileOf(new ProcessSandbox(configuration, Map.of(), realHome)
+                .prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain()).argv());
+
+        String denyFiles = "(deny file* (subpath " + SeatbeltProfile.quote(ssh.toRealPath().toString()) + "))";
+        String denyExec = "(deny process-exec (literal \"/usr/bin/sudo\"))";
+        assertTrue(profile.contains(denyFiles), profile);
+        assertTrue(profile.contains(denyExec), profile);
+        assertTrue(profile.indexOf("(allow sysctl-write)") < profile.indexOf(denyFiles), profile);
+        assertTrue(profile.indexOf("(allow file-read*") < profile.indexOf(denyFiles), profile);
+        assertFalse(profile.contains(".missing"), profile);
+        assertTrue(profile.contains("(subpath " + SeatbeltProfile.quote(realHome.resolve("Library").toRealPath().toString()) + ")"), profile);
+    }
+
+    @Test
+    public void policyReadOnlyPathsAreGrantedOnBothBackends(@TempDir Path root) throws IOException {
+        Path extra = Files.createDirectory(root.resolve("extra"));
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        SandboxPolicy policy = SandboxPolicy.toolchain().withReadOnlyPaths(List.of(extra.toString()));
+
+        List<String> landlock = sandbox(enabled(), Map.of()).prepare(COMMAND, jobDir.toFile(), Map.of(), policy).argv();
+        assertTrue(indexOfFlag(landlock, "--ro", extra.toString()) > 0, landlock.toString());
+        String profile = profileOf(sandbox(seatbelt(), Map.of()).prepare(COMMAND, jobDir.toFile(), Map.of(), policy).argv());
+        assertTrue(profile.contains("(subpath " + SeatbeltProfile.quote(extra.toRealPath().toString()) + ")"), profile);
+    }
+
+    @Test
+    public void seatbeltRendersPolicyExtras(@TempDir Path root) throws IOException {
+        Path cache = Files.createDirectory(root.resolve("cache"));
+        Path plugins = Files.createDirectory(root.resolve("plugins"));
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        SandboxConfiguration configuration = seatbelt();
+        configuration.getDarwin().setMachServices(List.of("com.apple.lsd.mapdb"));
+        configuration.getDarwin().setPreferenceDomains(List.of("kCFPreferencesAnyApplication"));
+        SandboxPolicy policy = SandboxPolicy.dependencyResolver(List.of(cache.toString()))
+                .withReadWriteExecPaths(List.of(plugins.toString()))
+                .withReadWritePatterns(List.of("^/private/var/folders/[^/]+/[^/]+/T/xcrun_db"))
+                .withMachServices(List.of("com.apple.FSEvents"))
+                .withPreferenceDomains(List.of("com.apple.dt.Xcode"))
+                .withExtraRules(List.of("(allow system-fsctl)"));
+
+        List<String> argv = sandbox(configuration, Map.of()).prepare(COMMAND, jobDir.toFile(), Map.of(), policy).argv();
+        String profile = profileOf(argv);
+        assertTrue(profile.contains("(allow system-fsctl)\n"), profile);
+
+        assertTrue(profile.contains("(system-network)\n(allow network*)"), profile);
+        assertTrue(profile.contains("(subpath " + SeatbeltProfile.quote(cache.toRealPath().toString()) + ")"), profile);
+        assertTrue(profile.contains("(regex #\"^/private/var/folders/[^/]+/[^/]+/T/xcrun_db\")"), profile);
+        // the darwin temp entries every command gets come first
+        String tempDir = SeatbeltProfile.regexQuote(DarwinSandboxPaths.userTempDir().toString());
+        assertTrue(profile.contains("(regex #\"^" + tempDir + "/TemporaryItems/\")"), profile);
+        assertTrue(profile.indexOf("/TemporaryItems/") < profile.indexOf("/T/xcrun_db"), profile);
+        assertTrue(profile.contains("(global-name \"com.apple.lsd.mapdb\") (global-name \"com.apple.FSEvents\")"), profile);
+        assertTrue(profile.contains("(preference-domain \"kCFPreferencesAnyApplication\" \"com.apple.dt.Xcode\")"), profile);
+        String execLine = profile.lines().filter(l -> l.startsWith("(allow process-exec")).findFirst().orElse("");
+        assertTrue(execLine.contains(SeatbeltProfile.quote(plugins.toRealPath().toString())), execLine);
+        assertFalse(execLine.contains(SeatbeltProfile.quote(cache.toRealPath().toString())), execLine);
+    }
+
+    @Test
+    public void landlockBackendIgnoresSeatbeltOnlyPolicyParts(@TempDir Path jobDir) throws IOException {
+        SandboxPolicy policy = SandboxPolicy.toolchain()
+                .withReadWritePatterns(List.of("^/x"))
+                .withMachServices(List.of("com.apple.FSEvents"));
+        List<String> argv = sandbox(enabled(), Map.of()).prepare(COMMAND, jobDir.toFile(), Map.of(), policy).argv();
+        assertFalse(String.join(" ", argv).contains("FSEvents"), argv.toString());
+        assertFalse(argv.contains("--profile"), argv.toString());
+    }
+
+    @Test
+    public void autoBackendFollowsTheOperatingSystem() {
+        SandboxConfiguration configuration = new SandboxConfiguration();
+        boolean mac = System.getProperty("os.name").toLowerCase().contains("mac");
+        assertEquals(mac ? SandboxConfiguration.Backend.SEATBELT : SandboxConfiguration.Backend.LANDLOCK,
+                configuration.resolveBackend());
+        configuration.setBackend(SandboxConfiguration.Backend.SEATBELT);
+        assertEquals(SandboxConfiguration.Backend.SEATBELT, configuration.resolveBackend());
+    }
+
+    @Test
     public void policiesAreImmutableCopies() {
         java.util.ArrayList<String> paths = new java.util.ArrayList<>(List.of("/a"));
         SandboxPolicy policy = SandboxPolicy.dependencyResolver(paths);
@@ -265,6 +449,8 @@ public class ProcessSandboxTest {
         assertEquals(SandboxPolicy.Network.ALL, policy.network());
         assertEquals(SandboxPolicy.Network.NONE, SandboxPolicy.toolchain().network());
         assertEquals(List.of("/x"), policy.withReadWriteExecPaths(List.of("/x")).readWriteExecPaths());
+        assertEquals(List.of("/r"), policy.withReadOnlyPaths(List.of("/r")).readOnlyPaths());
+        assertEquals(List.of(), policy.readOnlyPaths());
         assertEquals(List.of(), policy.readWriteExecPaths());
         assertEquals("1", policy.withEnv(Map.of("K", "1")).env().get("K"));
         assertTrue(new File("/a").isAbsolute());

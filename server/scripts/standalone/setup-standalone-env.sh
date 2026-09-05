@@ -222,3 +222,12 @@ brew install milend/taps/hmap
 
 echo "[setup] Install xcodegen (Swift Package Manager support)"
 brew install xcodegen
+if [[ $(uname) == "Darwin" ]]; then
+    # Every build subprocess runs through this launcher (Seatbelt via sandbox-exec); the
+    # standalone-dev profile refuses to start without it. See scripts/standalone/sandbox/README.md
+    echo "[setup] Building the process sandbox launcher"
+    APP_DIR=$SCRIPT_DIR/../../app
+    mkdir -p $APP_DIR
+    cc -O2 -Wall -Wextra -o $APP_DIR/extender-sandbox $SCRIPT_DIR/sandbox/extender-sandbox-darwin.c
+    sh $SCRIPT_DIR/sandbox/selftest-darwin.sh $APP_DIR/extender-sandbox
+fi

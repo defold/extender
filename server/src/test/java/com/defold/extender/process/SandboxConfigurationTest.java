@@ -92,13 +92,22 @@ public class SandboxConfigurationTest {
     @Test
     public void testProbeOutputParsing() {
         SandboxLauncherProbe.Result result = SandboxLauncherProbe.parse("landlock_abi=4 seccomp=yes\n");
-        assertEquals(4, result.landlockAbi());
-        assertTrue(result.landlock());
-        assertTrue(result.seccomp());
+        assertTrue(result.enforceable());
+        assertEquals("landlock_abi=4 seccomp=yes", result.description());
+        assertEquals("", result.missing());
 
         SandboxLauncherProbe.Result none = SandboxLauncherProbe.parse("landlock_abi=0 seccomp=no");
-        assertFalse(none.landlock());
-        assertFalse(none.seccomp());
+        assertFalse(none.enforceable());
+        assertTrue(none.missing().contains("Landlock"), none.missing());
+        assertTrue(none.missing().contains("seccomp"), none.missing());
+        assertFalse(SandboxLauncherProbe.parse("landlock_abi=3 seccomp=no").enforceable());
+
+        SandboxLauncherProbe.Result seatbelt = SandboxLauncherProbe.parse("seatbelt=yes sandbox_exec=/usr/bin/sandbox-exec\n");
+        assertTrue(seatbelt.enforceable());
+        assertTrue(seatbelt.description().contains("seatbelt=yes"), seatbelt.description());
+        SandboxLauncherProbe.Result noSeatbelt = SandboxLauncherProbe.parse("seatbelt=no sandbox_exec=/usr/bin/sandbox-exec");
+        assertFalse(noSeatbelt.enforceable());
+        assertTrue(noSeatbelt.missing().contains("Seatbelt"), noSeatbelt.missing());
 
         assertThrows(IllegalStateException.class, () -> SandboxLauncherProbe.parse("garbage"));
         assertThrows(IllegalStateException.class, () -> SandboxLauncherProbe.parse(null));
@@ -108,15 +117,19 @@ public class SandboxConfigurationTest {
     public void testStrictValidationRefusesMissingLayers() {
         SandboxConfiguration strict = new SandboxConfiguration();
         strict.setStrict(true);
-        SandboxLauncherProbe.validate(strict, new SandboxLauncherProbe.Result(1, true));
+        SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("landlock_abi=1 seccomp=yes"));
+        SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("seatbelt=yes"));
         assertThrows(IllegalStateException.class,
-                () -> SandboxLauncherProbe.validate(strict, new SandboxLauncherProbe.Result(0, true)));
+                () -> SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("landlock_abi=0 seccomp=yes")));
         assertThrows(IllegalStateException.class,
-                () -> SandboxLauncherProbe.validate(strict, new SandboxLauncherProbe.Result(3, false)));
+                () -> SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("landlock_abi=3 seccomp=no")));
+        assertThrows(IllegalStateException.class,
+                () -> SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("seatbelt=no")));
 
         SandboxConfiguration lenient = new SandboxConfiguration();
         lenient.setStrict(false);
-        SandboxLauncherProbe.validate(lenient, new SandboxLauncherProbe.Result(0, false));
+        SandboxLauncherProbe.validate(lenient, SandboxLauncherProbe.parse("landlock_abi=0 seccomp=no"));
+        SandboxLauncherProbe.validate(lenient, SandboxLauncherProbe.parse("seatbelt=no"));
     }
 
     @Test
@@ -131,7 +144,43 @@ public class SandboxConfigurationTest {
         Path launcher = FakeSandboxLauncher.write(dir);
         SandboxLauncherProbe.requireExecutable(launcher);
         SandboxLauncherProbe.Result result = SandboxLauncherProbe.run(launcher);
-        assertEquals(4, result.landlockAbi());
-        assertTrue(result.seccomp());
+        assertTrue(result.enforceable());
+        assertEquals(FakeSandboxLauncher.PROBE_OUTPUT, result.description());
+    }
+
+    @Test
+    public void testDefaultsForBackendAndEnvironmentGrants() {
+        SandboxConfiguration configuration = new SandboxConfiguration();
+        assertEquals(SandboxConfiguration.Backend.AUTO, configuration.getBackend());
+        assertEquals(List.of("DYNAMO_HOME", "MANIFEST_MERGE_TOOL"), configuration.getReadOnlyEnvVariables());
+        assertTrue(configuration.getDarwin().getMachServices().isEmpty());
+        assertEquals(List.of("TemporaryItems/", "xcrun_db", "[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)"), configuration.getDarwin().getUserTempPatterns());
+        configuration.setDarwin(null);
+        assertTrue(configuration.getDarwin().getDenyPaths().isEmpty());
+    }
+
+    @Test
+    public void testBindsDarwinBlock() {
+        SandboxConfiguration configuration = new Binder(new MapConfigurationPropertySource(Map.of(
+                "extender.sandbox.backend", "seatbelt",
+                "extender.sandbox.read-only-env-variables", "DYNAMO_HOME,PLATFORMSDK_DIR, DEVELOPER_DIR",
+                "extender.sandbox.darwin.mach-services", "com.apple.lsd.mapdb,com.apple.FSEvents",
+                "extender.sandbox.darwin.preference-domains", "kCFPreferencesAnyApplication",
+                "extender.sandbox.darwin.deny-paths", "~/.ssh,/Library/Keychains",
+                "extender.sandbox.darwin.deny-exec-paths", "/usr/bin/sudo",
+                "extender.sandbox.darwin.home-links", "Library/Developer",
+                "extender.sandbox.darwin.extra-rules[0]", "(allow sysctl-write)")))
+                .bind("extender.sandbox", SandboxConfiguration.class)
+                .get();
+
+        assertEquals(SandboxConfiguration.Backend.SEATBELT, configuration.getBackend());
+        assertEquals(SandboxConfiguration.Backend.SEATBELT, configuration.resolveBackend());
+        assertEquals(List.of("DYNAMO_HOME", "PLATFORMSDK_DIR", "DEVELOPER_DIR"), configuration.getReadOnlyEnvVariables());
+        assertEquals(List.of("com.apple.lsd.mapdb", "com.apple.FSEvents"), configuration.getDarwin().getMachServices());
+        assertEquals(List.of("kCFPreferencesAnyApplication"), configuration.getDarwin().getPreferenceDomains());
+        assertEquals(List.of("~/.ssh", "/Library/Keychains"), configuration.getDarwin().getDenyPaths());
+        assertEquals(List.of("/usr/bin/sudo"), configuration.getDarwin().getDenyExecPaths());
+        assertEquals(List.of("Library/Developer"), configuration.getDarwin().getHomeLinks());
+        assertEquals(List.of("(allow sysctl-write)"), configuration.getDarwin().getExtraRules());
     }
 }

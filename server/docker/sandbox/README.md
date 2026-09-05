@@ -1,7 +1,8 @@
-# extender-sandbox
+# extender-sandbox (Linux)
 
 Unprivileged launcher that confines every subprocess the Extender server starts inside a
-builder container (compilers, linkers, `emcc`, Gradle, `dotnet`, R8, the manifest merge tool,
+builder container (the macOS standalone builders use the Seatbelt launcher in
+[`server/scripts/standalone/sandbox/`](../../scripts/standalone/sandbox/README.md) instead) (compilers, linkers, `emcc`, Gradle, `dotnet`, R8, the manifest merge tool,
 wine). The server wraps each command as
 
 ```

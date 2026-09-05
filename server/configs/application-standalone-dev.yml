@@ -23,3 +23,9 @@ extender:
         xcodegen-path: /opt/homebrew/bin/xcodegen
         cache-dir-rotate-cron: "0 20 2 * * *" # once per day
         old-cache-clean-cron: "0 20 6 * * *" # once per day after directory rotation
+    # Seatbelt sandbox around every build subprocess. The launcher is compiled by
+    # scripts/standalone/setup-standalone-env.sh into server/app/extender-sandbox and its
+    # path is exported as EXTENDER_SANDBOX_LAUNCHERPATH by envs/generate_user_env.sh; set
+    # EXTENDER_SANDBOX_ENABLED=false in user.env to run without it.
+    sandbox:
+        enabled: true

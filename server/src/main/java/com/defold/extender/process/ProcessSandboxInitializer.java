@@ -28,12 +28,12 @@ class ProcessSandboxInitializer {
                 LOGGER.warn("extender.sandbox.read-only-paths is empty; toolchains will not be able to read "
                         + "system directories");
             }
-            LOGGER.info("Process sandbox enabled: launcher={} landlock_abi={} seccomp={} strict={} timeout={}ms "
-                            + "ro={} rw={} rwx={} image-rw={}",
-                    launcher, probe.landlockAbi(), probe.seccomp(), configuration.isStrict(),
+            LOGGER.info("Process sandbox enabled: backend={} launcher={} probe=[{}] strict={} timeout={}ms "
+                            + "ro={} ro-env={} rw={} rwx={} image-rw={}",
+                    configuration.resolveBackend(), launcher, probe.description(), configuration.isStrict(),
                     configuration.getCommandTimeout(), configuration.getReadOnlyPaths(),
-                    configuration.getReadWritePaths(), configuration.getReadWriteExecPaths(),
-                    configuration.getImageReadWritePaths());
+                    configuration.getReadOnlyEnvVariables(), configuration.getReadWritePaths(),
+                    configuration.getReadWriteExecPaths(), configuration.getImageReadWritePaths());
         } else {
             LOGGER.info("Process sandbox disabled (extender.sandbox.enabled=false)");
         }

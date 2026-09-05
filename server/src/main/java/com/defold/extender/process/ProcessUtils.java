@@ -19,10 +19,14 @@ public class ProcessUtils {
     }
 
     public static String execCommand(String command, File cwd, Map<String, String> env) throws ExtenderException {
+        return execCommand(command, cwd, env, SandboxPolicy.toolchain());
+    }
+
+    public static String execCommand(String command, File cwd, Map<String, String> env, SandboxPolicy policy) throws ExtenderException {
         List<String> args = Arrays.stream(command.split(" "))
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
-        return execCommand(args, cwd, env);
+        return execCommand(args, cwd, env, policy);
     }
 
     public static String execCommand(List<String> args, File cwd, Map<String, String> env) throws ExtenderException {

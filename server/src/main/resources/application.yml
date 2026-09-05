@@ -42,17 +42,23 @@ extender:
     gradle:
         enabled: false
         location: /tmp/.gradle
-    # Landlock/seccomp/rlimit sandbox around every build subprocess (compilers, linkers, emcc,
-    # gradle, dotnet, R8, manifest merge tool). Needs /usr/local/bin/extender-sandbox in the
-    # image. Landlock is an allowlist: everything a toolchain reads must be under
-    # read-only-paths (the SDK, the job directory and MANIFEST_MERGE_TOOL are added
-    # automatically). Never mount secrets under a granted path. Image-specific writable state
-    # (emscripten cache, wine prefix, ...) is supplied by the image as
-    # EXTENDER_SANDBOX_IMAGEREADWRITEPATHS (comma separated) and merged with read-write-paths.
+    # Sandbox around every build subprocess (compilers, linkers, emcc, gradle, dotnet, R8,
+    # manifest merge tool, pod, xcodebuild): Landlock/seccomp/rlimits inside the Docker images
+    # (launcher built by Dockerfile.base-env), Seatbelt/sandbox-exec on the macOS standalone
+    # builders (launcher built by scripts/standalone/setup-standalone-env.sh). Both are
+    # allowlists: everything a toolchain reads must be under read-only-paths or a directory
+    # named by read-only-env-variables (the job directory is added automatically). Paths that
+    # do not exist on a host are skipped, so one list serves every image and the Macs. Never
+    # mount secrets under a granted path. Image-specific writable state (emscripten cache, wine
+    # prefix, ...) is supplied by the image as EXTENDER_SANDBOX_IMAGEREADWRITEPATHS (comma
+    # separated) and merged with read-write-paths.
     sandbox:
         enabled: false
+        # landlock, seatbelt, or auto (by operating system)
+        backend: auto
         launcher-path: /usr/local/bin/extender-sandbox
-        # fail startup when the kernel offers no Landlock/seccomp instead of running degraded
+        # fail startup when the kernel offers no Landlock/seccomp (or no sandbox-exec) instead of
+        # running degraded
         strict: true
         # wall-clock limit per subprocess, ms
         command-timeout: 1200000
@@ -61,10 +67,21 @@ extender:
             /etc/ld.so.cache,/etc/ld.so.conf,/etc/ld.so.conf.d,/etc/passwd,/etc/group,
             /etc/nsswitch.conf,/etc/localtime,/etc/timezone,/etc/alternatives,/etc/ssl,
             /etc/ca-certificates,/etc/hosts,/etc/resolv.conf,/etc/host.conf,/etc/gai.conf,
-            /etc/fonts,/etc/os-release,/etc/mime.types,/etc/python3,/etc/python3.10,/etc/wine
+            /etc/fonts,/etc/os-release,/etc/mime.types,/etc/python3,/etc/python3.10,/etc/wine,
+            /System,/Library/Apple,/Library/Developer,/Library/Frameworks,/Library/Java,
+            /Library/Ruby,/Library/Preferences/com.apple.LaunchServices,
+            /Library/Preferences/com.apple.dt.Xcode.plist,/Library/Preferences/com.apple.security.plist,
+            /private/var/db/timezone,~/.CFUserTextEncoding
         read-write-paths: /dev
         read-write-exec-paths: ''
         image-read-write-paths: ''
+        # environment variables whose values are directories (or files) granted read-only and
+        # executable: the Defold SDK, the manifest merge tool, the macOS platform SDKs and
+        # xctoolchain, zig, the JDK, dotnet; DEVELOPER_DIR is widened to its Xcode.app bundle
+        read-only-env-variables: >
+            DYNAMO_HOME,MANIFEST_MERGE_TOOL,PLATFORMSDK_DIR,XCTOOLCHAIN_PATH,ZIG_PATH,ZIG_PATH_0_11,
+            JAVA_HOME,DOTNET_ROOT,DEVELOPER_DIR
+        # (~/ is the server user's home)
         # variables matching these regexes are not passed to subprocesses
         env-deny-patterns:
             - '.*(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|PRIVATE_KEY).*'
@@ -84,6 +101,29 @@ extender:
             max-processes: 4096
             max-file-size-bytes: 8589934592
             max-open-files: 16384
+        # Seatbelt (macOS) only. Seatbelt also gates Mach service lookups and cfprefsd
+        # preference reads; the xcodebuild step adds its own (SwiftPackageManagerService).
+        # ~/ is the server user's real home. deny rules win over every grant above them.
+        darwin:
+            mach-services: ''
+            preference-domains: ''
+            deny-paths: ~/.ssh,~/.gnupg,~/.aws,~/.config/gcloud,~/Library/Keychains,/Library/Keychains
+            deny-exec-paths: /usr/bin/sudo,/usr/bin/su,/usr/bin/security,/bin/launchctl,/usr/bin/osascript
+            # directories under the real home linked into the per-job home (read-only), for
+            # tools that look up platform state through $HOME, e.g. Library/Developer
+            home-links: ''
+            # entries of the per-user darwin temp dir (/private/var/folders/xx/yyy/T) every
+            # command may write, as regexes relative to it: Foundation saves files atomically
+            # through TemporaryItems/ and <uuid>-<pid>-<hex> temp files, the /usr/bin tool shims
+            # rewrite xcrun_db, whatever TMPDIR says. The directory itself also holds every job
+            # and is never granted.
+            user-temp-patterns:
+                - 'TemporaryItems/'
+                - 'xcrun_db'
+                - '[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)'
+            # raw SBPL lines appended before the deny block, for iterating on a host without a
+            # release, e.g. "(allow mach-lookup (global-name \"com.apple.FSEvents\"))"
+            extra-rules: []
     # Resource limits for untrusted R8 input; byte limits use expanded sizes.
     r8:
         max-generated-extension-classes: 32768
@@ -110,6 +150,9 @@ extender:
         xcodegen-path: xcodegen
         wrapper-mach-o-type: staticlib # staticlib | mh_dylib
         swift-version: "6.0"
+        # a git mirror fetched more recently than this is reused as it is, so parallel builds
+        # of the same package graph cost one fetch per repository instead of one per build
+        mirror-refresh-interval: 600000
         cache-dir-rotate-cron: "0 20 2 * * *" # once per day
         old-cache-clean-cron: "0 20 6 * * *" # once per day after directory rotation
     # refer to README_SECURITY.md for information on securing your server

@@ -5,16 +5,26 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FileUtils;
@@ -35,6 +45,8 @@ import com.defold.extender.PlatformConfig;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessExecutor;
+import com.defold.extender.process.DarwinSandboxPaths;
+import com.defold.extender.process.SandboxPolicy;
 import com.defold.extender.services.spm.SpmBuildOutputParser.LinkInfo;
 import com.defold.extender.services.spm.SpmManifestParser.PackageRef;
 
@@ -48,6 +60,17 @@ import io.micrometer.core.instrument.MeterRegistry;
  *
  * Xcode is selected per job via the child processes' DEVELOPER_DIR (never xcode-select —
  * concurrent jobs may need different Xcode versions).
+ *
+ * <p>Package.swift manifests are untrusted code that SwiftPM compiles and runs, and its own
+ * manifest sandbox cannot be nested inside the process sandbox. The build is therefore split
+ * so that no manifest ever runs with network access: every repository the graph needs is
+ * mirrored with plain git (network on, no Swift code involved), and xcodebuild then resolves
+ * and builds with network denied, its git redirected to the mirrors through
+ * {@code url.<mirror>.insteadOf}. Transitive dependencies are not known before the manifests
+ * that declare them have run, so the two steps alternate: a round that cannot reach a
+ * repository names it in its output, that repository is mirrored, and the round is repeated
+ * until the graph closes. An uploaded Package.resolved is used as a seed when present but is
+ * not required. Binary targets (downloaded over HTTP during resolution) fail the build.
  */
 @Service
 @ConditionalOnProperty(prefix = "extender", name = "spm.enabled", havingValue = "true")
@@ -64,8 +87,23 @@ public class SwiftPackageManagerService {
     private static final int MAX_CACHE_SUBDIR_LENGTH = 64;
     private static final String FALLBACK_IOS_MIN_VERSION = "12.0";
     private static final String FALLBACK_MACOS_MIN_VERSION = "10.15";
+    static final String MIRRORS_SUBDIR = "mirrors";
+    static final String GIT_CONFIG_FILENAME = "gitconfig";
+    // marker next to a mirror, touched after every successful clone or fetch
+    static final String FETCH_MARKER_SUFFIX = ".fetched";
+    // one round per level of the dependency graph, plus the round that finds it closed and
+    // one forced mirror refresh; deeper than this is a runaway, not a package graph
+    static final int MAX_RESOLVE_ROUNDS = 12;
+    // transitive manifests pick these URLs, so the number of repositories git is asked to
+    // clone is attacker-controlled
+    static final int MAX_MIRRORED_PACKAGES = 256;
+    // xcodebuild's own line above whatever SwiftPM reported, present for every failure of the
+    // resolution and for none of the compilation
+    static final String RESOLUTION_FAILED_MARKER = "Could not resolve package dependencies";
 
     private final Object syncLock = new Object();
+    // one git process at a time per mirror; concurrent jobs pinning the same package wait
+    private final ConcurrentHashMap<String, Object> mirrorLocks = new ConcurrentHashMap<>();
     // builds take the read lock (SwiftPM locks concurrent resolutions inside the cache
     // itself), rotation and cleanup take the write lock
     private final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock(true);
@@ -83,6 +121,9 @@ public class SwiftPackageManagerService {
     @Value("${extender.spm.xcodegen-path:xcodegen}") String xcodegenPath;
     @Value("${extender.spm.wrapper-mach-o-type:staticlib}") String wrapperMachOType;
     @Value("${extender.spm.swift-version:6.0}") String swiftVersion;
+    // a mirror fetched more recently than this is used as it is, so parallel builds of the
+    // same graph cost one fetch per repository instead of one per build
+    @Value("${extender.spm.mirror-refresh-interval:600000}") long mirrorRefreshIntervalMillis;
 
     SwiftPackageManagerService(@Value("classpath:template.package-swift") Resource packageSwiftTemplate,
             @Value("classpath:template.project-yml") Resource projectYmlTemplate,
@@ -110,7 +151,8 @@ public class SwiftPackageManagerService {
      * (listeners execute sequentially and earlier ones take seconds), so the cache dir
      * must never be read from the raw field.
      */
-    private Path ensureCacheDirInitialized() {
+    // package-private: the offline discovery test seeds the mirror store under this dir
+    Path ensureCacheDirInitialized() {
         synchronized (this.syncLock) {
             if (!this.currentCacheDir.toString().isEmpty()) {
                 return this.currentCacheDir;
@@ -180,6 +222,7 @@ public class SwiftPackageManagerService {
         String platformFamily = isIOS ? "ios" : "osx";
         String defaultMinVersion = defaultMinVersion(jobEnvContext, isIOS);
         SpmManifestParser.ParseResult manifest = SpmManifestParser.parseManifests(platformManifests, platformFamily, defaultMinVersion);
+        File userLockFile = findUserLockFile(platformManifests);
 
         generateProjectFiles(spmBuildState, manifest, isIOS);
 
@@ -195,11 +238,16 @@ public class SwiftPackageManagerService {
             // The shared warmth is -packageCachePath (repo mirrors + binary artifacts).
             File packageCacheDir = new File(sharedCacheDirFor(xcodeVersion), "packageCache");
             packageCacheDir.mkdirs();
+            // bare git mirrors of every pinned repository, written only by the plain git
+            // pre-fetch below and read-only for xcodebuild; git content does not depend on
+            // the Xcode version, so the store is shared across the per-version cache dirs
+            File mirrorsDir = new File(ensureCacheDirInitialized().toFile(), MIRRORS_SUBDIR);
+            mirrorsDir.mkdirs();
             File clonedSourcesDir = spmBuildState.getClonedSourcePackagesDir();
 
             generateXcodeProject(spmBuildState, processEnv);
-            copyUserLockFile(platformManifests, spmBuildState);
-            buildWrapperProject(spmBuildState, clonedSourcesDir, packageCacheDir, processEnv);
+            resolveAndBuild(spmBuildState, manifest, userLockFile, clonedSourcesDir, packageCacheDir,
+                mirrorsDir, processEnv);
         } finally {
             cacheLock.readLock().unlock();
         }
@@ -243,6 +291,60 @@ public class SwiftPackageManagerService {
             }
         }
         return defaultDeveloperDir;
+    }
+
+    // Mach services and preference domains xcodebuild asks for under (deny default), read off
+    // `log stream --predicate 'sender == "Sandbox"'`; the keychain services
+    // (com.apple.SecurityServer, com.apple.securityd.xpc) are deliberately absent
+    static final List<String> XCODEBUILD_MACH_SERVICES = List.of(
+            "com.apple.CoreServices.coreservicesd", "com.apple.lsd.mapdb", "com.apple.lsd.modifydb",
+            "com.apple.coreservices.quarantine-resolver", "com.apple.FSEvents",
+            "com.apple.SystemConfiguration.configd", "com.apple.distributed_notifications@Uv3",
+            "com.apple.DiskArbitration.diskarbitrationd", "com.apple.mobileassetd.v2", "com.apple.FileCoordination");
+    static final List<String> XCODEBUILD_PREFERENCE_DOMAINS = List.of(
+            "com.apple.dt.Xcode", "com.apple.dt.xcodebuild", "kCFPreferencesAnyApplication", "com.apple.coresimulator");
+
+    /**
+     * xcodebuild resolves the home through getpwuid, not $HOME, and keeps SwiftPM's manifest
+     * and collection databases, its fingerprint store and the module cache used for manifest
+     * compilation in per-user locations no flag can move. Those stay shared between jobs (a
+     * documented residual, like the Gradle cache on Linux). Everything else the build writes
+     * is under the job's SwiftPackageManagerService dir, which is also executable because
+     * SwiftPM plugins and macros are built and run from there.
+     *
+     * No network: Package.swift manifests, plugins and macros run inside this profile, and
+     * every repository they need is already mirrored (see {@link #prefetchMirrors}).
+     */
+    static SandboxPolicy xcodebuildPolicy(SpmServiceBuildState buildState, File packageCacheDir, File mirrorsDir)
+            throws IOException {
+        Path home = DarwinSandboxPaths.realHome();
+        Path cache = DarwinSandboxPaths.userCacheDir();
+        List<String> sharedState = new ArrayList<>();
+        for (Path p : List.of(packageCacheDir.toPath(), home.resolve("Library/Caches/org.swift.swiftpm"),
+                home.resolve(".swiftpm"), home.resolve("Library/org.swift.swiftpm"),
+                cache.resolve("clang/ModuleCache"), cache.resolve("com.apple.DeveloperTools"))) {
+            Files.createDirectories(p);
+            sharedState.add(p.toString());
+        }
+        return SandboxPolicy.dependencyResolver(sharedState)
+                .withNetwork(SandboxPolicy.Network.NONE)
+                // platform/simulator/Metal toolchain indexes Xcode keeps per user, and the
+                // git mirrors SwiftPM clones from
+                .withReadOnlyPaths(List.of(home.resolve("Library/Developer").toString(), mirrorsDir.getAbsolutePath()))
+                // SwiftPM compiles Package.swift into an executable under TMPDIR (which the
+                // sandbox puts under the wrapper dir, inside this tree) and runs it; plugins and
+                // macros are built and run from the working dir as well
+                .withReadWriteExecPaths(List.of(buildState.getWorkingDir().getAbsolutePath()))
+                // the Xcode build service (swbuild.tmp.*) and the tools it resets TMPDIR for use
+                // the darwin user temp dir, and CFNetwork downloads binary targets there; only
+                // the entries they create are granted, never the directory (which holds every job)
+                .withReadWritePatterns(List.of(DarwinSandboxPaths.userTempPattern(
+                        "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)")))
+                .withMachServices(XCODEBUILD_MACH_SERVICES)
+                .withPreferenceDomains(XCODEBUILD_PREFERENCE_DOMAINS)
+                // Xcode's build service maps a sparse file larger than the default 8 GiB
+                // RLIMIT_FSIZE; SIGXFSZ kills it silently ("The Xcode build system has crashed")
+                .withMaxFileSizeBytes(0);
     }
 
     private Map<String, String> hardenedProcessEnv(String developerDir) {
@@ -317,9 +419,8 @@ public class SwiftPackageManagerService {
         }
     }
 
-    // an uploaded Package.resolved pins the graph; Xcode only reads it from inside the
-    // generated project's workspace
-    private void copyUserLockFile(List<File> platformManifests, SpmServiceBuildState buildState) throws IOException {
+    /** The uploaded Package.resolved next to a platform manifest, or null: it seeds the resolution, it is not required. */
+    static File findUserLockFile(List<File> platformManifests) {
         List<File> lockFiles = new ArrayList<>();
         for (File manifest : platformManifests) {
             File candidate = new File(manifest.getParentFile(), LOCK_FILENAME);
@@ -328,7 +429,7 @@ public class SwiftPackageManagerService {
             }
         }
         if (lockFiles.isEmpty()) {
-            return;
+            return null;
         }
         // the directory-walk order is filesystem-dependent; the picked lock file must be
         // the same on every build of the same upload
@@ -337,17 +438,304 @@ public class SwiftPackageManagerService {
         if (lockFiles.size() > 1) {
             LOGGER.warn("Multiple {} files uploaded {}, using {}", LOCK_FILENAME, lockFiles, userLockFile);
         }
+        return userLockFile;
+    }
 
+    // Xcode only reads the lock file from inside the generated project's workspace
+    private void copyLockFile(File userLockFile, SpmServiceBuildState buildState) throws IOException {
         File target = buildState.getLockFile();
         target.getParentFile().mkdirs();
         FileUtils.copyFile(userLockFile, target);
-        LOGGER.info("Using uploaded {} to pin Swift package versions", LOCK_FILENAME);
+        LOGGER.info("Seeding the Swift package resolution with the uploaded {}", LOCK_FILENAME);
     }
 
-    private void buildWrapperProject(SpmServiceBuildState buildState, File clonedSourcesDir, File packageCacheDir,
+    /** A repository to mirror: the URL git is given, and every spelling SwiftPM may ask git for. */
+    static final class PackageRepo {
+        final String key;
+        final String fetchUrl;
+        final Set<String> spellings = new LinkedHashSet<>();
+
+        PackageRepo(String key, String fetchUrl) {
+            this.key = key;
+            this.fetchUrl = fetchUrl;
+        }
+    }
+
+    /**
+     * Adds a package URL to the repositories to mirror, returning true when it names one that
+     * was not known yet. URLs harvested from a build log are chosen by transitive manifests,
+     * so they are validated exactly like the ones declared in SwiftPackages.json.
+     */
+    static boolean addRepo(Map<String, PackageRepo> repos, String rawUrl) throws ExtenderException {
+        String url = SpmManifestParser.sanitizeUrl(rawUrl);
+        String key = SpmManifestParser.canonicalKey(url);
+        PackageRepo repo = repos.get(key);
+        boolean added = repo == null;
+        if (added) {
+            if (repos.size() >= MAX_MIRRORED_PACKAGES) {
+                throw new ExtenderException(String.format(
+                    "The Swift package graph pulls in more than %d repositories, which is not supported",
+                    MAX_MIRRORED_PACKAGES));
+            }
+            repo = new PackageRepo(key, url);
+            repos.put(key, repo);
+        }
+        addSpellings(repo.spellings, url);
+        return added;
+    }
+
+    // xcodebuild names every repository it fetches, updates or fails to clone. Only those
+    // three shapes are harvested: a binary target download ("failed downloading '<url>' which
+    // is required by binary target") is not a repository and must keep its own message.
+    private static final Pattern PACKAGE_URL_PATTERN = Pattern.compile(
+        "(?:Fetching|Updating) from (https://[^\\s:]+)|Failed to clone repository (https://[^\\s:]+)");
+
+    /** The package repository URLs an xcodebuild log mentions, in the order they appear. */
+    static List<String> harvestPackageUrls(String output) {
+        List<String> urls = new ArrayList<>();
+        if (output == null) {
+            return urls;
+        }
+        Matcher matcher = PACKAGE_URL_PATTERN.matcher(output);
+        while (matcher.find()) {
+            String url = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+            if (!urls.contains(url)) {
+                urls.add(url);
+            }
+        }
+        return urls;
+    }
+
+    /**
+     * Mirrors, resolves and builds, repeating until the package graph closes. Transitive
+     * dependencies are only known once the manifests declaring them have run, and those must
+     * not run with network access, so discovery happens the other way round: a round that
+     * cannot reach a repository names it, the repository is mirrored by plain git (which
+     * evaluates nothing), and the round is repeated. The round that finds the graph closed is
+     * the build itself, so a resolved graph costs no extra xcodebuild invocation.
+     */
+    private void resolveAndBuild(SpmServiceBuildState buildState, SpmManifestParser.ParseResult manifest,
+            File userLockFile, File clonedSourcesDir, File packageCacheDir, File mirrorsDir,
             Map<String, String> processEnv) throws IOException, ExtenderException {
+        Map<String, PackageRepo> repos = new LinkedHashMap<>();
+        for (PackageRef declared : manifest.packages.values()) {
+            addRepo(repos, declared.url);
+        }
+        if (userLockFile != null) {
+            // the pins name the whole graph, so a current lock file closes it in one round
+            for (SpmLockFile.Pin pin : SpmLockFile.parse(userLockFile).values()) {
+                addRepo(repos, pin.location);
+            }
+            copyLockFile(userLockFile, buildState);
+        }
+
+        boolean forceRefresh = false;
+        boolean refreshRetried = false;
+        String lastFailure = null;
+        for (int round = 1; round <= MAX_RESOLVE_ROUNDS; round++) {
+            Map<String, File> mirrors;
+            try {
+                mirrors = prefetchMirrors(repos.values(), mirrorsDir, buildState, processEnv, forceRefresh);
+            } catch (ExtenderException e) {
+                if (!forceRefresh) {
+                    throw e;
+                }
+                // the refresh was a guess; a mirror that cannot be updated must not replace
+                // the failure that actually stopped the build
+                LOGGER.info("Refreshing the Swift package mirrors failed: {}", e.getMessage());
+                throw buildFailure(lastFailure);
+            }
+            forceRefresh = false;
+            File gitConfig = writeGitConfig(buildState, repos.values(), mirrors);
+            LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored)",
+                round, repos.size());
+            String failure = buildWrapperProject(buildState, clonedSourcesDir, packageCacheDir, mirrorsDir,
+                gitConfig, processEnv);
+            if (failure == null) {
+                return;
+            }
+            lastFailure = failure;
+            boolean discovered = false;
+            List<String> harvested = harvestPackageUrls(failure);
+            for (String url : harvested) {
+                discovered |= addRepo(repos, url);
+            }
+            if (discovered) {
+                continue;
+            }
+            // only a resolution failure can be about a mirror; a compile error must not cost
+            // the job a second full build
+            if (!refreshRetried && failure.contains(RESOLUTION_FAILED_MARKER)) {
+                // nothing new to mirror, so the graph may want a tag or branch published after
+                // the mirrors were last fetched: refresh every one of them and try once more
+                LOGGER.info("Refreshing every Swift package mirror and retrying");
+                refreshRetried = true;
+                forceRefresh = true;
+                continue;
+            }
+            throw buildFailure(failure);
+        }
+        throw new ExtenderException(String.format(
+            "The Swift package graph did not resolve in %d rounds; it is either too deep or keeps changing",
+            MAX_RESOLVE_ROUNDS));
+    }
+
+    // the message is what the client gets; the cause-carrying constructor would report the
+    // IOException the executor raised and drop both the output and the hint
+    private static ExtenderException buildFailure(String output) {
+        return new ExtenderException("Swift package build failed:\n" + output + offlineBuildHint(output));
+    }
+
+    /**
+     * Mirrors every known repository with plain git, the only step of the build with network
+     * access. git never evaluates Package.swift, so a malicious manifest gets no chance to
+     * phone home here. A mirror fetched less than the refresh interval ago is used as it is,
+     * which is what keeps parallel builds of the same graph from re-asking the forge.
+     */
+    Map<String, File> prefetchMirrors(Collection<PackageRepo> repos, File mirrorsDir, SpmServiceBuildState buildState,
+            Map<String, String> processEnv, boolean forceRefresh) throws IOException, ExtenderException {
+        Map<String, File> mirrors = new LinkedHashMap<>();
+        for (PackageRepo repo : repos) {
+            File mirror = new File(mirrorsDir, mirrorDirName(repo.key));
+            Object lock = mirrorLocks.computeIfAbsent(mirror.getAbsolutePath(), k -> new Object());
+            synchronized (lock) {
+                updateMirror(mirror, repo, mirrorsDir, buildState, processEnv, forceRefresh);
+            }
+            mirrors.put(repo.key, mirror);
+        }
+        return mirrors;
+    }
+
+    private void updateMirror(File mirror, PackageRepo repo, File mirrorsDir, SpmServiceBuildState buildState,
+            Map<String, String> processEnv, boolean forceRefresh) throws IOException, ExtenderException {
+        // the marker is missing for a mirror written before it existed, which just fetches once
+        File marker = new File(mirrorsDir, mirror.getName() + FETCH_MARKER_SUFFIX);
+        String failure;
+        if (!mirror.isDirectory()) {
+            LOGGER.info("Mirroring {} into {}", repo.fetchUrl, mirror.getName());
+            failure = runGit(List.of("git", "clone", "--mirror", "--quiet", repo.fetchUrl, mirror.getAbsolutePath()),
+                mirrorsDir, buildState, processEnv);
+            if (failure != null) {
+                // a half-written clone would be mistaken for a mirror next time
+                FileUtils.deleteQuietly(mirror);
+            }
+        } else if (forceRefresh || System.currentTimeMillis() - marker.lastModified() > mirrorRefreshIntervalMillis) {
+            LOGGER.info("Updating mirror {} for {}", mirror.getName(), repo.fetchUrl);
+            failure = runGit(List.of("git", "-C", mirror.getAbsolutePath(), "fetch", "--quiet", "--prune", "origin"),
+                mirrorsDir, buildState, processEnv);
+        } else {
+            LOGGER.info("Mirror {} for {} is up to date", mirror.getName(), repo.fetchUrl);
+            return;
+        }
+        if (failure != null) {
+            throw new ExtenderException("Fetching Swift package " + repo.fetchUrl + " failed:\n" + failure);
+        }
+        touchFetchMarker(marker);
+    }
+
+    private static void touchFetchMarker(File marker) {
+        try {
+            Files.write(marker.toPath(), new byte[0]);
+            marker.setLastModified(System.currentTimeMillis());
+        } catch (IOException e) {
+            // costs an extra fetch on the next build, nothing else
+            LOGGER.warn("Failed to record the fetch time of {}", marker, e);
+        }
+    }
+
+    /**
+     * Runs git under the pre-fetch policy. Returns null on exit 0, otherwise the command's
+     * output (the executor raises on a non-zero exit); a launch failure still propagates.
+     */
+    private String runGit(List<String> args, File mirrorsDir, SpmServiceBuildState buildState,
+            Map<String, String> processEnv) throws IOException {
+        ProcessExecutor processExecutor = new ProcessExecutor();
+        processExecutor.setCwd(buildState.getWrapperDir());
+        processExecutor.putEnv(processEnv);
+        // https only: a redirect to ssh://, git:// or a local path is refused by git itself
+        processExecutor.putEnv("GIT_ALLOW_PROTOCOL", "https");
+        processExecutor.setPolicy(gitPrefetchPolicy(mirrorsDir));
+        try {
+            processExecutor.execute(args);
+            return null;
+        } catch (IOException e) {
+            String output = processExecutor.getOutput();
+            if (output == null || output.isBlank()) {
+                // nothing ran at all (launcher or git missing): not a git failure
+                throw e;
+            }
+            LOGGER.info("{} failed:\n{}", String.join(" ", args), output.strip());
+            return output;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while running " + String.join(" ", args), e);
+        }
+    }
+
+    /** Mirror directory for a canonical package key: readable name plus a hash, so nothing collides or escapes. */
+    static String mirrorDirName(String canonicalKey) {
+        String name = canonicalKey.substring(canonicalKey.lastIndexOf('/') + 1);
+        name = UNSAFE_CACHE_SUBDIR_CHARS.matcher(name).replaceAll("_");
+        if (name.length() > 40) {
+            name = name.substring(0, 40);
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(canonicalKey.getBytes(StandardCharsets.UTF_8));
+            return name + "-" + HexFormat.of().formatHex(digest, 0, 6) + ".git";
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Git configuration for the offline build: every URL SwiftPM may ask git for is rewritten
+     * to its mirror. insteadOf matches by prefix and the longest prefix wins, so both the
+     * ".git" and the bare spelling of each location are listed; a URL that matches nothing
+     * stays https and is then refused by GIT_ALLOW_PROTOCOL=file.
+     */
+    static File writeGitConfig(SpmServiceBuildState buildState, Collection<PackageRepo> repos,
+            Map<String, File> mirrors) throws IOException {
+        StringBuilder config = new StringBuilder();
+        for (PackageRepo repo : repos) {
+            config.append("[url \"file://").append(mirrors.get(repo.key).getAbsolutePath()).append("\"]\n");
+            for (String spelling : repo.spellings) {
+                config.append("\tinsteadOf = ").append(spelling).append('\n');
+            }
+        }
+        File gitConfig = new File(buildState.getWorkingDir(), GIT_CONFIG_FILENAME);
+        Files.writeString(gitConfig.toPath(), config.toString());
+        return gitConfig;
+    }
+
+    private static void addSpellings(Set<String> spellings, String url) {
+        String trimmed = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+        spellings.add(trimmed);
+        if (trimmed.endsWith(".git")) {
+            spellings.add(trimmed.substring(0, trimmed.length() - 4));
+        } else {
+            spellings.add(trimmed + ".git");
+        }
+    }
+
+    /** Plain git fetching into the mirror store: network on, nothing else beyond the toolchain policy. */
+    static SandboxPolicy gitPrefetchPolicy(File mirrorsDir) {
+        return SandboxPolicy.dependencyResolver(List.of(mirrorsDir.getAbsolutePath()))
+                // proxy settings lookup by libcurl
+                .withMachServices(List.of("com.apple.SystemConfiguration.configd"));
+    }
+
+    /**
+     * Resolves and builds the graph offline. Returns null when the build succeeded, otherwise
+     * the xcodebuild output, which names the repositories the resolution could not reach.
+     */
+    private String buildWrapperProject(SpmServiceBuildState buildState, File clonedSourcesDir, File packageCacheDir,
+            File mirrorsDir, File gitConfig, Map<String, String> processEnv) throws IOException, ExtenderException {
         List<String> args = new ArrayList<>(List.of(
             "xcodebuild",
+            // SwiftPM sandboxes manifest compilation with its own sandbox-exec, which the
+            // kernel refuses inside the process sandbox xcodebuild already runs in (no rule
+            // permits a nested Seatbelt); the outer sandbox denies the network instead
+            "-IDEPackageSupportDisableManifestSandbox=YES",
             "-project", buildState.getXcodeProjDir().getAbsolutePath(),
             "-scheme", SpmServiceBuildState.WRAPPER_NAME,
             "-destination", buildState.getDestination(),
@@ -365,13 +753,47 @@ public class SwiftPackageManagerService {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.setCwd(buildState.getWrapperDir());
         processExecutor.putEnv(processEnv);
+        // the system git xcodebuild spawns reads the insteadOf rewrites from here and may
+        // only use the file transport; both hold even when the process sandbox is disabled
+        processExecutor.putEnv("GIT_CONFIG_GLOBAL", gitConfig.getAbsolutePath());
+        processExecutor.putEnv("GIT_ALLOW_PROTOCOL", "file");
+        processExecutor.setPolicy(xcodebuildPolicy(buildState, packageCacheDir, mirrorsDir));
         try {
             processExecutor.execute(args);
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             writeBuildLog(buildState, processExecutor);
-            throw new ExtenderException(e, "Swift package build failed:\n" + processExecutor.getOutput());
+            throw new IOException("Interrupted while building the Swift package graph", e);
+        } catch (IOException e) {
+            writeBuildLog(buildState, processExecutor);
+            String output = processExecutor.getOutput();
+            if (output == null || output.isBlank()) {
+                // nothing ran at all (launcher or xcodebuild missing): not a build failure
+                throw e;
+            }
+            return output;
         }
         writeBuildLog(buildState, processExecutor);
+        return null;
+    }
+
+    /** Adds the reason a resolution can fail under the offline build, when the log points at one. */
+    static String offlineBuildHint(String output) {
+        if (output == null) {
+            return "";
+        }
+        // every repository the log named was mirrored and rewritten to its mirror before this
+        // round, so a URL git still refuses is one no mirror could be built for
+        if (output.contains("transport 'https' not allowed")) {
+            return "\n\nA dependency could not be mirrored; Swift package builds resolve offline from git "
+                + "mirrors, so every package in the graph must be a plain https git repository.";
+        }
+        // SwiftPM: "failed downloading '<url>' which is required by binary target '<name>'"
+        if (output.contains("required by binary target")) {
+            return "\n\nBinary targets are downloaded during resolution, which runs without network access here; "
+                + "packages with binary targets are not supported.";
+        }
+        return "";
     }
 
     private void writeBuildLog(SpmServiceBuildState buildState, ProcessExecutor processExecutor) {

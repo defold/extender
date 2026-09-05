@@ -54,6 +54,11 @@ public class SpmServiceBuildState {
         this.selectedPlatform = PodUtils.Platform.fromExtenderPlatform(platform);
     }
 
+    /** The job directory the working dir lives in; sandboxed helper tools run there. */
+    public File getJobDir() {
+        return workingDir.getParentFile();
+    }
+
     public File getWorkingDir() {
         return workingDir;
     }

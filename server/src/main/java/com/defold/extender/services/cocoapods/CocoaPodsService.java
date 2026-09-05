@@ -7,6 +7,7 @@ import com.defold.extender.TemplateExecutor;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessUtils;
+import com.defold.extender.process.SandboxPolicy;
 
 import org.apache.commons.io.FileUtils;
 import org.json.simple.JSONObject;
@@ -121,6 +122,34 @@ public class CocoaPodsService {
         LOGGER.info("Cocoapods startup task completed");
     }
 
+    /**
+     * Every pod command runs sandboxed with network (the CDN, GitHub) and only the shared
+     * CocoaPods home writable. The download cache normally lives under $HOME, which the sandbox
+     * points into the job directory, so it is pinned under the rotated cache dir instead; git
+     * runs without credential helpers so a pod's git source can never reach the keychain.
+     */
+    private static SandboxPolicy podPolicy(Path cacheDir) {
+        Map<String, String> env = new HashMap<>();
+        env.put("CP_CACHE_DIR", cacheDir.resolve("cache").toString());
+        env.put("GIT_CONFIG_NOSYSTEM", "1");
+        env.put("GIT_CONFIG_GLOBAL", "/dev/null");
+        env.put("GIT_TERMINAL_PROMPT", "0");
+        env.put("GIT_ASKPASS", "/usr/bin/true");
+        return SandboxPolicy.dependencyResolver(List.of(cacheDir.toString()))
+                .withMachServices(List.of("com.apple.SystemConfiguration.configd"))
+                .withEnv(env);
+    }
+
+    /** Working directory for the pod commands that run outside a build (repo add-cdn, repo update). */
+    private static File podCommandDir(Path cacheDir) throws ExtenderException {
+        try {
+            Files.createDirectories(cacheDir);
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Cannot create the CocoaPods cache directory " + cacheDir);
+        }
+        return cacheDir.toFile();
+    }
+
     // debugging function for printing a directory structure with files and folders
     private static void dumpDir(File file, int indent) throws IOException {
         String indentString = "";
@@ -182,9 +211,12 @@ public class CocoaPodsService {
             handledPods.add(podName);
             File unpackScript = Path.of(cocoapodsBuildState.getTargetSupportFilesDir().toString(), podName, String.format("%s-xcframeworks.sh", podName)).toFile();
             if (unpackScript.exists()) {
+                // run through the shell (the job directory is writable but not executable) from
+                // the job directory: the script copies slices into the build dir
                 String log = ProcessUtils.execCommand(List.of(
+                    "/bin/sh",
                     unpackScript.getAbsolutePath()
-                ), null, spec.parsedXCConfig);
+                ), cocoapodsBuildState.getJobDir(), spec.parsedXCConfig);
                 LOGGER.info("Unpacked xcframeworks for {}:\n{}", podName, log);
                 String failure = findUnpackFailure(log);
                 if (failure != null) {
@@ -343,7 +375,8 @@ public class CocoaPodsService {
                 "install",
                 "--verbose"
             ), workingDir, Map.of("CP_HOME_DIR", cacheDir.toString(),
-            "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)));
+            "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)),
+            podPolicy(cacheDir));
         LOGGER.debug("\n" + log);
 
         installedPods.podfileLock = new File(workingDir, "Podfile.lock");
@@ -441,7 +474,8 @@ public class CocoaPodsService {
             String podName = podDir.getName();
             if (podVersions.containsKey(podName)) {
                 String cmd = String.format("pod spec cat --regex ^%s$ --version=%s", podName, podVersions.get(podName));
-                String specJson = ProcessUtils.execCommand(cmd, null, Map.of("CP_HOME_DIR", cacheDir.toString())).replace(cmd, "");
+                String specJson = ProcessUtils.execCommand(cmd, workingDir, Map.of("CP_HOME_DIR", cacheDir.toString()),
+                    podPolicy(cacheDir)).replace(cmd, "");
                 // find first occurence of { because in some cases pod command
                 // can produce additional output before json spec
                 // For example:
@@ -637,8 +671,9 @@ public class CocoaPodsService {
                     "trunk",
                     "https://cdn.cocoapods.org/",
                     "--verbose"
-                ), null,
-                Map.of("CP_HOME_DIR", cacheDir.toString()));
+                ), podCommandDir(cacheDir),
+                Map.of("CP_HOME_DIR", cacheDir.toString()),
+                podPolicy(cacheDir));
             LOGGER.debug("\n" + log);
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during repo init", exc);
@@ -791,9 +826,10 @@ public class CocoaPodsService {
                     "repo",
                     "update",
                     "--verbose"
-                ), null,
+                ), podCommandDir(cacheDir),
                 Map.of("CP_HOME_DIR", cacheDir.toString(),
-                    "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)));
+                    "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)),
+                podPolicy(cacheDir));
             LOGGER.debug("\n" + log);
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during spec repo update", exc);
