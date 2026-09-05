@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.7.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.8.0
 
 # Disable all debug messages
 ENV WINEDEBUG="-all"
@@ -41,7 +41,7 @@ RUN wget -q -O - https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o
 # Install winetricks
 RUN wget -nv -O /usr/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
     && chmod +x /usr/bin/winetricks && \
-  apt-get remove -y wget lsb-release software-properties-common gnupg wget && \
+  apt-get purge -y wget lsb-release software-properties-common gnupg ipp-usb && \
   apt-get autoremove -y && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/* && \
