@@ -1,0 +1,8 @@
+name: "Extender CodeQL config"
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - server/test-data
+  - '**/src/test/**'
