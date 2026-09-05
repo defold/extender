@@ -57,7 +57,10 @@ public class GCPInstanceService {
             .setExecutorThreadCount(gaxMaxThreadCount)
             .build();
         InstancesSettings settings = InstancesSettings.newBuilder()
-            .setExecutorProvider(executor)
+            .setBackgroundExecutorProvider(executor)
+            .setTransportChannelProvider(InstancesSettings.defaultHttpJsonTransportProviderBuilder()
+                .setExecutor(executor.getExecutor())
+                .build())
             .build();
         instancesClient = InstancesClient.create(settings);
         for (Map.Entry<String, RemoteInstanceConfig> entry : remoteHostConfiguration.getPlatforms().entrySet()) {

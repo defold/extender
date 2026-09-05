@@ -50,11 +50,11 @@ public class ExtenderBuildState {
         }
 
         String os = System.getProperty("os.name");
-        String arch = System.getProperty("os.arch");
+        String hostArch = System.getProperty("os.arch");
 
         // These host names are using the Defold SDK names
         if (os.contains("Mac")) {
-            if (arch.contains("aarch64")) {
+            if (hostArch.contains("aarch64")) {
                 this.hostPlatform = "arm64-macos";
             } else {
                 this.hostPlatform = "x86_64-macos";
@@ -62,7 +62,7 @@ public class ExtenderBuildState {
         } else if (os.contains("Windows")) {
             this.hostPlatform = "x86_64-win32";
         } else {
-            if (arch.contains("aarch64")) {
+            if (hostArch.contains("aarch64")) {
                 this.hostPlatform = "arm64-linux";
             } else {
                 this.hostPlatform = "x86_64-linux";

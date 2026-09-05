@@ -1,6 +1,7 @@
 package com.defold.extender.cache;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -57,7 +58,7 @@ public class LocalDiskDataCache implements DataCache {
     }
 
     private String pruneLastSlashInDirectory(final String directory) {
-        return StringUtils.removeEnd(directory, "/");
+        return Strings.CS.removeEnd(directory, "/");
     }
 
     private File createTemporaryDirectory() throws IOException {

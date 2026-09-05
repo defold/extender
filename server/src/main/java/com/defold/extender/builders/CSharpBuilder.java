@@ -165,7 +165,7 @@ public class CSharpBuilder {
         commands.add(cmd);
         ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
 
-        String name = new String(outputName);
+        String name = outputName;
         if (name.startsWith("lib"))
             name = name.substring(3);
 

@@ -198,6 +198,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return result;
     }
 
+    @Override
     public List<File> createResourceBundles(File targetDir, String platform) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
         for (PodBuildSpec spec : pods) {
@@ -239,10 +240,12 @@ public class ResolvedPods implements ResolvedNativeDeps {
         additionIncludePaths = collectAdditionalIncludePaths();
     }
 
+    @Override
     public List<String> getFrameworks() {
         return frameworks;
     }
 
+    @Override
     public Set<String> getBuiltFrameworks() {
         if (!useFrameworks) {
             return Set.of();
@@ -256,22 +259,27 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return result;
     }
 
+    @Override
     public List<String> getWeakFrameworks() {
         return weakFrameworks;
     }
 
+    @Override
     public List<String> getFrameworksSearchPaths() {
         return frameworkSearchPaths;
     }
 
+    @Override
     public List<String> getLibrarySearchPaths() {
         return librarySearchPaths;
     }
 
+    @Override
     public List<String> getAdditionalIncludePaths() {
         return additionIncludePaths;
     }
 
+    @Override
     public List<String> getStaticLibraries() {
         return staticLibraries;
     }
@@ -280,6 +288,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return pods;
     }
 
+    @Override
     public String getPlatformMinVersion() {
         return platformMinVersion;
     }
@@ -288,6 +297,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return podFileLock;
     }
 
+    @Override
     public List<File> getDynamicFrameworks() {
         return dynamicFrameworks;
     }

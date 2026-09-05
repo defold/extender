@@ -1215,7 +1215,7 @@ class Extender {
         return out;
     }
 
-    private List<File> buildExtensionInternal_CSharp(File manifest, Map<String, Object> manifestContext, List<File> srcFiles, File libraryOut) throws IOException, InterruptedException, ExtenderException {
+    private List<File> buildExtensionInternal_CSharp(File manifest, Map<String, Object> manifestContext, File libraryOut) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildExtensionInternal_CSharp");
 
         List<File> out = new ArrayList<>();
@@ -1299,7 +1299,7 @@ class Extender {
         if (!srcCSFiles.isEmpty())
         {
             this.needsCSLibraries = true; // If we need to link, we need the static libraries
-            outputFiles.addAll(buildExtensionInternal_CSharp(manifest, manifestContext, srcCSFiles, libraryOut));
+            outputFiles.addAll(buildExtensionInternal_CSharp(manifest, manifestContext, libraryOut));
         }
         return outputFiles;
     }
@@ -1632,7 +1632,7 @@ class Extender {
         return outputFiles;
     }
 
-    private List<File> getAndroidAssetsFolders(String platform) {
+    private List<File> getAndroidAssetsFolders() {
         List<File> assetDirs = new ArrayList<>();
         assetDirs.addAll(androidPackages.stream()
                                          .map(f -> new File(f, "assets"))
@@ -1642,7 +1642,7 @@ class Extender {
                             .collect(Collectors.toList());
     }
 
-    private List<File> getAndroidJniFolders(String platform) {
+    private List<File> getAndroidJniFolders() {
         List<File> jniDirs = new ArrayList<>();
         jniDirs.addAll(androidPackages.stream()
                                          .map(f -> new File(f, "jni"))
@@ -2421,8 +2421,8 @@ class Extender {
         }
     }
 
-    private List<File> copyAndroidJniFolders(String platform) throws ExtenderException {
-        List<File> jniFolders = getAndroidJniFolders(platform);
+    private List<File> copyAndroidJniFolders() throws ExtenderException {
+        List<File> jniFolders = getAndroidJniFolders();
         if (jniFolders.isEmpty()) {
             return new ArrayList<>();
         }
@@ -2439,8 +2439,8 @@ class Extender {
                                                       .collect(Collectors.toList());
     }
 
-    private List<File> copyAndroidAssetFolders(String platform) throws ExtenderException {
-        List<File> assets = getAndroidAssetsFolders(platform);
+    private List<File> copyAndroidAssetFolders() throws ExtenderException {
+        List<File> assets = getAndroidAssetsFolders();
         if (assets.isEmpty()) {
             return new ArrayList<>();
         }
@@ -2599,8 +2599,8 @@ class Extender {
         }
 
         outputFiles.addAll(copyAndroidResourceFolders(androidResourceFolders));
-        outputFiles.addAll(copyAndroidAssetFolders(platform));
-        outputFiles.addAll(copyAndroidJniFolders(platform));
+        outputFiles.addAll(copyAndroidAssetFolders());
+        outputFiles.addAll(copyAndroidJniFolders());
 
         if (r8Output == null) {
             outputFiles.addAll(copyMetaInformationFiles(allJars));
