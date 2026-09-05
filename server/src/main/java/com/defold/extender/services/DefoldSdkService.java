@@ -199,7 +199,7 @@ public class DefoldSdkService {
                         // Connect and copy to file
                         try (ClientHttpResponse response = doRequestWithRedirects(URI.create(url), HttpMethod.GET, configuration.getMaxRedirectCount())) {
                             InputStream body = response.getBody();
-                            tmpResponseBody = File.createTempFile(hash, ".zip.tmp");
+                            tmpResponseBody = Files.createTempFile(hash, ".zip.tmp").toFile();
                             Files.copy(body, tmpResponseBody.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
                             if (this.configuration.isEnableSdkVerification()) {

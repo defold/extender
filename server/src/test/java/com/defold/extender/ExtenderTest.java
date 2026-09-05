@@ -222,6 +222,21 @@ public class ExtenderTest {
         assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("+foobar.h"); });
         assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("include/foo;echo foo;.h"); });
         assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("../../etc/passwd"); });
+
+        // A whitespace-split token must not become a flag or a response file
+        assertDoesNotThrow(() -> { ExtenderController.validateFilename("res/My Icon.png"); });
+        assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename(" @upload/opts"); });
+        assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("src/a @opts.cpp"); });
+        assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename("src/a -o/tmp/x.cpp"); });
+    }
+
+    @Test
+    public void testValidateFilenameHasNoCatastrophicBacktracking() {
+        String input = " .".repeat(40) + "!";
+        long start = System.nanoTime();
+        assertThrows(ExtenderException.class, () -> { ExtenderController.validateFilename(input); });
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+        assertTrue(elapsedMs < 1000, "validateFilename took " + elapsedMs + " ms");
     }
 
     @Test

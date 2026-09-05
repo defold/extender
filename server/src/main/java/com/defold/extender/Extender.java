@@ -227,6 +227,7 @@ class Extender {
             baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, ExtenderBuildState.APPMANIFEST_BASE_VARIANT_KEYWORD, null);
             if (baseVariant != null)
             {
+                SandboxedPath.validateName(baseVariant);
                 File baseVariantFile = new File(builder.sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
 
                 if (!baseVariantFile.exists()) {

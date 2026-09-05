@@ -63,7 +63,12 @@ public class ExtenderController {
     private static final String LATEST = "latest";
 
     // Used to verify the uploaded filenames
-    private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ](?:[\\w+\\-\\/ @]|(?:\\.[\\w+\\-\\/ ]*))+)$");
+    private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ][\\w+\\-\\/ @.]+)$");
+    // A whitespace-delimited token starting with '-' or '@' would be read as a flag or response file
+    // once the filename is rendered into a command line and split on whitespace.
+    private static final Pattern FILENAME_ARGV_UNSAFE = Pattern.compile("(^|\\s)[-@]");
+    private static final Pattern PLATFORM_RE = Pattern.compile("^[a-z0-9_]+-[a-z0-9]+$");
+    private static final Pattern SDK_VERSION_RE = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
 
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
@@ -178,6 +183,13 @@ public class ExtenderController {
         }
 
         MultipartHttpServletRequest request = (MultipartHttpServletRequest)_request;
+
+        if (!PLATFORM_RE.matcher(platform).matches()) {
+            throw new PlatformNotSupportedException(platform);
+        }
+        if (!SDK_VERSION_RE.matcher(sdkVersionString).matches()) {
+            throw new VersionNotSupportedException(sdkVersionString);
+        }
 
         this.userUpdateService.update();
 
@@ -368,14 +380,14 @@ public class ExtenderController {
         boolean ignore = false;
         ignore = ignore || name.equals(".DS_Store");
         if (ignore) {
-            LOGGER.debug(String.format("ignoreFilename: %s", path));
+            LOGGER.debug(String.format("ignoreFilename: %s", name));
         }
         return ignore;
     }
 
     static void validateFilename(String path) throws ExtenderException {
         Matcher m = ExtenderController.FILENAME_RE.matcher(path);
-        if (!m.matches()) {
+        if (!m.matches() || FILENAME_ARGV_UNSAFE.matcher(path).find()) {
             throw new ExtenderException(String.format("Filename '%s' is invalid or contains invalid characters", path));
         }
     }

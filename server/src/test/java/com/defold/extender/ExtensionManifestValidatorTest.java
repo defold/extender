@@ -213,6 +213,41 @@ public class ExtensionManifestValidatorTest {
     }
 
     @Test
+    public void testUnwhitelistedKeysRejectArgvInjection() {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+        File extensionFolder = new File(".");
+
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("emscriptenLinkFlags", Arrays.asList("WASM=1", "EXPORTED_RUNTIME_METHODS=[\"ccall\"]"));
+            ctx.put("aaptExtraPackages", Arrays.asList("com.example.lib"));
+            ctx.put("excludeLibs", Arrays.asList("alib"));
+            ctx.put("stackSize", "1048576");
+            ctx.put("jetifier", true);
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        String[][] bad = new String[][] {
+                {"emscriptenLinkFlags", "WASM=1 -o /tmp/pwned"},
+                {"emscriptenLinkFlags", "@upload/opts"},
+                {"aaptExtraPackages", "com.example --extra-arg"},
+                {"excludeLibs", "a\tb"},
+                {"stackSize", "1 2"},
+        };
+        for (String[] kv : bad) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put(kv[0], kv[1]);
+            assertThrows(ExtenderException.class, () -> validator.validate("ext", extensionFolder, ctx),
+                    "expected to reject " + kv[0] + "=" + kv[1]);
+            Map<String, Object> listCtx = new HashMap<>();
+            listCtx.put(kv[0], Arrays.asList("ok", kv[1]));
+            assertThrows(ExtenderException.class, () -> validator.validate("ext", extensionFolder, listCtx),
+                    "expected to reject list " + kv[0] + "=" + kv[1]);
+        }
+    }
+
+    @Test
     public void testValidateAppManifestContextDebugSourcePath() throws ExtenderException {
         List<String> empty = new ArrayList<>();
         ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
