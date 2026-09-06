@@ -1,4 +1,4 @@
-ARG GRADLE_VERSION=9.7.1
+ARG GRADLE_VERSION=9.5.1
 
 FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.2.0 AS build
 
