@@ -1,6 +1,6 @@
-ARG GRADLE_VERSION=9.1.0
+ARG GRADLE_VERSION=9.7.1
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.1.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.2.0 AS build
 
 ARG GRADLE_VERSION
 
@@ -15,13 +15,13 @@ RUN \
   unzip -q -d /opt/gradle gradle-${GRADLE_VERSION}-bin.zip && \
   rm gradle-${GRADLE_VERSION}-bin.zip
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.7.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.8.0
 
 ARG GRADLE_VERSION
 
 ENV GRADLE_USER_HOME=/tmp/.gradle
 ENV GRADLE_VERSION=${GRADLE_VERSION}
-ENV GRADLE_PLUGIN_VERSION=8.13.0
+ENV GRADLE_PLUGIN_VERSION=9.4.0
 ENV PATH=${PATH}:/opt/gradle/gradle-${GRADLE_VERSION}/bin
 
 COPY --from=build /opt/gradle /opt/gradle

@@ -22,7 +22,7 @@ allprojects {
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion {{compile-sdk-version}}
+    compileSdk = {{compile-sdk-version}}
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8

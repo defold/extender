@@ -6,7 +6,7 @@ ARG DOTNET_ROOT=/opt/dotnet
 ARG DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
 ARG NUGET_PACKAGES=/tmp/.nuget
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.1.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.2.0 AS build
 
 ARG PLATFORMSDK_DIR
 ARG TARGETARCH
@@ -61,7 +61,7 @@ RUN \
   echo "${DOTNET_VERSION}" > "${DOTNET_VERSION_FILE}"
 
 # ubuntu:22.04
-FROM ubuntu@sha256:0e0a0fc6d18feda9db1590da249ac93e8d5abfea8f4c3c0c849ce512b5ef8982
+FROM ubuntu@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc
 
 ARG PLATFORMSDK_DIR
 ARG TARGETARCH
