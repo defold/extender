@@ -70,10 +70,13 @@ class ExtensionManifestValidator {
         }
     }
 
-    // These values are rendered unquoted into command templates and the result is split on
-    // whitespace, so a space would inject extra argv elements and a leading '@' a response file.
+    // These values are rendered unquoted into command templates and the result is tokenized by
+    // CommandLineTokenizer, so a space would inject extra argv elements, a backslash would escape
+    // the separator the template emits and merge the following token into this one, and a leading
+    // '@' would name a response file. Quotes are left alone: they can only merge tokens, and the
+    // SDK relies on them for values such as EXPORTED_RUNTIME_METHODS=["ccall"].
     private static boolean isArgvUnsafe(String s) {
-        return s.startsWith("@") || s.chars().anyMatch(Character::isWhitespace);
+        return s.startsWith("@") || s.chars().anyMatch(c -> Character.isWhitespace(c) || c == '\\');
     }
 
     private static void validateArgvSafe(String extensionName, String key, Object value) throws ExtenderException {
@@ -84,7 +87,7 @@ class ExtensionManifestValidator {
         for (Object o : values) {
             if (o instanceof String s && isArgvUnsafe(s)) {
                 throw new ExtenderException(String.format(
-                        "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace or start with '@'.",
+                        "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace or backslashes, or start with '@'.",
                         extensionName, key, s));
             }
         }

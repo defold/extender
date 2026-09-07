@@ -235,6 +235,8 @@ public class ExtensionManifestValidatorTest {
                 {"excludeLibs", "a\tb"},
                 {"emscriptenLinkFlags", "WASM=1\u2003-o/tmp/pwned"},
                 {"emscriptenLinkFlags", "WASM=1\u2028-o/tmp/pwned"},
+                {"emscriptenLinkFlags", "EXPORT_NAME=x\\"},
+                {"objectFiles", "a\\"},
                 {"stackSize", "1 2"},
         };
         for (String[] kv : bad) {
