@@ -101,11 +101,11 @@ public class AsyncBuilder {
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation, jobName);
-        Files.createDirectories(resultDir.toPath());
         Extender extender = null;
         Boolean isSuccefull = true;
         ProgressReporter progressReporter = buildProgressService.reporterFor(jobName);
         try {
+            Files.createDirectories(resultDir.toPath());
             LOGGER.info("Building engine locally");
 
             // Get SDK
