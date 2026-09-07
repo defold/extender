@@ -15,7 +15,7 @@ ARG ANDROID_NDK_BIN_PATH=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_
 ARG ANDROID_SDK_BUILD_TOOLS_PATH=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ARG R8_VERSION=8.13.19
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.1.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.2.0 AS build
 
 ARG ANDROID_BUILD_TOOLS_VERSION
 ARG ANDROID_SDK_VERSION
@@ -46,6 +46,9 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
     rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/i686-linux-android" && \
     rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-*" && \
     rm -rf "${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android" && \
+# legacy SDK tools (unused, ships vulnerable jars) and unused pip/setuptools in the NDK python
+    rm -rf "${ANDROID_HOME}/tools" && \
+    rm -rf "${ANDROID_NDK_PATH}"/toolchains/llvm/prebuilt/linux-x86_64/python3/lib/python3.9/site-packages/{pip,pip-*,setuptools,setuptools-*,pkg_resources,_distutils_hack} && \
 # create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
 # It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
     mkdir "${ANDROID_SDK_HOME}" && \
@@ -65,7 +68,7 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
 # R8 contains all classes of D8.
     wget -q -O "${ANDROID_SDK_BUILD_TOOLS_PATH}/lib/d8.jar" "https://storage.googleapis.com/r8-releases/raw/${R8_VERSION}/r8.jar"
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.8.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-env:1.9.0
 
 ARG ANDROID_BUILD_TOOLS_VERSION
 ARG ANDROID_SDK_VERSION
@@ -102,7 +105,7 @@ ENV ANDROID_ROOT=${ANDROID_ROOT} \
     ANDROID_NDK_BIN_PATH=${ANDROID_NDK_BIN_PATH} \
     ANDROID_NDK_SYSROOT=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot \
 # We specify it in build_input.yml by setting it the first in PATH
-    PATH=${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK_BIN_PATH} \
+    PATH=${PATH}:${ANDROID_HOME}/platform-tools:${ANDROID_SDK_BUILD_TOOLS_PATH}:${ANDROID_NDK_BIN_PATH} \
     ANDROID_R8=${ANDROID_SDK_BUILD_TOOLS_PATH}/lib/d8.jar \
     ANDROID_R8_VERSION=${R8_VERSION}
 

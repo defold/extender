@@ -8,9 +8,10 @@ ARG EMSCRIPTEN_BIN=${EMSCRIPTEN_TARGET_DIR}/upstream/emscripten
 
 ARG EMSCRIPTEN_TEMP_DIR=/var/extender/ems_temp
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.1.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.2.0 AS build
 
 ARG EMSCRIPTEN_VERSION
+ARG NODE_VERSION
 ARG EMSCRIPTEN_TARGET_DIR
 ARG EMSCRIPTEN_TEMP_DIR
 ARG EMSCRIPTEN_CONFIG
@@ -32,13 +33,17 @@ RUN \
   "${EMSCRIPTEN_TARGET_DIR}/emsdk" activate sdk-${EMSCRIPTEN_VERSION}-64bit && \
   EM_CONFIG="${EMSCRIPTEN_CONFIG}" EM_CACHE="${EMSCRIPTEN_CACHE}" python3 "${EMSCRIPTEN_BIN}/embuilder.py" build SYSTEM MINIMAL && \
   rm -fr "${EMSCRIPTEN_TARGET_DIR}/upstream/emscripten/tests" && \
+# npm is not used by emscripten at build time; its bundled node_modules carry vulnerable packages
+  rm -fr "${EMSCRIPTEN_TARGET_DIR}/node/${NODE_VERSION}/lib/node_modules/npm" \
+         "${EMSCRIPTEN_TARGET_DIR}/node/${NODE_VERSION}/bin/npm" \
+         "${EMSCRIPTEN_TARGET_DIR}/node/${NODE_VERSION}/bin/npx" && \
 # The "sed" command below removes the /TEMP_DIR line from the generated configs
 # We replace it with a folder of our own
   sed '/TEMP_DIR =/d' "${EMSCRIPTEN_CONFIG}" && \
   echo TEMP_DIR = \'${EMSCRIPTEN_TEMP_DIR}\' >> ${EMSCRIPTEN_CONFIG}
 
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.7.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.8.0
 
 ARG EMSCRIPTEN_VERSION
 ARG NODE_VERSION
