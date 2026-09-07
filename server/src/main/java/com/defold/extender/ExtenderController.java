@@ -377,12 +377,11 @@ public class ExtenderController {
     static boolean ignoreFilename(String path) throws ExtenderException {
         String name = FilenameUtils.getName(path);
 
-        boolean ignore = false;
-        ignore = ignore || name.equals(".DS_Store");
-        if (ignore) {
-            LOGGER.debug(String.format("ignoreFilename: %s", name));
+        if (name.equals(".DS_Store")) {
+            LOGGER.debug("ignoreFilename: .DS_Store");
+            return true;
         }
-        return ignore;
+        return false;
     }
 
     static void validateFilename(String path) throws ExtenderException {
