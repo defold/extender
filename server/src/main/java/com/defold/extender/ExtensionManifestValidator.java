@@ -22,7 +22,6 @@ class ExtensionManifestValidator {
     private static final Pattern VALID_INCLUDE_PATH = Pattern.compile("^[A-Za-z0-9._+\\-/]+$");
     private static final Pattern VALID_SYMBOL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final Pattern VALID_API_LEVEL = Pattern.compile("^[0-9]+$");
-    private static final Pattern ARGV_UNSAFE = Pattern.compile("^@|\\s");
 
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSymbols) {
         this.allowedDefines.add(WhitelistConfig.compile(whitelistConfig.defineRe));
@@ -73,13 +72,17 @@ class ExtensionManifestValidator {
 
     // These values are rendered unquoted into command templates and the result is split on
     // whitespace, so a space would inject extra argv elements and a leading '@' a response file.
+    private static boolean isArgvUnsafe(String s) {
+        return s.startsWith("@") || s.chars().anyMatch(Character::isWhitespace);
+    }
+
     private static void validateArgvSafe(String extensionName, String key, Object value) throws ExtenderException {
         if (value == null) {
             return;
         }
         List<?> values = value instanceof List ? (List<?>) value : List.of(value);
         for (Object o : values) {
-            if (o instanceof String s && ARGV_UNSAFE.matcher(s).find()) {
+            if (o instanceof String s && isArgvUnsafe(s)) {
                 throw new ExtenderException(String.format(
                         "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace or start with '@'.",
                         extensionName, key, s));
