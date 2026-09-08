@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.defold.extender.process.CommandLineTokenizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,11 +73,19 @@ class ExtensionManifestValidator {
 
     // These values are rendered unquoted into command templates and the result is tokenized by
     // CommandLineTokenizer, so a space would inject extra argv elements, a backslash would escape
-    // the separator the template emits and merge the following token into this one, and a leading
-    // '@' would name a response file. Quotes are left alone: they can only merge tokens, and the
-    // SDK relies on them for values such as EXPORTED_RUNTIME_METHODS=["ccall"].
+    // the separator the template emits and merge the following token into this one, and a token
+    // starting with '@' would name a response file. Quotes are checked on the tokenized form:
+    // a leading quote is stripped by the tokenizer, while quotes after an assignment are kept
+    // literally, which the SDK relies on for values such as EXPORTED_RUNTIME_METHODS=["ccall"].
     private static boolean isArgvUnsafe(String s) {
-        return s.startsWith("@") || s.chars().anyMatch(c -> Character.isWhitespace(c) || c == '\\');
+        if (s.chars().anyMatch(c -> Character.isWhitespace(c) || c == '\\')) {
+            return true;
+        }
+        try {
+            return CommandLineTokenizer.parse(s).stream().anyMatch(t -> t.startsWith("@"));
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
     }
 
     private static void validateArgvSafe(String extensionName, String key, Object value) throws ExtenderException {
@@ -87,7 +96,7 @@ class ExtensionManifestValidator {
         for (Object o : values) {
             if (o instanceof String s && isArgvUnsafe(s)) {
                 throw new ExtenderException(String.format(
-                        "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace or backslashes, or start with '@'.",
+                        "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace, backslashes or unbalanced quotes, or name a response file.",
                         extensionName, key, s));
             }
         }

@@ -219,7 +219,7 @@ public class ExtensionManifestValidatorTest {
 
         assertDoesNotThrow(() -> {
             Map<String, Object> ctx = new HashMap<>();
-            ctx.put("emscriptenLinkFlags", Arrays.asList("WASM=1", "EXPORTED_RUNTIME_METHODS=[\"ccall\"]"));
+            ctx.put("emscriptenLinkFlags", Arrays.asList("WASM=1", "EXPORTED_RUNTIME_METHODS=[\"ccall\"]", "EXPORT_NAME=\"@notafile\"", "EXPORT_NAME='x'", "\"\""));
             ctx.put("aaptExtraPackages", Arrays.asList("com.example.lib"));
             ctx.put("excludeLibs", Arrays.asList("alib"));
             ctx.put("stackSize", "1048576");
@@ -231,6 +231,10 @@ public class ExtensionManifestValidatorTest {
         String[][] bad = new String[][] {
                 {"emscriptenLinkFlags", "WASM=1 -o /tmp/pwned"},
                 {"emscriptenLinkFlags", "@upload/opts"},
+                {"emscriptenLinkFlags", "\"@upload/opts\""},
+                {"emscriptenLinkFlags", "'@upload/opts'"},
+                {"emscriptenLinkFlags", "\"\"@upload/opts"},
+                {"emscriptenLinkFlags", "\"@upload/opts"},
                 {"aaptExtraPackages", "com.example --extra-arg"},
                 {"excludeLibs", "a\tb"},
                 {"emscriptenLinkFlags", "WASM=1\u2003-o/tmp/pwned"},
