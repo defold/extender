@@ -210,15 +210,16 @@ public class ExtenderController {
         LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
 
         File uploadDirectory = new File(jobDirectory, "upload");
-        Files.createDirectories(uploadDirectory.toPath());
         File buildDirectory = new File(jobDirectory, "build");
-        Files.createDirectories(buildDirectory.toPath());
 
         final MetricsWriter metricsWriter = new MetricsWriter(meterRegistry);
         final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
         boolean isBuildStarted = false;
 
         try {
+            Files.createDirectories(uploadDirectory.toPath());
+            Files.createDirectories(buildDirectory.toPath());
+
             // Get files uploaded by the client
             receiveUpload(request, uploadDirectory);
             metricsWriter.measureReceivedRequest(request);
