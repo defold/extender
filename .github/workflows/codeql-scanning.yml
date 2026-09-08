@@ -29,8 +29,11 @@ jobs:
         uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: java
-          queries: security-and-quality
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+          config-file: ./.github/codeql/codeql-config.yml
+      # Build the main source sets only. CodeQL extracts what the build compiles, so this
+      # is what actually keeps test sources out of the scan - paths-ignore does not apply
+      # to a compiled language that is analysed with a traced build.
+      - name: Build main sources
+        run: ./gradlew --no-daemon classes
       - name: Perform analysis
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9

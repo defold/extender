@@ -1,0 +1,10 @@
+name: "Extender CodeQL config"
+
+queries:
+  - uses: security-and-quality
+
+# Only honoured for buildless analysis; the traced build in codeql-scanning.yml compiles
+# the main source sets alone, which is what keeps test code out of the scan today.
+paths-ignore:
+  - server/test-data
+  - '**/src/test/**'

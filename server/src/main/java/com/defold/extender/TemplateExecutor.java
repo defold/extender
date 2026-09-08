@@ -1,5 +1,6 @@
 package com.defold.extender;
 
+import com.defold.extender.log.LogSanitizer;
 import com.defold.extender.log.Markers;
 import com.samskivert.mustache.Mustache;
 
@@ -30,7 +31,7 @@ public class TemplateExecutor {
         try {
             return executeWithoutLogging(template, context);
         } catch (Exception e) {
-            LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string '%s'", (String)template));
+            LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string '%s'", LogSanitizer.sanitize(template)));
             ExtenderUtil.debugPrint(context, 0);
             throw e;
         }
@@ -42,7 +43,7 @@ public class TemplateExecutor {
             try {
                 out.add(this.execute(template, context));
             } catch (Exception e) {
-                LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string in list [..., '%s', ...]", (String)template));
+                LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string in list [..., '%s', ...]", LogSanitizer.sanitize(template)));
                 ExtenderUtil.debugPrint(context, 0);
                 throw e;
            }

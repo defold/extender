@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.defold.extender.process.CommandLineTokenizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +67,43 @@ class ExtensionManifestValidator {
                 throw new ExtenderException(String.format(
                         "Error in app.manifest: '%s' must be an integer, got '%s'.",
                         ExtenderBuildState.APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD, minAndroidSdkVersion));
+            }
+        }
+    }
+
+    // Values are rendered unquoted into command templates and the result is tokenized by
+    // CommandLineTokenizer, so a space would inject extra argv elements, a backslash would escape
+    // the separator the template emits and merge the following token into this one, and '@'
+    // names a response file for clang, the linker (-Wl,@file) and emscripten (-s KEY=@file).
+    // Quotes are checked on the tokenized form: a leading quote is stripped by the tokenizer,
+    // while quotes after an assignment are kept literally, which the SDK relies on for values
+    // such as EXPORTED_RUNTIME_METHODS=["ccall"]. The macOS install-name prefixes are the only
+    // '@' forms allowed. Mustache syntax is rejected because values are expanded after this
+    // check and the expansion could reintroduce whitespace.
+    private static final Pattern RESPONSE_FILE = Pattern.compile("@(?!(loader_path|executable_path|rpath)\\b)");
+
+    private static boolean namesResponseFile(String s) {
+        try {
+            return CommandLineTokenizer.parse(s).stream().anyMatch(t -> RESPONSE_FILE.matcher(t).find());
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
+    }
+
+    private static boolean isArgvUnsafe(String s) {
+        return s.contains("{{") || s.chars().anyMatch(c -> Character.isWhitespace(c) || c == '\\') || namesResponseFile(s);
+    }
+
+    private static void validateArgvSafe(String extensionName, String key, Object value) throws ExtenderException {
+        if (value == null) {
+            return;
+        }
+        List<?> values = value instanceof List ? (List<?>) value : List.of(value);
+        for (Object o : values) {
+            if (o instanceof String s && isArgvUnsafe(s)) {
+                throw new ExtenderException(String.format(
+                        "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace, backslashes, template syntax or unbalanced quotes, or name a response file.",
+                        extensionName, key, s));
             }
         }
     }
@@ -171,6 +209,7 @@ class ExtensionManifestValidator {
                 case "emscriptenLinkFlags":
                 case "externalJsPorts":
                 case "use-clang": // deprecated
+                    validateArgvSafe(extensionName, k, v);
                     continue; // no need to whitelist
 
                 default:
@@ -181,6 +220,9 @@ class ExtensionManifestValidator {
             if (v instanceof List) {
                 List<String> strings = (List<String>) v;
                 String s = ExtensionManifestValidator.whitelistCheck(patterns, strings);
+                if (s == null) {
+                    s = strings.stream().filter(ExtensionManifestValidator::namesResponseFile).findFirst().orElse(null);
+                }
                 if (s != null) {
                     throw new ExtenderException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
                 }

@@ -533,8 +533,7 @@ public class ExtenderUtil
         if (!dst.getClass().equals(other.getClass()))
         {
             String err = String.format("Cannot merge different classes: '%s' and '%s'",
-                                            dst!=null?dst.getClass().toString():"null",
-                                            other!=null?other.getClass().toString():"null");
+                                            dst.getClass(), other.getClass());
             System.err.printf("%s\n", err);
             throw new ExtenderException(err);
         }

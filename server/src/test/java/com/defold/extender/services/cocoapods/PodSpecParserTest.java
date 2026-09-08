@@ -2,11 +2,14 @@ package com.defold.extender.services.cocoapods;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Stream;
 
 import javax.naming.InvalidNameException;
@@ -17,6 +20,8 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 import com.defold.extender.ExtenderException;
 
@@ -44,6 +49,25 @@ public class PodSpecParserTest {
             // display name is used as folder prefix so if it contains spaces - ask to remove spaces ))
             throw new InvalidNameException("Test's display name shouldn't contain spaces");
         }
+    }
+
+    @Test
+    public void testGetStringListValuesWithNonListValues() {
+        JSONObject o = new JSONObject();
+        o.put("nullValue", null);
+        o.put("numberValue", 42L);
+        o.put("stringValue", "a $(inherited) b");
+        JSONArray arr = new JSONArray();
+        arr.add("$(inherited)");
+        arr.add("$(base)/x");
+        o.put("arrayValue", arr);
+        o.put("base", "/root");
+
+        assertNull(PodSpecParser.getStringListValues(o, "missing"));
+        assertNull(PodSpecParser.getStringListValues(o, "nullValue"));
+        assertNull(PodSpecParser.getStringListValues(o, "numberValue"));
+        assertEquals(List.of("a", "b"), PodSpecParser.getStringListValues(o, "stringValue"));
+        assertEquals(List.of("/root/x"), PodSpecParser.getStringListValues(o, "arrayValue"));
     }
 
     @ParameterizedTest(name = "{index}_testParsePodSpecs_{0}")

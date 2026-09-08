@@ -7,7 +7,16 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.defold.extender.log.LogSanitizer;
+
 public class TemplateExecutorTest {
+
+    @Test
+    public void logSanitizerNeutralizesLineBreaksAndControlCharacters() {
+        assertThat(LogSanitizer.sanitize(null)).isNull();
+        assertThat(LogSanitizer.sanitize("plain {{value}}")).isEqualTo("plain {{value}}");
+        assertThat(LogSanitizer.sanitize("a\r\nINFO forged\u001b[0m\tb")).isEqualTo("a\\r\\nINFO forged[0m\tb");
+    }
 
     @Test
     public void templateVariablesShouldBeReplacedByContext() {

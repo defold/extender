@@ -1,6 +1,8 @@
 package com.defold.extender.client;
 
 import java.io.File;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.Files;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.Instant;
@@ -12,6 +14,6 @@ public class TestUtils {
         fwr.write(msg);
         fwr.flush();
         fwr.close();
-        f.setLastModified(Instant.now().toEpochMilli() + 23);
+        Files.setLastModifiedTime(f.toPath(), FileTime.fromMillis(Instant.now().toEpochMilli() + 23));
     }
 }

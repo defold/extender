@@ -63,7 +63,12 @@ public class ExtenderController {
     private static final String LATEST = "latest";
 
     // Used to verify the uploaded filenames
-    private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ](?:[\\w+\\-\\/ @]|(?:\\.[\\w+\\-\\/ ]*))+)$");
+    private static final Pattern FILENAME_RE = Pattern.compile("^([\\w ][\\w+\\-\\/ @.]+)$");
+    // A whitespace-delimited token starting with '-' or '@' would be read as a flag or response file
+    // once the filename is rendered into a command line and split on whitespace.
+    private static final Pattern FILENAME_ARGV_UNSAFE = Pattern.compile("(^|\\s)[-@]");
+    private static final Pattern PLATFORM_RE = Pattern.compile("^[a-z0-9_]+-[a-z0-9]+$");
+    private static final Pattern SDK_VERSION_RE = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
 
     private final DefoldSdkService defoldSdkService;
     private final DataCacheService dataCacheService;
@@ -179,6 +184,13 @@ public class ExtenderController {
 
         MultipartHttpServletRequest request = (MultipartHttpServletRequest)_request;
 
+        if (!PLATFORM_RE.matcher(platform).matches()) {
+            throw new PlatformNotSupportedException(platform);
+        }
+        if (!SDK_VERSION_RE.matcher(sdkVersionString).matches()) {
+            throw new VersionNotSupportedException(sdkVersionString);
+        }
+
         this.userUpdateService.update();
 
         File jobDirectory;
@@ -198,15 +210,16 @@ public class ExtenderController {
         LOGGER.info("Starting build: sdk={}, platform={} job={}", sdkVersionString, platform, jobDirectory.getName());
 
         File uploadDirectory = new File(jobDirectory, "upload");
-        uploadDirectory.mkdir();
         File buildDirectory = new File(jobDirectory, "build");
-        buildDirectory.mkdir();
 
         final MetricsWriter metricsWriter = new MetricsWriter(meterRegistry);
         final String sdkVersion = defoldSdkService.getSdkVersion(sdkVersionString);
         boolean isBuildStarted = false;
 
         try {
+            Files.createDirectories(uploadDirectory.toPath());
+            Files.createDirectories(buildDirectory.toPath());
+
             // Get files uploaded by the client
             receiveUpload(request, uploadDirectory);
             metricsWriter.measureReceivedRequest(request);
@@ -365,17 +378,16 @@ public class ExtenderController {
     static boolean ignoreFilename(String path) throws ExtenderException {
         String name = FilenameUtils.getName(path);
 
-        boolean ignore = false;
-        ignore = ignore || name.equals(".DS_Store");
-        if (ignore) {
-            LOGGER.debug(String.format("ignoreFilename: %s", path));
+        if (name.equals(".DS_Store")) {
+            LOGGER.debug("ignoreFilename: .DS_Store");
+            return true;
         }
-        return ignore;
+        return false;
     }
 
     static void validateFilename(String path) throws ExtenderException {
         Matcher m = ExtenderController.FILENAME_RE.matcher(path);
-        if (!m.matches()) {
+        if (!m.matches() || FILENAME_ARGV_UNSAFE.matcher(path).find()) {
             throw new ExtenderException(String.format("Filename '%s' is invalid or contains invalid characters", path));
         }
     }

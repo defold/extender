@@ -12,7 +12,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import io.micrometer.context.ContextExecutorService;
 import io.micrometer.context.ContextScheduledExecutorService;
-import io.micrometer.context.ContextSnapshot;
 import io.micrometer.context.ContextSnapshotFactory;
 
 import java.util.concurrent.Executor;
@@ -24,6 +23,7 @@ import java.util.concurrent.RejectedExecutionHandler;
 
 @Configuration(proxyBeanMethods = false)
 class ExtenderExecutor {
+    private static final ContextSnapshotFactory SNAPSHOT_FACTORY = ContextSnapshotFactory.builder().build();
 
     @Value("${extender.tasks.executor.pool-size:35}")
     private int executorPoolSize;
@@ -41,12 +41,12 @@ class ExtenderExecutor {
         @Override
         public Executor getAsyncExecutor() {
             ThreadFactory factory = isVirtualThreadsEnabled ? Thread.ofVirtual().factory() : Executors.defaultThreadFactory();
-            return ContextExecutorService.wrap(Executors.newCachedThreadPool(factory), ContextSnapshot::captureAll);
+            return ContextExecutorService.wrap(Executors.newCachedThreadPool(factory), SNAPSHOT_FACTORY);
         }
 
         @Override
         public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
-            SimpleAsyncTaskExecutor exec = new SimpleAsyncTaskExecutor(r -> new Thread(ContextSnapshotFactory.builder().build().captureAll().wrap(r)));
+            SimpleAsyncTaskExecutor exec = new SimpleAsyncTaskExecutor(r -> new Thread(SNAPSHOT_FACTORY.captureAll().wrap(r)));
             configurer.setTaskExecutor(exec);
         }
     }
@@ -66,13 +66,13 @@ class ExtenderExecutor {
             @Override
             protected ExecutorService initializeExecutor(ThreadFactory threadFactory, RejectedExecutionHandler rejectedExecutionHandler) {
                 ExecutorService executorService = super.initializeExecutor(threadFactory, rejectedExecutionHandler);
-                return ContextExecutorService.wrap(executorService, ContextSnapshot::captureAll);
+                return ContextExecutorService.wrap(executorService, SNAPSHOT_FACTORY);
             }
 
 
                 @Override
                 public ScheduledExecutorService getScheduledExecutor() throws IllegalStateException {
-                    return ContextScheduledExecutorService.wrap(super.getScheduledExecutor());
+                    return ContextScheduledExecutorService.wrap(super.getScheduledExecutor(), SNAPSHOT_FACTORY);
                 }
         };
         threadPoolTaskScheduler.setPoolSize(executorPoolSize);
