@@ -152,8 +152,9 @@ public class ProcessSandboxTest {
     @Test
     public void sdkAndManifestMergeToolFromEnvironmentAreReadOnly(@TempDir Path root) throws IOException {
         Path sdk = Files.createDirectories(root.resolve("sdk").resolve("defoldsdk"));
-        Path tool = Files.writeString(root.resolve("manifestmergetool.jar"), "jar");
-        Path inheritedTool = Files.writeString(root.resolve("inherited.jar"), "jar");
+        Path apps = Files.createDirectory(root.resolve("apps"));
+        Path tool = Files.writeString(apps.resolve("manifestmergetool.jar"), "jar");
+        Path inheritedTool = Files.writeString(Files.createDirectory(root.resolve("other")).resolve("inherited.jar"), "jar");
         Path jobDir = Files.createDirectory(root.resolve("job"));
 
         // the executor overlay wins over the inherited environment
@@ -164,8 +165,10 @@ public class ProcessSandboxTest {
                 .prepare(COMMAND, jobDir.toFile(), overlay, SandboxPolicy.toolchain()).argv();
 
         assertTrue(indexOfFlag(argv, "--ro", sdk.toString()) > 0, argv.toString());
-        assertTrue(indexOfFlag(argv, "--ro", tool.toString()) > 0, argv.toString());
-        assertFalse(argv.contains(inheritedTool.toString()), argv.toString());
+        // a file target is granted through its directory: file rules do not bind on 9p mounts
+        assertTrue(indexOfFlag(argv, "--ro", apps.toString()) > 0, argv.toString());
+        assertEquals(-1, indexOfFlag(argv, "--ro", tool.toString()), argv.toString());
+        assertFalse(argv.contains(inheritedTool.getParent().toString()), argv.toString());
     }
 
     @Test

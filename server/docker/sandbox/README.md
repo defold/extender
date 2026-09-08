@@ -62,6 +62,13 @@ It must run natively: under Rosetta (a `linux/amd64` image on an Apple Silicon D
 through, and the self-test exits 2. Use the arm64 build of the image there, or a Linux host.
 
 ## Notes for operators
+* A Landlock rule on a single file is accepted by the kernel but grants nothing on 9p mounts,
+  which is what Docker Desktop on Windows uses for bind mounts (`/app`, `/etc/extender/apps`);
+  directory rules on the same mount work. Tools named by `read-only-env-variables` that point
+  at a file (`MANIFEST_MERGE_TOOL`) are therefore granted through their directory, and the
+  launcher warns `landlock rule for <file> was accepted but does not grant access` when a
+  file rule it was given turns out to be dead. ext4/overlay-backed hosts and CI are unaffected.
+
 
 * Landlock is an allowlist with no deny rules: never mount a secret under a granted path.
   The server grants an enumerated `/etc` subset for that reason (`/etc/extender/credentials`

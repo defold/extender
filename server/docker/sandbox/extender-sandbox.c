@@ -368,6 +368,27 @@ static int add_path_rules(int ruleset_fd, const struct paths *paths, uint64_t ac
     return 0;
 }
 
+/*
+ * A rule on a single file is accepted by landlock_add_rule but grants nothing on some
+ * filesystems (9p behind Docker Desktop bind mounts). Say so, because the tool then fails
+ * three layers up with a message that does not mention the sandbox.
+ */
+static void check_file_grants(const struct paths *ro) {
+    for (int i = 0; i < ro->count; i++) {
+        struct stat st;
+        if (stat(ro->items[i], &st) != 0 || S_ISDIR(st.st_mode)) {
+            continue;
+        }
+        int fd = open(ro->items[i], O_RDONLY | O_CLOEXEC);
+        if (fd < 0 && errno == EACCES) {
+            fprintf(stderr, "extender-sandbox: landlock rule for %s was accepted but does not grant access; "
+                            "grant its directory instead\n", ro->items[i]);
+        } else if (fd >= 0) {
+            close(fd);
+        }
+    }
+}
+
 static int apply_landlock(int abi, const struct paths *ro, const struct paths *rw, const struct paths *rwx,
                           int net_none) {
     uint64_t handled_fs = LL_ACCESS_FS_ABI1;
@@ -645,6 +666,7 @@ int main(int argc, char **argv) {
             if (apply_landlock(abi, &ro, &rw, &rwx, net_none) != 0) {
                 _exit(127);
             }
+            check_file_grants(&ro);
         } else if (strict) {
             fprintf(stderr, "extender-sandbox: Landlock is unavailable on this kernel (strict mode)\n");
             _exit(127);

@@ -342,6 +342,11 @@ public final class ProcessSandbox {
         if (path == null) {
             return;
         }
+        if (backend == SandboxConfiguration.Backend.LANDLOCK && Files.isRegularFile(path) && path.getParent() != null) {
+            // a Landlock rule on a single file is accepted but grants nothing on 9p mounts (Docker
+            // Desktop bind mounts); the tool's directory works everywhere
+            path = path.getParent();
+        }
         if (backend == SandboxConfiguration.Backend.SEATBELT) {
             // DEVELOPER_DIR points inside an Xcode bundle whose shared frameworks live beside
             // Contents/Developer; the tools do not load without the whole bundle
