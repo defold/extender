@@ -219,7 +219,7 @@ public class ExtensionManifestValidatorTest {
 
         assertDoesNotThrow(() -> {
             Map<String, Object> ctx = new HashMap<>();
-            ctx.put("emscriptenLinkFlags", Arrays.asList("WASM=1", "EXPORTED_RUNTIME_METHODS=[\"ccall\"]", "EXPORT_NAME=\"@notafile\"", "EXPORT_NAME='x'", "\"\""));
+            ctx.put("emscriptenLinkFlags", Arrays.asList("WASM=1", "EXPORTED_RUNTIME_METHODS=[\"ccall\"]", "EXPORT_NAME=\"x\"", "EXPORT_NAME='x'", "\"\""));
             ctx.put("aaptExtraPackages", Arrays.asList("com.example.lib"));
             ctx.put("excludeLibs", Arrays.asList("alib"));
             ctx.put("stackSize", "1048576");
@@ -235,6 +235,10 @@ public class ExtensionManifestValidatorTest {
                 {"emscriptenLinkFlags", "'@upload/opts'"},
                 {"emscriptenLinkFlags", "\"\"@upload/opts"},
                 {"emscriptenLinkFlags", "\"@upload/opts"},
+                {"emscriptenLinkFlags", "-Wl,@upload/opts"},
+                {"emscriptenLinkFlags", "-Wl,-rpath,@upload/opts"},
+                {"emscriptenLinkFlags", "EXPORTED_FUNCTIONS=@upload/opts"},
+                {"emscriptenLinkFlags", "EXPORT_NAME=\"@upload/opts\""},
                 {"aaptExtraPackages", "com.example --extra-arg"},
                 {"excludeLibs", "a\tb"},
                 {"emscriptenLinkFlags", "WASM=1\u2003-o/tmp/pwned"},
@@ -252,6 +256,26 @@ public class ExtensionManifestValidatorTest {
             listCtx.put(kv[0], Arrays.asList("ok", kv[1]));
             assertThrows(ExtenderException.class, () -> validator.validate("ext", extensionFolder, listCtx),
                     "expected to reject list " + kv[0] + "=" + kv[1]);
+        }
+    }
+
+    @Test
+    public void testWhitelistedFlagsRejectResponseFiles() {
+        List<String> allowedFlags = Arrays.asList("-Wl,[-_a-zA-Z0-9,/@]+");
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), allowedFlags, empty);
+        File extensionFolder = new File(".");
+
+        assertDoesNotThrow(() -> {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("linkFlags", Arrays.asList("-Wl,-rpath,@loader_path/Frameworks", "-Wl,-rpath,@executable_path/Frameworks", "-Wl,-install_name,@rpath/libx"));
+            validator.validate("ext", extensionFolder, ctx);
+        });
+
+        for (String flag : new String[] {"-Wl,@upload/opts", "-Wl,-rpath,@upload/opts", "-Wl,@loader_path_x"}) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("linkFlags", Arrays.asList(flag));
+            assertThrows(ExtenderException.class, () -> validator.validate("ext", extensionFolder, ctx), "expected to reject " + flag);
         }
     }
 
