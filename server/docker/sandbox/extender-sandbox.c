@@ -449,11 +449,14 @@ static int kill_reparented_children(void) {
     }
     struct dirent *entry;
     while ((entry = readdir(proc)) != NULL) {
-        if (entry->d_name[0] < '0' || entry->d_name[0] > '9') {
+        /* only pid entries, and only ones that fit: a truncated path would stat the wrong process */
+        if (strspn(entry->d_name, "0123456789") != strlen(entry->d_name) || entry->d_name[0] == '\0') {
             continue;
         }
         char path[64];
-        snprintf(path, sizeof(path), "/proc/%s/stat", entry->d_name);
+        if (snprintf(path, sizeof(path), "/proc/%s/stat", entry->d_name) >= (int)sizeof(path)) {
+            continue;
+        }
         FILE *f = fopen(path, "r");
         if (f == NULL) {
             continue;
