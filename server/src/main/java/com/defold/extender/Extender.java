@@ -2761,6 +2761,13 @@ class Extender {
                             artifact.getResourcePackageName());
                 }
             }
+            // the exploded artifacts stay in the Gradle cache, where the manifest merge, javac
+            // and the packaging steps read them from inside the toolchain sandbox
+            File gradleHome = gradleService.getGradleHome();
+            if (gradleHome != null) {
+                processExecutor.setPolicy(processExecutor.getPolicy()
+                        .withReadOnlyPaths(List.of(gradleHome.getAbsolutePath())));
+            }
         }
         catch (IOException e) {
             throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());

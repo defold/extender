@@ -134,6 +134,10 @@ public class RealGradleService implements GradleServiceInterface {
     }
 
     @Override
+    public File getGradleHome() {
+        return new File(this.gradleHome);
+    }
+
     public long getCacheSize() throws IOException {
         Path folder = Paths.get(this.gradleHome);
         try (Stream<Path> paths = Files.walk(folder)) {
