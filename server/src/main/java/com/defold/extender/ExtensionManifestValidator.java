@@ -78,7 +78,8 @@ class ExtensionManifestValidator {
     // Quotes are checked on the tokenized form: a leading quote is stripped by the tokenizer,
     // while quotes after an assignment are kept literally, which the SDK relies on for values
     // such as EXPORTED_RUNTIME_METHODS=["ccall"]. The macOS install-name prefixes are the only
-    // '@' forms allowed.
+    // '@' forms allowed. Mustache syntax is rejected because values are expanded after this
+    // check and the expansion could reintroduce whitespace.
     private static final Pattern RESPONSE_FILE = Pattern.compile("@(?!(loader_path|executable_path|rpath)\\b)");
 
     private static boolean namesResponseFile(String s) {
@@ -90,7 +91,7 @@ class ExtensionManifestValidator {
     }
 
     private static boolean isArgvUnsafe(String s) {
-        return s.chars().anyMatch(c -> Character.isWhitespace(c) || c == '\\') || namesResponseFile(s);
+        return s.contains("{{") || s.chars().anyMatch(c -> Character.isWhitespace(c) || c == '\\') || namesResponseFile(s);
     }
 
     private static void validateArgvSafe(String extensionName, String key, Object value) throws ExtenderException {
@@ -101,7 +102,7 @@ class ExtensionManifestValidator {
         for (Object o : values) {
             if (o instanceof String s && isArgvUnsafe(s)) {
                 throw new ExtenderException(String.format(
-                        "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace, backslashes or unbalanced quotes, or name a response file.",
+                        "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace, backslashes, template syntax or unbalanced quotes, or name a response file.",
                         extensionName, key, s));
             }
         }

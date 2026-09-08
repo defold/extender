@@ -246,6 +246,8 @@ public class ExtensionManifestValidatorTest {
                 {"emscriptenLinkFlags", "EXPORT_NAME=x\\"},
                 {"objectFiles", "a\\"},
                 {"stackSize", "1 2"},
+                {"emscriptenLinkFlags", "{{env.PATH}}"},
+                {"objectFiles", "{{dynamo_home}}/x.o"},
         };
         for (String[] kv : bad) {
             Map<String, Object> ctx = new HashMap<>();
