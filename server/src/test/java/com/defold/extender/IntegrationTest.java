@@ -370,14 +370,17 @@ public class IntegrationTest {
         return Files.readString(log.toPath(), StandardCharsets.UTF_8);
     }
 
+    // Node echoes the throwing source line above the error, so the fixture's own
+    // "throw new Error('SANDBOX_PROBE ' + ...)" precedes the real line: keep the last match
     private static String probeLine(String log) {
+        String probe = null;
         for (String line : log.split("\\r?\\n")) {
             int index = line.indexOf("SANDBOX_PROBE ");
-            if (index >= 0) {
-                return line.substring(index).trim();
+            if (index >= 0 && line.indexOf('=', index) > 0) {
+                probe = line.substring(index).trim();
             }
         }
-        return null;
+        return probe;
     }
 
     // Output of a host command without the echoed command line; empty when it exits non-zero.
