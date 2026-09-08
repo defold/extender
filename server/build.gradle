@@ -261,7 +261,10 @@ test {
     //   -PreuseStack=true                       leave the docker stack running between runs
     //   -PspmE2e=true                           run the network-touching SPM service test on a Mac
     //                                           with Xcode + xcodegen installed
-    ["targetPlatforms", "defoldVersions", "reuseStack", "spmE2e"].each { name ->
+    //   -PmacSandboxE2e=true                    boot the standalone server from server/app on a Mac
+    //                                           and build arm64-osx under the Seatbelt sandbox
+    //   -PmacSandboxSdk=<sha1>                  Defold SDK for that run (default: the latest release)
+    ["targetPlatforms", "defoldVersions", "reuseStack", "spmE2e", "macSandboxE2e", "macSandboxSdk"].each { name ->
         if (project.hasProperty(name)) {
             systemProperty "extender.test.${name}", project.getProperty(name)
         }

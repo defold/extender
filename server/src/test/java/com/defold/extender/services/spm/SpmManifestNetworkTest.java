@@ -109,7 +109,7 @@ public class SpmManifestNetworkTest {
             String name = "Beacon" + UUID.randomUUID().toString().substring(0, 8).replace("-", "");
             File repo = new File(rootDir, "repos/" + name);
             new File(repo, "Sources/" + name).mkdirs();
-            Files.writeString(new File(repo, "Package.swift").toPath(), beaconManifest(name, listener.getLocalPort()));
+            Files.writeString(new File(repo, "Package.swift").toPath(), SpmBeacon.manifest(name, listener.getLocalPort()));
             Files.writeString(new File(repo, "Sources/" + name + "/" + name + ".swift").toPath(), "public let x = 1\n");
             git(repo, "git", "init", "--quiet");
             git(repo, "git", "add", "-A");
@@ -153,40 +153,11 @@ public class SpmManifestNetworkTest {
             // the manifest fails the build on purpose: what it reports is the point
             ExtenderException e = assertThrows(ExtenderException.class, () -> service.resolveDependencies(
                 List.of(manifest), buildState, Map.of("env.MACOS_VERSION_MIN", "11.0"), false));
-            assertTrue(e.getMessage().contains("SPM_BEACON"), e.getMessage());
+            assertTrue(e.getMessage().contains(SpmBeacon.MARKER), e.getMessage());
             return e.getMessage();
         } finally {
             ProcessSandbox.install(ProcessSandbox.disabled());
         }
-    }
-
-    private static String beaconManifest(String name, int port) {
-        return "// swift-tools-version:5.9\n"
-            + "import PackageDescription\n"
-            + "import Foundation\n"
-            + "#if canImport(Darwin)\n"
-            + "import Darwin\n"
-            + "#endif\n"
-            + "func probe() -> String {\n"
-            + "    let fd = socket(AF_INET, SOCK_STREAM, 0)\n"
-            + "    if fd < 0 { return \"socket FAILED errno=\\(errno)\" }\n"
-            + "    var addr = sockaddr_in()\n"
-            + "    addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)\n"
-            + "    addr.sin_family = sa_family_t(AF_INET)\n"
-            + "    addr.sin_port = UInt16(" + port + ").bigEndian\n"
-            + "    addr.sin_addr.s_addr = inet_addr(\"127.0.0.1\")\n"
-            + "    let rc = withUnsafePointer(to: &addr) { p in\n"
-            + "        p.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in\n"
-            + "            Darwin.connect(fd, sa, socklen_t(MemoryLayout<sockaddr_in>.size))\n"
-            + "        }\n"
-            + "    }\n"
-            + "    close(fd)\n"
-            + "    return rc == 0 ? \"connect OK\" : \"connect FAILED errno=\\(errno)\"\n"
-            + "}\n"
-            + "fatalError(\"SPM_BEACON: \\(probe())\")\n"
-            + "let package = Package(name: \"" + name + "\",\n"
-            + "    products: [.library(name: \"" + name + "\", targets: [\"" + name + "\"])],\n"
-            + "    targets: [.target(name: \"" + name + "\")])\n";
     }
 
     private static void git(File cwd, String... command) throws IOException, InterruptedException {
