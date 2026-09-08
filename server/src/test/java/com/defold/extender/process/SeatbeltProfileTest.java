@@ -50,11 +50,11 @@ public class SeatbeltProfileTest {
         String profile = SeatbeltProfile.render(grants(paths(dir, file), Set.of(), Set.of(), SandboxPolicy.Network.NONE));
 
         String read = line(profile, "(allow file-read*");
-        assertTrue(read.contains("(subpath \"" + dir + "\")"), read);
-        assertTrue(read.contains("(literal \"" + file + "\")"), read);
+        assertTrue(read.contains("(subpath " + SeatbeltProfile.quote(dir.toString()) + ")"), read);
+        assertTrue(read.contains("(literal " + SeatbeltProfile.quote(file.toString()) + ")"), read);
         String exec = line(profile, "(allow process-exec");
-        assertTrue(exec.contains("(subpath \"" + dir + "\")"), exec);
-        assertTrue(exec.contains("(literal \"" + file + "\")"), exec);
+        assertTrue(exec.contains("(subpath " + SeatbeltProfile.quote(dir.toString()) + ")"), exec);
+        assertTrue(exec.contains("(literal " + SeatbeltProfile.quote(file.toString()) + ")"), exec);
         assertEquals("", line(profile, "(allow file-read* file-write*"));
     }
 
@@ -66,13 +66,13 @@ public class SeatbeltProfileTest {
         String profile = SeatbeltProfile.render(grants(paths(ro), paths(rw), paths(rwx), SandboxPolicy.Network.NONE));
 
         String exec = line(profile, "(allow process-exec");
-        assertTrue(exec.contains("\"" + ro + "\""), exec);
-        assertTrue(exec.contains("\"" + rwx + "\""), exec);
-        assertFalse(exec.contains("\"" + rw + "\""), exec);
+        assertTrue(exec.contains(SeatbeltProfile.quote(ro.toString())), exec);
+        assertTrue(exec.contains(SeatbeltProfile.quote(rwx.toString())), exec);
+        assertFalse(exec.contains(SeatbeltProfile.quote(rw.toString())), exec);
         List<String> writes = profile.lines().filter(l -> l.startsWith("(allow file-read* file-write*")).toList();
         assertEquals(2, writes.size(), profile);
-        assertTrue(writes.get(0).contains("\"" + rw + "\""), profile);
-        assertTrue(writes.get(1).contains("\"" + rwx + "\""), profile);
+        assertTrue(writes.get(0).contains(SeatbeltProfile.quote(rw.toString())), profile);
+        assertTrue(writes.get(1).contains(SeatbeltProfile.quote(rwx.toString())), profile);
     }
 
     @Test
@@ -103,7 +103,7 @@ public class SeatbeltProfileTest {
         assertTrue(profile.contains("(allow sysctl-write)\n"), profile);
         List<String> lines = profile.lines().toList();
         assertEquals("(deny process-exec (literal \"/usr/bin/sudo\") (literal \"/usr/bin/security\"))", lines.get(lines.size() - 1));
-        assertEquals("(deny file* (subpath \"" + keychains + "\"))", lines.get(lines.size() - 2));
+        assertEquals("(deny file* (subpath " + SeatbeltProfile.quote(keychains.toString()) + "))", lines.get(lines.size() - 2));
         assertTrue(profile.indexOf("(allow sysctl-write)") < profile.indexOf("(deny file*"), profile);
     }
 

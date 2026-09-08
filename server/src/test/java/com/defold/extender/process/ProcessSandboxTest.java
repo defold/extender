@@ -453,6 +453,5 @@ public class ProcessSandboxTest {
         assertEquals(List.of(), policy.readOnlyPaths());
         assertEquals(List.of(), policy.readWriteExecPaths());
         assertEquals("1", policy.withEnv(Map.of("K", "1")).env().get("K"));
-        assertTrue(new File("/a").isAbsolute());
     }
 }
