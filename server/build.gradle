@@ -101,8 +101,8 @@ dependencies {
     implementation('org.springframework.boot:spring-boot-micrometer-tracing-brave')
     implementation('io.micrometer:micrometer-tracing-bridge-brave')
 
-    implementation('org.projectlombok:lombok:1.18.46')
-    annotationProcessor('org.projectlombok:lombok:1.18.46')
+    implementation('org.projectlombok:lombok:1.18.48')
+    annotationProcessor('org.projectlombok:lombok:1.18.48')
 
     runtimeOnly('net.logstash.logback:logstash-logback-encoder:9.0')
     runtimeOnly('io.micrometer:micrometer-registry-prometheus') {
