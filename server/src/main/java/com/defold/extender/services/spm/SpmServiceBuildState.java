@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.defold.extender.ExtenderBuildState;
-import com.defold.extender.ExtenderUtil;
 import com.defold.extender.services.cocoapods.PodUtils;
 
 /**
@@ -50,14 +49,9 @@ public class SpmServiceBuildState {
         this.moduleCacheDir.mkdirs();
         this.clonedSourcePackagesDir.mkdirs();
 
-        this.buildArch = extenderBuildState.getBuildArch();
-        this.selectedPlatform = PodUtils.Platform.UNKNOWN;
         String platform = extenderBuildState.getBuildPlatform();
-        if (ExtenderUtil.isIOSTarget(platform)) {
-            this.selectedPlatform = this.buildArch.equals("arm64") ? PodUtils.Platform.IPHONEOS : PodUtils.Platform.IPHONESIMULATOR;
-        } else if (ExtenderUtil.isMacOSTarget(platform)) {
-            this.selectedPlatform = PodUtils.Platform.MACOSX;
-        }
+        this.buildArch = PodUtils.archFromPlatform(platform);
+        this.selectedPlatform = PodUtils.Platform.fromExtenderPlatform(platform);
     }
 
     public File getWorkingDir() {

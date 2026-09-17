@@ -31,6 +31,7 @@ public class WebSecurityConfig {
                 case "ios":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/armv7-ios/**").hasRole("IOS")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64-ios/**").hasRole("IOS")).httpBasic(withDefaults());
+                    http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/arm64_sim-ios/**").hasRole("IOS")).httpBasic(withDefaults());
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-ios/**").hasRole("IOS")).httpBasic(withDefaults());
                     break;
                 case "linux":
