@@ -18,7 +18,6 @@ public class ExtenderBuildState {
     File sdk;
     String buildConfiguration;  // debug/release/headless
     String fullPlatform;
-    String arch;
     String hostPlatform;
     private final String buildArtifacts;
     private final String debugSourcePath;
@@ -33,7 +32,6 @@ public class ExtenderBuildState {
         uploadDir = builder.uploadDirectory;
         fullPlatform = builder.platform;
         sdk = builder.sdk;
-        arch = fullPlatform.split("-")[0];
 
         String baseVariant = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BASE_VARIANT_KEYWORD, null);
 
@@ -84,10 +82,6 @@ public class ExtenderBuildState {
 
     public String getBuildPlatform() {
         return fullPlatform;
-    }
-
-    public String getBuildArch() {
-        return arch;
     }
 
     public String getBuildConfiguration() {

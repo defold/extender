@@ -13,7 +13,17 @@ public class PodUtils {
         IPHONEOS,
         IPHONESIMULATOR,
         MACOSX,
-        UNKNOWN
+        UNKNOWN;
+
+        public static Platform fromExtenderPlatform(String extenderTargetPlatform) {
+            if (ExtenderUtil.isMacOSTarget(extenderTargetPlatform)) {
+                return MACOSX;
+            }
+            if (ExtenderUtil.isIOSTarget(extenderTargetPlatform)) {
+                return extenderTargetPlatform.equals("arm64-ios") ? IPHONEOS : IPHONESIMULATOR;
+            }
+            return UNKNOWN;
+        }
     }
 
     static boolean isIOS(Platform platform) {
@@ -57,13 +67,11 @@ public class PodUtils {
     static String[] toPlistPlatforms(String[] platforms) {
         String[] result = new String[platforms.length];
         for (int idx = 0; idx < platforms.length; ++idx) {
-            String platform = platforms[idx];
-            if (platform.equals("arm64-ios")) {
-                result[idx] = "iPhoneOS";
-            } else if (platform.equals("x86_64-ios")) {
-                result[idx] = "iPhoneSimulator";
-            } else if (platform.contains("macos")) {
-                result[idx] = "MacOSX";
+            switch (Platform.fromExtenderPlatform(platforms[idx])) {
+                case IPHONEOS: result[idx] = "iPhoneOS"; break;
+                case IPHONESIMULATOR: result[idx] = "iPhoneSimulator"; break;
+                case MACOSX: result[idx] = "MacOSX"; break;
+                default: break;
             }
         }
         return result;
@@ -99,9 +107,19 @@ public class PodUtils {
         return !spec.sourceFiles.isEmpty() || !spec.swiftSourceFiles.isEmpty();
     }
 
+    // Apple's architecture name for the target. The simulator encodes itself in the Defold
+    // architecture token (arm64_sim-ios) but is a plain arm64 build to clang, ld and xcodebuild.
+    public static String archFromPlatform(String extenderTargetPlatform) {
+        if (extenderTargetPlatform.equals("arm64_sim-ios")) {
+            return "arm64";
+        }
+        return extenderTargetPlatform.split("-")[0];
+    }
+
     public static String swiftModuleNameFromPlatform(String extenderTargetPlatform) throws ExtenderException {
         switch(extenderTargetPlatform) {
             case "arm64-ios": return "arm64-apple-ios";
+            case "arm64_sim-ios": return "arm64-apple-ios-simulator";
             case "x86_64-ios": return "x86_64-apple-ios-simulator";
             case "arm64-osx":
             case "arm64-macos": return "arm64-apple-macos";

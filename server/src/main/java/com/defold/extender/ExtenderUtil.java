@@ -836,10 +836,7 @@ public class ExtenderUtil
 
 
     public static boolean isAppleTarget(String platform) {
-        return platform.equals("arm64-osx") ||
-               platform.equals("x86_64-osx") ||
-               platform.equals("arm64-ios") ||
-               platform.equals("x86_64-ios");
+        return isMacOSTarget(platform) || isIOSTarget(platform);
     }
 
     public static boolean isMacOSTarget(String platform) {
@@ -849,6 +846,7 @@ public class ExtenderUtil
 
     public static boolean isIOSTarget(String platform) {
         return platform.equals("arm64-ios") ||
+               platform.equals("arm64_sim-ios") ||
                platform.equals("x86_64-ios");
     }
 

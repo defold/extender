@@ -126,6 +126,7 @@ public class CSharpBuilder {
         if (platform.equals("arm64-linux"))     return "linux-arm64";
         if (platform.equals("x86_64-ios"))      return "ios-x64";
         if (platform.equals("arm64-ios"))       return "ios-arm64";
+        if (platform.equals("arm64_sim-ios"))   return "iossimulator-arm64";
         return "unknown_platform";
     }
 

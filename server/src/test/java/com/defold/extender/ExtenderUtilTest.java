@@ -55,6 +55,23 @@ public class ExtenderUtilTest {
     }
 
     @Test
+    public void testAppleTargets() {
+        for (String platform : List.of("arm64-ios", "arm64_sim-ios", "x86_64-ios")) {
+            assertTrue(ExtenderUtil.isIOSTarget(platform), platform);
+            assertTrue(ExtenderUtil.isAppleTarget(platform), platform);
+            assertFalse(ExtenderUtil.isMacOSTarget(platform), platform);
+        }
+        for (String platform : List.of("arm64-osx", "x86_64-osx")) {
+            assertTrue(ExtenderUtil.isMacOSTarget(platform), platform);
+            assertTrue(ExtenderUtil.isAppleTarget(platform), platform);
+            assertFalse(ExtenderUtil.isIOSTarget(platform), platform);
+        }
+        for (String platform : List.of("arm64-android", "x86_64-linux", "wasm-web", "x86_64-win32")) {
+            assertFalse(ExtenderUtil.isAppleTarget(platform), platform);
+        }
+    }
+
+    @Test
     public void testAndroidAssetFolders() throws IOException, InterruptedException, ExtenderException {
         File d;
         d = new File(uploadDir, "extension1/res/android/res/com.foo.name/res/values"); d.mkdirs(); assertTrue(d.exists());

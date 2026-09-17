@@ -1,5 +1,6 @@
 package com.defold.extender.services.cocoapods;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -71,8 +72,34 @@ public class PodUtilsTest {
     }
 
     @Test
+    public void testPlatformFromExtenderPlatform() {
+        assertEquals(PodUtils.Platform.IPHONEOS, PodUtils.Platform.fromExtenderPlatform("arm64-ios"));
+        assertEquals(PodUtils.Platform.IPHONESIMULATOR, PodUtils.Platform.fromExtenderPlatform("arm64_sim-ios"));
+        assertEquals(PodUtils.Platform.IPHONESIMULATOR, PodUtils.Platform.fromExtenderPlatform("x86_64-ios"));
+        assertEquals(PodUtils.Platform.MACOSX, PodUtils.Platform.fromExtenderPlatform("arm64-osx"));
+        assertEquals(PodUtils.Platform.MACOSX, PodUtils.Platform.fromExtenderPlatform("x86_64-osx"));
+        assertEquals(PodUtils.Platform.UNKNOWN, PodUtils.Platform.fromExtenderPlatform("arm64-android"));
+    }
+
+    @Test
+    public void testArchFromPlatform() {
+        assertEquals("arm64", PodUtils.archFromPlatform("arm64-ios"));
+        assertEquals("arm64", PodUtils.archFromPlatform("arm64_sim-ios"));
+        assertEquals("x86_64", PodUtils.archFromPlatform("x86_64-ios"));
+        assertEquals("arm64", PodUtils.archFromPlatform("arm64-osx"));
+        assertEquals("x86_64", PodUtils.archFromPlatform("x86_64-osx"));
+    }
+
+    @Test
+    public void testToPlistPlatforms() {
+        assertArrayEquals(new String[] { "iPhoneOS", "iPhoneSimulator", "iPhoneSimulator", "MacOSX", "MacOSX", null },
+            PodUtils.toPlistPlatforms(new String[] { "arm64-ios", "arm64_sim-ios", "x86_64-ios", "arm64-osx", "x86_64-osx", "arm64-android" }));
+    }
+
+    @Test
     public void testSwiftModuleName() throws ExtenderException {
         assertEquals("arm64-apple-ios", PodUtils.swiftModuleNameFromPlatform("arm64-ios"));
+        assertEquals("arm64-apple-ios-simulator", PodUtils.swiftModuleNameFromPlatform("arm64_sim-ios"));
         assertEquals("x86_64-apple-ios-simulator", PodUtils.swiftModuleNameFromPlatform("x86_64-ios"));
         assertEquals("arm64-apple-macos", PodUtils.swiftModuleNameFromPlatform("arm64-osx"));
         assertEquals("arm64-apple-macos", PodUtils.swiftModuleNameFromPlatform("arm64-macos"));
