@@ -4,7 +4,6 @@ import java.io.File;
 import java.nio.file.Path;
 
 import com.defold.extender.ExtenderBuildState;
-import com.defold.extender.ExtenderUtil;
 
 public class CocoaPodsServiceBuildState {
     File workingDir;
@@ -21,13 +20,7 @@ public class CocoaPodsServiceBuildState {
         this.podsDir = new File(workingDir, "Pods");
         this.podsDir.mkdirs();
 
-        this.selectedPlatform = PodUtils.Platform.UNKNOWN;
-        String platform = extenderBuildState.getBuildPlatform();
-        if (ExtenderUtil.isIOSTarget(platform)) {
-            this.selectedPlatform = extenderBuildState.getBuildArch().equals("arm64") ? PodUtils.Platform.IPHONEOS : PodUtils.Platform.IPHONESIMULATOR;
-        } else if (ExtenderUtil.isMacOSTarget(platform)) {
-            this.selectedPlatform = PodUtils.Platform.MACOSX;
-        }
+        this.selectedPlatform = PodUtils.Platform.fromExtenderPlatform(extenderBuildState.getBuildPlatform());
         this.unpackedFrameworksDir = Path.of(
             extenderBuildState.getBuildDir().toString(),
              String.format("%s%s", extenderBuildState.getBuildConfiguration(), this.selectedPlatform.toString().toLowerCase()),

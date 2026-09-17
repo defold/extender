@@ -15,6 +15,8 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import org.springframework.core.io.FileSystemResource;
 
@@ -122,9 +124,10 @@ public class SwiftPackageManagerServiceTest {
      * Xcode (license accepted), xcodegen, and network access:
      *   ./gradlew :server:test -PexcludeTags=integration -PspmE2e=true --tests SwiftPackageManagerServiceTest
      */
-    @Test
+    @ParameterizedTest
+    @EnumSource(value = PodUtils.Platform.class, names = { "IPHONEOS", "IPHONESIMULATOR" })
     @EnabledIfSystemProperty(named = "extender.test.spmE2e", matches = "true")
-    public void testResolveDependenciesEndToEnd(@TempDir File rootDir) throws IOException, ExtenderException {
+    public void testResolveDependenciesEndToEnd(PodUtils.Platform platform, @TempDir File rootDir) throws IOException, ExtenderException {
         SwiftPackageManagerService service = createService();
         service.homeDirPrefix = new File(rootDir, "spm-cache").getAbsolutePath();
         service.runAfterStartup();
@@ -144,7 +147,7 @@ public class SwiftPackageManagerServiceTest {
         buildState.moduleCacheDir = new File(buildState.workingDir, "ModuleCache");
         buildState.clonedSourcePackagesDir = new File(buildState.workingDir, "clonedSourcePackages");
         buildState.buildLogFile = new File(buildState.workingDir, "build.log");
-        buildState.selectedPlatform = PodUtils.Platform.IPHONEOS;
+        buildState.selectedPlatform = platform;
         buildState.buildArch = "arm64";
         new File(buildState.packageDir, "Sources/" + SpmServiceBuildState.AGGREGATOR_NAME).mkdirs();
         new File(buildState.wrapperDir, "Sources").mkdirs();
