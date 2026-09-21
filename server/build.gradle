@@ -68,7 +68,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:8.1.1"))
+    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:8.2.1"))
     implementation(platform("tools.jackson:jackson-bom:${jacksonBomVersion}"))
     testImplementation(platform("org.junit:junit-bom:${junitBomVersion}"))
 
