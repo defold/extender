@@ -16,11 +16,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProcessExecutor {
     private static final long FORCE_KILL_DELAY_SECONDS = 5;
-    private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "process-watchdog");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ScheduledThreadPoolExecutor WATCHDOG = newWatchdog();
+
+    /**
+     * A cancelled watchdog holds its {@link Process} until its original deadline unless the
+     * queue drops it, and there is one per subprocess; {@code Executors.newSingle...} returns a
+     * wrapper that hides {@code setRemoveOnCancelPolicy}, so the pool is built directly.
+     */
+    private static ScheduledThreadPoolExecutor newWatchdog() {
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, r -> {
+            Thread t = new Thread(r, "process-watchdog");
+            t.setDaemon(true);
+            return t;
+        });
+        executor.setRemoveOnCancelPolicy(true);
+        return executor;
+    }
 
     private final StringBuffer output = new StringBuffer();
     private final Map<String, String> env = new HashMap<>();
@@ -150,7 +161,10 @@ public class ProcessExecutor {
             System.out.println(debugBuffer.toString());
         }
 
-        if (timedOut.get()) {
+        // Only a command that actually failed can have been the one the watchdog killed: one
+        // that finished 0 in the same instant the deadline expired succeeded, and reporting it
+        // as a timeout would fail the whole job over a race.
+        if (timedOut.get() && exitValue != 0) {
             String message = String.format("Command timed out after %d ms: %s\n", timeout, String.join(" ", args));
             putLog(message);
             throw new IOException(message + output.toString());
