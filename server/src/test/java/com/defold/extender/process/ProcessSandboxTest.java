@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -307,7 +308,7 @@ public class ProcessSandboxTest {
     @Test
     public void seatbeltGrantsRealPathsOnly(@TempDir Path root) throws IOException {
         Path real = Files.createDirectory(root.resolve("real"));
-        Path link = Files.createSymbolicLink(root.resolve("link"), real);
+        Path link = symlinkOrSkip(root.resolve("link"), real);
         Path jobDir = Files.createDirectory(root.resolve("job"));
 
         String profile = profileOf(sandbox(seatbelt(link), Map.of())
@@ -337,6 +338,7 @@ public class ProcessSandboxTest {
         Path realHome = Files.createDirectory(root.resolve("realhome"));
         Path developer = Files.createDirectories(realHome.resolve("Library/Developer"));
         Path jobDir = Files.createDirectory(root.resolve("job"));
+        symlinkOrSkip(root.resolve("probe"), developer);
         SandboxConfiguration configuration = seatbelt();
         configuration.getDarwin().setHomeLinks(List.of("Library/Developer", "Library/Missing", "/etc"));
 
@@ -456,5 +458,15 @@ public class ProcessSandboxTest {
         assertEquals(List.of(), policy.readOnlyPaths());
         assertEquals(List.of(), policy.readWriteExecPaths());
         assertEquals("1", policy.withEnv(Map.of("K", "1")).env().get("K"));
+    }
+
+    /** Windows grants symlink creation only to administrators; these tests are about macOS anyway. */
+    private static Path symlinkOrSkip(Path link, Path target) throws IOException {
+        try {
+            return Files.createSymbolicLink(link, target);
+        } catch (java.nio.file.FileSystemException | UnsupportedOperationException e) {
+            assumeTrue(false, "cannot create symbolic links here: " + e.getMessage());
+            throw e;
+        }
     }
 }
