@@ -177,6 +177,11 @@ compileJava {
 bootJar {
     archiveBaseName = 'extender'
     version = project.ext.extenderVersion
+    // ProcessHardening calls prctl through the FFM API; without this the JVM warns at the first
+    // call and later releases refuse it
+    manifest {
+        attributes 'Enable-Native-Access': 'ALL-UNNAMED'
+    }
     // See the note on :manifestmergetool:mainJar - server/app/extender.jar is what the docker
     // containers run, so it is declared as an output and restored if deleted.
     outputs.file("${project.projectDir}/app/extender.jar")
@@ -241,6 +246,7 @@ task buildStandalone() {
 }
 
 test {
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
     useJUnitPlatform {
         if (project.hasProperty("excludeTags")) {
             excludeTags project.getProperty("excludeTags")

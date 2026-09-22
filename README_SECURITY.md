@@ -151,6 +151,14 @@ Configuration (`extender.sandbox.*` in `application.yml`; environment variables 
   wine prefix, `.android`); each Dockerfile sets it via `EXTENDER_SANDBOX_IMAGEREADWRITEPATHS`.
 * `env-deny-patterns`, `command-timeout`, `limits.*` - see the comments in `application.yml`.
 
+`/proc` is granted read-only because the toolchains need `/proc/self` and the cpu/memory files,
+and Landlock cannot single out one process in it. The tools run as the server's uid, which
+would let them read `/proc/<server pid>/environ` and recover exactly the secrets the
+environment scrubbing keeps from them, so the server marks itself non-dumpable at startup
+(`prctl(PR_SET_DUMPABLE, 0)`, strict mode refuses to start otherwise): its `environ`, `maps`,
+`fd`, `cwd` and `root` entries then need `CAP_SYS_PTRACE`. The price is that `jcmd`/`jstack`
+from a shell in the container cannot attach to the server either.
+
 Known limits of the current design: the tool runs as the same uid as the server, so it can still
 send signals to the server process on kernels older than 6.12 (Landlock ABI 6 scopes signals);
 caches that stay writable for a platform (emscripten cache, Gradle and NuGet caches, the wine

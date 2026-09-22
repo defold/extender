@@ -24,6 +24,9 @@ class ProcessSandboxInitializer {
             SandboxLauncherProbe.requireExecutable(launcher);
             SandboxLauncherProbe.Result probe = SandboxLauncherProbe.run(launcher);
             SandboxLauncherProbe.validate(configuration, probe);
+            if (configuration.resolveBackend() == SandboxConfiguration.Backend.LANDLOCK) {
+                hideProcessFromChildren(configuration);
+            }
             if (configuration.getReadOnlyPaths().isEmpty()) {
                 LOGGER.warn("extender.sandbox.read-only-paths is empty; toolchains will not be able to read "
                         + "system directories");
@@ -40,5 +43,27 @@ class ProcessSandboxInitializer {
         ProcessSandbox sandbox = new ProcessSandbox(configuration);
         ProcessSandbox.install(sandbox);
         return sandbox;
+    }
+
+    // /proc stays readable to the children (toolchains need /proc/self and the cpu/memory
+    // files), so the server's own entries are closed from the other side
+    private static void hideProcessFromChildren(SandboxConfiguration configuration) {
+        if (!ProcessHardening.isLinux()) {
+            return;
+        }
+        try {
+            int dumpable = ProcessHardening.makeNonDumpable();
+            if (dumpable != 0) {
+                throw new IllegalStateException("prctl(PR_GET_DUMPABLE) still reports " + dumpable);
+            }
+            LOGGER.info("Server process is non-dumpable: /proc/{}/environ, maps and fd are closed to build subprocesses",
+                    ProcessHandle.current().pid());
+        } catch (Throwable e) {
+            if (configuration.isStrict()) {
+                throw new IllegalStateException("Cannot make the server process non-dumpable, so a build could read "
+                        + "its environment from /proc. Set extender.sandbox.strict=false to run degraded.", e);
+            }
+            LOGGER.warn("Cannot make the server process non-dumpable; /proc/<pid>/environ stays readable to builds", e);
+        }
     }
 }
