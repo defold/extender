@@ -171,6 +171,11 @@ Known limits of the current design: the tool runs as the same uid as the server,
 send signals to the server process on kernels older than 6.12 (Landlock ABI 6 scopes signals);
 caches that stay writable for a platform (emscripten cache, Gradle and NuGet caches, the wine
 prefix) are shared between builds; the Gradle and dotnet steps keep network access by necessity.
+The NuGet cache is the one shared cache granted **execute** as well as write, because a
+NativeAOT publish runs `ilc` out of the ilcompiler package it restores: a C# build can
+therefore leave a binary that a later C# build on the same builder executes. Splitting it
+into a read-only image cache (`NUGET_FALLBACK_PACKAGES`) and a per-job writable
+`NUGET_PACKAGES` is the fix and is not done yet.
 
 ### macOS standalone builders
 
