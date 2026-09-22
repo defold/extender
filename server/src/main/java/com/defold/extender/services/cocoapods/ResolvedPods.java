@@ -42,7 +42,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
     private List<String> weakFrameworks;
     private boolean useFrameworks = false;
 
-    public ResolvedPods(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodBuildSpec> specs, File podfileLock, MainPodfile mainPodfile) throws IOException {
+    public ResolvedPods(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodBuildSpec> specs, File podfileLock, MainPodfile mainPodfile) throws IOException, ExtenderException {
         this.platformMinVersion = mainPodfile.platformMinVersion;
         this.podsDir = cocoapodsBuildState.getPodsDir();
         this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
@@ -144,25 +144,29 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return new ArrayList<String>(frameworks);
     }
 
-    List<File> collectAllPodsDynamicFrameworks() throws IOException {
+    List<File> collectAllPodsDynamicFrameworks() throws IOException, ExtenderException {
         Set<File> dynamicFrameworks = new HashSet<>();
         // collect unpacked xcframeworks
         Pattern pattern = Pattern.compile(ExtenderConst.FRAMEWORK_RE);
+        List<File> candidates = new ArrayList<>();
         Files.walk(frameworksDir.toPath())
             .filter(Files::isDirectory)
             .forEach(path -> {
-                Matcher m = pattern.matcher(path.getFileName().toString());
-                if (m.matches()) {
-                    File framework = path.toFile();
-                    try {
-                        if (FrameworkUtil.isDynamicallyLinked(framework, jobDir)) {
-                            dynamicFrameworks.add(framework);
-                        }
-                    } catch (ExtenderException e) {
-                        LOGGER.warn("Exception when check framework linkage type", e);
-                    }
+                if (pattern.matcher(path.getFileName().toString()).matches()) {
+                    candidates.add(path.toFile());
                 }
         });
+
+        // The probe runs `file` as a subprocess, so it now also fails on a sandbox denial, a
+        // missing launcher or the command timeout. Treating that as "statically linked" drops
+        // the framework from both the link line and the embedded set, which surfaces as
+        // undefined symbols or a crash at launch, so it propagates as ResolvedPackages already
+        // does for the same probe.
+        for (File framework : candidates) {
+            if (FrameworkUtil.isDynamicallyLinked(framework, jobDir)) {
+                dynamicFrameworks.add(framework);
+            }
+        }
 
         return new ArrayList<File>(dynamicFrameworks);
     }
@@ -235,7 +239,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return resultFolder;
     }
 
-    public void setPodsSpecs(List<PodBuildSpec> specs) throws IOException {
+    public void setPodsSpecs(List<PodBuildSpec> specs) throws IOException, ExtenderException {
         pods.addAll(specs);
         frameworkSearchPaths = collectFrameworkPaths();
         librarySearchPaths = collectFrameworkStaticLibPaths();
