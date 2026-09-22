@@ -79,7 +79,12 @@ public class ProcessExecutor {
             pbEnv.clear();
             pbEnv.putAll(launch.env());
         } else {
+            // env == null means "inherit as before", i.e. the sandbox is disabled. The policy's
+            // own variables are hardening that does not depend on it (a pod's git must not reach
+            // the keychain either way), so they are applied here too - prepare() merges them
+            // into the scrubbed environment on the other branch.
             pbEnv.putAll(this.env);
+            pbEnv.putAll(effectivePolicy.env());
         }
 
         if (DM_DEBUG_COMMANDS) {

@@ -160,6 +160,23 @@ public class ProcessExecutorTest {
         assertThrows(IOException.class, () -> pe.execute("echo hi"));
     }
 
+    /**
+     * With the sandbox disabled prepare() returns env == null ("inherit as before"), which used to
+     * drop the policy's own variables on the floor. They are hardening that does not depend on the
+     * sandbox - CocoaPods keeps git away from the keychain with them - so they must still arrive.
+     */
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    public void testPolicyEnvReachesTheChildWithTheSandboxDisabled(@TempDir Path jobDir) throws Exception {
+        ProcessExecutor pe = new ProcessExecutor(ProcessSandbox.disabled());
+        pe.setCwd(jobDir.toFile());
+
+        pe.execute(List.of("sh", "-c", "echo GIT_ASKPASS=$GIT_ASKPASS"),
+                SandboxPolicy.toolchain().withEnv(Map.of("GIT_ASKPASS", "/usr/bin/true")));
+
+        assertTrue(pe.getOutput().contains("GIT_ASKPASS=/usr/bin/true"), pe.getOutput());
+    }
+
     @Test
     @EnabledOnOs({OS.LINUX, OS.MAC})
     public void testProcessUtilsPassesPolicyThrough(@TempDir Path dir) throws Exception {
