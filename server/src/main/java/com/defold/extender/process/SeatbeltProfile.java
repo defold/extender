@@ -69,9 +69,8 @@ final class SeatbeltProfile {
         if (!grants.readOnly().isEmpty()) {
             sb.append("(allow file-read*").append(pathFilters(grants.readOnly())).append(")\n");
         }
-        if (!grants.readOnly().isEmpty() || !grants.readWriteExec().isEmpty()) {
-            sb.append("(allow process-exec").append(pathFilters(grants.readOnly()))
-                    .append(pathFilters(grants.readWriteExec())).append(")\n");
+        if (!grants.readOnly().isEmpty()) {
+            sb.append("(allow process-exec").append(pathFilters(grants.readOnly())).append(")\n");
         }
         if (!grants.readWrite().isEmpty() || !grants.readWritePatterns().isEmpty()) {
             sb.append("(allow file-read* file-write*").append(pathFilters(grants.readWrite()));
@@ -82,6 +81,20 @@ final class SeatbeltProfile {
         }
         if (!grants.readWriteExec().isEmpty()) {
             sb.append("(allow file-read* file-write*").append(pathFilters(grants.readWriteExec())).append(")\n");
+        }
+        // Writable must not also be executable, as on Landlock (LL_READ_WRITE omits EXECUTE):
+        // a writable path nested under a read-only grant would otherwise keep the ancestor's
+        // exec right and become a place to drop a binary. The rwx grant is re-stated after the
+        // deny because the last matching rule wins.
+        if (!grants.readWrite().isEmpty() || !grants.readWritePatterns().isEmpty()) {
+            sb.append("(deny process-exec").append(pathFilters(grants.readWrite()));
+            for (String pattern : grants.readWritePatterns()) {
+                sb.append(" (regex ").append(rawRegex(pattern)).append(')');
+            }
+            sb.append(")\n");
+        }
+        if (!grants.readWriteExec().isEmpty()) {
+            sb.append("(allow process-exec").append(pathFilters(grants.readWriteExec())).append(")\n");
         }
 
         if (grants.network() == SandboxPolicy.Network.ALL) {

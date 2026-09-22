@@ -425,6 +425,35 @@ public class ProcessSandboxTest {
         assertFalse(execLine.contains(SeatbeltProfile.quote(cache.toRealPath().toString())), execLine);
     }
 
+    /**
+     * The SPM shape: the job directory is writable and the SwiftPM working directory inside it is
+     * read-write-exec, because SwiftPM compiles Package.swift, plugins and macros there and runs
+     * them. The profile denies process-exec on the writable set, so the rwx re-grant has to come
+     * after that deny for the nested directory to stay executable.
+     */
+    @Test
+    public void nestedExecGrantSurvivesTheWritableExecDeny(@TempDir Path root) throws IOException {
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        Path workingDir = Files.createDirectories(jobDir.resolve("spm/working"));
+        SandboxPolicy policy = SandboxPolicy.toolchain()
+                .withReadWriteExecPaths(List.of(workingDir.toString()));
+
+        List<String> argv = sandbox(seatbelt(), Map.of()).prepare(COMMAND, jobDir.toFile(), Map.of(), policy).argv();
+        String profile = profileOf(argv);
+        String job = SeatbeltProfile.quote(jobDir.toRealPath().toString());
+        String working = SeatbeltProfile.quote(workingDir.toRealPath().toString());
+
+        int denyJobExec = profile.indexOf("(deny process-exec");
+        int allowWorkingExec = profile.lastIndexOf("(allow process-exec");
+        assertTrue(denyJobExec >= 0, profile);
+        assertTrue(profile.lines().filter(l -> l.startsWith("(deny process-exec")).findFirst().orElse("").contains(job),
+                profile);
+        assertTrue(profile.lines().filter(l -> l.startsWith("(allow process-exec")).reduce((a, b) -> b).orElse("")
+                .contains(working), profile);
+        // last matching rule wins: the re-grant must come after the deny
+        assertTrue(allowWorkingExec > denyJobExec, profile);
+    }
+
     @Test
     public void landlockBackendIgnoresSeatbeltOnlyPolicyParts(@TempDir Path jobDir) throws IOException {
         SandboxPolicy policy = SandboxPolicy.toolchain()

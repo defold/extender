@@ -10,7 +10,10 @@ ARG PLATFORMSDK_DIR=/opt/platformsdk
 ARG ANDROID_ROOT=${PLATFORMSDK_DIR}/android
 ARG ANDROID_HOME=${ANDROID_ROOT}/android-sdk-linux
 ARG ANDROID_NDK_PATH=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
-ARG ANDROID_SDK_HOME=${ANDROID_ROOT}/.android
+# Writable tool state, deliberately NOT under ${PLATFORMSDK_DIR}: that tree is granted
+# read-only+execute to the sandbox, and Landlock unions an ancestor's rights, so a
+# writable directory inside it would also be executable (as /var/extender/.wine).
+ARG ANDROID_SDK_HOME=/var/extender/.android
 ARG ANDROID_NDK_BIN_PATH=${ANDROID_NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin
 ARG ANDROID_SDK_BUILD_TOOLS_PATH=${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}
 ARG R8_VERSION=8.13.19
@@ -49,10 +52,6 @@ RUN --mount=type=secret,id=DM_PACKAGES_URL,required=true \
 # legacy SDK tools (unused, ships vulnerable jars) and unused pip/setuptools in the NDK python
     rm -rf "${ANDROID_HOME}/tools" && \
     rm -rf "${ANDROID_NDK_PATH}"/toolchains/llvm/prebuilt/linux-x86_64/python3/lib/python3.9/site-packages/{pip,pip-*,setuptools,setuptools-*,pkg_resources,_distutils_hack} && \
-# create the .android folder and give read+write permissions (the Android Gradle plugin will write to the folder)
-# It is not enough to give 'user' and 'group'. We unfortunately also need 'others'
-    mkdir "${ANDROID_SDK_HOME}" && \
-    chmod ugo+rw -R "${ANDROID_SDK_HOME}" && \
 # fix permissions
     chmod +r -R "${ANDROID_ROOT}" && \
     chmod -R 755 "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}" && \
@@ -110,6 +109,8 @@ ENV ANDROID_ROOT=${ANDROID_ROOT} \
 
 # writable for sandboxed gradle: the Android Gradle plugin writes into .android
 ENV EXTENDER_SANDBOX_IMAGEREADWRITEPATHS=${ANDROID_SDK_HOME}
+
+RUN install -d -m 700 -o extender -g extender "${ANDROID_SDK_HOME}"
 
 COPY --from=build ${ANDROID_ROOT} ${ANDROID_ROOT}
 

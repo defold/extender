@@ -48,6 +48,7 @@ public final class ProcessSandbox {
     private final Path realHome;
     private final List<Pattern> denyPatterns;
     private final Set<String> warnedMissingPaths = ConcurrentHashMap.newKeySet();
+    private final Set<String> warnedNestedPaths = ConcurrentHashMap.newKeySet();
 
     public ProcessSandbox(SandboxConfiguration configuration) {
         this(configuration, System.getenv(), Path.of(System.getProperty("user.home", "/")));
@@ -156,7 +157,36 @@ public final class ProcessSandbox {
         readOnly.removeAll(readWrite);
         readOnly.removeAll(readWriteExec);
         readWrite.removeAll(readWriteExec);
-        return new PathGrants(readOnly, readWrite, readWriteExec);
+        PathGrants grants = new PathGrants(readOnly, readWrite, readWriteExec);
+        if (backend == SandboxConfiguration.Backend.LANDLOCK) {
+            warnAboutNestedWritablePaths(grants);
+        }
+        return grants;
+    }
+
+    /**
+     * Exact equality above only catches a path listed in both classes. Landlock also unions the
+     * rights of every rule matching a path's <em>ancestors</em>, so a writable path nested under a
+     * read-only one keeps that ancestor's EXECUTE right and becomes a directory a build can write
+     * to and execute from - image state that outlives the job. No rule can subtract the right, so
+     * the grant has to be moved; this names both paths rather than pretending to fix it.
+     * (Seatbelt takes the other route: the profile denies process-exec on the writable set.)
+     */
+    private void warnAboutNestedWritablePaths(PathGrants grants) {
+        for (Path writable : grants.readWrite()) {
+            for (Path readable : grants.readOnly()) {
+                if (writable.startsWith(readable)) {
+                    if (warnedNestedPaths.add(writable.toString())) {
+                        LOGGER.warn("Sandbox path {} is granted writable but lies under the read-only grant {}; "
+                                        + "Landlock unions the rights, so it stays executable too. Move it outside {}.",
+                                LogSanitizer.sanitize(writable.toString()),
+                                LogSanitizer.sanitize(readable.toString()),
+                                LogSanitizer.sanitize(readable.toString()));
+                    }
+                    break;
+                }
+            }
+        }
     }
 
     List<String> buildLandlockArgv(List<String> args, Path jobDir, Path home, Path tmp, Map<String, String> overlayEnv,

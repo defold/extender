@@ -64,10 +64,19 @@ public class SeatbeltProfileTest {
         Path ro = Files.createDirectory(root.resolve("usr"));
         String profile = SeatbeltProfile.render(grants(paths(ro), paths(rw), paths(rwx), SandboxPolicy.Network.NONE));
 
-        String exec = line(profile, "(allow process-exec");
-        assertTrue(exec.contains(SeatbeltProfile.quote(ro.toString())), exec);
-        assertTrue(exec.contains(SeatbeltProfile.quote(rwx.toString())), exec);
-        assertFalse(exec.contains(SeatbeltProfile.quote(rw.toString())), exec);
+        // read-only is granted exec, the writable set is then denied it, and the rwx set is
+        // re-granted after that deny - the last matching rule is what the kernel applies
+        List<String> execLines = profile.lines().filter(l -> l.startsWith("(allow process-exec")).toList();
+        assertEquals(2, execLines.size(), profile);
+        assertTrue(execLines.get(0).contains(SeatbeltProfile.quote(ro.toString())), profile);
+        assertFalse(execLines.get(0).contains(SeatbeltProfile.quote(rw.toString())), profile);
+        assertTrue(execLines.get(1).contains(SeatbeltProfile.quote(rwx.toString())), profile);
+
+        String execDeny = line(profile, "(deny process-exec");
+        assertTrue(execDeny.contains(SeatbeltProfile.quote(rw.toString())), profile);
+        assertTrue(profile.indexOf(execDeny) > profile.indexOf(execLines.get(0)), profile);
+        assertTrue(profile.indexOf(execLines.get(1)) > profile.indexOf(execDeny), profile);
+
         List<String> writes = profile.lines().filter(l -> l.startsWith("(allow file-read* file-write*")).toList();
         assertEquals(2, writes.size(), profile);
         assertTrue(writes.get(0).contains(SeatbeltProfile.quote(rw.toString())), profile);
