@@ -78,9 +78,11 @@ extender:
         # environment variables whose values are directories (or files) granted read-only and
         # executable: the Defold SDK, the manifest merge tool, the macOS platform SDKs and
         # xctoolchain, zig, the JDK, dotnet; DEVELOPER_DIR is widened to its Xcode.app bundle
+        # CURL_CA_BUNDLE/SSL_CERT_FILE: a CA bundle for the curl that fetches Swift binary
+        # target archives (unset in production; corporate proxies and the tests need it)
         read-only-env-variables: >
             DYNAMO_HOME,MANIFEST_MERGE_TOOL,PLATFORMSDK_DIR,XCTOOLCHAIN_PATH,ZIG_PATH,ZIG_PATH_0_11,
-            JAVA_HOME,DOTNET_ROOT,DEVELOPER_DIR
+            JAVA_HOME,DOTNET_ROOT,DEVELOPER_DIR,CURL_CA_BUNDLE,SSL_CERT_FILE
         # (~/ is the server user's home)
         # variables matching these regexes are not passed to subprocesses
         env-deny-patterns:
@@ -153,6 +155,10 @@ extender:
         # a git mirror fetched more recently than this is reused as it is, so parallel builds
         # of the same package graph cost one fetch per repository instead of one per build
         mirror-refresh-interval: 600000
+        # binary target archives are fetched by curl into SwiftPM's package cache, where it
+        # reads them before trying the network; one download's time limit and size cap
+        artifact-download-timeout: 600000
+        max-artifact-size: 1073741824
         cache-dir-rotate-cron: "0 20 2 * * *" # once per day
         old-cache-clean-cron: "0 20 6 * * *" # once per day after directory rotation
     # refer to README_SECURITY.md for information on securing your server

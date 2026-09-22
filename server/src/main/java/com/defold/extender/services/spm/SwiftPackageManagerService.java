@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -71,7 +72,10 @@ import io.micrometer.core.instrument.MeterRegistry;
  * that declare them have run, so the two steps alternate: a round that cannot reach a
  * repository names it in its output, that repository is mirrored, and the round is repeated
  * until the graph closes. An uploaded Package.resolved is used as a seed when present but is
- * not required. Binary targets (downloaded over HTTP during resolution) fail the build.
+ * not required. Binary targets are handled the same way: SwiftPM takes an archive from the
+ * package cache before it tries the network, so the archives a round could not download are
+ * fetched by plain curl into that cache and the round is repeated; SwiftPM then verifies the
+ * archive against the checksum in the manifest that declares it.
  */
 @Service
 @ConditionalOnProperty(prefix = "extender", name = "spm.enabled", havingValue = "true")
@@ -101,6 +105,13 @@ public class SwiftPackageManagerService {
     // xcodebuild's own line above whatever SwiftPM reported, present for every failure of the
     // resolution and for none of the compilation
     static final String RESOLUTION_FAILED_MARKER = "Could not resolve package dependencies";
+    // SwiftPM's binary artifact cache inside -packageCachePath: one file per archive URL
+    static final String ARTIFACTS_SUBDIR = "artifacts";
+    // binary target URLs are chosen by manifests as well
+    static final int MAX_BINARY_ARTIFACTS = 64;
+    // SwiftPM verifies a cached archive against the manifest's checksum; a mismatch means the
+    // publisher replaced the archive behind its URL (or the cache entry was tampered with)
+    static final String CHECKSUM_MISMATCH_MARKER = "does not match checksum specified by the manifest";
 
     private final Object syncLock = new Object();
     // one git process at a time per mirror; concurrent jobs pinning the same package wait
@@ -125,6 +136,9 @@ public class SwiftPackageManagerService {
     // a mirror fetched more recently than this is used as it is, so parallel builds of the
     // same graph cost one fetch per repository instead of one per build
     @Value("${extender.spm.mirror-refresh-interval:600000}") long mirrorRefreshIntervalMillis;
+    // one binary artifact download; SwiftPM has no size limit of its own
+    @Value("${extender.spm.artifact-download-timeout:600000}") long artifactDownloadTimeoutMillis;
+    @Value("${extender.spm.max-artifact-size:1073741824}") long maxArtifactSizeBytes;
 
     SwiftPackageManagerService(@Value("classpath:template.package-swift") Resource packageSwiftTemplate,
             @Value("classpath:template.project-yml") Resource projectYmlTemplate,
@@ -507,6 +521,111 @@ public class SwiftPackageManagerService {
         return urls;
     }
 
+    /** A binary target's archive, as named by the round that could not download it. */
+    record BinaryArtifact(String url, String targetName) {}
+
+    // SwiftPM downloads every missing archive of a round concurrently and reports each one
+    private static final Pattern BINARY_ARTIFACT_PATTERN = Pattern.compile(
+        "failed downloading '(https://[^'\\s]+)' which is required by binary target '([^'\\s]+)'");
+
+    /** The binary target archives an xcodebuild log could not download, in the order they appear. */
+    static List<BinaryArtifact> harvestBinaryArtifacts(String output) {
+        List<BinaryArtifact> artifacts = new ArrayList<>();
+        if (output == null) {
+            return artifacts;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        Matcher matcher = BINARY_ARTIFACT_PATTERN.matcher(output);
+        while (matcher.find()) {
+            if (seen.add(matcher.group(1))) {
+                artifacts.add(new BinaryArtifact(matcher.group(1), matcher.group(2)));
+            }
+        }
+        return artifacts;
+    }
+
+    // xcodebuild reports a checksum mismatch by target name only; the archive URL is then
+    // looked up in the manifest that declares the target, checked out under the job
+    private static final Pattern CHECKSUM_MISMATCH_PATTERN = Pattern.compile(
+        "checksum of downloaded artifact of binary target '([^'\\s]+)'");
+
+    /** The binary targets whose cached archive an xcodebuild log rejected, each once. */
+    static List<String> harvestMismatchedTargets(String output) {
+        List<String> names = new ArrayList<>();
+        if (output == null) {
+            return names;
+        }
+        Matcher matcher = CHECKSUM_MISMATCH_PATTERN.matcher(output);
+        while (matcher.find()) {
+            if (!names.contains(matcher.group(1))) {
+                names.add(matcher.group(1));
+            }
+        }
+        return names;
+    }
+
+    /**
+     * The archive URL a checked-out manifest declares for a binary target, or null. Manifests
+     * are Swift code, but binary targets are spelled with literal name and url (the checksum
+     * forces a literal anyway), which is what is looked for.
+     */
+    static String findArtifactUrlInCheckouts(File clonedSourcesDir, String targetName) throws IOException {
+        File checkouts = new File(clonedSourcesDir, "checkouts");
+        File[] packages = checkouts.listFiles(File::isDirectory);
+        if (packages == null) {
+            return null;
+        }
+        Pattern declaration = Pattern.compile(
+            "\\.binaryTarget\\(\\s*name:\\s*\"" + Pattern.quote(targetName) + "\"\\s*,\\s*url:\\s*\"([^\"]+)\"");
+        for (File pkg : packages) {
+            File manifest = new File(pkg, "Package.swift");
+            if (!manifest.isFile()) {
+                continue;
+            }
+            Matcher matcher = declaration.matcher(Files.readString(manifest.toPath()));
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Adds an archive to the artifacts to fetch, returning true when it was not known yet.
+     * The URL is validated like a package URL; SwiftPM looks the archive up by the URL
+     * exactly as the manifest spells it, so that spelling is what is kept.
+     */
+    static boolean addArtifact(Map<String, BinaryArtifact> artifacts, BinaryArtifact artifact) throws ExtenderException {
+        SpmManifestParser.sanitizeUrl(artifact.url);
+        if (artifacts.containsKey(artifact.url)) {
+            return false;
+        }
+        if (artifacts.size() >= MAX_BINARY_ARTIFACTS) {
+            throw new ExtenderException(String.format(
+                "The Swift package graph declares more than %d binary targets, which is not supported",
+                MAX_BINARY_ARTIFACTS));
+        }
+        artifacts.put(artifact.url, artifact);
+        return true;
+    }
+
+    /**
+     * The file name SwiftPM gives an archive in its artifact cache: the URL as a C99 extended
+     * identifier (every other character becomes an underscore, a leading digit is prefixed).
+     */
+    static String artifactCacheName(String url) {
+        StringBuilder name = new StringBuilder(url.length() + 1);
+        for (int i = 0; i < url.length(); i++) {
+            char c = url.charAt(i);
+            boolean identifier = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+            name.append(identifier ? c : '_');
+        }
+        if (name.length() > 0 && Character.isDigit(name.charAt(0))) {
+            name.insert(0, '_');
+        }
+        return name.toString();
+    }
+
     /**
      * Mirrors, resolves and builds, repeating until the package graph closes. Transitive
      * dependencies are only known once the manifests declaring them have run, and those must
@@ -530,8 +649,13 @@ public class SwiftPackageManagerService {
             copyLockFile(userLockFile, buildState);
         }
 
+        // archives of binary targets, named by the round that could not download them
+        Map<String, BinaryArtifact> artifacts = new LinkedHashMap<>();
+        File artifactsDir = new File(packageCacheDir, ARTIFACTS_SUBDIR);
         boolean forceRefresh = false;
         boolean refreshRetried = false;
+        boolean evictArtifacts = false;
+        boolean artifactsRetried = false;
         String lastFailure = null;
         for (int round = 1; round <= MAX_RESOLVE_ROUNDS; round++) {
             Map<String, File> mirrors;
@@ -547,9 +671,11 @@ public class SwiftPackageManagerService {
                 throw buildFailure(lastFailure);
             }
             forceRefresh = false;
+            prefetchArtifacts(artifacts.values(), artifactsDir, buildState, processEnv, evictArtifacts);
+            evictArtifacts = false;
             File gitConfig = writeGitConfig(buildState, repos.values(), mirrors);
-            LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored)",
-                round, repos.size());
+            LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored, {} artifacts cached)",
+                round, repos.size(), artifacts.size());
             String failure = buildWrapperProject(buildState, clonedSourcesDir, packageCacheDir, mirrorsDir,
                 gitConfig, processEnv);
             if (failure == null) {
@@ -561,7 +687,29 @@ public class SwiftPackageManagerService {
             for (String url : harvested) {
                 discovered |= addRepo(repos, url);
             }
+            for (BinaryArtifact artifact : harvestBinaryArtifacts(failure)) {
+                discovered |= addArtifact(artifacts, artifact);
+            }
             if (discovered) {
+                continue;
+            }
+            if (!artifactsRetried && failure.contains(CHECKSUM_MISMATCH_MARKER)) {
+                // the archive behind a URL changed since it was cached (or a build tampered
+                // with the cache): fetch the rejected archives again, once. A cached archive
+                // was never named to this job, so its URL comes from the declaring manifest;
+                // when that fails the whole artifact cache goes
+                artifactsRetried = true;
+                evictArtifacts = true;
+                for (String targetName : harvestMismatchedTargets(failure)) {
+                    String url = findArtifactUrlInCheckouts(clonedSourcesDir, targetName);
+                    if (url == null) {
+                        LOGGER.info("Cannot tell which archive binary target {} rejected, clearing the artifact cache", targetName);
+                        FileUtils.deleteQuietly(artifactsDir);
+                    } else {
+                        addArtifact(artifacts, new BinaryArtifact(url, targetName));
+                    }
+                }
+                LOGGER.info("A cached Swift package archive does not match its manifest checksum, fetching again");
                 continue;
             }
             // only a resolution failure can be about a mirror; a compile error must not cost
@@ -645,17 +793,90 @@ public class SwiftPackageManagerService {
     }
 
     /**
+     * Fetches every known binary target archive that is not in SwiftPM's artifact cache yet,
+     * with plain curl: like git for the mirrors, it evaluates nothing. The archive is keyed by
+     * its URL and immutable as far as this step is concerned; SwiftPM checks it against the
+     * checksum in the consuming manifest, and a mismatch comes back here as an eviction.
+     */
+    void prefetchArtifacts(Collection<BinaryArtifact> artifacts, File artifactsDir, SpmServiceBuildState buildState,
+            Map<String, String> processEnv, boolean evict) throws IOException, ExtenderException {
+        if (artifacts.isEmpty()) {
+            return;
+        }
+        artifactsDir.mkdirs();
+        for (BinaryArtifact artifact : artifacts) {
+            File archive = new File(artifactsDir, artifactCacheName(artifact.url));
+            if (evict) {
+                FileUtils.deleteQuietly(archive);
+            }
+            Object lock = mirrorLocks.computeIfAbsent(archive.getAbsolutePath(), k -> new Object());
+            synchronized (lock) {
+                if (archive.isFile()) {
+                    LOGGER.info("Archive of binary target {} is cached", artifact.targetName);
+                    continue;
+                }
+                downloadArtifact(artifact, archive, artifactsDir, buildState, processEnv);
+            }
+        }
+    }
+
+    private void downloadArtifact(BinaryArtifact artifact, File archive, File artifactsDir,
+            SpmServiceBuildState buildState, Map<String, String> processEnv) throws IOException, ExtenderException {
+        LOGGER.info("Fetching archive of binary target {} from {}", artifact.targetName, artifact.url);
+        // a concurrent job fetching the same URL writes its own part file; the move is atomic
+        File part = new File(artifactsDir, archive.getName() + ".part-" + UUID.randomUUID());
+        List<String> args = List.of("curl", "--fail", "--silent", "--show-error", "--location", "--max-redirs", "5",
+            // https only, redirects included
+            "--proto", "=https", "--proto-redir", "=https",
+            "--max-time", Long.toString(Math.max(1, artifactDownloadTimeoutMillis / 1000)),
+            // only honoured when the server declares a length; the size is checked again below
+            "--max-filesize", Long.toString(maxArtifactSizeBytes),
+            "--output", part.getAbsolutePath(), artifact.url);
+        try {
+            String failure = runPrefetchCommand(args, artifactPrefetchPolicy(artifactsDir), Map.of(), buildState, processEnv);
+            if (failure != null) {
+                throw new ExtenderException("Fetching the archive of Swift binary target " + artifact.targetName
+                    + " from " + artifact.url + " failed:\n" + failure);
+            }
+            if (!part.isFile()) {
+                throw new ExtenderException("Fetching the archive of Swift binary target " + artifact.targetName
+                    + " from " + artifact.url + " produced no file");
+            }
+            if (part.length() > maxArtifactSizeBytes) {
+                throw new ExtenderException(String.format("The archive of Swift binary target %s (%s) is larger than %d bytes",
+                    artifact.targetName, artifact.url, maxArtifactSizeBytes));
+            }
+            Files.move(part.toPath(), archive.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            FileUtils.deleteQuietly(part);
+        }
+    }
+
+    /** Network on, the artifact cache the only writable location. */
+    static SandboxPolicy artifactPrefetchPolicy(File artifactsDir) {
+        return SandboxPolicy.dependencyResolver(List.of(artifactsDir.getAbsolutePath()))
+                // proxy settings lookup by libcurl
+                .withMachServices(List.of("com.apple.SystemConfiguration.configd"));
+    }
+
+    /**
      * Runs git under the pre-fetch policy. Returns null on exit 0, otherwise the command's
      * output (the executor raises on a non-zero exit); a launch failure still propagates.
      */
     private String runGit(List<String> args, File mirrorsDir, SpmServiceBuildState buildState,
             Map<String, String> processEnv) throws IOException {
+        // https only: a redirect to ssh://, git:// or a local path is refused by git itself
+        return runPrefetchCommand(args, gitPrefetchPolicy(mirrorsDir), Map.of("GIT_ALLOW_PROTOCOL", "https"),
+            buildState, processEnv);
+    }
+
+    private String runPrefetchCommand(List<String> args, SandboxPolicy policy, Map<String, String> extraEnv,
+            SpmServiceBuildState buildState, Map<String, String> processEnv) throws IOException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.setCwd(buildState.getWrapperDir());
         processExecutor.putEnv(processEnv);
-        // https only: a redirect to ssh://, git:// or a local path is refused by git itself
-        processExecutor.putEnv("GIT_ALLOW_PROTOCOL", "https");
-        processExecutor.setPolicy(gitPrefetchPolicy(mirrorsDir));
+        processExecutor.putEnv(extraEnv);
+        processExecutor.setPolicy(policy);
         try {
             processExecutor.execute(args);
             return null;
@@ -789,10 +1010,15 @@ public class SwiftPackageManagerService {
             return "\n\nA dependency could not be mirrored; Swift package builds resolve offline from git "
                 + "mirrors, so every package in the graph must be a plain https git repository.";
         }
-        // SwiftPM: "failed downloading '<url>' which is required by binary target '<name>'"
+        // every archive the log named was fetched into the cache before this round, so one
+        // SwiftPM still cannot get is one it refused to read from there
         if (output.contains("required by binary target")) {
-            return "\n\nBinary targets are downloaded during resolution, which runs without network access here; "
-                + "packages with binary targets are not supported.";
+            return "\n\nA binary target archive was fetched into the package cache but SwiftPM could not use it; "
+                + "resolution runs without network access here.";
+        }
+        if (output.contains(CHECKSUM_MISMATCH_MARKER)) {
+            return "\n\nThe archive behind a binary target URL does not match the checksum its manifest declares, "
+                + "even after fetching it again; the publisher replaced the archive or the manifest is wrong.";
         }
         return "";
     }

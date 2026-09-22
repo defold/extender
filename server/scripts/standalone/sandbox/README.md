@@ -129,8 +129,10 @@ path through `extender.sandbox.read-only-paths` / a policy, a Mach service throu
   pointed at them through a per-job `GIT_CONFIG_GLOBAL` with
   `url.file://<mirror>.insteadOf=<https url>` and `GIT_ALLOW_PROTOCOL=file`. The mirrors are
   read-only for xcodebuild. Transitive dependencies are discovered from the output of the
-  rounds that could not reach them, so nothing has to be pinned by the upload. Binary targets
-  cannot be downloaded in that phase, so packages using them fail with a hint.
+  rounds that could not reach them, so nothing has to be pinned by the upload. Binary target
+  archives are discovered the same way and fetched by plain `curl` (network on, only
+  `<packageCache>/artifacts` writable) into SwiftPM's artifact cache, which it reads before
+  trying the network; the manifest checksum is verified by SwiftPM on every use.
 * When Swift packages are resolved, the engine link auto-links Xcode's Swift runtime archives
   (`<DEVELOPER_DIR>/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/<platform>`), which the
   link step is granted read-only through `ResolvedPackages.getSandboxReadOnlyPaths()`.

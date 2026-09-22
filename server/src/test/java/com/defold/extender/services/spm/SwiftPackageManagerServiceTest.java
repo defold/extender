@@ -169,6 +169,78 @@ public class SwiftPackageManagerServiceTest {
     }
 
     @Test
+    public void testHarvestsBinaryTargetArchivesFromABuildLog() throws IOException, ExtenderException {
+        String log = Files.readString(new File("test-data/swiftpackages/xcodebuild_missing_artifact.log").toPath());
+        assertTrue(log.contains(SwiftPackageManagerService.RESOLUTION_FAILED_MARKER), log);
+        // the repository still resolves as usual; the archives are separate
+        assertEquals(List.of("https://github.com/acme/PkgA.git"), SwiftPackageManagerService.harvestPackageUrls(log));
+
+        List<SwiftPackageManagerService.BinaryArtifact> artifacts = SwiftPackageManagerService.harvestBinaryArtifacts(log);
+        // every archive of the round, each once, although SwiftPM reports Foo three times
+        assertEquals(List.of(
+            new SwiftPackageManagerService.BinaryArtifact("https://dl.example.com/sdk/1.2.0/Foo.zip", "Foo"),
+            new SwiftPackageManagerService.BinaryArtifact(
+                "https://github.com/acme/PkgA/releases/download/1.0.0/Bar.xcframework.zip", "Bar")), artifacts);
+        assertEquals(List.of(), SwiftPackageManagerService.harvestBinaryArtifacts("Downloading binary artifact https://x/y.zip"));
+        assertEquals(List.of(), SwiftPackageManagerService.harvestBinaryArtifacts(null));
+
+        Map<String, SwiftPackageManagerService.BinaryArtifact> known = new LinkedHashMap<>();
+        assertTrue(SwiftPackageManagerService.addArtifact(known, artifacts.get(0)));
+        assertFalse(SwiftPackageManagerService.addArtifact(known, artifacts.get(0)));
+        // archive URLs are chosen by manifests, so they are validated like package URLs
+        assertThrows(ExtenderException.class, () -> SwiftPackageManagerService.addArtifact(known,
+            new SwiftPackageManagerService.BinaryArtifact("https://user:pw@dl.example.com/Foo.zip", "Foo")));
+        assertThrows(ExtenderException.class, () -> SwiftPackageManagerService.addArtifact(known,
+            new SwiftPackageManagerService.BinaryArtifact("https://dl.example.com:8443/Foo.zip", "Foo")));
+        for (int i = known.size(); i < SwiftPackageManagerService.MAX_BINARY_ARTIFACTS; i++) {
+            assertTrue(SwiftPackageManagerService.addArtifact(known,
+                new SwiftPackageManagerService.BinaryArtifact("https://dl.example.com/sdk/" + i + ".zip", "T" + i)));
+        }
+        assertThrows(ExtenderException.class, () -> SwiftPackageManagerService.addArtifact(known,
+            new SwiftPackageManagerService.BinaryArtifact("https://dl.example.com/sdk/more.zip", "More")));
+    }
+
+    @Test
+    public void testRejectedArchivesAreFoundThroughTheDeclaringManifest(@TempDir File dir) throws IOException {
+        String log = "error: checksum of downloaded artifact of binary target 'Sentry' (ab) "
+            + SwiftPackageManagerService.CHECKSUM_MISMATCH_MARKER + " (cd)\n"
+            + "  checksum of downloaded artifact of binary target 'Sentry' (ab) does not match\n"
+            + "error: checksum of downloaded artifact of binary target 'Other' (ef) does not match";
+        assertEquals(List.of("Sentry", "Other"), SwiftPackageManagerService.harvestMismatchedTargets(log));
+        assertEquals(List.of(), SwiftPackageManagerService.harvestMismatchedTargets(null));
+
+        File pkg = new File(dir, "checkouts/sentry-cocoa");
+        pkg.mkdirs();
+        Files.writeString(new File(pkg, "Package.swift").toPath(),
+            "let package = Package(\n    targets: [\n"
+            + "    .binaryTarget(\n        name: \"Sentry\",\n"
+            + "        url: \"https://github.com/getsentry/sentry-cocoa/releases/download/9.18.0/Sentry.xcframework.zip\",\n"
+            + "        checksum: \"ab\"\n    ),\n"
+            + "    .binaryTarget(name: \"Sentry-Dynamic\", url: \"https://example.com/Dynamic.zip\", checksum: \"cd\"),\n"
+            + "    .binaryTarget(name: \"Local\", path: \"Local.xcframework\")])\n");
+        assertEquals("https://github.com/getsentry/sentry-cocoa/releases/download/9.18.0/Sentry.xcframework.zip",
+            SwiftPackageManagerService.findArtifactUrlInCheckouts(dir, "Sentry"));
+        assertEquals("https://example.com/Dynamic.zip", SwiftPackageManagerService.findArtifactUrlInCheckouts(dir, "Sentry-Dynamic"));
+        assertNull(SwiftPackageManagerService.findArtifactUrlInCheckouts(dir, "Local"));
+        assertNull(SwiftPackageManagerService.findArtifactUrlInCheckouts(dir, "Other"));
+        assertNull(SwiftPackageManagerService.findArtifactUrlInCheckouts(new File(dir, "nowhere"), "Sentry"));
+    }
+
+    @Test
+    public void testArtifactCacheNamesMatchSwiftPM() {
+        // names SwiftPM 6.x wrote into <packageCache>/artifacts for these URLs
+        assertEquals("https___dl_google_com_firebase_ios_swiftpm_12_15_0_FirebaseAnalytics_zip",
+            SwiftPackageManagerService.artifactCacheName("https://dl.google.com/firebase/ios/swiftpm/12.15.0/FirebaseAnalytics.zip"));
+        assertEquals("https___github_com_getsentry_sentry_cocoa_releases_download_9_18_0_Sentry_Dynamic_WithARM64e_xcframework_zip",
+            SwiftPackageManagerService.artifactCacheName("https://github.com/getsentry/sentry-cocoa/releases/download/9.18.0/Sentry-Dynamic-WithARM64e.xcframework.zip"));
+        assertEquals("https___dl_google_com_firebase_ios_bin_firestore_12_15_0_rc0_FirebaseFirestoreInternal_zip",
+            SwiftPackageManagerService.artifactCacheName("https://dl.google.com/firebase/ios/bin/firestore/12.15.0/rc0/FirebaseFirestoreInternal.zip"));
+        assertEquals("https___github_com_facebook_facebook_ios_sdk_releases_download_v18_1_0_FBSDKCoreKit_Dynamic_XCFramework_zip",
+            SwiftPackageManagerService.artifactCacheName("https://github.com/facebook/facebook-ios-sdk/releases/download/v18.1.0/FBSDKCoreKit-Dynamic_XCFramework.zip"));
+        assertEquals("_1_x_zip", SwiftPackageManagerService.artifactCacheName("1%x.zip"));
+    }
+
+    @Test
     public void testHarvestedUrlsAreValidatedAndCapped() throws ExtenderException {
         Map<String, SwiftPackageManagerService.PackageRepo> repos = new LinkedHashMap<>();
         assertTrue(SwiftPackageManagerService.addRepo(repos, "https://github.com/acme/Pkg.git"));
@@ -278,7 +350,9 @@ public class SwiftPackageManagerServiceTest {
             .contains("could not be mirrored"));
         assertTrue(SwiftPackageManagerService.offlineBuildHint("failed downloading 'https://github.com/getsentry/sentry-cocoa/"
             + "releases/download/9.0.0/Sentry.xcframework.zip' which is required by binary target 'Sentry': downloadError(...)")
-            .contains("Binary targets"));
+            .contains("could not use it"));
+        assertTrue(SwiftPackageManagerService.offlineBuildHint("error: checksum of downloaded artifact of binary target 'Sentry' (ab) "
+            + SwiftPackageManagerService.CHECKSUM_MISMATCH_MARKER + " (cd)").contains("publisher replaced"));
     }
 
     /**

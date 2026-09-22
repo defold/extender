@@ -204,10 +204,17 @@ are capped. A mirror is fetched at most once per `extender.spm.mirror-refresh-in
 minutes by default), so parallel builds of one graph cost one fetch per repository rather than
 one per build.
 
-Fails closed: a location plain git cannot clone, a graph that outgrows the caps, and a binary
-target (an xcframework SwiftPM downloads over HTTP during resolution) each fail the build with
-a message saying so. Packages with binary targets, such as Sentry and Firebase, are therefore
-not supported.
+Binary targets (xcframework archives SwiftPM downloads over HTTPS during resolution, as in
+Sentry and Firebase) go the same way: SwiftPM reads an archive from its package cache before it
+tries the network, so the archives a round names as missing are fetched by plain `curl` (https
+only, redirects included, size and time capped, only the artifact cache writable) and the round
+is repeated; SwiftPM then verifies every archive against the checksum the consuming manifest
+declares, and a mismatch evicts and refetches once. Archive URLs are validated like package
+URLs and capped at 64 per graph.
+
+Fails closed: a location plain git cannot clone, an archive curl cannot fetch, a graph that
+outgrows the caps, and an archive that still does not match its manifest checksum each fail
+the build with a message saying so.
 
 Known limits: `xcodebuild` (SPM) resolves the home through getpwuid, so
 SwiftPM's manifest/collection databases, its fingerprint store and the clang module cache used
