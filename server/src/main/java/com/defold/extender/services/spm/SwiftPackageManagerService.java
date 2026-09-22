@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -114,8 +113,10 @@ public class SwiftPackageManagerService {
     static final String CHECKSUM_MISMATCH_MARKER = "does not match checksum specified by the manifest";
 
     private final Object syncLock = new Object();
-    // one git process at a time per mirror; concurrent jobs pinning the same package wait
-    private final ConcurrentHashMap<String, Object> mirrorLocks = new ConcurrentHashMap<>();
+    // one git or curl process at a time per mirror or archive; concurrent jobs wanting the same
+    // one wait. Striped by path hash so uploads naming ever new URLs cannot grow the registry
+    private static final int LOCK_STRIPES = 64;
+    private final Object[] fetchLocks = new Object[LOCK_STRIPES];
     // builds take the read lock (SwiftPM locks concurrent resolutions inside the cache
     // itself), rotation and cleanup take the write lock
     private final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock(true);
@@ -146,6 +147,9 @@ public class SwiftPackageManagerService {
             MeterRegistry meterRegistry) throws IOException {
         this.meterRegistry = meterRegistry;
         this.spmConfiguration = spmConfiguration;
+        for (int i = 0; i < LOCK_STRIPES; i++) {
+            fetchLocks[i] = new Object();
+        }
         this.packageSwiftTemplateContents = ExtenderUtil.readContentFromResource(packageSwiftTemplate);
         this.projectYmlTemplateContents = ExtenderUtil.readContentFromResource(projectYmlTemplate);
     }
@@ -696,18 +700,19 @@ public class SwiftPackageManagerService {
             if (!artifactsRetried && failure.contains(CHECKSUM_MISMATCH_MARKER)) {
                 // the archive behind a URL changed since it was cached (or a build tampered
                 // with the cache): fetch the rejected archives again, once. A cached archive
-                // was never named to this job, so its URL comes from the declaring manifest;
-                // when that fails the whole artifact cache goes
+                // was never named to this job, so its URL comes from the declaring manifest
                 artifactsRetried = true;
                 evictArtifacts = true;
                 for (String targetName : harvestMismatchedTargets(failure)) {
                     String url = findArtifactUrlInCheckouts(clonedSourcesDir, targetName);
                     if (url == null) {
-                        LOGGER.info("Cannot tell which archive binary target {} rejected, clearing the artifact cache", targetName);
-                        FileUtils.deleteQuietly(artifactsDir);
-                    } else {
-                        addArtifact(artifacts, new BinaryArtifact(url, targetName));
+                        // the cache is shared with every concurrent build of this Xcode
+                        // version, so nothing wider than the one archive may be evicted
+                        throw new ExtenderException(String.format("The cached archive of Swift binary target %s does not "
+                            + "match the checksum its manifest declares, and the manifest does not spell the archive URL "
+                            + "as a literal next to the target name, so it cannot be fetched again:\n%s", targetName, failure));
                     }
+                    addArtifact(artifacts, new BinaryArtifact(url, targetName));
                 }
                 LOGGER.info("A cached Swift package archive does not match its manifest checksum, fetching again");
                 continue;
@@ -746,8 +751,7 @@ public class SwiftPackageManagerService {
         Map<String, File> mirrors = new LinkedHashMap<>();
         for (PackageRepo repo : repos) {
             File mirror = new File(mirrorsDir, mirrorDirName(repo.key));
-            Object lock = mirrorLocks.computeIfAbsent(mirror.getAbsolutePath(), k -> new Object());
-            synchronized (lock) {
+            synchronized (fetchLock(mirror)) {
                 updateMirror(mirror, repo, mirrorsDir, buildState, processEnv, forceRefresh);
             }
             mirrors.put(repo.key, mirror);
@@ -809,8 +813,7 @@ public class SwiftPackageManagerService {
             if (evict) {
                 FileUtils.deleteQuietly(archive);
             }
-            Object lock = mirrorLocks.computeIfAbsent(archive.getAbsolutePath(), k -> new Object());
-            synchronized (lock) {
+            synchronized (fetchLock(archive)) {
                 if (archive.isFile()) {
                     LOGGER.info("Archive of binary target {} is cached", artifact.targetName);
                     continue;
@@ -850,6 +853,10 @@ public class SwiftPackageManagerService {
         } finally {
             FileUtils.deleteQuietly(part);
         }
+    }
+
+    private Object fetchLock(File path) {
+        return fetchLocks[Math.floorMod(path.getAbsolutePath().hashCode(), LOCK_STRIPES)];
     }
 
     /** Network on, the artifact cache the only writable location. */

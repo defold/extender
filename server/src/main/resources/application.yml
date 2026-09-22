@@ -72,7 +72,9 @@ extender:
             /Library/Ruby,/Library/Preferences/com.apple.LaunchServices,
             /Library/Preferences/com.apple.dt.Xcode.plist,/Library/Preferences/com.apple.security.plist,
             /private/var/db/timezone,~/.CFUserTextEncoding
-        read-write-paths: /dev
+        # device nodes only: /dev as a whole would include the world-writable /dev/shm, where
+        # a build could leave files for the next one (macOS covers these through system.sb)
+        read-write-paths: /dev/null,/dev/zero,/dev/full,/dev/random,/dev/urandom,/dev/tty,/dev/ptmx,/dev/pts
         read-write-exec-paths: ''
         image-read-write-paths: ''
         # environment variables whose values are directories (or files) granted read-only and

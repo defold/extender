@@ -138,7 +138,9 @@ Configuration (`extender.sandbox.*` in `application.yml`; environment variables 
   deny rules, so `/etc` is granted as an enumerated subset: **never mount a secret under a
   granted path**. `/etc/extender/credentials`, `/etc/extender/configs` and `/etc/defold/users`
   are not granted. Paths that do not exist on a host are skipped, so the one list also carries
-  the macOS entries (`/System`, `/Library/Developer`, ...).
+  the macOS entries (`/System`, `/Library/Developer`, ...). `read-write-paths` names device
+  nodes, not `/dev`: the world-writable `/dev/shm` would let a build leave files for the next
+  one (a tool that needs it gets it through `image-read-write-paths`).
 * `read-only-env-variables` - variables whose values are granted read-only + execute per command:
   the Defold SDK (`DYNAMO_HOME`), the manifest merge tool, the macOS `PLATFORMSDK_DIR` and
   xctoolchain, zig, the JDK, dotnet, and `DEVELOPER_DIR` (widened to its `Xcode.app`).
