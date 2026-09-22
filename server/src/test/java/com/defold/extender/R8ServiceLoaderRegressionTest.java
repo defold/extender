@@ -117,9 +117,9 @@ public class R8ServiceLoaderRegressionTest {
     @Test
     void returnsR8RewrittenServiceDescriptorInsteadOfOriginalNames(@TempDir Path tempDir)
             throws Exception {
-        assertEquals(8, Version.getMajorVersion());
-        assertEquals(13, Version.getMinorVersion());
-        assertEquals(19, Version.getPatchVersion());
+        assertEquals(9, Version.getMajorVersion());
+        assertEquals(4, Version.getMinorVersion());
+        assertEquals(24, Version.getPatchVersion());
 
         Path programSources = tempDir.resolve("program-sources");
         Path programClasses = tempDir.resolve("program-classes");
@@ -197,7 +197,7 @@ public class R8ServiceLoaderRegressionTest {
 
         PlatformConfig config = new PlatformConfig();
         config.r8Cmd = "in-process-r8 --output \"{{{classes_dex_dir}}}\"";
-        config.r8Version = "8.13.19";
+        config.r8Version = "9.4.24";
         R8Builder builder = new R8Builder(
                 uploadDir.toFile(),
                 buildDir.toFile(),
