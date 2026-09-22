@@ -93,6 +93,14 @@ final class SeatbeltProfile {
             // network a DNS lookup would still carry data out through mDNSResponder
             sb.append("(allow network* (local unix-socket) (remote unix-socket))\n");
             sb.append("(deny network-outbound (literal \"/private/var/run/mDNSResponder\"))\n");
+            // Per-session agent sockets (ssh-agent, and gpg-agent when forwarded) live in the
+            // launchd per-session directories, which are under /private/var/run for a login
+            // session and /private/tmp for some daemon contexts. The variables naming them are
+            // scrubbed by env-deny-patterns; this stops a hardcoded path as well. Verified: with
+            // this rule `ssh-add -l` under a Network.NONE profile fails with EPERM instead of
+            // listing the operator's keys.
+            sb.append("(deny network-outbound (regex ")
+                    .append(rawRegex("^/private/(var/run|tmp)/com\\.apple\\.launchd\\.")).append("))\n");
         }
 
         for (String rule : grants.extraRules()) {
@@ -104,6 +112,9 @@ final class SeatbeltProfile {
         // last so that they win over every grant above
         if (!grants.denyPaths().isEmpty()) {
             sb.append("(deny file*").append(pathFilters(grants.denyPaths())).append(")\n");
+            // connecting to a unix socket is network-outbound, not file*, so ~/.gnupg/S.gpg-agent
+            // and the like need denying in both vocabularies
+            sb.append("(deny network-outbound").append(pathFilters(grants.denyPaths())).append(")\n");
         }
         if (!grants.denyExecPaths().isEmpty()) {
             sb.append("(deny process-exec");

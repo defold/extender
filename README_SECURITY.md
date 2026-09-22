@@ -113,8 +113,11 @@ seccomp and rlimits without needing any capabilities:
 * **Network**: off. `socket()` fails for every address family except `AF_UNIX`. Only the two
   dependency resolvers (Gradle, NuGet restore for C#) run with network.
 * **Environment**: rebuilt for each command. Variables matching `env-deny-patterns`
-  (tokens, secrets, `GOOGLE_APPLICATION_CREDENTIALS`, ...) are never inherited; `HOME`,
-  `TMPDIR` and clang's module cache point into the job directory.
+  (tokens, secrets, `GOOGLE_APPLICATION_CREDENTIALS`, the agent sockets `SSH_AUTH_SOCK`,
+  `SSH_AGENT_PID`, `GPG_AGENT_INFO` and `DBUS_SESSION_BUS_ADDRESS`, ...) are never
+  inherited; `HOME`, `TMPDIR` and clang's module cache point into the job directory.
+  The agent variables matter because both launchers allow `AF_UNIX`: one of them is all a
+  network-off command needs to sign a challenge with the operator's SSH keys.
 * **Lifecycle**: a wall-clock timeout per command, and the whole process tree is killed when the
   command ends, so nothing outlives a build.
 
@@ -243,5 +246,7 @@ no pty rule: SBPL cannot name the slave a command allocates for itself, so any `
 rule wide enough to cover it also covers the terminals of the operator's other sessions.
 `/dev/ptmx` still reaches the profile through `read-write-paths` for the Linux launcher's
 sake, but read/write with no `file-ioctl` grant is useless as a pty master; a command that
-genuinely needs a pty would have to be given a narrower grant of its own. Seatbelt denials
+genuinely needs a pty would have to be given a narrower grant of its own. The launchd
+per-session directories are denied as `network-outbound` so a hardcoded agent socket path
+fails even though `AF_UNIX` is allowed. Seatbelt denials
 are visible with `/usr/bin/log stream --style compact --predicate 'sender == "Sandbox"'`.

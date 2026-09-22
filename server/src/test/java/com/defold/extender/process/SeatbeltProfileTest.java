@@ -86,6 +86,13 @@ public class SeatbeltProfileTest {
     }
 
     @Test
+    public void agentSocketsAreDeniedUnderNetworkNone(@TempDir Path root) {
+        String profile = SeatbeltProfile.render(grants(Set.of(), paths(root), Set.of(), SandboxPolicy.Network.NONE));
+        // unix sockets stay allowed, but not the launchd directories holding ssh-agent's
+        assertTrue(profile.contains("(deny network-outbound (regex #\"^/private/(var/run|tmp)/com\\.apple\\.launchd\\.\"))"), profile);
+    }
+
+    @Test
     public void networkNoneKeepsUnixSocketsButNotTheResolver(@TempDir Path root) {
         String none = SeatbeltProfile.render(grants(Set.of(), paths(root), Set.of(), SandboxPolicy.Network.NONE));
         assertTrue(none.contains("(allow network* (local unix-socket) (remote unix-socket))"), none);
@@ -113,7 +120,9 @@ public class SeatbeltProfileTest {
         assertTrue(profile.contains("(allow sysctl-write)\n"), profile);
         List<String> lines = profile.lines().toList();
         assertEquals("(deny process-exec (literal \"/usr/bin/sudo\") (literal \"/usr/bin/security\"))", lines.get(lines.size() - 1));
-        assertEquals("(deny file* (subpath " + SeatbeltProfile.quote(keychains.toString()) + "))", lines.get(lines.size() - 2));
+        // a unix socket under a denied path is reached with network-outbound, not file*
+        assertEquals("(deny network-outbound (subpath " + SeatbeltProfile.quote(keychains.toString()) + "))", lines.get(lines.size() - 2));
+        assertEquals("(deny file* (subpath " + SeatbeltProfile.quote(keychains.toString()) + "))", lines.get(lines.size() - 3));
         assertTrue(profile.indexOf("(allow sysctl-write)") < profile.indexOf("(deny file*"), profile);
     }
 

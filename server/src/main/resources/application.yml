@@ -100,6 +100,12 @@ extender:
             - 'JAVA_TOOL_OPTIONS'
             - '_JAVA_OPTIONS'
             - 'JDK_JAVA_OPTIONS'
+            # agent sockets: both launchers allow AF_UNIX, so a variable naming an agent's
+            # socket is enough to sign with the operator's keys from a network-off command
+            - 'SSH_AUTH_SOCK'
+            - 'SSH_AGENT_PID'
+            - 'GPG_AGENT_INFO'
+            - 'DBUS_SESSION_BUS_ADDRESS'
         limits:
             # RLIMIT_CPU sums CPU time across threads and would kill multi-threaded
             # linkers/wasm-opt; the wall-clock command-timeout bounds runtime instead. 0 = off.
