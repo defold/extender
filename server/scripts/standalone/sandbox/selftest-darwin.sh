@@ -66,8 +66,23 @@ else
     fail "write and rename inside job dir"
 fi
 
-# 5. writes to a read-only tree are denied
-if run sh -c "echo x > /usr/extender-sandbox-selftest" 2>/dev/null; then fail "write into /usr succeeded"; rm -f /usr/extender-sandbox-selftest; else pass "write into read-only tree denied"; fi
+# 5. writes to a read-only tree are denied.
+# Not /usr: that is on the sealed system volume, so the write fails with no sandbox at all and
+# the check would pass against an unconfined launcher. $sbdir is granted read-only by BASE and
+# is genuinely writable by this user, which is what makes the denial attributable to Seatbelt -
+# the positive control below asserts exactly that.
+ro_target="$sbdir/.extender-sandbox-selftest"
+if echo x > "$ro_target" 2>/dev/null; then
+    rm -f "$ro_target"
+    if run sh -c "echo x > '$ro_target'" 2>/dev/null; then
+        fail "write into the read-only tree $sbdir succeeded"
+        rm -f "$ro_target"
+    else
+        pass "write into read-only tree denied"
+    fi
+else
+    fail "control: $sbdir is not writable unsandboxed, so the read-only check proves nothing"
+fi
 
 # 6. no exec from the writable job dir
 cp /usr/bin/true "$tmp/true-copy"
@@ -80,10 +95,12 @@ out=$("$SB" --profile "$BASE$REGEX$NET_NONE" --strict -- sh -c "echo hi > '$tmp-
 rm -rf "$tmp-x"
 if [ "$out" = "yes" ]; then pass "regex grant scoped to its pattern"; else fail "regex grant: got '$out'"; fi
 
-# 8. sockets: only AF_UNIX under no-network, everything with network
+# 8. sockets. The unix answer is a connect to the one socket a Network.NONE profile denies by
+# name (mDNSResponder), not a bare socket(AF_UNIX) - that always succeeds and would read "ok"
+# with no sandbox at all, which is how this check used to pass without enforcement.
 out=$(run "$SB" --check-sockets 2>&1)
 case "$out" in
-    "unix=ok inet=EPERM inet6=EPERM") pass "net none: $out" ;;
+    "unix=EPERM inet=EPERM inet6=EPERM") pass "net none: $out" ;;
     *) fail "net none: $out" ;;
 esac
 out=$(run_net "$SB" --check-sockets 2>&1)

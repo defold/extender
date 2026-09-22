@@ -34,14 +34,17 @@ trap 'rm -rf "$tmp"' EXIT
 # Same shape as the server's toolchain policy: system tree read-only (including /proc, which
 # emulation layers such as Rosetta need for /proc/self/exe), one job dir writable.
 RO="--ro /usr --ro /lib --ro /lib64 --ro /bin --ro /proc --ro /etc/ld.so.cache --ro /etc/passwd"
+# individual device nodes, as the images grant them (read-write-paths in application.yml);
+# "--rw /dev" would be a directory rule and would never exercise the single-file path
+DEV="--rw /dev/null --rw /dev/zero --rw /dev/full --rw /dev/random --rw /dev/urandom"
 run() {
     # shellcheck disable=SC2086
-    "$SB" $RO --rw "$tmp" --rw /dev --net none --nproc 4096 --nofile 1024 --strict -- "$@"
+    "$SB" $RO --rw "$tmp" $DEV --net none --nproc 4096 --nofile 1024 --strict -- "$@"
 }
 
 run_net() {
     # shellcheck disable=SC2086
-    "$SB" $RO --rw "$tmp" --rw /dev --net all --strict -- "$@"
+    "$SB" $RO --rw "$tmp" $DEV --net all --strict -- "$@"
 }
 
 # 1. granted read-only path is readable
@@ -60,12 +63,31 @@ else
     fail "write and rename inside job dir"
 fi
 
-# 5. writes to a read-only tree are denied
-if run sh -c "echo x > /usr/extender-sandbox-selftest" 2>/dev/null; then fail "write into /usr succeeded"; rm -f /usr/extender-sandbox-selftest; else pass "write into read-only tree denied"; fi
+# 5. writes to a read-only tree are denied. The control first proves the path is writable
+# without the sandbox: as a non-root user it is not, and the denial would then say nothing
+# about Landlock.
+ro_target=/usr/.extender-sandbox-selftest
+if echo x > "$ro_target" 2>/dev/null; then
+    rm -f "$ro_target"
+    if run sh -c "echo x > $ro_target" 2>/dev/null; then
+        fail "write into /usr succeeded"
+        rm -f "$ro_target"
+    else
+        pass "write into read-only tree denied"
+    fi
+else
+    echo "skip: /usr is not writable unsandboxed (not root), read-only check inconclusive"
+fi
 
 # 6. no exec from the writable job dir
 cp /bin/true "$tmp/true-copy" 2>/dev/null || cp "$(command -v true)" "$tmp/true-copy"
-if run "$tmp/true-copy" 2>/dev/null; then fail "exec from writable job dir succeeded"; else pass "exec from writable dir denied"; fi
+if [ ! -x "$tmp/true-copy" ]; then
+    fail "control: could not stage an executable in the job dir, exec check proves nothing"
+elif run "$tmp/true-copy" 2>/dev/null; then
+    fail "exec from writable job dir succeeded"
+else
+    pass "exec from writable dir denied"
+fi
 
 # 7. sockets: only AF_UNIX under --net none, everything under --net all
 out=$(run "$SB" --check-sockets 2>&1)
@@ -95,7 +117,7 @@ if sleeping; then fail "background sleep survived the command"; else pass "proce
 # 10. SIGTERM to the launcher kills the tree (the launcher itself is backgrounded, not a
 #     shell function, so $! is its pid)
 # shellcheck disable=SC2086
-"$SB" $RO --rw "$tmp" --rw /dev --net none --strict -- sleep 300 &
+"$SB" $RO --rw "$tmp" $DEV --net none --strict -- sleep 300 &
 launcher=$!
 sleep 1
 kill -TERM "$launcher"
@@ -104,9 +126,13 @@ sleep 1
 if sleeping; then fail "sleep survived SIGTERM to the launcher"; else pass "SIGTERM kills the tree (launcher exit $rc)"; fi
 
 # 11. RLIMIT_FSIZE is enforced
-if run sh -c "dd if=/dev/zero of='$tmp/big' bs=1k count=8 2>/dev/null"; then :; fi
+if run sh -c "dd if=/dev/zero of='$tmp/big' bs=1k count=8 2>/dev/null"; then
+    pass "control: an 8k write succeeds without --fsize"
+else
+    fail "control: an 8k write failed without --fsize, so the RLIMIT_FSIZE check proves nothing"
+fi
 # shellcheck disable=SC2086
-if "$SB" $RO --rw "$tmp" --rw /dev --fsize 4096 --strict -- sh -c "dd if=/dev/zero of='$tmp/big2' bs=1k count=8 2>/dev/null"; then
+if "$SB" $RO --rw "$tmp" $DEV --fsize 4096 --strict -- sh -c "dd if=/dev/zero of='$tmp/big2' bs=1k count=8 2>/dev/null"; then
     fail "file larger than RLIMIT_FSIZE was written"
 else
     pass "RLIMIT_FSIZE enforced"

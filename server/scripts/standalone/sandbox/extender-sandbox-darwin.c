@@ -47,6 +47,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -386,7 +387,19 @@ static void check_sockets(void) {
             continue;
         }
         int denied = 0;
-        if (families[i].family == AF_INET) {
+        if (families[i].family == AF_UNIX) {
+            /*
+             * socket(AF_UNIX) itself is never refused by Seatbelt, so creating one says nothing
+             * about the policy and "unix=ok" would print identically with no sandbox at all.
+             * Connect to the one unix socket a Network.NONE profile denies by name, which makes
+             * the answer differ between the two profiles and between enforced and not.
+             */
+            struct sockaddr_un sun;
+            memset(&sun, 0, sizeof(sun));
+            sun.sun_family = AF_UNIX;
+            strncpy(sun.sun_path, "/var/run/mDNSResponder", sizeof(sun.sun_path) - 1);
+            denied = connect(fd, (struct sockaddr *)&sun, sizeof(sun)) != 0 && errno == EPERM;
+        } else if (families[i].family == AF_INET) {
             struct sockaddr_in sin;
             memset(&sin, 0, sizeof(sin));
             sin.sin_family = AF_INET;
