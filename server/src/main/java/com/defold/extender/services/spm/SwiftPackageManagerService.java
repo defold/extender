@@ -46,6 +46,7 @@ import com.defold.extender.PlatformConfig;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessExecutor;
+import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.DarwinSandboxPaths;
 import com.defold.extender.process.SandboxPolicy;
 import com.defold.extender.services.spm.SpmBuildOutputParser.LinkInfo;
@@ -961,10 +962,6 @@ public class SwiftPackageManagerService {
             File mirrorsDir, File gitConfig, Map<String, String> processEnv) throws IOException, ExtenderException {
         List<String> args = new ArrayList<>(List.of(
             "xcodebuild",
-            // SwiftPM sandboxes manifest compilation with its own sandbox-exec, which the
-            // kernel refuses inside the process sandbox xcodebuild already runs in (no rule
-            // permits a nested Seatbelt); the outer sandbox denies the network instead
-            "-IDEPackageSupportDisableManifestSandbox=YES",
             "-project", buildState.getXcodeProjDir().getAbsolutePath(),
             "-scheme", SpmServiceBuildState.WRAPPER_NAME,
             "-destination", buildState.getDestination(),
@@ -976,6 +973,13 @@ public class SwiftPackageManagerService {
             "-skipPackagePluginValidation",
             "CLANG_MODULE_CACHE_PATH=" + buildState.getModuleCacheDir().getAbsolutePath(),
             "CODE_SIGNING_ALLOWED=NO"));
+        // Package.swift manifests, plugins and macros are untrusted code SwiftPM compiles and
+        // runs. SwiftPM confines them with its own nested sandbox-exec, which the kernel refuses
+        // inside the process sandbox xcodebuild already runs in, so that confinement is dropped
+        // only where the outer sandbox replaces it - never where the sandbox is switched off.
+        if (ProcessSandbox.current().isEnabled()) {
+            args.add("-IDEPackageSupportDisableManifestSandbox=YES");
+        }
         args.addAll(buildState.getExtraBuildSettings());
         args.add("build");
 
