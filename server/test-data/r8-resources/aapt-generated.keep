@@ -1,0 +1,7 @@
+# Referenced at AndroidManifest.xml:4
+-keep class com.defold.r8resources.ResourceMain { <init>(); }
+# Referenced at res/layout/unused_layout.xml:1
+-keep class com.defold.r8resources.UnusedView { <init>(...); }
+
+# Referenced at res/layout/used_layout.xml:1
+-keep class com.defold.r8resources.XmlView { <init>(...); }

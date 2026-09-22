@@ -1,0 +1,1 @@
+-keep class com.defold.r8resources.ResourceMain { *; }
