@@ -45,6 +45,7 @@ import com.defold.extender.ExtenderUtil;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.CommandTimeoutException;
 import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.DarwinSandboxPaths;
@@ -997,6 +998,11 @@ public class SwiftPackageManagerService {
             Thread.currentThread().interrupt();
             writeBuildLog(buildState, processExecutor);
             throw new IOException("Interrupted while building the Swift package graph", e);
+        } catch (CommandTimeoutException e) {
+            // the log is a partial one: its "Fetching from ..." lines would look like newly
+            // discovered packages and start another full-timeout round, up to MAX_RESOLVE_ROUNDS
+            writeBuildLog(buildState, processExecutor);
+            throw e;
         } catch (IOException e) {
             writeBuildLog(buildState, processExecutor);
             String output = processExecutor.getOutput();

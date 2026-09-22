@@ -81,7 +81,10 @@ public class SandboxConfigurationTest {
     @Test
     public void testRejectsInvalidValues() {
         SandboxConfiguration configuration = new SandboxConfiguration();
-        assertThrows(IllegalArgumentException.class, () -> configuration.setCommandTimeout(0));
+        assertThrows(IllegalArgumentException.class, () -> configuration.setCommandTimeout(-1));
+        // 0 means "no limit", as it does in ProcessExecutor and ProcessSandbox
+        configuration.setCommandTimeout(0);
+        assertEquals(0, configuration.getCommandTimeout());
         assertThrows(IllegalArgumentException.class, () -> configuration.setLauncherPath(" "));
         assertThrows(IllegalArgumentException.class, () -> configuration.getLimits().setMaxProcesses(-1));
         assertThrows(IllegalArgumentException.class, () -> configuration.getLimits().setMaxFileSizeBytes(-1));

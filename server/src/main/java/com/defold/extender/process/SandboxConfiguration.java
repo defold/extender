@@ -221,9 +221,12 @@ public class SandboxConfiguration {
     }
 
     public void setCommandTimeout(long commandTimeout) {
-        if (commandTimeout <= 0) {
-            throw new IllegalArgumentException("extender.sandbox.command-timeout must be positive");
+        if (commandTimeout < 0) {
+            throw new IllegalArgumentException("extender.sandbox.command-timeout must not be negative");
         }
+        // 0 = off, as ProcessSandbox.commandTimeoutMillis and ProcessExecutor.setCommandTimeout
+        // both document and implement; rejecting it here left an operator whose builds legitimately
+        // outrun the limit with no way to raise or disable it short of a startup failure.
         this.commandTimeout = commandTimeout;
     }
 

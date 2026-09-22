@@ -167,7 +167,7 @@ public class ProcessExecutor {
         if (timedOut.get() && exitValue != 0) {
             String message = String.format("Command timed out after %d ms: %s\n", timeout, String.join(" ", args));
             putLog(message);
-            throw new IOException(message + output.toString());
+            throw new CommandTimeoutException(message + output.toString());
         }
 
         // note: a negative exit value means the process was terminated by a signal,
