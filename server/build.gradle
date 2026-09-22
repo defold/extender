@@ -124,7 +124,7 @@ dependencies {
     testImplementation('org.springframework.security:spring-security-test')
 
     testImplementation('org.smali:dexlib2:2.5.2')
-    testImplementation('com.android.tools:r8:9.4.24')
+    testImplementation('com.android.tools:r8:8.13.19')
     testImplementation project(':client')
     testImplementation('org.wiremock:wiremock-standalone:3.13.2')
 }

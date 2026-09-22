@@ -317,7 +317,7 @@ public class ExtenderTest {
     {
         Map<String, String> env = createEnv();
         env.put("ANDROID_R8", "/opt/android/r8.jar");
-        env.put("ANDROID_R8_VERSION", "9.4.24");
+        env.put("ANDROID_R8_VERSION", "8.13.19");
         env.put("ANDROID_LIBRARYJAR", "/opt/android/android.jar");
         env.put("ANDROID_NDK_PATH", "/opt/android/ndk");
         env.put("ANDROID_NDK_SYSROOT", "/opt/android/ndk/sysroot");

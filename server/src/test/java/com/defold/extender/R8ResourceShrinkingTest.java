@@ -107,7 +107,7 @@ public class R8ResourceShrinkingTest {
         Files.createDirectories(build);
         Map<String, Object> context = new HashMap<>();
         context.put("env.R8", "in-process-r8.jar");
-        context.put("env.R8_VERSION", "9.4.24");
+        context.put("env.R8_VERSION", "8.13.19");
         context.put("env.LIBRARYJAR", library.toString());
         return new R8Builder(upload.toFile(), build.toFile(), config, List.of(), context, 21,
                 new R8Configuration(), new TemplateExecutor(), executor);
