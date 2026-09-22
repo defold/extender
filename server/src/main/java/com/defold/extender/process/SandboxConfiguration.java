@@ -111,7 +111,7 @@ public class SandboxConfiguration {
          * temp files and directories) and the xcrun cache ignore TMPDIR. The directory itself (which also holds
          * every job) is never granted.
          */
-        private List<String> userTempPatterns = new ArrayList<>(List.of("TemporaryItems/", "xcrun_db", "[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)"));
+        private List<String> userTempPatterns = new ArrayList<>(List.of("TemporaryItems/", "xcrun_db$", "[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)"));
         /** Raw SBPL rules appended before the deny block; an operator escape hatch. */
         private List<String> extraRules = new ArrayList<>();
 

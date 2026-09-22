@@ -132,7 +132,7 @@ extender:
             # and is never granted.
             user-temp-patterns:
                 - 'TemporaryItems/'
-                - 'xcrun_db'
+                - 'xcrun_db$'
                 - '[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)'
             # raw SBPL lines appended before the deny block, for iterating on a host without a
             # release, e.g. "(allow mach-lookup (global-name \"com.apple.FSEvents\"))"

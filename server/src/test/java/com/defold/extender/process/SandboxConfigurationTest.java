@@ -159,7 +159,7 @@ public class SandboxConfigurationTest {
         assertEquals(SandboxConfiguration.Backend.AUTO, configuration.getBackend());
         assertEquals(List.of("DYNAMO_HOME", "MANIFEST_MERGE_TOOL"), configuration.getReadOnlyEnvVariables());
         assertTrue(configuration.getDarwin().getMachServices().isEmpty());
-        assertEquals(List.of("TemporaryItems/", "xcrun_db", "[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)"), configuration.getDarwin().getUserTempPatterns());
+        assertEquals(List.of("TemporaryItems/", "xcrun_db$", "[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)"), configuration.getDarwin().getUserTempPatterns());
         configuration.setDarwin(null);
         assertTrue(configuration.getDarwin().getDenyPaths().isEmpty());
     }
