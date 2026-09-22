@@ -677,6 +677,15 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "extender-sandbox: seccomp filter rejected: %s (strict mode)\n", strerror(errno));
                 _exit(127);
             }
+            /*
+             * Below Landlock ABI 4 the network denial lives entirely in this filter, and the
+             * ptrace/mount/unshare/bpf/io_uring denials live in it at every ABI, so a command
+             * running without it is far less confined than the server believes. Say so: the
+             * launcher's stderr is merged into the build log.
+             */
+            fprintf(stderr, "extender-sandbox: seccomp filter rejected: %s; continuing without it "
+                    "(no syscall denylist%s)\n", strerror(errno),
+                    (net_none && abi < 4) ? ", network NOT denied" : "");
         }
 
         execvp(argv[cmd_index], &argv[cmd_index]);
