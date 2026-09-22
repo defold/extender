@@ -15,12 +15,17 @@ import org.slf4j.LoggerFactory;
  * Runs {@code extender-sandbox --probe} once at startup and interprets the answer. The Linux
  * launcher reports {@code landlock_abi=<n> seccomp=<yes|no>}, the darwin launcher
  * {@code seatbelt=<yes|no> ...}.
+ *
+ * Landlock ABI 3 (kernel 6.2) is the first that mediates truncate(2); below it a path-based
+ * truncate of a DAC-writable file under a read-only grant goes through, so older kernels do
+ * not count as enforceable.
  */
 final class SandboxLauncherProbe {
     private static final Logger LOGGER = LoggerFactory.getLogger(SandboxLauncherProbe.class);
     private static final Pattern LANDLOCK = Pattern.compile("landlock_abi=(\\d+)\\s+seccomp=(yes|no)");
     private static final Pattern SEATBELT = Pattern.compile("seatbelt=(yes|no)");
     private static final long PROBE_TIMEOUT_SECONDS = 10;
+    static final int MIN_LANDLOCK_ABI = 3;
 
     private SandboxLauncherProbe() {}
 
@@ -35,11 +40,19 @@ final class SandboxLauncherProbe {
         String output = probeOutput == null ? "" : probeOutput.strip();
         Matcher landlock = LANDLOCK.matcher(output);
         if (landlock.find()) {
-            int abi = Integer.parseInt(landlock.group(1));
+            int abi;
+            try {
+                abi = Integer.parseInt(landlock.group(1));
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("Unexpected sandbox launcher probe output: " + probeOutput, e);
+            }
             boolean seccomp = "yes".equals(landlock.group(2));
             StringBuilder missing = new StringBuilder();
             if (abi == 0) {
                 missing.append("Landlock is unavailable (kernel without CONFIG_SECURITY_LANDLOCK or lsm= list)");
+            } else if (abi < MIN_LANDLOCK_ABI) {
+                missing.append("Landlock ABI ").append(abi).append(" cannot mediate truncate(2); ABI ")
+                        .append(MIN_LANDLOCK_ABI).append("+ (kernel 6.2+) is required");
             }
             if (!seccomp) {
                 missing.append(missing.length() > 0 ? "; " : "").append("seccomp filters are unavailable");
@@ -67,11 +80,13 @@ final class SandboxLauncherProbe {
         Process p = pb.start();
         String output;
         try {
-            output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            // the probe prints one line, which fits the pipe buffer: waiting first keeps the
+            // timeout effective against a launcher that hangs without closing its stdout
             if (!p.waitFor(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 p.destroyForcibly();
                 throw new IOException("Sandbox launcher probe timed out: " + launcher);
             }
+            output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         } catch (InterruptedException e) {
             p.destroyForcibly();
             Thread.currentThread().interrupt();

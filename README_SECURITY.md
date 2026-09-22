@@ -126,7 +126,8 @@ Configuration (`extender.sandbox.*` in `application.yml`; environment variables 
   launcher is missing.
 * `backend` - `landlock`, `seatbelt` or `auto` (by operating system); `launcher-path` names the
   launcher for that backend.
-* `strict` - refuse to start when the host kernel offers no Landlock or seccomp (default `true`).
+* `strict` - refuse to start when the host kernel offers no Landlock ABI 3+ (kernel 6.2+, the
+  first that mediates `truncate(2)`) or no seccomp (default `true`).
   Production builders run on Ubuntu 24.04 (kernel 6.8, Landlock ABI 4). Set `strict: false`
   (`EXTENDER_SANDBOX_STRICT=false` with docker compose) only for local development where the
   kernel layers are unreachable, notably `linux/amd64` images run under Rosetta on Apple

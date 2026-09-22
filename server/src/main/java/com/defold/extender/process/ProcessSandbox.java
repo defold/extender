@@ -14,6 +14,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
+import com.defold.extender.log.LogSanitizer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -395,7 +397,7 @@ public final class ProcessSandbox {
         if (!Files.exists(path)) {
             if (warnedMissingPaths.add(path.toString())) {
                 if (warnWhenMissing) {
-                    LOGGER.warn("Sandbox path {} does not exist and is not granted", path);
+                    LOGGER.warn("Sandbox path {} does not exist and is not granted", LogSanitizer.sanitize(path.toString()));
                 } else {
                     LOGGER.debug("Sandbox path {} does not exist and is not granted", path);
                 }
@@ -406,7 +408,7 @@ public final class ProcessSandbox {
             try {
                 return path.toRealPath();
             } catch (IOException e) {
-                LOGGER.warn("Sandbox path {} cannot be resolved and is not granted: {}", path, e.toString());
+                LOGGER.warn("Sandbox path {} cannot be resolved and is not granted: {}", LogSanitizer.sanitize(path.toString()), e.toString());
                 return null;
             }
         }

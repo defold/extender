@@ -153,6 +153,8 @@ services:
       service: remote_builder
     environment:
       - INSTANCE_ID=winsdk-2022-local
+      # legacy image on wine-env 1.5.0, predates the sandbox launcher; not rebuilt
+      - EXTENDER_SANDBOX_ENABLED=false
     profiles:
       - all
       - windows
@@ -294,6 +296,9 @@ services:
     extends:
       file: common-services.yml
       service: test_remote_builder
+    environment:
+      # legacy image on wine-env 1.5.0, predates the sandbox launcher; not rebuilt
+      - EXTENDER_SANDBOX_ENABLED=false
     profiles:
       - test
       - test-windows

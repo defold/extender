@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -636,7 +637,7 @@ public class SwiftPackageManagerService {
     private static void touchFetchMarker(File marker) {
         try {
             Files.write(marker.toPath(), new byte[0]);
-            marker.setLastModified(System.currentTimeMillis());
+            Files.setLastModifiedTime(marker.toPath(), FileTime.fromMillis(System.currentTimeMillis()));
         } catch (IOException e) {
             // costs an extra fetch on the next build, nothing else
             LOGGER.warn("Failed to record the fetch time of {}", marker, e);

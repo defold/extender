@@ -26,7 +26,8 @@ directory, exit code passed through (128+signal when the command died from a sig
 launcher degrades silently, which is what the server does in non-strict mode after logging the
 `--probe` result once at startup.
 
-`--probe` prints `landlock_abi=<n> seccomp=<yes|no>` (`landlock_abi=0` = unavailable).
+`--probe` prints `landlock_abi=<n> seccomp=<yes|no>` (`landlock_abi=0` = unavailable; the server's
+strict mode needs ABI 3+, where `truncate(2)` is mediated).
 `--check-sockets` reports which socket families can be created, for self-tests.
 
 ## Why not bubblewrap / nsjail / firejail

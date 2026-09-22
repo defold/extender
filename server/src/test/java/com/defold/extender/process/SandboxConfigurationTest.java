@@ -101,6 +101,11 @@ public class SandboxConfigurationTest {
         assertTrue(none.missing().contains("Landlock"), none.missing());
         assertTrue(none.missing().contains("seccomp"), none.missing());
         assertFalse(SandboxLauncherProbe.parse("landlock_abi=3 seccomp=no").enforceable());
+        assertTrue(SandboxLauncherProbe.parse("landlock_abi=3 seccomp=yes").enforceable());
+        SandboxLauncherProbe.Result old = SandboxLauncherProbe.parse("landlock_abi=2 seccomp=yes");
+        assertFalse(old.enforceable());
+        assertTrue(old.missing().contains("truncate"), old.missing());
+        assertThrows(IllegalStateException.class, () -> SandboxLauncherProbe.parse("landlock_abi=99999999999 seccomp=yes"));
 
         SandboxLauncherProbe.Result seatbelt = SandboxLauncherProbe.parse("seatbelt=yes sandbox_exec=/usr/bin/sandbox-exec\n");
         assertTrue(seatbelt.enforceable());
@@ -117,7 +122,7 @@ public class SandboxConfigurationTest {
     public void testStrictValidationRefusesMissingLayers() {
         SandboxConfiguration strict = new SandboxConfiguration();
         strict.setStrict(true);
-        SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("landlock_abi=1 seccomp=yes"));
+        SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("landlock_abi=3 seccomp=yes"));
         SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("seatbelt=yes"));
         assertThrows(IllegalStateException.class,
                 () -> SandboxLauncherProbe.validate(strict, SandboxLauncherProbe.parse("landlock_abi=0 seccomp=yes")));
