@@ -47,8 +47,9 @@ final class SeatbeltProfile {
         // server JVM is out of reach
         sb.append("(allow signal (target same-sandbox))\n");
         sb.append("(allow process-info* (target same-sandbox))\n");
-        sb.append("(allow file-ioctl file-read* file-write* (literal \"/dev/tty\") (literal \"/dev/ptmx\")"
-                + " (regex #\"^/dev/ttys[0-9]+$\"))\n");
+        // No pty access: SBPL cannot name the slave a command allocates for itself, so any
+        // /dev/ttys rule wide enough to cover it also covers the terminals of the operator's
+        // other sessions (same uid, crw--w----). Nothing on the build paths needs one.
 
         if (!grants.machServices().isEmpty()) {
             sb.append("(allow mach-lookup");

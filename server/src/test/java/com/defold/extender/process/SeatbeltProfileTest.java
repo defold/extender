@@ -39,7 +39,6 @@ public class SeatbeltProfileTest {
         assertTrue(profile.contains("(allow file-read-metadata)"), profile);
         assertTrue(profile.contains("(allow signal (target same-sandbox))"), profile);
         assertTrue(profile.contains("(allow process-info* (target same-sandbox))"), profile);
-        assertTrue(profile.contains("(literal \"/dev/tty\")"), profile);
         assertFalse(profile.contains("(allow default)"), profile);
     }
 
@@ -73,6 +72,17 @@ public class SeatbeltProfileTest {
         assertEquals(2, writes.size(), profile);
         assertTrue(writes.get(0).contains(SeatbeltProfile.quote(rw.toString())), profile);
         assertTrue(writes.get(1).contains(SeatbeltProfile.quote(rwx.toString())), profile);
+    }
+
+    @Test
+    public void theRendererEmitsNoPtyRule(@TempDir Path root) {
+        String profile = SeatbeltProfile.render(grants(Set.of(), paths(root), Set.of(), SandboxPolicy.Network.NONE));
+        // A /dev/ttys rule wide enough to cover the command's own pty also covers the
+        // operator's other sessions, so the renderer emits none - and with it goes the only
+        // file-ioctl grant in the profile. /dev/ptmx may still arrive through
+        // read-write-paths, but read/write without ioctl is useless as a pty master.
+        assertFalse(profile.contains("/dev/ttys"), profile);
+        assertFalse(profile.contains("file-ioctl"), profile);
     }
 
     @Test

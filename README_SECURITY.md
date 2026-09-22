@@ -238,5 +238,10 @@ shared between jobs, like the Gradle cache on Linux, and manifest code can write
 poisoning surface, without network); the CocoaPods spec repo and download cache are shared by
 design, and podspecs still evaluate with network on; the
 environment reaching a command is the server's minus `env-deny-patterns`, a denylist, so a
-variable that matches no pattern is visible to manifest and podspec code. Seatbelt denials
+variable that matches no pattern is visible to manifest and podspec code. The profile emits
+no pty rule: SBPL cannot name the slave a command allocates for itself, so any `/dev/ttys`
+rule wide enough to cover it also covers the terminals of the operator's other sessions.
+`/dev/ptmx` still reaches the profile through `read-write-paths` for the Linux launcher's
+sake, but read/write with no `file-ioctl` grant is useless as a pty master; a command that
+genuinely needs a pty would have to be given a narrower grant of its own. Seatbelt denials
 are visible with `/usr/bin/log stream --style compact --predicate 'sender == "Sandbox"'`.

@@ -73,8 +73,11 @@ extender:
             /Library/Preferences/com.apple.dt.Xcode.plist,/Library/Preferences/com.apple.security.plist,
             /private/var/db/timezone,~/.CFUserTextEncoding
         # device nodes only: /dev as a whole would include the world-writable /dev/shm, where
-        # a build could leave files for the next one (macOS covers these through system.sb)
-        read-write-paths: /dev/null,/dev/zero,/dev/full,/dev/random,/dev/urandom,/dev/tty,/dev/ptmx,/dev/pts
+        # a build could leave files for the next one (macOS covers these through system.sb).
+        # Not /dev/tty: that resolves to the server's controlling terminal, which is the
+        # operator's own when the service was started from a shell. ptmx/pts stay - they are
+        # how a command allocates a pty of its own on Linux.
+        read-write-paths: /dev/null,/dev/zero,/dev/full,/dev/random,/dev/urandom,/dev/ptmx,/dev/pts
         read-write-exec-paths: ''
         image-read-write-paths: ''
         # environment variables whose values are directories (or files) granted read-only and
