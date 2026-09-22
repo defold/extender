@@ -140,7 +140,12 @@ Configuration (`extender.sandbox.*` in `application.yml`; environment variables 
   are not granted. Paths that do not exist on a host are skipped, so the one list also carries
   the macOS entries (`/System`, `/Library/Developer`, ...). `read-write-paths` names device
   nodes, not `/dev`: the world-writable `/dev/shm` would let a build leave files for the next
-  one (a tool that needs it gets it through `image-read-write-paths`).
+  one. Nothing on the shipped build paths uses it (verified: emscripten, Gradle/R8, wine, clang
+  build green without it), but CPython's `multiprocessing` allocates its semaphores there, so a
+  build step shelling out to a Python script that uses `Pool`, `ThreadPool`, `Queue` or `Lock`
+  fails with `PermissionError: [Errno 13]` from `_multiprocessing.SemLock`; an image whose
+  toolchain needs it can grant `/dev/shm` through `image-read-write-paths`, accepting the
+  cross-build channel.
 * `read-only-env-variables` - variables whose values are granted read-only + execute per command:
   the Defold SDK (`DYNAMO_HOME`), the manifest merge tool, the macOS `PLATFORMSDK_DIR` and
   xctoolchain, zig, the JDK, dotnet, and `DEVELOPER_DIR` (widened to its `Xcode.app`).
