@@ -46,7 +46,8 @@ enough to escape, though: a double-forked grandchild whose parent exits keeps it
 and the group kill still reaches it. `setsid()` is the whole hole.
 
 So the launcher marks the command instead. Before starting it, the launcher creates an empty
-file with a random name under `/private/tmp/.extender-sbtag` and appends
+file with a random name under `<per-user darwin temp dir>/.extender-sbtag`
+(`confstr(_CS_DARWIN_USER_TEMP_DIR)`, which the OS creates `0700` for this uid) and appends
 `(allow file-read-data (literal "<that file>"))` to the profile as the last rule. On teardown it
 walks the processes of its own uid and kills those whose sandbox **may read the tag file** but
 **may not read the directory containing it**, asking the kernel with `sandbox_check(pid, ...)`.
@@ -70,10 +71,13 @@ Operator notes for the sweep:
 
 * If the tag cannot be created, the launcher says so on stderr and, under `--strict`, refuses to
   run at all (exit 127) rather than run a command it could not fully clean up afterwards.
-* `/private/tmp` is world-writable, so on a shared machine another local user could pre-create
-  `/private/tmp/.extender-sbtag` or delete a tag file mid-command, which turns that one sweep
-  into a no-op. It never turns into a wider kill. This does not arise on a dedicated builder
-  where only the build user is logged in.
+* The tag directory used to be `/private/tmp/.extender-sbtag`, a fixed name in a world-writable
+  directory: another local user could pre-create it and, because `mkdir` returns `EEXIST`
+  whoever owns it, every launcher invocation then failed to tag and `--strict` refused to run at
+  all. It now lives in the per-user temp directory, and an existing one is accepted only when it
+  is a directory owned by this uid with no group or other write bit - otherwise the launcher
+  fails with a message naming the path. A tag file deleted mid-command still turns that one
+  sweep into a no-op; it never turns into a wider kill.
 * Never add `/private/tmp` (or `/tmp`) to `extender.sandbox.read-only-paths`. That would let
   every command read the tag directory, the second half of the check would stop discriminating,
   and the sweep would quietly match nothing for every command.

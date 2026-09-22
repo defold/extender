@@ -12,7 +12,7 @@
  *   2. tag sweep        macOS has no subreaper and no way to forbid setsid() (Seatbelt has no such
  *                       operation), so a descendant that detaches reparents to launchd and escapes
  *                       the process-group kill. Instead the command is marked: this program creates
- *                       an empty file with a random name under KILLTAG_DIR and appends an allow rule
+ *                       an empty file with a random name in a private per-user directory and appends an allow rule
  *                       for exactly that file to the profile. On teardown the parent walks its own
  *                       uid's processes and kills the ones whose sandbox may read the tag file but
  *                       may NOT read the directory holding it. Both halves are needed: the first
@@ -35,6 +35,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <libproc.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -64,8 +65,44 @@ extern int sandbox_check(pid_t pid, const char *operation, int type, ...);
 /*
  * Holds one empty file per running command. No build profile grants this directory, which is what
  * makes "may read the file but not its directory" identify exactly one command's processes.
+ *
+ * It lives in the per-user darwin temp directory, which the OS creates 0700 for this uid, rather
+ * than under a fixed name in the world-writable /private/tmp: there, any local user could create
+ * the path first and every launcher invocation would then fail to tag (exit 127 under --strict).
  */
-#define KILLTAG_DIR "/private/tmp/.extender-sbtag"
+#define KILLTAG_LEAF ".extender-sbtag"
+
+static char killtag_dir[PATH_MAX];
+
+/* Resolves the per-user kill tag directory once; real path, because Seatbelt matches those. */
+static int resolve_killtag_dir(void) {
+    if (killtag_dir[0] != '\0') {
+        return 0;
+    }
+    char tmp[PATH_MAX];
+    size_t n = confstr(_CS_DARWIN_USER_TEMP_DIR, tmp, sizeof(tmp));
+    if (n == 0 || n > sizeof(tmp)) {
+        if (n > sizeof(tmp)) {
+            errno = ENAMETOOLONG;
+        }
+        return -1;
+    }
+    char real[PATH_MAX];
+    if (realpath(tmp, real) == NULL) {
+        return -1;
+    }
+    if (snprintf(killtag_dir, sizeof(killtag_dir), "%s/%s", real, KILLTAG_LEAF) >= (int)sizeof(killtag_dir)) {
+        killtag_dir[0] = '\0';
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    return 0;
+}
+
+/* For messages before the directory has been resolved. */
+static const char *killtag_dir_name(void) {
+    return killtag_dir[0] != '\0' ? killtag_dir : "the per-user temp directory";
+}
 
 static const char PROBE_PROFILE[] =
     "(version 1)(deny default)(import \"system.sb\")"
@@ -153,11 +190,29 @@ static int exit_status(int status) {
  * on failure the caller runs without a tag and the sweep is skipped.
  */
 static int make_kill_tag(char *buf, size_t size) {
-    if (mkdir(KILLTAG_DIR, 0700) != 0 && errno != EEXIST) {
+    if (resolve_killtag_dir() != 0) {
         return -1;
     }
+    if (mkdir(killtag_dir, 0700) != 0) {
+        if (errno != EEXIST) {
+            return -1;
+        }
+        /*
+         * mkdir reports EEXIST whoever owns the directory. One this uid cannot write, or that
+         * others can write, makes the tag either impossible to create or possible to forge, so
+         * it is refused here rather than at the open() below, where EACCES looks like a bug.
+         */
+        struct stat st;
+        if (lstat(killtag_dir, &st) != 0) {
+            return -1;
+        }
+        if (!S_ISDIR(st.st_mode) || st.st_uid != getuid() || (st.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+            errno = EPERM;
+            return -1;
+        }
+    }
     for (int attempt = 0; attempt < 4; attempt++) {
-        snprintf(buf, size, KILLTAG_DIR "/%d-%08x%08x", (int)getpid(), arc4random(), arc4random());
+        snprintf(buf, size, "%s/%d-%08x%08x", killtag_dir, (int)getpid(), arc4random(), arc4random());
         int fd = open(buf, O_CREAT | O_EXCL | O_WRONLY, 0600);
         if (fd >= 0) {
             close(fd);
@@ -193,7 +248,7 @@ static int process_is_ours(pid_t pid, const char *tag) {
     if (sandbox_check(pid, "file-read-data", SB_FILTER_PATH | SB_CHECK_NO_REPORT, tag) != 0) {
         return 0;
     }
-    return sandbox_check(pid, "file-read-data", SB_FILTER_PATH | SB_CHECK_NO_REPORT, KILLTAG_DIR) == 1;
+    return sandbox_check(pid, "file-read-data", SB_FILTER_PATH | SB_CHECK_NO_REPORT, killtag_dir) == 1;
 }
 
 static int pid_seen(const pid_t *seen, int count, pid_t pid) {
@@ -437,7 +492,7 @@ int main(int argc, char **argv) {
         tagged = make_kill_tag(kill_tag, sizeof(kill_tag)) == 0;
         if (!tagged) {
             /* without the tag a detached descendant could outlive the command unnoticed */
-            fprintf(stderr, "extender-sandbox: cannot create the kill tag in %s: %s\n", KILLTAG_DIR, strerror(errno));
+            fprintf(stderr, "extender-sandbox: cannot create the kill tag in %s: %s\n", killtag_dir_name(), strerror(errno));
             if (strict) {
                 return 127;
             }
