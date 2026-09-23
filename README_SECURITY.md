@@ -171,11 +171,17 @@ Known limits of the current design: the tool runs as the same uid as the server,
 send signals to the server process on kernels older than 6.12 (Landlock ABI 6 scopes signals);
 caches that stay writable for a platform (emscripten cache, Gradle and NuGet caches, the wine
 prefix) are shared between builds; the Gradle and dotnet steps keep network access by necessity.
-The NuGet cache is the one shared cache granted **execute** as well as write, because a
-NativeAOT publish runs `ilc` out of the ilcompiler package it restores: a C# build can
-therefore leave a binary that a later C# build on the same builder executes. Splitting it
-into a read-only image cache (`NUGET_FALLBACK_PACKAGES`) and a per-job writable
-`NUGET_PACKAGES` is the fix and is not done yet.
+The NuGet cache is split, because a NativeAOT publish runs `ilc` out of the ilcompiler
+package it restores and links the native runtime libraries from that same directory into the
+customer's binary: one cache shared between builds and writable would let a C# build leave
+both for the next one. A build restores into `NUGET_PACKAGES` inside its own job directory,
+writable and executable and gone with the job, and reads the instance-wide cache through
+`NUGET_FALLBACK_PACKAGES`, which is granted read-only - NuGet resolves packages from a
+fallback folder and never writes to one. `NuGetCacheService` is the only writer of the shared
+cache: at startup it publishes a generated stub project for the runtime identifiers in
+`extender.csharp.warm-runtime-identifiers`, with no uploaded source and no user-controlled
+package reference anywhere in it. Warming is only an optimisation - an unwarmed runtime
+identifier costs the build a ~300 MB restore into its own cache and is otherwise identical.
 
 ### macOS standalone builders
 

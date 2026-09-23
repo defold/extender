@@ -1559,6 +1559,11 @@ class Extender {
 
         if (this.needsCSLibraries) {
             CSharpBuilder.updateContext(buildState.fullPlatform, buildState.buildDir, context);
+            // The NativeAOT runtime archives go on the link line, and they live in whichever NuGet
+            // cache resolved them - the instance-wide one when it is warm, the job's own otherwise.
+            // The link runs under the toolchain policy, which knows about neither.
+            processExecutor.setPolicy(processExecutor.getPolicy().withReadOnlyPaths(
+                    List.of(CSharpBuilder.getNativePath(buildState.fullPlatform, buildState.buildDir).toString())));
         }
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform

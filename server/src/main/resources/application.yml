@@ -137,6 +137,23 @@ extender:
             # raw SBPL lines appended before the deny block, for iterating on a host without a
             # release, e.g. "(allow mach-lookup (global-name \"com.apple.FSEvents\"))"
             extra-rules: []
+    # C# / NativeAOT. A build restores its NuGet packages into a cache inside its own job
+    # directory, which it may write and execute and which goes away with the job: ilc runs out
+    # of the ilcompiler package, and the native runtime libraries are linked into the output, so
+    # a cache shared between builds is a place to leave both. The instance-wide cache is handed
+    # over read-only instead, as a NuGet fallback folder (NuGet reads packages from one and never
+    # writes to it), and is warmed at startup by the server publishing a generated stub project.
+    # Warming is only an optimisation: a runtime identifier nobody warmed is restored per job.
+    csharp:
+        # runtime identifiers to warm at startup, comma separated. One costs roughly 300MB and
+        # 5-15s (measured: linux-arm64 = 299MB in 6s), so this is set per image through
+        # EXTENDER_CSHARP_WARMRUNTIMEIDENTIFIERS to the platforms that image builds, and a
+        # windows builder warms three of them. Empty = no warming.
+        warm-runtime-identifiers: ''
+        # the shared read-only cache; empty means the image's own NUGET_PACKAGES
+        nuget-fallback-dir: ''
+        # how long a build waits for a warm of its runtime identifier that is still running
+        warm-wait-timeout: 600000
     # Resource limits for untrusted R8 input; byte limits use expanded sizes.
     r8:
         max-generated-extension-classes: 32768

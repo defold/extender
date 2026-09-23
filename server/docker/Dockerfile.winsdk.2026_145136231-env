@@ -115,3 +115,9 @@ RUN \
   apt-get autoremove -y && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
+
+# NuGet packages this image's C# builds need, warmed into the shared read-only cache at
+# startup so a build does not restore them into its own (see extender.csharp in
+# application.yml). armv7-android is left out: linux-bionic-arm32 is not a runtime
+# identifier the .NET 9 SDK recognises.
+ENV EXTENDER_CSHARP_WARMRUNTIMEIDENTIFIERS=win-x64,win-x86,win-arm64

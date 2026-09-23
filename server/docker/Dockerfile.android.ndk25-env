@@ -154,3 +154,9 @@ RUN \
   LLVM_AR=$(find /opt/platformsdk/android -iname "llvm-ar" | tail -1) && \
   echo "${LLVM_AR} \$*" >> /usr/bin/ar && \
   chmod +x /usr/bin/ar
+
+# NuGet packages this image's C# builds need, warmed into the shared read-only cache at
+# startup so a build does not restore them into its own (see extender.csharp in
+# application.yml). armv7-android is left out: linux-bionic-arm32 is not a runtime
+# identifier the .NET 9 SDK recognises.
+ENV EXTENDER_CSHARP_WARMRUNTIMEIDENTIFIERS=linux-bionic-arm64,linux-bionic-x64

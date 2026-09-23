@@ -14,6 +14,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
@@ -23,13 +24,13 @@ import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.SandboxPolicy;
+import com.defold.extender.services.NuGetCacheService;
 
 public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);
 
     private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
-    private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
 
     private List<String>        engineLibs;
     private File                sourceDir;
@@ -60,7 +61,7 @@ public class CSharpBuilder {
         this.context = context;
 
         LOGGER.info(String.format("DOTNET_ROOT: %s", DOTNET_ROOT));
-        LOGGER.info(String.format("NUGET_PACKAGES: %s", NUGET_PACKAGES));
+        LOGGER.info(String.format("shared NuGet cache: %s", sharedNuGetCache()));
     }
 
     public void setSourceDirectory(File sourceDir) {
@@ -166,13 +167,21 @@ public class CSharpBuilder {
         List<String> commands = new ArrayList<>();
         commands.add(cmd);
 
-        // NuGet restore needs the network and the package cache must be executable: a NativeAOT
-        // publish runs ilc out of the ilcompiler package. The CLI's own state (first-run
-        // sentinel, telemetry) goes to a per-job DOTNET_CLI_HOME instead of the shared install.
-        SandboxPolicy policy = SandboxPolicy
-                .dependencyResolver(List.of())
-                .withReadWriteExecPaths(NUGET_PACKAGES != null ? List.of(NUGET_PACKAGES) : List.of())
-                .withEnv(Map.of("DOTNET_CLI_HOME", new File(this.outputDir, ".dotnet").getAbsolutePath()));
+        // NuGet restore needs the network, and its package cache must be executable because a
+        // NativeAOT publish runs ilc out of the ilcompiler package it restores. That cache is
+        // therefore per job: writable and executable, and gone with the job. The instance-wide
+        // cache is handed over read-only as a NuGet fallback folder, which NuGet reads packages
+        // from and never writes to, so the restore costs nothing when it is warm.
+        File perJobCache = perJobNuGetCache(buildDir());
+        // ProcessSandbox skips a grant whose path does not exist, and the restore has to
+        // be able to write here
+        perJobCache.mkdirs();
+        File sharedCache = sharedNuGetCache();
+        if (sharedCache != null) {
+            // the warm writes the shared cache; reading it half-restored just costs a download
+            NuGetCacheService.current().awaitWarm(csplatform);
+        }
+        SandboxPolicy policy = dotnetPolicy(perJobCache, sharedCache, new File(this.outputDir, ".dotnet"));
         ProcessExecutor.executeCommands(processExecutor, commands, null, policy); // in parallel
 
         String name = outputName;
@@ -200,10 +209,59 @@ public class CSharpBuilder {
         return out;
     }
 
-    private static Path getNativePath(String platform) throws IOException {
+    /**
+     * The policy for {@code dotnet publish}: network for the restore, the job's own package cache
+     * writable and executable (ilc runs out of it), and the instance-wide cache read-only as a
+     * NuGet fallback folder, which NuGet resolves packages from and never writes to.
+     */
+    static SandboxPolicy dotnetPolicy(File perJobCache, File sharedCache, File cliHome) {
+        Map<String, String> env = new HashMap<>();
+        // the CLI's own state (first-run sentinel, telemetry) goes here, not to the shared install
+        env.put("DOTNET_CLI_HOME", cliHome.getAbsolutePath());
+        env.put("NUGET_PACKAGES", perJobCache.getAbsolutePath());
+        if (sharedCache != null) {
+            env.put("NUGET_FALLBACK_PACKAGES", sharedCache.getAbsolutePath());
+        }
+        return SandboxPolicy
+                // the .NET runtime's named-mutex state, which NuGet takes on every restore
+                .dependencyResolver(List.of(NuGetCacheService.dotnetRuntimeStateDir().getAbsolutePath()))
+                .withReadWriteExecPaths(List.of(perJobCache.getAbsolutePath()))
+                .withReadOnlyPaths(sharedCache != null ? List.of(sharedCache.getAbsolutePath()) : List.of())
+                .withMachServices(NuGetCacheService.DOTNET_MACH_SERVICES)
+                .withEnv(env);
+    }
+
+    /** The job's own package cache; {@code buildDir} is shared by the extensions of one job. */
+    private static File perJobNuGetCache(File buildDir) {
+        return new File(buildDir, ".nuget");
+    }
+
+    /** The instance-wide read-only cache, or null when there is none to read from. */
+    private static File sharedNuGetCache() {
+        NuGetCacheService service = NuGetCacheService.current();
+        return service != null ? service.fallbackDir() : null;
+    }
+
+    /** The build directory the job shares, i.e. the parent of this extension's output directory. */
+    private File buildDir() {
+        return this.outputDir.getParentFile();
+    }
+
+    /**
+     * Where the NativeAOT runtime libraries are looked for. A package restored for this job is in
+     * the job's own cache; one that came from the warm shared cache is in that. Returns the
+     * per-job location when neither exists, which is what the caller puts on the link line.
+     */
+    public static Path getNativePath(String platform, File buildDir) throws IOException {
         String csplatform = convertPlatform(platform);
         String dotnetVersion = readFile(DOTNET_VERSION_FILE).trim();
-        return Paths.get(NUGET_PACKAGES, String.format("microsoft.netcore.app.runtime.nativeaot.%s/%s/runtimes/%s/native", csplatform, dotnetVersion, csplatform));
+        String relative = String.format("microsoft.netcore.app.runtime.nativeaot.%s/%s/runtimes/%s/native",
+                csplatform, dotnetVersion, csplatform);
+        File shared = sharedNuGetCache();
+        if (shared != null && new File(shared, relative).isDirectory()) {
+            return shared.toPath().resolve(relative);
+        }
+        return perJobNuGetCache(buildDir).toPath().resolve(relative);
     }
 
     private static ArrayList<String> makePathsAbsolute(String basePath, ArrayList<String> files) {
@@ -250,7 +308,7 @@ public class CSharpBuilder {
     }
 
     private static void getLinkFlags(String platform, File buildDir, List<String> linkFlags) throws IOException {
-        Path aotBase = getNativePath(platform);
+        Path aotBase = getNativePath(platform, buildDir);
 
         ArrayList<String> paths = new ArrayList<>();
 
@@ -300,7 +358,7 @@ public class CSharpBuilder {
     }
 
     public static void updateContext(String platform, File buildDir, Map<String, Object> context) throws IOException {
-        Path aotBase = getNativePath(platform);
+        Path aotBase = getNativePath(platform, buildDir);
 
         List<String> libPaths = (List<String>)context.getOrDefault("libPaths", new ArrayList<String>());
         libPaths.add(aotBase.toString()); // -L/path/to/aot
