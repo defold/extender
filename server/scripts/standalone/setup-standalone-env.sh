@@ -10,6 +10,12 @@ source $SCRIPT_DIR/../../envs/.env
 if [[ ! -e ${SCRIPT_DIR}/../../envs/user.env ]]; then
     echo "${SCRIPT_DIR}/../../envs/user.env doesn't exist. Runs ./server/envs/generate_user_env.sh to generate it."
     $SCRIPT_DIR/../../envs/generate_user_env.sh
+elif ! grep -q '^EXTENDER_SANDBOX_LAUNCHERPATH=' ${SCRIPT_DIR}/../../envs/user.env; then
+    # A user.env written before the process sandbox existed has no launcher path, and
+    # generate_user_env.sh is the only thing that writes one; without it the server falls back to
+    # application.yml's Linux default and the standalone-dev profile refuses to start.
+    echo "${SCRIPT_DIR}/../../envs/user.env predates the process sandbox launcher. Regenerating it."
+    $SCRIPT_DIR/../../envs/generate_user_env.sh
 fi
 
 echo "Load user env ..."
@@ -230,14 +236,4 @@ if [[ $(uname) == "Darwin" ]]; then
     mkdir -p $APP_DIR
     cc -O2 -Wall -Wextra -o $APP_DIR/extender-sandbox $SCRIPT_DIR/sandbox/extender-sandbox-darwin.c
     sh $SCRIPT_DIR/sandbox/selftest-darwin.sh $APP_DIR/extender-sandbox
-
-    # A user.env generated before the sandbox existed has no launcher path, and this script only
-    # runs the generator when the file is missing entirely; without the variable the server falls
-    # back to application.yml's Linux default and standalone-dev refuses to start. Appended rather
-    # than regenerated, because generating rewrites the file and would drop local edits.
-    ENV_FILE=$SCRIPT_DIR/../../envs/user.env
-    if [[ -e ${ENV_FILE} ]] && ! grep -q '^EXTENDER_SANDBOX_LAUNCHERPATH=' ${ENV_FILE}; then
-        echo "[setup] Adding EXTENDER_SANDBOX_LAUNCHERPATH to $(basename ${ENV_FILE})"
-        echo "EXTENDER_SANDBOX_LAUNCHERPATH=${APP_DIR}/extender-sandbox" >> ${ENV_FILE}
-    fi
 fi
