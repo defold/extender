@@ -71,12 +71,11 @@ Operator notes for the sweep:
 
 * If the tag cannot be created, the launcher says so on stderr and, under `--strict`, refuses to
   run at all (exit 127) rather than run a command it could not fully clean up afterwards.
-* The tag directory used to be `/private/tmp/.extender-sbtag`, a fixed name in a world-writable
-  directory: another local user could pre-create it and, because `mkdir` returns `EEXIST`
-  whoever owns it, every launcher invocation then failed to tag and `--strict` refused to run at
-  all. It now lives in the per-user temp directory, and an existing one is accepted only when it
-  is a directory owned by this uid with no group or other write bit - otherwise the launcher
-  fails with a message naming the path. A tag file deleted mid-command still turns that one
+* The tag directory lives in the per-user temp directory, not at a fixed name in a
+  world-writable one, where another local user could pre-create it (`mkdir` returns `EEXIST`
+  whoever owns it) and make every `--strict` invocation fail. An existing one is accepted only
+  when it is a directory owned by this uid with no group or other write bit - otherwise the
+  launcher fails with a message naming the path. A tag file deleted mid-command still turns that one
   sweep into a no-op; it never turns into a wider kill.
 * Never add `/private/tmp` (or `/tmp`) to `extender.sandbox.read-only-paths`. That would let
   every command read the tag directory, the second half of the check would stop discriminating,

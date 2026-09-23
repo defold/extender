@@ -97,7 +97,7 @@ if [ "$out" = "yes" ]; then pass "regex grant scoped to its pattern"; else fail 
 
 # 8. sockets. The unix answer is a connect to the one socket a Network.NONE profile denies by
 # name (mDNSResponder), not a bare socket(AF_UNIX) - that always succeeds and would read "ok"
-# with no sandbox at all, which is how this check used to pass without enforcement.
+# with no sandbox at all.
 out=$(run "$SB" --check-sockets 2>&1)
 case "$out" in
     "unix=EPERM inet=EPERM inet6=EPERM") pass "net none: $out" ;;
