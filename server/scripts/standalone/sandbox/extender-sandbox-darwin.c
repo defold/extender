@@ -405,7 +405,7 @@ static void check_sockets(void) {
             struct sockaddr_un sun;
             memset(&sun, 0, sizeof(sun));
             sun.sun_family = AF_UNIX;
-            strncpy(sun.sun_path, "/var/run/mDNSResponder", sizeof(sun.sun_path) - 1);
+            snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", "/var/run/mDNSResponder");
             denied = connect(fd, (struct sockaddr *)&sun, sizeof(sun)) != 0 && errno == EPERM;
         } else if (families[i].family == AF_INET) {
             struct sockaddr_in sin;
