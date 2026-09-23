@@ -53,4 +53,25 @@ public class CSharpNuGetCacheTest {
         assertTrue(policy.readOnlyPaths().isEmpty(), policy.toString());
         assertNull(policy.env().get("NUGET_FALLBACK_PACKAGES"));
     }
+
+    /**
+     * libRuntime.WorkstationGC.a references do_vxsort_avx2, which lives in its own archive that the
+     * runtime pack ships for the x64 runtime identifiers only. Adding it for Windows alone left
+     * osx-x64 and linux-x64 with an undefined symbol at link time.
+     */
+    @Test
+    public void vxsortIsLinkedForX64TargetsOnly(@TempDir Path root) throws Exception {
+        assertTrue(linkFlagsFor("x86_64-osx", root).contains("libRuntime.VxsortEnabled.a"));
+        assertTrue(linkFlagsFor("x86_64-linux", root).contains("libRuntime.VxsortEnabled.a"));
+        assertTrue(linkFlagsFor("x86_64-win32", root).contains("Runtime.VxsortEnabled.lib"));
+        assertFalse(linkFlagsFor("arm64-osx", root).contains("VxsortEnabled"));
+        assertFalse(linkFlagsFor("arm64-ios", root).contains("VxsortEnabled"));
+        assertFalse(linkFlagsFor("arm64-android", root).contains("VxsortEnabled"));
+    }
+
+    private static String linkFlagsFor(String platform, Path buildDir) throws Exception {
+        java.util.Map<String, Object> context = new java.util.HashMap<>();
+        CSharpBuilder.updateContext(platform, buildDir.toFile(), context);
+        return String.join(" ", (java.util.List<String>) context.get("linkFlags"));
+    }
 }

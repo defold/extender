@@ -326,6 +326,14 @@ public class CSharpBuilder {
         paths.add(getLibName(platform, "System.IO.Compression.Native" + aotSuffix));
         paths.add(getLibName(platform, "System.Globalization.Native" + aotSuffix));
 
+        // libRuntime.WorkstationGC.a calls do_vxsort_avx2, which lives in its own archive. vxsort
+        // is an AVX2 sort, so the runtime pack ships that archive for the x64 runtime identifiers
+        // and for no others - keying off the identifier rather than the operating system, which
+        // left every non-Windows x64 target with an undefined symbol at link time.
+        if (convertPlatform(platform).endsWith("-x64")) {
+            paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
+        }
+
         if (ExtenderUtil.isMacOSTarget(platform))
         {
             paths.add(getLibName(platform, "System.Native"));
@@ -340,7 +348,6 @@ public class CSharpBuilder {
         }
         else if (ExtenderUtil.isWindowsTarget(platform))
         {
-            paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
             linkFlags.add("-lbcrypt");
             linkFlags.add("-lole32");
             linkFlags.add("-ladvapi32");
