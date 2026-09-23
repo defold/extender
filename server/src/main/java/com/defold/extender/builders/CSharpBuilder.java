@@ -6,9 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
-import java.io.PrintWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -19,6 +17,7 @@ import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
@@ -104,7 +103,7 @@ public class CSharpBuilder {
 
         File f = new File(this.sourceDir, String.format("%s.csproj", outputName));
 
-        FileUtils.writeStringToFile(f, projectText, Charset.defaultCharset(), true);
+        JobFiles.writeString(jobDir(), f, projectText, Charset.defaultCharset());
 
         if (!f.exists())
             throw new IOException(String.format("Failed to write to %s", f.getAbsolutePath()));
@@ -247,6 +246,10 @@ public class CSharpBuilder {
         return this.outputDir.getParentFile();
     }
 
+    private File jobDir() {
+        return buildDir().getParentFile();
+    }
+
     /**
      * Where the NativeAOT runtime libraries are looked for. A package restored for this job is in
      * the job's own cache; one that came from the warm shared cache is in that. Returns the
@@ -299,10 +302,8 @@ public class CSharpBuilder {
         File parent = exportsFile.getParentFile();
         if (!parent.exists())
             parent.mkdirs();
-        FileOutputStream fos = new FileOutputStream(exportsFile, false);
-        PrintWriter writer = new PrintWriter(fos);
-        writer.write(contents);
-        writer.close();
+        // buildDir is <job>/build
+        JobFiles.writeString(buildDir.getParentFile(), exportsFile, contents, Charset.defaultCharset());
 
         linkFlags.add(String.format(exportsPattern, exportsFile.getAbsolutePath()));
     }

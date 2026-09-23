@@ -1,7 +1,7 @@
 /*
  * extender-sandbox: unprivileged launcher that confines one build subprocess.
  *
- *   extender-sandbox [--ro PATH]... [--rw PATH]... [--rwx PATH]... [--net none|all]
+ *   extender-sandbox [--job DIR] [--ro PATH]... [--rw PATH]... [--rwx PATH]... [--net none|all]
  *                    [--cpu SEC] [--nproc N] [--fsize BYTES] [--nofile N] [--strict]
  *                    -- CMD [ARGS...]
  *   extender-sandbox --probe          print "landlock_abi=<n> seccomp=<yes|no>"
@@ -9,7 +9,11 @@
  *
  * The parent stays outside the sandbox as a tiny init: it is a child subreaper, forwards a
  * SIGTERM/SIGINT/SIGHUP as SIGKILL to the command's process group, and after the command
- * exits kills every process that got reparented to it, so nothing outlives the command.
+ * exits freezes and kills every process still below it, so nothing outlives the command.
+ *
+ * --job names the job directory: the build can plant links anywhere inside it, so a --rw or
+ * --rwx path inside it is only granted when the descriptor it opens still names a place
+ * inside it.
  *
  * The child, before execvp(): own process group, rlimits, PR_SET_NO_NEW_PRIVS, a Landlock
  * ruleset (filesystem allowlist; TCP and IPC scoping where the kernel supports them) and a
@@ -28,6 +32,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -340,12 +345,40 @@ static void paths_add(struct paths *p, const char *path) {
     p->items[p->count++] = path;
 }
 
-static int add_path_rules(int ruleset_fd, const struct paths *paths, uint64_t access, uint64_t handled) {
+static const char *job_dir = NULL;
+static char job_dir_real[PATH_MAX];
+
+static int has_dir_prefix(const char *path, const char *dir) {
+    size_t n = strlen(dir);
+    return strncmp(path, dir, n) == 0 && (path[n] == '/' || path[n] == '\0');
+}
+
+/* The path the kernel resolved for fd lies inside the job directory. */
+static int fd_inside_job(int fd) {
+    char link[64];
+    char resolved[PATH_MAX];
+    snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+    ssize_t len = readlink(link, resolved, sizeof(resolved) - 1);
+    if (len < 0) {
+        return 0;
+    }
+    resolved[len] = '\0';
+    return has_dir_prefix(resolved, job_dir_real);
+}
+
+static int add_path_rules(int ruleset_fd, const struct paths *paths, uint64_t access, uint64_t handled,
+                          int confine_to_job) {
     for (int i = 0; i < paths->count; i++) {
         int fd = open(paths->items[i], O_PATH | O_CLOEXEC);
         if (fd < 0) {
             /* Lists are shared between images; a directory a given image lacks is simply not granted. */
             continue;
+        }
+        if (confine_to_job && job_dir != NULL && has_dir_prefix(paths->items[i], job_dir) && !fd_inside_job(fd)) {
+            close(fd);
+            fprintf(stderr, "extender-sandbox: %s resolves outside the job directory %s; not granting it\n",
+                    paths->items[i], job_dir);
+            return -1;
         }
         struct stat st;
         uint64_t allowed = access & handled;
@@ -417,9 +450,9 @@ static int apply_landlock(int abi, const struct paths *ro, const struct paths *r
         return -1;
     }
     int rc = 0;
-    if (add_path_rules(ruleset_fd, ro, LL_READ_ONLY, handled_fs) != 0) rc = -1;
-    if (rc == 0 && add_path_rules(ruleset_fd, rw, LL_READ_WRITE, handled_fs) != 0) rc = -1;
-    if (rc == 0 && add_path_rules(ruleset_fd, rwx, LL_READ_WRITE | LL_ACCESS_FS_EXECUTE, handled_fs) != 0) rc = -1;
+    if (add_path_rules(ruleset_fd, ro, LL_READ_ONLY, handled_fs, 0) != 0) rc = -1;
+    if (rc == 0 && add_path_rules(ruleset_fd, rw, LL_READ_WRITE, handled_fs, 1) != 0) rc = -1;
+    if (rc == 0 && add_path_rules(ruleset_fd, rwx, LL_READ_WRITE | LL_ACCESS_FS_EXECUTE, handled_fs, 1) != 0) rc = -1;
     if (rc == 0 && ll_restrict_self(ruleset_fd, 0) != 0) {
         fprintf(stderr, "extender-sandbox: landlock_restrict_self: %s\n", strerror(errno));
         rc = -1;
@@ -460,13 +493,23 @@ static void on_signal(int sig) {
     }
 }
 
-/* Kill every process whose parent is this one (orphans reparented by the subreaper rule). */
-static int kill_reparented_children(void) {
-    pid_t self = getpid();
-    int killed = 0;
+struct proc_entry {
+    pid_t pid;
+    pid_t ppid;
+    char state;
+};
+
+struct proc_table {
+    struct proc_entry *items;
+    size_t count;
+    size_t capacity;
+};
+
+static void read_processes(struct proc_table *table) {
+    table->count = 0;
     DIR *proc = opendir("/proc");
     if (proc == NULL) {
-        return 0;
+        return;
     }
     struct dirent *entry;
     while ((entry = readdir(proc)) != NULL) {
@@ -495,21 +538,93 @@ static int kill_reparented_children(void) {
         }
         int ppid = -1;
         char state;
-        if (sscanf(end + 1, " %c %d", &state, &ppid) != 2 || ppid != self) {
+        if (sscanf(end + 1, " %c %d", &state, &ppid) != 2) {
             continue;
         }
-        pid_t pid = (pid_t)atoi(entry->d_name);
-        if (pid > 0 && kill(pid, SIGKILL) == 0) {
-            killed++;
+        if (table->count == table->capacity) {
+            size_t capacity = table->capacity == 0 ? 1024 : table->capacity * 2;
+            struct proc_entry *items = realloc(table->items, capacity * sizeof(*items));
+            if (items == NULL) {
+                break;
+            }
+            table->items = items;
+            table->capacity = capacity;
         }
+        table->items[table->count++] = (struct proc_entry){.pid = (pid_t)atoi(entry->d_name), .ppid = ppid, .state = state};
     }
     closedir(proc);
-    return killed;
 }
 
+static int compare_pids(const void *a, const void *b) {
+    pid_t x = ((const struct proc_entry *)a)->pid;
+    pid_t y = ((const struct proc_entry *)b)->pid;
+    return (x > y) - (x < y);
+}
+
+static long find_process(const struct proc_table *table, pid_t pid) {
+    struct proc_entry key = {.pid = pid};
+    struct proc_entry *found = bsearch(&key, table->items, table->count, sizeof(key), compare_pids);
+    return found == NULL ? -1 : (long)(found - table->items);
+}
+
+/* Sets below[i] for every process under this one, however deep. */
+static void mark_descendants(struct proc_table *table, char *below) {
+    pid_t self = getpid();
+    qsort(table->items, table->count, sizeof(*table->items), compare_pids);
+    memset(below, 0, table->count);
+    /* a parent may have a higher pid than its child, so sweep until nothing changes */
+    for (int changed = 1; changed;) {
+        changed = 0;
+        for (size_t i = 0; i < table->count; i++) {
+            if (below[i]) {
+                continue;
+            }
+            long parent = find_process(table, table->items[i].ppid);
+            if (table->items[i].ppid == self || (parent >= 0 && below[parent])) {
+                below[i] = 1;
+                changed = 1;
+            }
+        }
+    }
+}
+
+/*
+ * Kills every process below this one: the command's own tree and everything reparented here
+ * by the subreaper rule, setsid'd daemons included. Stopped processes cannot fork, so the tree
+ * is frozen first, sweep after sweep until a sweep finds nothing left running, and only then
+ * killed; a fork-and-exit chain would otherwise stay a generation ahead of the killing.
+ */
 static void reap_everything(void) {
-    for (int round = 0; round < 64; round++) {
-        kill_reparented_children();
+    struct proc_table table = {0};
+    char *below = NULL;
+    for (int round = 0; round < 10000; round++) {
+        read_processes(&table);
+        char *grown = realloc(below, table.count > 0 ? table.count : 1);
+        if (grown == NULL) {
+            break;
+        }
+        below = grown;
+        mark_descendants(&table, below);
+
+        int running = 0;
+        for (size_t i = 0; i < table.count; i++) {
+            if (below[i] && table.items[i].state != 'T' && table.items[i].state != 't' && table.items[i].state != 'Z'
+                && table.items[i].state != 'X') {
+                kill(table.items[i].pid, SIGSTOP);
+                running++;
+            }
+        }
+        if (running > 0) {
+            /* let the stops land, then look again for anything forked meanwhile */
+            usleep(1000);
+            continue;
+        }
+        for (size_t i = 0; i < table.count; i++) {
+            if (below[i]) {
+                kill(table.items[i].pid, SIGKILL);
+            }
+        }
+
         int status;
         pid_t pid;
         int reaped = 0;
@@ -517,6 +632,8 @@ static void reap_everything(void) {
             reaped++;
         }
         if (pid < 0 && errno == ECHILD) {
+            free(table.items);
+            free(below);
             return;
         }
         if (reaped == 0) {
@@ -524,6 +641,9 @@ static void reap_everything(void) {
             usleep(10000);
         }
     }
+    fprintf(stderr, "extender-sandbox: processes of the command are still running after teardown\n");
+    free(table.items);
+    free(below);
 }
 
 /* ---- self-test aid ---- */
@@ -548,7 +668,7 @@ static void check_sockets(void) {
 
 static void usage(void) {
     fprintf(stderr,
-            "usage: extender-sandbox [--ro PATH]... [--rw PATH]... [--rwx PATH]... [--net none|all]\n"
+            "usage: extender-sandbox [--job DIR] [--ro PATH]... [--rw PATH]... [--rwx PATH]... [--net none|all]\n"
             "                        [--cpu SEC] [--nproc N] [--fsize BYTES] [--nofile N] [--strict]\n"
             "                        -- CMD [ARGS...]\n"
             "       extender-sandbox --probe\n");
@@ -595,7 +715,13 @@ int main(int argc, char **argv) {
             usage();
         }
         const char *value = argv[++i];
-        if (strcmp(arg, "--ro") == 0) {
+        if (strcmp(arg, "--job") == 0) {
+            if (realpath(value, job_dir_real) == NULL) {
+                fprintf(stderr, "extender-sandbox: job directory %s: %s\n", value, strerror(errno));
+                return 127;
+            }
+            job_dir = value;
+        } else if (strcmp(arg, "--ro") == 0) {
             paths_add(&ro, value);
         } else if (strcmp(arg, "--rw") == 0) {
             paths_add(&rw, value);

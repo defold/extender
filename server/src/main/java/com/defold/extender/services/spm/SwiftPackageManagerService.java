@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -39,6 +40,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
@@ -46,6 +48,7 @@ import com.defold.extender.PlatformConfig;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.CommandTimeoutException;
+import com.defold.extender.process.ProcessLaunchException;
 import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.DarwinSandboxPaths;
@@ -381,13 +384,17 @@ public class SwiftPackageManagerService {
     }
 
     void generateProjectFiles(SpmServiceBuildState buildState, SpmManifestParser.ParseResult manifest, boolean isIOS) throws IOException {
-        Files.writeString(new File(buildState.getPackageDir(), "Package.swift").toPath(), generatePackageSwift(manifest, isIOS));
-        Files.writeString(new File(buildState.getPackageDir(), "Sources/" + SpmServiceBuildState.AGGREGATOR_NAME + "/Empty.swift").toPath(),
-            "// Intentionally empty. The aggregator target only re-exports the requested package products.\n");
-        Files.writeString(new File(buildState.getWrapperDir(), "project.yml").toPath(), generateProjectYml(manifest, isIOS));
-        Files.writeString(new File(buildState.getWrapperDir(), "Sources/Dummy.swift").toPath(),
+        File jobDir = buildState.getJobDir();
+        JobFiles.writeString(jobDir, new File(buildState.getPackageDir(), "Package.swift"), generatePackageSwift(manifest, isIOS),
+            StandardCharsets.UTF_8);
+        JobFiles.writeString(jobDir, new File(buildState.getPackageDir(), "Sources/" + SpmServiceBuildState.AGGREGATOR_NAME + "/Empty.swift"),
+            "// Intentionally empty. The aggregator target only re-exports the requested package products.\n",
+            StandardCharsets.UTF_8);
+        JobFiles.writeString(jobDir, new File(buildState.getWrapperDir(), "project.yml"), generateProjectYml(manifest, isIOS),
+            StandardCharsets.UTF_8);
+        JobFiles.writeString(jobDir, new File(buildState.getWrapperDir(), "Sources/Dummy.swift"),
             "// Dummy source so the wrapper framework target is well-formed.\n"
-            + "public enum SpmWrapperMarker {}\n");
+            + "public enum SpmWrapperMarker {}\n", StandardCharsets.UTF_8);
     }
 
     String generatePackageSwift(SpmManifestParser.ParseResult manifest, boolean isIOS) {
@@ -660,7 +667,8 @@ public class SwiftPackageManagerService {
         File artifactsDir = new File(packageCacheDir, ARTIFACTS_SUBDIR);
         boolean forceRefresh = false;
         boolean refreshRetried = false;
-        boolean evictArtifacts = false;
+        // archives the last round rejected by checksum, to be fetched again
+        Set<String> evictArtifacts = new HashSet<>();
         boolean artifactsRetried = false;
         String lastFailure = null;
         for (int round = 1; round <= MAX_RESOLVE_ROUNDS; round++) {
@@ -678,7 +686,7 @@ public class SwiftPackageManagerService {
             }
             forceRefresh = false;
             prefetchArtifacts(artifacts.values(), artifactsDir, buildState, processEnv, evictArtifacts);
-            evictArtifacts = false;
+            evictArtifacts.clear();
             File gitConfig = writeGitConfig(buildState, repos.values(), mirrors);
             LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored, {} artifacts cached)",
                 round, repos.size(), artifacts.size());
@@ -704,7 +712,6 @@ public class SwiftPackageManagerService {
                 // with the cache): fetch the rejected archives again, once. A cached archive
                 // was never named to this job, so its URL comes from the declaring manifest
                 artifactsRetried = true;
-                evictArtifacts = true;
                 for (String targetName : harvestMismatchedTargets(failure)) {
                     String url = findArtifactUrlInCheckouts(clonedSourcesDir, targetName);
                     if (url == null) {
@@ -715,6 +722,7 @@ public class SwiftPackageManagerService {
                             + "as a literal next to the target name, so it cannot be fetched again:\n%s", targetName, failure));
                     }
                     addArtifact(artifacts, new BinaryArtifact(url, targetName));
+                    evictArtifacts.add(url);
                 }
                 LOGGER.info("A cached Swift package archive does not match its manifest checksum, fetching again");
                 continue;
@@ -803,20 +811,20 @@ public class SwiftPackageManagerService {
      * with plain curl: like git for the mirrors, it evaluates nothing. The archive is keyed by
      * its URL and immutable as far as this step is concerned; SwiftPM checks it against the
      * checksum in the consuming manifest, and a mismatch comes back here as an eviction.
+     *
+     * @param evict URLs whose cached archive was rejected: fetched again and swapped in with an
+     *              atomic rename, so a concurrent build reading the old file keeps a whole one
      */
     void prefetchArtifacts(Collection<BinaryArtifact> artifacts, File artifactsDir, SpmServiceBuildState buildState,
-            Map<String, String> processEnv, boolean evict) throws IOException, ExtenderException {
+            Map<String, String> processEnv, Set<String> evict) throws IOException, ExtenderException {
         if (artifacts.isEmpty()) {
             return;
         }
         artifactsDir.mkdirs();
         for (BinaryArtifact artifact : artifacts) {
             File archive = new File(artifactsDir, artifactCacheName(artifact.url));
-            if (evict) {
-                FileUtils.deleteQuietly(archive);
-            }
             synchronized (fetchLock(archive)) {
-                if (archive.isFile()) {
+                if (archive.isFile() && !evict.contains(artifact.url)) {
                     LOGGER.info("Archive of binary target {} is cached", artifact.targetName);
                     continue;
                 }
@@ -889,12 +897,11 @@ public class SwiftPackageManagerService {
         try {
             processExecutor.execute(args);
             return null;
+        } catch (ProcessLaunchException e) {
+            // nothing ran at all (launcher or tool missing): not a failure of the command
+            throw e;
         } catch (IOException e) {
             String output = processExecutor.getOutput();
-            if (output == null || output.isBlank()) {
-                // nothing ran at all (launcher or git missing): not a git failure
-                throw e;
-            }
             LOGGER.info("{} failed:\n{}", String.join(" ", args), output.strip());
             return output;
         } catch (InterruptedException e) {
@@ -934,7 +941,7 @@ public class SwiftPackageManagerService {
             }
         }
         File gitConfig = new File(buildState.getWorkingDir(), GIT_CONFIG_FILENAME);
-        Files.writeString(gitConfig.toPath(), config.toString());
+        JobFiles.write(buildState.getJobDir().toPath(), gitConfig.toPath(), config.toString().getBytes(StandardCharsets.UTF_8));
         return gitConfig;
     }
 
@@ -977,8 +984,9 @@ public class SwiftPackageManagerService {
         // Package.swift manifests, plugins and macros are untrusted code SwiftPM compiles and
         // runs. SwiftPM confines them with its own nested sandbox-exec, which the kernel refuses
         // inside the process sandbox xcodebuild already runs in, so that confinement is dropped
-        // only where the outer sandbox replaces it - never where the sandbox is switched off.
-        if (ProcessSandbox.current().isEnabled()) {
+        // only where the outer sandbox replaces it - never where the sandbox is switched off or
+        // runs degraded without sandbox-exec.
+        if (ProcessSandbox.current().isEnforcing()) {
             args.add("-IDEPackageSupportDisableManifestSandbox=YES");
         }
         args.addAll(buildState.getExtraBuildSettings());
@@ -998,6 +1006,9 @@ public class SwiftPackageManagerService {
             Thread.currentThread().interrupt();
             writeBuildLog(buildState, processExecutor);
             throw new IOException("Interrupted while building the Swift package graph", e);
+        } catch (ProcessLaunchException e) {
+            // nothing ran at all (launcher or xcodebuild missing): not a build failure
+            throw e;
         } catch (CommandTimeoutException e) {
             // the log is a partial one: its "Fetching from ..." lines would look like newly
             // discovered packages and start another full-timeout round, up to MAX_RESOLVE_ROUNDS
@@ -1005,12 +1016,7 @@ public class SwiftPackageManagerService {
             throw e;
         } catch (IOException e) {
             writeBuildLog(buildState, processExecutor);
-            String output = processExecutor.getOutput();
-            if (output == null || output.isBlank()) {
-                // nothing ran at all (launcher or xcodebuild missing): not a build failure
-                throw e;
-            }
-            return output;
+            return processExecutor.getOutput();
         }
         writeBuildLog(buildState, processExecutor);
         return null;
@@ -1042,7 +1048,7 @@ public class SwiftPackageManagerService {
 
     private void writeBuildLog(SpmServiceBuildState buildState, ProcessExecutor processExecutor) {
         try {
-            processExecutor.writeLog(buildState.getBuildLogFile());
+            processExecutor.writeLog(buildState.getJobDir(), buildState.getBuildLogFile());
         } catch (IOException e) {
             LOGGER.warn("Failed to write SPM build log", e);
         }

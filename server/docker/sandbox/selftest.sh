@@ -143,6 +143,46 @@ if command -v strace >/dev/null 2>&1; then
     if run strace -o /dev/null true 2>/dev/null; then fail "ptrace allowed"; else pass "ptrace denied"; fi
 fi
 
+# 13. a writable grant inside the job dir that the build turned into a link out of it is
+#     refused; the control shows the same grant without --job would reach the link's target
+outside=$(mktemp -d)
+mkdir -p "$tmp/job/inner"
+ln -s "$outside" "$tmp/job/escape"
+# shellcheck disable=SC2086
+if "$SB" $RO --rw "$tmp/job" --rwx "$tmp/job/escape" $DEV --strict -- sh -c "echo x > '$tmp/job/escape/control'" 2>/dev/null \
+        && [ -e "$outside/control" ]; then
+    # shellcheck disable=SC2086
+    if "$SB" $RO --job "$tmp/job" --rw "$tmp/job" --rwx "$tmp/job/escape" $DEV --strict -- \
+            sh -c "echo x > '$tmp/job/escape/planted'" 2>/dev/null || [ -e "$outside/planted" ]; then
+        fail "a linked-out grant inside --job was honoured"
+    else
+        pass "linked-out grant inside the job dir refused"
+    fi
+else
+    fail "control: a linked-out grant without --job did not reach its target, the --job check proves nothing"
+fi
+# shellcheck disable=SC2086
+if "$SB" $RO --job "$tmp/job" --rw "$tmp/job" --rwx "$tmp/job/inner" $DEV --strict -- true; then
+    pass "grant of a real directory inside the job dir"
+else
+    fail "grant of a real directory inside the job dir refused"
+fi
+rm -rf "$outside"
+
+# 14. processes that each start two more in new sessions and exit stay ahead of a sweep that
+#     kills one generation at a time (--nproc bounds them); they must be gone with the command
+cat > "$tmp/chain.sh" <<'CHAIN'
+setsid sh "$0" "$1" </dev/null >/dev/null 2>&1 &
+setsid sh "$0" "$1" </dev/null >/dev/null 2>&1 &
+touch "$1"
+exit 0
+CHAIN
+run sh "$tmp/chain.sh" "$tmp/heartbeat" >/dev/null 2>&1
+sleep 1
+rm -f "$tmp/heartbeat"
+sleep 1
+if [ -e "$tmp/heartbeat" ]; then fail "a fork-and-exit chain outlived the command"; else pass "fork-and-exit chain killed"; fi
+
 if [ "$failures" -eq 0 ]; then
     echo "extender-sandbox self-test: all checks passed"
     exit 0

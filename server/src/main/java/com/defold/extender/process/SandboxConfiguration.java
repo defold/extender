@@ -35,6 +35,8 @@ public class SandboxConfiguration {
     private boolean strict = true;
     /** Wall-clock limit per subprocess, milliseconds. */
     private long commandTimeout = 1_200_000L;
+    /** The same for dependency resolvers (Gradle, pod, xcodebuild, dotnet publish, git, curl). */
+    private long resolverCommandTimeout = 3_600_000L;
     private List<String> readOnlyPaths = new ArrayList<>();
     private List<String> readWritePaths = new ArrayList<>();
     private List<String> readWriteExecPaths = new ArrayList<>();
@@ -49,8 +51,12 @@ public class SandboxConfiguration {
     public static class Limits {
         /** RLIMIT_CPU in seconds; 0 = unlimited. Sums CPU across threads, so keep it off for LTO/wasm-opt. */
         private long cpuSeconds = 0;
-        /** RLIMIT_NPROC; per uid, so it also counts the server JVM's threads. 0 = unlimited. */
-        private long maxProcesses = 4096;
+        /**
+         * RLIMIT_NPROC; counted per uid across every thread of that uid, including the server
+         * JVM, Gradle daemons, other jobs and other containers running as the same uid on the
+         * host. 0 = unlimited.
+         */
+        private long maxProcesses = 16384;
         /** RLIMIT_FSIZE in bytes; 0 = unlimited. */
         private long maxFileSizeBytes = 8L * 1024L * 1024L * 1024L;
         /** RLIMIT_NOFILE; 0 = unlimited. */
@@ -224,10 +230,20 @@ public class SandboxConfiguration {
         if (commandTimeout < 0) {
             throw new IllegalArgumentException("extender.sandbox.command-timeout must not be negative");
         }
-        // 0 = off, as ProcessSandbox.commandTimeoutMillis and ProcessExecutor.setCommandTimeout
-        // both document and implement; rejecting it here left an operator whose builds legitimately
-        // outrun the limit with no way to raise or disable it short of a startup failure.
+        // 0 = off
         this.commandTimeout = commandTimeout;
+    }
+
+    public long getResolverCommandTimeout() {
+        return resolverCommandTimeout;
+    }
+
+    public void setResolverCommandTimeout(long resolverCommandTimeout) {
+        if (resolverCommandTimeout < 0) {
+            throw new IllegalArgumentException("extender.sandbox.resolver-command-timeout must not be negative");
+        }
+        // 0 = off
+        this.resolverCommandTimeout = resolverCommandTimeout;
     }
 
     public List<String> getReadOnlyPaths() {

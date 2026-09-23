@@ -1,5 +1,6 @@
 package com.defold.extender.services.cocoapods;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
@@ -194,7 +195,7 @@ public class CocoaPodsService {
         String mainPodfileContents = templateExecutor.execute(podfileTemplateContents, envContext);
         LOGGER.info("Created main Podfile:\n{}", mainPodfileContents);
 
-        Files.write(mainPodfile.file.toPath(), mainPodfileContents.getBytes());
+        JobFiles.write(buildState.getJobDir(), mainPodfile.file, mainPodfileContents.getBytes());
 
         return mainPodfile;
     }

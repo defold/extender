@@ -19,11 +19,13 @@ class ProcessSandboxInitializer {
 
     @Bean
     ProcessSandbox processSandbox(SandboxConfiguration configuration) throws IOException {
+        boolean enforcing = false;
         if (configuration.isEnabled()) {
             Path launcher = Path.of(configuration.getLauncherPath());
             SandboxLauncherProbe.requireExecutable(launcher);
             SandboxLauncherProbe.Result probe = SandboxLauncherProbe.run(launcher);
             SandboxLauncherProbe.validate(configuration, probe);
+            enforcing = probe.enforceable();
             if (configuration.resolveBackend() == SandboxConfiguration.Backend.LANDLOCK) {
                 hideProcessFromChildren(configuration);
             }
@@ -32,15 +34,16 @@ class ProcessSandboxInitializer {
                         + "system directories");
             }
             LOGGER.info("Process sandbox enabled: backend={} launcher={} probe=[{}] strict={} timeout={}ms "
-                            + "ro={} ro-env={} rw={} rwx={} image-rw={}",
+                            + "resolver-timeout={}ms ro={} ro-env={} rw={} rwx={} image-rw={}",
                     configuration.resolveBackend(), launcher, probe.description(), configuration.isStrict(),
-                    configuration.getCommandTimeout(), configuration.getReadOnlyPaths(),
+                    configuration.getCommandTimeout(), configuration.getResolverCommandTimeout(),
+                    configuration.getReadOnlyPaths(),
                     configuration.getReadOnlyEnvVariables(), configuration.getReadWritePaths(),
                     configuration.getReadWriteExecPaths(), configuration.getImageReadWritePaths());
         } else {
             LOGGER.info("Process sandbox disabled (extender.sandbox.enabled=false)");
         }
-        ProcessSandbox sandbox = new ProcessSandbox(configuration);
+        ProcessSandbox sandbox = new ProcessSandbox(configuration, enforcing);
         ProcessSandbox.install(sandbox);
         return sandbox;
     }

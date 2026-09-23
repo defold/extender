@@ -43,6 +43,7 @@ public final class ProcessSandbox {
     public record Launch(List<String> argv, Map<String, String> env) {}
 
     private final SandboxConfiguration configuration;
+    private final boolean enforcing;
     private final SandboxConfiguration.Backend backend;
     private final Map<String, String> inheritedEnv;
     private final Path realHome;
@@ -51,7 +52,15 @@ public final class ProcessSandbox {
     private final Set<String> warnedNestedPaths = ConcurrentHashMap.newKeySet();
 
     public ProcessSandbox(SandboxConfiguration configuration) {
-        this(configuration, System.getenv(), Path.of(System.getProperty("user.home", "/")));
+        this(configuration, configuration.isEnabled());
+    }
+
+    /**
+     * @param enforcing the launcher probe found every kernel layer it needs; false when a
+     *                  non-strict configuration runs degraded
+     */
+    public ProcessSandbox(SandboxConfiguration configuration, boolean enforcing) {
+        this(configuration, enforcing, System.getenv(), Path.of(System.getProperty("user.home", "/")));
     }
 
     ProcessSandbox(SandboxConfiguration configuration, Map<String, String> inheritedEnv) {
@@ -59,7 +68,13 @@ public final class ProcessSandbox {
     }
 
     ProcessSandbox(SandboxConfiguration configuration, Map<String, String> inheritedEnv, Path realHome) {
+        this(configuration, configuration.isEnabled(), inheritedEnv, realHome);
+    }
+
+    private ProcessSandbox(SandboxConfiguration configuration, boolean enforcing, Map<String, String> inheritedEnv,
+                           Path realHome) {
         this.configuration = configuration;
+        this.enforcing = configuration.isEnabled() && enforcing;
         this.backend = configuration.resolveBackend();
         this.inheritedEnv = Map.copyOf(inheritedEnv);
         this.realHome = realHome.toAbsolutePath().normalize();
@@ -90,6 +105,15 @@ public final class ProcessSandbox {
         return configuration.isEnabled();
     }
 
+    /**
+     * Commands really run confined: the sandbox is enabled and the launcher found the kernel
+     * layers it needs. A non-strict configuration on a host without them runs the launcher
+     * degraded, which is enabled but not enforcing.
+     */
+    public boolean isEnforcing() {
+        return enforcing;
+    }
+
     public SandboxConfiguration.Backend backend() {
         return backend;
     }
@@ -97,6 +121,14 @@ public final class ProcessSandbox {
     /** Per-command wall-clock limit; 0 when the sandbox is off so existing behaviour is untouched. */
     public long commandTimeoutMillis() {
         return configuration.isEnabled() ? configuration.getCommandTimeout() : 0;
+    }
+
+    /** The wall-clock limit for a command run under {@code policy}. */
+    public long commandTimeoutMillis(SandboxPolicy policy) {
+        if (!configuration.isEnabled()) {
+            return 0;
+        }
+        return policy.isResolver() ? configuration.getResolverCommandTimeout() : configuration.getCommandTimeout();
     }
 
     public SandboxConfiguration configuration() {
@@ -112,51 +144,61 @@ public final class ProcessSandbox {
             throw new IOException("Process sandbox is enabled but no working directory is set for: "
                     + String.join(" ", args));
         }
-        Path jobDir = cwd.toPath().toAbsolutePath().normalize();
-        if (backend == SandboxConfiguration.Backend.SEATBELT) {
-            // Seatbelt matches real paths: the job directory under /var/folders is really
-            // under /private/var/folders
-            jobDir = jobDir.toRealPath();
-        }
+        Path lexicalJobDir = cwd.toPath().toAbsolutePath().normalize();
+        Path realJobDir = lexicalJobDir.toRealPath();
+        // Seatbelt matches real paths: the job directory under /var/folders is really under
+        // /private/var/folders
+        Path jobDir = backend == SandboxConfiguration.Backend.SEATBELT ? realJobDir : lexicalJobDir;
+        JobDir job = new JobDir(jobDir, lexicalJobDir, realJobDir);
+        // Inside the job directory, so covered by its grant; never granted on their own, as a
+        // build can replace either with a link to somewhere else
         Path home = jobDir.resolve("home");
         Path tmp = jobDir.resolve("tmp");
         Files.createDirectories(home);
         Files.createDirectories(tmp);
 
         List<String> argv = backend == SandboxConfiguration.Backend.SEATBELT
-                ? buildSeatbeltArgv(args, jobDir, home, tmp, overlayEnv, policy)
-                : buildLandlockArgv(args, jobDir, home, tmp, overlayEnv, policy);
+                ? buildSeatbeltArgv(args, job, home, overlayEnv, policy)
+                : buildLandlockArgv(args, job, overlayEnv, policy);
         return new Launch(argv, buildEnv(home, tmp, overlayEnv, policy));
+    }
+
+    /** The job directory as the backend names it, as given, and with every link resolved. */
+    record JobDir(Path path, Path lexical, Path real) {
+        boolean contains(Path p) {
+            return p.startsWith(lexical) || p.startsWith(real);
+        }
     }
 
     /** The paths a command gets, in the three access classes the launchers understand. */
     private record PathGrants(Set<Path> readOnly, Set<Path> readWrite, Set<Path> readWriteExec) {}
 
-    private PathGrants collectPaths(Path jobDir, Path home, Path tmp, Map<String, String> overlayEnv,
-                                    SandboxPolicy policy) {
+    private PathGrants collectPaths(JobDir job, Map<String, String> overlayEnv, SandboxPolicy policy)
+            throws IOException {
         Set<Path> readOnly = new LinkedHashSet<>();
-        addPaths(readOnly, configuration.getReadOnlyPaths());
-        addPaths(readOnly, policy.readOnlyPaths());
+        addPaths(readOnly, configuration.getReadOnlyPaths(), null, true);
+        addPaths(readOnly, policy.readOnlyPaths(), null, false);
         for (String variable : configuration.getReadOnlyEnvVariables()) {
             addEnvPath(readOnly, variable, overlayEnv);
         }
 
         Set<Path> readWrite = new LinkedHashSet<>();
-        readWrite.add(jobDir);
-        readWrite.add(home);
-        readWrite.add(tmp);
-        addPaths(readWrite, policy.readWritePaths());
-        addPaths(readWrite, configuration.getReadWritePaths());
-        addPaths(readWrite, configuration.getImageReadWritePaths());
+        readWrite.add(job.path());
+        addPaths(readWrite, policy.readWritePaths(), job, false);
+        addPaths(readWrite, configuration.getReadWritePaths(), job, true);
+        addPaths(readWrite, configuration.getImageReadWritePaths(), job, true);
 
         Set<Path> readWriteExec = new LinkedHashSet<>();
-        addPaths(readWriteExec, policy.readWriteExecPaths());
-        addPaths(readWriteExec, configuration.getReadWriteExecPaths());
+        addPaths(readWriteExec, policy.readWriteExecPaths(), job, false);
+        addPaths(readWriteExec, configuration.getReadWriteExecPaths(), job, true);
 
         // A path listed writable must not also be listed read-only: Landlock unions the rights.
         readOnly.removeAll(readWrite);
         readOnly.removeAll(readWriteExec);
         readWrite.removeAll(readWriteExec);
+        // Nor may a read-only path lie inside a writable one: it is readable through that grant
+        // already, and all the read-only grant would add is EXECUTE on a tree the build writes.
+        readOnly.removeIf(p -> isUnderAny(p, readWrite) || isUnderAny(p, readWriteExec));
         PathGrants grants = new PathGrants(readOnly, readWrite, readWriteExec);
         if (backend == SandboxConfiguration.Backend.LANDLOCK) {
             warnAboutNestedWritablePaths(grants);
@@ -189,9 +231,18 @@ public final class ProcessSandbox {
         }
     }
 
-    List<String> buildLandlockArgv(List<String> args, Path jobDir, Path home, Path tmp, Map<String, String> overlayEnv,
-                                   SandboxPolicy policy) {
-        PathGrants grants = collectPaths(jobDir, home, tmp, overlayEnv, policy);
+    private static boolean isUnderAny(Path path, Set<Path> roots) {
+        for (Path root : roots) {
+            if (path.startsWith(root)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    List<String> buildLandlockArgv(List<String> args, JobDir job, Map<String, String> overlayEnv,
+                                   SandboxPolicy policy) throws IOException {
+        PathGrants grants = collectPaths(job, overlayEnv, policy);
         if (!policy.readWritePatterns().isEmpty() || !policy.machServices().isEmpty()
                 || !policy.preferenceDomains().isEmpty() || !policy.extraRules().isEmpty()) {
             LOGGER.debug("Landlock backend ignores the Seatbelt-only parts of {}", policy);
@@ -199,6 +250,10 @@ public final class ProcessSandbox {
 
         List<String> argv = new ArrayList<>();
         argv.add(configuration.getLauncherPath());
+        // the launcher re-checks the writable grants inside it on the descriptors it grants,
+        // since a parallel command of the same job can swap a directory for a link meanwhile
+        argv.add("--job");
+        argv.add(job.path().toString());
         for (Path p : grants.readOnly()) {
             argv.add("--ro");
             argv.add(p.toString());
@@ -219,9 +274,9 @@ public final class ProcessSandbox {
         return argv;
     }
 
-    List<String> buildSeatbeltArgv(List<String> args, Path jobDir, Path home, Path tmp, Map<String, String> overlayEnv,
+    List<String> buildSeatbeltArgv(List<String> args, JobDir job, Path home, Map<String, String> overlayEnv,
                                    SandboxPolicy policy) throws IOException {
-        PathGrants grants = collectPaths(jobDir, home, tmp, overlayEnv, policy);
+        PathGrants grants = collectPaths(job, overlayEnv, policy);
         SandboxConfiguration.Darwin darwin = configuration.getDarwin();
 
         // Tools that read platform state through $HOME find it in the per-job home
@@ -370,7 +425,7 @@ public final class ProcessSandbox {
         if (value == null || value.isBlank()) {
             return;
         }
-        Path path = normalize(value, true);
+        Path path = normalize(value, true, true);
         if (path == null) {
             return;
         }
@@ -400,7 +455,15 @@ public final class ProcessSandbox {
         return null;
     }
 
-    private void addPaths(Set<Path> target, Collection<String> paths) {
+    /**
+     * @param job        non-null for writable grants: one inside the job directory must still be
+     *                   inside it with every link resolved, as the build itself may have planted
+     *                   the link
+     * @param configured the path comes from the configuration, not from a per-job policy; only
+     *                   those are remembered for the once-only missing-path log
+     */
+    private void addPaths(Set<Path> target, Collection<String> paths, JobDir job, boolean configured)
+            throws IOException {
         for (String raw : paths) {
             if (raw == null) {
                 continue;
@@ -409,10 +472,24 @@ public final class ProcessSandbox {
             if (value.isEmpty()) {
                 continue;
             }
-            Path path = normalize(value, false);
+            if (job != null) {
+                requireInsideJob(expandHome(value), job);
+            }
+            Path path = normalize(value, false, configured);
             if (path != null) {
                 target.add(path);
             }
+        }
+    }
+
+    private static void requireInsideJob(Path path, JobDir job) throws IOException {
+        if (!job.contains(path) || !Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        Path real = path.toRealPath();
+        if (!real.startsWith(job.real())) {
+            throw new IOException("Refusing to grant " + path + " to a build command: it resolves to " + real
+                    + ", outside the job directory");
         }
     }
 
@@ -422,10 +499,12 @@ public final class ProcessSandbox {
      * and the Macs, so a missing configured entry is expected (DEBUG); a missing environment
      * variable target is not (one WARN).
      */
-    private Path normalize(String value, boolean warnWhenMissing) {
+    private Path normalize(String value, boolean warnWhenMissing, boolean remember) {
         Path path = expandHome(value);
         if (!Files.exists(path)) {
-            if (warnedMissingPaths.add(path.toString())) {
+            if (!remember) {
+                LOGGER.debug("Sandbox path {} does not exist and is not granted", path);
+            } else if (warnedMissingPaths.add(path.toString())) {
                 if (warnWhenMissing) {
                     LOGGER.warn("Sandbox path {} does not exist and is not granted", LogSanitizer.sanitize(path.toString()));
                 } else {

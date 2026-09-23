@@ -157,7 +157,7 @@ Configuration (`extender.sandbox.*` in `application.yml`; environment variables 
   on a host without a release.
 * `image-read-write-paths` - writable tool state that a particular image needs (emscripten cache,
   wine prefix, `.android`); each Dockerfile sets it via `EXTENDER_SANDBOX_IMAGEREADWRITEPATHS`.
-* `env-deny-patterns`, `command-timeout`, `limits.*` - see the comments in `application.yml`.
+* `env-deny-patterns`, `command-timeout`, `resolver-command-timeout`, `limits.*` - see the comments in `application.yml`.
 
 `/proc` is granted read-only because the toolchains need `/proc/self` and the cpu/memory files,
 and Landlock cannot single out one process in it. The tools run as the server's uid, which

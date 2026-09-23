@@ -36,11 +36,14 @@ public final class SandboxPolicy {
     /** RLIMIT_FSIZE override in bytes (0 = unlimited); null = the configured limit. */
     private final Long maxFileSizeBytes;
     private final Map<String, String> env;
+    /** Built from {@link #dependencyResolver(List)}: runs under the resolver command timeout. */
+    private final boolean resolver;
 
-    private SandboxPolicy(Network network, List<String> readOnlyPaths, List<String> readWritePaths,
+    private SandboxPolicy(boolean resolver, Network network, List<String> readOnlyPaths, List<String> readWritePaths,
                           List<String> readWriteExecPaths, List<String> readWritePatterns, List<String> machServices,
                           List<String> preferenceDomains, List<String> extraRules, Long maxFileSizeBytes,
                           Map<String, String> env) {
+        this.resolver = resolver;
         this.network = network;
         this.readOnlyPaths = List.copyOf(readOnlyPaths);
         this.readWritePaths = List.copyOf(readWritePaths);
@@ -55,17 +58,21 @@ public final class SandboxPolicy {
 
     /** Compilers, linkers, archivers, aapt2, d8, R8, protoc, javac, codesign, manifest merge: no network. */
     public static SandboxPolicy toolchain() {
-        return new SandboxPolicy(Network.NONE, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, Map.of());
+        return new SandboxPolicy(false, Network.NONE, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, Map.of());
     }
 
-    /** Gradle / NuGet / CocoaPods / SwiftPM resolution: network allowed, plus the given writable cache directories. */
+    /**
+     * Gradle / NuGet / CocoaPods / SwiftPM resolution: network allowed, plus the given writable cache
+     * directories. These commands (and every copy of the policy) run under
+     * {@code resolver-command-timeout} instead of {@code command-timeout}.
+     */
     public static SandboxPolicy dependencyResolver(List<String> extraReadWritePaths) {
-        return new SandboxPolicy(Network.ALL, List.of(), extraReadWritePaths, List.of(), List.of(), List.of(), List.of(), List.of(), null, Map.of());
+        return new SandboxPolicy(true, Network.ALL, List.of(), extraReadWritePaths, List.of(), List.of(), List.of(), List.of(), List.of(), null, Map.of());
     }
 
     /** Copy with the network access replaced. */
     public SandboxPolicy withNetwork(Network network) {
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
                 machServices, preferenceDomains, extraRules, maxFileSizeBytes, env);
     }
 
@@ -73,25 +80,25 @@ public final class SandboxPolicy {
     public SandboxPolicy withEnv(Map<String, String> overrides) {
         Map<String, String> merged = new HashMap<>(this.env);
         merged.putAll(overrides);
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
                 machServices, preferenceDomains, extraRules, maxFileSizeBytes, merged);
     }
 
     /** Copy with additional read-only (and executable) directories. */
     public SandboxPolicy withReadOnlyPaths(List<String> paths) {
-        return new SandboxPolicy(network, concat(readOnlyPaths, paths), readWritePaths, readWriteExecPaths,
+        return new SandboxPolicy(resolver, network, concat(readOnlyPaths, paths), readWritePaths, readWriteExecPaths,
                 readWritePatterns, machServices, preferenceDomains, extraRules, maxFileSizeBytes, env);
     }
 
     /** Copy with additional writable directories. */
     public SandboxPolicy withReadWritePaths(List<String> paths) {
-        return new SandboxPolicy(network, readOnlyPaths, concat(readWritePaths, paths), readWriteExecPaths,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, concat(readWritePaths, paths), readWriteExecPaths,
                 readWritePatterns, machServices, preferenceDomains, extraRules, maxFileSizeBytes, env);
     }
 
     /** Copy with additional writable directories whose files may also be executed. */
     public SandboxPolicy withReadWriteExecPaths(List<String> paths) {
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, concat(readWriteExecPaths, paths),
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, concat(readWriteExecPaths, paths),
                 readWritePatterns, machServices, preferenceDomains, extraRules, maxFileSizeBytes, env);
     }
 
@@ -100,25 +107,25 @@ public final class SandboxPolicy {
      * (Seatbelt only), e.g. {@code ^/private/var/folders/xx/yy/T/xcrun_db}.
      */
     public SandboxPolicy withReadWritePatterns(List<String> patterns) {
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, readWriteExecPaths,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, readWriteExecPaths,
                 concat(readWritePatterns, patterns), machServices, preferenceDomains, extraRules, maxFileSizeBytes, env);
     }
 
     /** Copy with additional Mach services the command may look up (Seatbelt only). */
     public SandboxPolicy withMachServices(List<String> services) {
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
                 concat(machServices, services), preferenceDomains, extraRules, maxFileSizeBytes, env);
     }
 
     /** Copy with additional preference domains the command may read through cfprefsd (Seatbelt only). */
     public SandboxPolicy withPreferenceDomains(List<String> domains) {
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
                 machServices, concat(preferenceDomains, domains), extraRules, maxFileSizeBytes, env);
     }
 
     /** Copy with raw SBPL rules appended before the deny block (Seatbelt only). */
     public SandboxPolicy withExtraRules(List<String> rules) {
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
                 machServices, preferenceDomains, concat(extraRules, rules), maxFileSizeBytes, env);
     }
 
@@ -127,7 +134,7 @@ public final class SandboxPolicy {
         if (bytes < 0) {
             throw new IllegalArgumentException("max file size must not be negative: " + bytes);
         }
-        return new SandboxPolicy(network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
+        return new SandboxPolicy(resolver, network, readOnlyPaths, readWritePaths, readWriteExecPaths, readWritePatterns,
                 machServices, preferenceDomains, extraRules, bytes, env);
     }
 
@@ -172,6 +179,10 @@ public final class SandboxPolicy {
         return env;
     }
 
+    public boolean isResolver() {
+        return resolver;
+    }
+
     private static List<String> concat(List<String> first, List<String> second) {
         List<String> merged = new ArrayList<>(first);
         merged.addAll(second);
@@ -180,7 +191,7 @@ public final class SandboxPolicy {
 
     @Override
     public String toString() {
-        return "SandboxPolicy{network=" + network + ", ro=" + readOnlyPaths + ", rw=" + readWritePaths + ", rwx=" + readWriteExecPaths
+        return "SandboxPolicy{" + (resolver ? "resolver, " : "") + "network=" + network + ", ro=" + readOnlyPaths + ", rw=" + readWritePaths + ", rwx=" + readWriteExecPaths
                 + ", rwPatterns=" + readWritePatterns + ", mach=" + machServices + ", prefs=" + preferenceDomains
                 + ", rules=" + extraRules + (maxFileSizeBytes != null ? ", fsize=" + maxFileSizeBytes : "")
                 + ", env=" + env.keySet() + "}";

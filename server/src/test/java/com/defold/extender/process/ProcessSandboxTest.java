@@ -87,16 +87,84 @@ public class ProcessSandboxTest {
     }
 
     @Test
-    public void jobDirectoryHomeAndTmpAreWritableAndCreated(@TempDir Path jobDir) throws IOException {
+    public void jobDirectoryIsWritableAndHomeAndTmpAreCreatedInsideIt(@TempDir Path jobDir) throws IOException {
         ProcessSandbox sandbox = sandbox(enabled(), Map.of());
         List<String> argv = sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain()).argv();
 
         Path job = jobDir.toAbsolutePath().normalize();
+        assertTrue(indexOfFlag(argv, "--job", job.toString()) > 0, argv.toString());
         assertTrue(indexOfFlag(argv, "--rw", job.toString()) > 0, argv.toString());
-        assertTrue(indexOfFlag(argv, "--rw", job.resolve("home").toString()) > 0, argv.toString());
-        assertTrue(indexOfFlag(argv, "--rw", job.resolve("tmp").toString()) > 0, argv.toString());
+        // covered by the job directory's grant; a grant of their own would follow a planted link
+        assertEquals(-1, indexOfFlag(argv, "--rw", job.resolve("home").toString()), argv.toString());
+        assertEquals(-1, indexOfFlag(argv, "--rw", job.resolve("tmp").toString()), argv.toString());
         assertTrue(Files.isDirectory(job.resolve("home")));
         assertTrue(Files.isDirectory(job.resolve("tmp")));
+    }
+
+    @Test
+    public void writableGrantLinkedOutOfTheJobDirectoryIsRefused(@TempDir Path root) throws IOException {
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        Path outside = Files.createDirectory(root.resolve("shared-cache"));
+        Path build = Files.createDirectory(jobDir.resolve("build"));
+        Files.createSymbolicLink(build.resolve(".nuget"), outside);
+
+        for (SandboxConfiguration configuration : List.of(enabled(), seatbelt())) {
+            ProcessSandbox sandbox = sandbox(configuration, Map.of());
+            SandboxPolicy policy = SandboxPolicy.toolchain()
+                    .withReadWriteExecPaths(List.of(build.resolve(".nuget").toString()));
+            IOException e = assertThrows(IOException.class,
+                    () -> sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), policy));
+            assertTrue(e.getMessage().contains("outside the job directory"), e.getMessage());
+
+            // an intermediate directory replaced by a link is caught the same way
+            SandboxPolicy nested = SandboxPolicy.toolchain()
+                    .withReadWritePaths(List.of(build.resolve(".nuget/packages").toString()));
+            Files.createDirectories(outside.resolve("packages"));
+            assertThrows(IOException.class, () -> sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), nested));
+        }
+    }
+
+    @Test
+    public void writableGrantInsideTheJobDirectoryIsKept(@TempDir Path jobDir) throws IOException {
+        Path cache = Files.createDirectories(jobDir.resolve("build/.nuget"));
+        ProcessSandbox sandbox = sandbox(enabled(), Map.of());
+        SandboxPolicy policy = SandboxPolicy.toolchain().withReadWriteExecPaths(List.of(cache.toString()));
+        List<String> argv = sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), policy).argv();
+        assertTrue(indexOfFlag(argv, "--rwx", cache.toAbsolutePath().normalize().toString()) > 0, argv.toString());
+    }
+
+    @Test
+    public void readOnlyGrantInsideAWritableOneIsDropped(@TempDir Path jobDir) throws IOException {
+        // read-only means read and EXECUTE, and Landlock unions it with the job directory's write
+        Path runtime = Files.createDirectories(jobDir.resolve("build/.nuget/runtime/native"));
+        ProcessSandbox sandbox = sandbox(enabled(), Map.of());
+        SandboxPolicy policy = SandboxPolicy.toolchain().withReadOnlyPaths(List.of(runtime.toString()));
+        List<String> argv = sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), policy).argv();
+        assertEquals(-1, indexOfFlag(argv, "--ro", runtime.toAbsolutePath().normalize().toString()), argv.toString());
+    }
+
+    @Test
+    public void resolverPoliciesGetTheResolverTimeout() {
+        SandboxConfiguration configuration = enabled();
+        configuration.setCommandTimeout(1000);
+        configuration.setResolverCommandTimeout(5000);
+        ProcessSandbox sandbox = sandbox(configuration, Map.of());
+        assertEquals(1000, sandbox.commandTimeoutMillis(SandboxPolicy.toolchain()));
+        assertEquals(5000, sandbox.commandTimeoutMillis(SandboxPolicy.dependencyResolver(List.of())));
+        assertEquals(5000, sandbox.commandTimeoutMillis(SandboxPolicy.dependencyResolver(List.of())
+                .withNetwork(SandboxPolicy.Network.NONE).withReadOnlyPaths(List.of("/x"))));
+        assertEquals(0, ProcessSandbox.disabled().commandTimeoutMillis(SandboxPolicy.dependencyResolver(List.of())));
+    }
+
+    @Test
+    public void degradedSandboxIsEnabledButNotEnforcing() {
+        SandboxConfiguration configuration = enabled();
+        configuration.setStrict(false);
+        assertTrue(new ProcessSandbox(configuration, true).isEnforcing());
+        ProcessSandbox degraded = new ProcessSandbox(configuration, false);
+        assertTrue(degraded.isEnabled());
+        assertFalse(degraded.isEnforcing());
+        assertFalse(ProcessSandbox.disabled().isEnforcing());
     }
 
     @Test
@@ -297,7 +365,7 @@ public class ProcessSandboxTest {
         assertTrue(profile.contains("(allow network* (local unix-socket) (remote unix-socket))"), profile);
         assertFalse(profile.contains("(allow network*)\n"), profile);
         assertTrue(argv.contains("--strict"));
-        assertTrue(indexOfFlag(argv, "--nproc", "4096") > 0, argv.toString());
+        assertTrue(indexOfFlag(argv, "--nproc", "16384") > 0, argv.toString());
         assertFalse(argv.contains("--ro"), argv.toString());
         int separator = argv.indexOf("--");
         assertEquals(COMMAND, argv.subList(separator + 1, argv.size()));

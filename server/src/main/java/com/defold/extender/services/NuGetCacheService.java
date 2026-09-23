@@ -150,6 +150,9 @@ public class NuGetCacheService {
         LOGGER.info("Waiting for the NuGet cache warm of {} to finish before restoring", runtimeIdentifier);
         try {
             future.get(warmWaitTimeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("Interrupted while waiting for the NuGet cache warm of {}", runtimeIdentifier);
         } catch (Exception e) {
             // the build restores into its own cache instead, which is slower and still correct
             LOGGER.warn("Not waiting for the NuGet cache warm of {} any longer: {}", runtimeIdentifier, e.toString());

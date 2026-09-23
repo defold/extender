@@ -3,7 +3,6 @@ package com.defold.extender.process;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.FileOutputStream;
 import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.util.*;
@@ -37,7 +36,8 @@ public class ProcessExecutor {
     private final Map<String, String> env = new HashMap<>();
     private final ProcessSandbox sandbox;
     private volatile SandboxPolicy policy = SandboxPolicy.toolchain();
-    private volatile long commandTimeoutMillis;
+    /** Set by {@link #setCommandTimeout}; null = the sandbox's limit for the command's policy. */
+    private volatile Long commandTimeoutMillis;
     private File cwd = null;
     private boolean DM_DEBUG_COMMANDS = System.getenv("DM_DEBUG_COMMANDS") != null;
     private static AtomicInteger commandCounter = new AtomicInteger(0);
@@ -48,7 +48,6 @@ public class ProcessExecutor {
 
     public ProcessExecutor(ProcessSandbox sandbox) {
         this.sandbox = sandbox;
-        this.commandTimeoutMillis = sandbox.commandTimeoutMillis();
     }
 
     public int execute(String command) throws IOException, InterruptedException {
@@ -77,7 +76,12 @@ public class ProcessExecutor {
         int commandId = commandCounter.incrementAndGet();
         long startTime = System.currentTimeMillis();
         SandboxPolicy effectivePolicy = policy != null ? policy : this.policy;
-        ProcessSandbox.Launch launch = sandbox.prepare(args, cwd, env, effectivePolicy);
+        ProcessSandbox.Launch launch;
+        try {
+            launch = sandbox.prepare(args, cwd, env, effectivePolicy);
+        } catch (IOException e) {
+            throw new ProcessLaunchException("Cannot start " + String.join(" ", args) + ": " + e.getMessage(), e);
+        }
 
         ProcessBuilder pb = new ProcessBuilder(launch.argv());
         if (cwd != null) {
@@ -111,9 +115,15 @@ public class ProcessExecutor {
             }
             System.out.println(debugBuffer.toString());
         }
-        Process p = pb.start();
+        Process p;
+        try {
+            p = pb.start();
+        } catch (IOException e) {
+            throw new ProcessLaunchException("Cannot start " + String.join(" ", args) + ": " + e.getMessage(), e);
+        }
 
-        long timeout = this.commandTimeoutMillis;
+        Long override = this.commandTimeoutMillis;
+        long timeout = override != null ? override : sandbox.commandTimeoutMillis(effectivePolicy);
         AtomicBoolean timedOut = new AtomicBoolean(false);
         ScheduledFuture<?> watchdog = null;
         if (timeout > 0) {
@@ -167,7 +177,7 @@ public class ProcessExecutor {
         if (timedOut.get() && exitValue != 0) {
             String message = String.format("Command timed out after %d ms: %s\n", timeout, String.join(" ", args));
             putLog(message);
-            throw new CommandTimeoutException(message + output.toString());
+            throw new CommandTimeoutException(output.toString());
         }
 
         // note: a negative exit value means the process was terminated by a signal,
@@ -198,11 +208,9 @@ public class ProcessExecutor {
         return output.toString();
     }
 
-    public void writeLog(File file) throws IOException {
-        try (FileOutputStream os = new FileOutputStream(file)) {
-            byte[] strToBytes = getOutput().getBytes();
-            os.write(strToBytes);
-        }
+    /** Writes the output to {@code file}, whose directory must resolve inside {@code jobDir}. */
+    public void writeLog(File jobDir, File file) throws IOException {
+        JobFiles.write(jobDir.toPath(), file.toPath(), getOutput().getBytes());
     }
 
     public void putEnv(String key, String value) {
@@ -240,13 +248,15 @@ public class ProcessExecutor {
         return policy;
     }
 
-    /** Wall-clock limit per command in milliseconds; 0 disables it. */
+    /** Wall-clock limit per command in milliseconds, for every policy; 0 disables it. */
     public void setCommandTimeout(long millis) {
         this.commandTimeoutMillis = millis;
     }
 
+    /** The limit a command run under this executor's default policy gets. */
     public long getCommandTimeout() {
-        return commandTimeoutMillis;
+        Long override = this.commandTimeoutMillis;
+        return override != null ? override : sandbox.commandTimeoutMillis(policy);
     }
 
     public ProcessSandbox getSandbox() {

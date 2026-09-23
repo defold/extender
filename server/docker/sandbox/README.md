@@ -6,7 +6,7 @@ builder container (the macOS standalone builders use the Seatbelt launcher in
 wine). The server wraps each command as
 
 ```
-extender-sandbox --ro /usr --ro /opt ... --rw /tmp/job123 ... --net none --strict -- clang++ ...
+extender-sandbox --job /tmp/job123 --ro /usr --ro /opt ... --rw /tmp/job123 ... --net none --strict -- clang++ ...
 ```
 
 and treats the launcher like the command itself: same stdin/stdout/stderr, same working
@@ -16,11 +16,11 @@ directory, exit code passed through (128+signal when the command died from a sig
 
 | Layer | Mechanism | Effect |
 |---|---|---|
-| Filesystem | Landlock (kernel >= 5.13) | Only `--ro` (read + execute), `--rw` (read/write, no execute, no device nodes) and `--rwx` paths exist for the command; everything else is `EACCES`. Landlock also denies ptrace and `/proc/<pid>/fd` access to processes outside the sandbox. On kernel >= 6.7 TCP bind/connect is denied at the LSM level too; on >= 6.12 the command cannot signal processes outside the sandbox or reach their abstract unix sockets. |
+| Filesystem | Landlock (kernel >= 5.13) | Only `--ro` (read + execute), `--rw` (read/write, no execute, no device nodes) and `--rwx` paths exist for the command; everything else is `EACCES`. A `--rw`/`--rwx` path inside `--job` is refused (exit 127) when the descriptor it opens resolves outside that directory: the job can replace anything in it with a link. Landlock also denies ptrace and `/proc/<pid>/fd` access to processes outside the sandbox. On kernel >= 6.7 TCP bind/connect is denied at the LSM level too; on >= 6.12 the command cannot signal processes outside the sandbox or reach their abstract unix sockets. |
 | Network | seccomp BPF | With `--net none`, `socket()` fails with `EAFNOSUPPORT` for every family except `AF_UNIX` (needed by wineserver, MSBuild, Python multiprocessing). `--net all` lifts only this rule. |
 | Dangerous syscalls | seccomp BPF | `ptrace`, `process_vm_*`, `mount`/`umount`, `unshare`, `setns`, `pivot_root`, `chroot`, keyring, `bpf`, `perf_event_open`, `userfaultfd`, `io_uring_setup`, module and kexec calls return `EPERM`. The filter covers x86_64, aarch64 (Rosetta, arm64 images) and i386 (wine's 32-bit helpers); other ABIs get `EPERM`, never `SIGKILL`. |
 | Resources | rlimits | `--cpu` (RLIMIT_CPU), `--nproc`, `--fsize`, `--nofile`; `0` or absent = unlimited. |
-| Lifecycle | subreaper parent | The parent stays outside the sandbox. It kills the command's whole process tree when the command exits or when it receives SIGTERM/SIGINT/SIGHUP, including daemonised escapees that got reparented to it. |
+| Lifecycle | subreaper parent | The parent stays outside the sandbox. It kills the command's whole process tree when the command exits or when it receives SIGTERM/SIGINT/SIGHUP, including daemonised escapees that got reparented to it. Everything below it is stopped with SIGSTOP, sweep after sweep until nothing is left running, before the SIGKILL, so a chain that forks and exits cannot stay ahead of the teardown. |
 
 `--strict` makes a missing Landlock or seccomp a hard failure (exit 127); without it the
 launcher degrades silently, which is what the server does in non-strict mode after logging the
@@ -76,5 +76,7 @@ through, and the self-test exits 2. Use the arm64 build of the image there, or a
   and `/etc/defold/users` are not granted).
 * Paths that do not exist are skipped silently, so one list can serve every image.
 * wineserver runs inside the sandbox of the wine command that started it and is killed with
-  it. That is intended: a persistent wineserver outside the sandbox would open files on
+  it. Open issue: every job shares one `WINEPREFIX`, so a concurrent wine command connects to
+  that same wineserver, is served under the first command's grants, and loses it when that
+  command ends. A persistent wineserver outside the sandbox is no answer either: it would open files on
   behalf of sandboxed clients.

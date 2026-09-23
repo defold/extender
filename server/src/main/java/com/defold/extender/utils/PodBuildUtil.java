@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -18,6 +17,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.process.ProcessUtils;
 import com.defold.extender.services.cocoapods.PodBuildSpec;
@@ -50,7 +50,7 @@ public class PodBuildUtil {
         }
         String serialized = root.toJSONString();
         File jsonHeaderMap = new File(spec.headerMapFile.getParentFile(), String.format("%s.json", spec.name));
-        Files.writeString(jsonHeaderMap.toPath(), serialized, StandardCharsets.UTF_8);
+        JobFiles.writeString(cwd, jsonHeaderMap, serialized, StandardCharsets.UTF_8);
         ProcessUtils.execCommand(List.of(
             "hmap",
             "convert",
@@ -60,7 +60,7 @@ public class PodBuildUtil {
         return spec.headerMapFile;
     }
 
-    public static File generateVFSOverlay(PodBuildSpec spec, Map<String, Collection<File>> vfsInfo) throws IOException {
+    public static File generateVFSOverlay(File jobDir, PodBuildSpec spec, Map<String, Collection<File>> vfsInfo) throws IOException {
         JSONArray rootArray = new JSONArray();
         
         for (Map.Entry<String, Collection<File>> entry : vfsInfo.entrySet()) {
@@ -83,17 +83,17 @@ public class PodBuildUtil {
         resultDocument.put("case-sensitive", "false"); // false as string, not boolean
         resultDocument.put("version", 0);
 
-        Files.writeString(spec.vfsOverlay.toPath(), resultDocument.toJSONString(), StandardCharsets.UTF_8);
+        JobFiles.writeString(jobDir, spec.vfsOverlay, resultDocument.toJSONString(), StandardCharsets.UTF_8);
 
         // 2. Get all dependencies from spec
         for (PodBuildSpec depSpec : spec.dependantSpecs) {
-            mergeVFSOverlays(spec.vfsOverlay, depSpec.vfsOverlay);
+            mergeVFSOverlays(jobDir, spec.vfsOverlay, depSpec.vfsOverlay);
         }
 
         return spec.vfsOverlay;
     }
 
-    public static File mergeVFSOverlays(File overlayA, File overlayB) {
+    public static File mergeVFSOverlays(File jobDir, File overlayA, File overlayB) {
         JSONParser parser = new JSONParser();
             try(Reader readerA = new FileReader(overlayA); Reader readerB = new FileReader(overlayB)) {
                 JSONObject parsedOverlayA = (JSONObject)parser.parse(readerA);
@@ -102,16 +102,16 @@ public class PodBuildUtil {
                 JSONArray roots = (JSONArray)parsedOverlayA.get("roots");
                 roots.addAll((JSONArray)parsedOverlayB.get("roots"));
 
-                Files.writeString(overlayA.toPath(), parsedOverlayA.toJSONString(), StandardCharsets.UTF_8);
+                JobFiles.writeString(jobDir, overlayA, parsedOverlayA.toJSONString(), StandardCharsets.UTF_8);
             } catch (IOException | ParseException e) {
 
             }
         return overlayA;
     }
 
-    public static void generatedInfoPlistFromTemplate(File sourceTemplate, Map<String, String> data, File targetFile) throws IOException {
+    public static void generatedInfoPlistFromTemplate(File jobDir, File sourceTemplate, Map<String, String> data, File targetFile) throws IOException {
         StringSubstitutor substitutor = new StringSubstitutor(data);
         String template = Files.readString(sourceTemplate.toPath(), StandardCharsets.UTF_8);
-        Files.writeString(targetFile.toPath(), substitutor.replace(template), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        JobFiles.writeString(jobDir, targetFile, substitutor.replace(template), StandardCharsets.UTF_8);
     }
 }

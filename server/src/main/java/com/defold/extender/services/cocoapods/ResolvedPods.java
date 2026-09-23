@@ -16,6 +16,7 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
@@ -223,7 +224,7 @@ public class ResolvedPods implements ResolvedNativeDeps {
         for (String contentElement : content) {
             // contentElement can be regex so expand it
             for (File f : PodUtils.listFilesGlob(pod.dir, contentElement)) {
-                FileUtils.copyFileToDirectory(f, resultFolder);
+                JobFiles.copyFileToDirectory(jobDir, f, resultFolder);
             }
         }
         File infoPlist = new File(resultFolder, "Info.plist");

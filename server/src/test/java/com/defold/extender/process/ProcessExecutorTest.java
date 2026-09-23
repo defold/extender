@@ -83,7 +83,17 @@ public class ProcessExecutorTest {
         IOException e = assertThrows(IOException.class, () -> pe.execute("sleep 30"));
         long elapsed = System.currentTimeMillis() - start;
         assertTrue(e.getMessage().contains("timed out"), e.getMessage());
+        assertEquals(e.getMessage().indexOf("timed out"), e.getMessage().lastIndexOf("timed out"), e.getMessage());
         assertTrue(elapsed < 15_000, "took " + elapsed + " ms");
+    }
+
+    @Test
+    public void testCommandThatCannotStartIsALaunchFailure() {
+        ProcessExecutor pe = new ProcessExecutor();
+        assertThrows(ProcessLaunchException.class, () -> pe.execute("/nonexistent/tool --flag"));
+        // a command that ran and failed is not
+        IOException failed = assertThrows(IOException.class, () -> pe.execute("sh -c 'exit 3'"));
+        assertFalse(failed instanceof ProcessLaunchException);
     }
 
     @Test

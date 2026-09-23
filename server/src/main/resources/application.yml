@@ -60,8 +60,11 @@ extender:
         # fail startup when the kernel offers no Landlock/seccomp (or no sandbox-exec) instead of
         # running degraded
         strict: true
-        # wall-clock limit per subprocess, ms
+        # wall-clock limit per subprocess, ms (0 = off); dependency resolvers (Gradle, pod,
+        # xcodebuild with Swift packages, dotnet publish, git, curl) get the longer
+        # resolver-command-timeout
         command-timeout: 1200000
+        resolver-command-timeout: 3600000
         read-only-paths: >
             /usr,/lib,/lib64,/lib32,/bin,/sbin,/opt,/proc,/sys,
             /etc/ld.so.cache,/etc/ld.so.conf,/etc/ld.so.conf.d,/etc/passwd,/etc/group,
@@ -110,8 +113,11 @@ extender:
             # RLIMIT_CPU sums CPU time across threads and would kill multi-threaded
             # linkers/wasm-opt; the wall-clock command-timeout bounds runtime instead. 0 = off.
             cpu-seconds: 0
-            # RLIMIT_NPROC is per uid and also counts the server JVM's threads
-            max-processes: 4096
+            # RLIMIT_NPROC is counted per uid over every thread of that uid: the server JVM,
+            # Gradle daemons, every concurrent job and every other container running as the
+            # same uid on the host. It only stops a runaway fork; a pids cgroup limit on the
+            # container is the real bound.
+            max-processes: 16384
             max-file-size-bytes: 8589934592
             max-open-files: 16384
         # Seatbelt (macOS) only. Seatbelt also gates Mach service lookups and cfprefsd

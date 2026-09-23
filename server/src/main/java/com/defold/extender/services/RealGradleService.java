@@ -1,5 +1,6 @@
 package com.defold.extender.services;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
@@ -113,11 +114,8 @@ public class RealGradleService implements GradleServiceInterface {
 
         if (!hasDependencies) {
             Files.deleteIfExists(artifactManifestFile.toPath());
-            Files.writeString(lockFile.toPath(), "", StandardCharsets.UTF_8);
-            Files.writeString(
-                    dependencyTreeFile.toPath(),
-                    "No Gradle dependencies were declared.\n",
-                    StandardCharsets.UTF_8);
+            JobFiles.writeString(workDir, lockFile, "", StandardCharsets.UTF_8);
+            JobFiles.writeString(workDir, dependencyTreeFile, "No Gradle dependencies were declared.\n", StandardCharsets.UTF_8);
             return List.of();
         }
 
@@ -155,14 +153,14 @@ public class RealGradleService implements GradleServiceInterface {
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("android-enable-jetifier", useJetifier.toString());
         String contents = templateExecutor.execute(gradlePropertiesTemplateContents, envContext);
-        Files.write(gradlePropertiesFile.toPath(), contents.getBytes());
+        JobFiles.write(gradlePropertiesFile.getParentFile(), gradlePropertiesFile, contents.getBytes());
     }
 
     private void createLocalPropertiesFile(File localPropertiesFile, Map<String, Object> jobEnvContext) throws IOException {
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("android-sdk-root", jobEnvContext.get("env.ANDROID_SDK_ROOT"));
         String contents = templateExecutor.execute(localPropertiesTemplateContents, envContext);
-        Files.write(localPropertiesFile.toPath(), contents.getBytes());
+        JobFiles.write(localPropertiesFile.getParentFile(), localPropertiesFile, contents.getBytes());
     }
 
     private void validateGradleFile(File file) throws IOException, ExtenderException {
@@ -216,7 +214,7 @@ public class RealGradleService implements GradleServiceInterface {
         envContext.put("compile-sdk-version", jobEnvContext.get("env.ANDROID_SDK_VERSION"));
         envContext.put("gradle-plugin-version", GRADLE_PLUGIN_VERSION);
         String contents = templateExecutor.execute(buildGradleTemplateContents, envContext);
-        Files.write(mainGradleFile.toPath(), contents.getBytes());
+        JobFiles.write(mainGradleFile.getParentFile(), mainGradleFile, contents.getBytes());
         return !userDependencies.isEmpty();
     }
 
@@ -338,7 +336,7 @@ public class RealGradleService implements GradleServiceInterface {
             Map.of("GRADLE_USER_HOME", this.gradleHome),
             SandboxPolicy.dependencyResolver(List.of(this.gradleHome)));
         LOGGER.debug("\n" + log);
-        Files.writeString(dependencyTree.toPath(), log, StandardCharsets.UTF_8);
+        JobFiles.writeString(cwd, dependencyTree, log, StandardCharsets.UTF_8);
 
         if (!artifactManifest.isFile()) {
             throw new ExtenderException("Gradle did not produce its artifact manifest: " + artifactManifest);
