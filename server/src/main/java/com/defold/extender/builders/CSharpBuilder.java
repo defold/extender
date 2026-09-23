@@ -214,7 +214,7 @@ public class CSharpBuilder {
      * NuGet fallback folder, which NuGet resolves packages from and never writes to.
      */
     static SandboxPolicy dotnetPolicy(File perJobCache, File sharedCache, File cliHome) {
-        Map<String, String> env = new HashMap<>();
+        Map<String, String> env = new HashMap<>(NuGetCacheService.DOTNET_ENV);
         // the CLI's own state (first-run sentinel, telemetry) goes here, not to the shared install
         env.put("DOTNET_CLI_HOME", cliHome.getAbsolutePath());
         env.put("NUGET_PACKAGES", perJobCache.getAbsolutePath());

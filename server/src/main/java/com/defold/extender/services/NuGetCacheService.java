@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -69,10 +70,29 @@ public class NuGetCacheService {
      */
     public static final List<String> DOTNET_MACH_SERVICES = List.of("com.apple.SecurityServer");
 
-    /** Granted to every sandboxed {@code dotnet}; created because a missing path is not granted. */
+    /**
+     * .NET's W^X double mapping sizes a memfd with ftruncate far past the launcher's RLIMIT_FSIZE,
+     * and SIGXFSZ kills dotnet (exit 153) before it prints anything. A build runs arbitrary MSBuild
+     * code anyway, so W^X protects nothing here, while the file size limit still guards the disk.
+     */
+    public static final Map<String, String> DOTNET_ENV = Map.of("DOTNET_EnableWriteXorExecute", "0");
+
+    /**
+     * Granted to every sandboxed {@code dotnet}; created because a missing path is not granted.
+     * The runtime creates {@code shm/} and {@code lockfiles/} with mkdtemp in /tmp and a rename,
+     * and /tmp is not granted, so they are created here, with the mode the runtime gives them.
+     */
     public static File dotnetRuntimeStateDir() {
         File dir = new File(DOTNET_RUNTIME_STATE_DIR);
-        dir.mkdirs();
+        for (String sub : List.of("shm", "lockfiles")) {
+            Path path = dir.toPath().resolve(sub);
+            try {
+                Files.createDirectories(path);
+                Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rwxrwxrwx"));
+            } catch (IOException | UnsupportedOperationException e) {
+                LOGGER.warn("Cannot prepare the .NET runtime state directory {}: {}", path, e.toString());
+            }
+        }
         return dir;
     }
 
@@ -205,7 +225,8 @@ public class NuGetCacheService {
                 executor.execute(List.of(DOTNET_ROOT + "/dotnet", "publish", "-c", "Release", "-r", runtimeIdentifier),
                         SandboxPolicy.dependencyResolver(
                                 List.of(target.getAbsolutePath(), dotnetRuntimeStateDir().getAbsolutePath()))
-                                .withMachServices(DOTNET_MACH_SERVICES));
+                                .withMachServices(DOTNET_MACH_SERVICES)
+                                .withEnv(DOTNET_ENV));
             } catch (IOException e) {
                 // The publish runs to the platform linker, which an image with no C toolchain does
                 // not have, and a stub with no real code has nothing worth linking anyway. Every

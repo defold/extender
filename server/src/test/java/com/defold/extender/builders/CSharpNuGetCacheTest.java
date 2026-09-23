@@ -60,6 +60,15 @@ public class CSharpNuGetCacheTest {
      * osx-x64 and linux-x64 with an undefined symbol at link time.
      */
     @Test
+    public void writeXorExecuteIsOffSoTheFileSizeLimitDoesNotKillDotnet(@TempDir Path root) {
+        // W^X double mapping ftruncates a memfd past RLIMIT_FSIZE: dotnet dies with SIGXFSZ (153)
+        SandboxPolicy policy = CSharpBuilder.dotnetPolicy(root.resolve("job/build/.nuget").toFile(), null,
+                root.resolve("job/.dotnet").toFile());
+        assertEquals("0", policy.env().get("DOTNET_EnableWriteXorExecute"));
+        assertNull(policy.maxFileSizeBytes());
+    }
+
+    @Test
     public void vxsortIsLinkedForX64TargetsOnly(@TempDir Path root) throws Exception {
         assertTrue(linkFlagsFor("x86_64-osx", root).contains("libRuntime.VxsortEnabled.a"));
         assertTrue(linkFlagsFor("x86_64-linux", root).contains("libRuntime.VxsortEnabled.a"));
