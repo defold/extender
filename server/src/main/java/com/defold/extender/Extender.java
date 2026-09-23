@@ -86,6 +86,8 @@ class Extender {
     // Android dependencies: a standalone .jar, or an exploded .aar directory in either the local
     // archive layout or AGP's EXPLODED_AAR layout.
     private List<File> androidPackages;
+    // the shared Gradle cache the resolved artifacts were exploded into; null until resolve()
+    private File gradleCacheDir;
     // Maven AARs keep their legacy externally visible package names even though their content is
     // consumed directly from AGP's transform cache.
     private Map<File, String> androidPackageResourceNames;
@@ -1238,6 +1240,10 @@ class Extender {
         // dmsdk project is self-contained source (no project reference of its own, nothing outside
         // its directory), so the job builds against a copy inside its own build directory.
         File jobSdkCsdmSDKDir = new File(buildState.jobDir, "cs-dmsdk");
+        // an earlier command of this job may have left a link here; the copy would write through it
+        if (Files.isSymbolicLink(jobSdkCsdmSDKDir.toPath())) {
+            Files.delete(jobSdkCsdmSDKDir.toPath());
+        }
         FileUtils.copyDirectory(sdkCsdmSDKDir, jobSdkCsdmSDKDir);
         File sdkProject = new File(jobSdkCsdmSDKDir, "dmsdk.csproj");
 
@@ -2438,6 +2444,21 @@ class Extender {
         }
     }
 
+    /**
+     * The directory a copy from {@code source} must stay inside: the shared Gradle cache for the
+     * artifacts Gradle exploded there, the job directory for everything else. Every Gradle resolve
+     * can write to that cache, so it is checked as a root of its own, never trusted as a way out.
+     */
+    private File copyRootFor(File source) {
+        if (gradleCacheDir != null) {
+            Path cache = gradleCacheDir.toPath().toAbsolutePath().normalize();
+            if (source.toPath().toAbsolutePath().normalize().startsWith(cache)) {
+                return gradleCacheDir;
+            }
+        }
+        return buildState.jobDir;
+    }
+
     private List<File> copyAndroidJniFolders() throws ExtenderException {
         List<File> jniFolders = getAndroidJniFolders();
         if (jniFolders.isEmpty()) {
@@ -2447,7 +2468,7 @@ class Extender {
 
         try {
             for (File jni : jniFolders) {
-                JobFiles.copyDirectory(buildState.jobDir, jni, targetDir, null);
+                JobFiles.copyDirectory(copyRootFor(jni), jni, targetDir, null);
             }
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android JNIs");
@@ -2465,7 +2486,7 @@ class Extender {
 
         try {
             for (File a : assets) {
-                FileUtils.copyDirectory(a, targetDir);
+                JobFiles.copyDirectory(copyRootFor(a), a, targetDir, null);
             }
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android assets");
@@ -2492,13 +2513,18 @@ class Extender {
                 File packageResourceDir = new File(androidResourceFolder);
                 String packageName = packageNames.get(index);
                 File targetDir = new File(packagesDir, packageName + "/res");
-                FileUtils.copyDirectory(packageResourceDir, targetDir);
+                JobFiles.copyDirectory(copyRootFor(packageResourceDir), packageResourceDir, targetDir, null);
 
                 String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
                 packagesList.add(relativePath);
             }
 
-            Files.write(new File(packagesDir, "packages.txt").toPath(), packagesList, StandardCharsets.UTF_8);
+            StringBuilder packagesTxt = new StringBuilder();
+            for (String line : packagesList) {
+                packagesTxt.append(line).append(System.lineSeparator());
+            }
+            JobFiles.writeString(buildState.jobDir, new File(packagesDir, "packages.txt"), packagesTxt.toString(),
+                    StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android resources");
         }
@@ -2782,6 +2808,7 @@ class Extender {
             // and the packaging steps read them from inside the toolchain sandbox
             File gradleHome = gradleService.getGradleHome();
             if (gradleHome != null) {
+                gradleCacheDir = gradleHome;
                 processExecutor.setPolicy(processExecutor.getPolicy()
                         .withReadOnlyPaths(List.of(gradleHome.getAbsolutePath())));
             }
