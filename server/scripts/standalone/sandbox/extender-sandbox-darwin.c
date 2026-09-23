@@ -244,12 +244,20 @@ static char *tagged_profile(const char *profile, const char *tag) {
  * because it answers "denied" in one call for the bulk of the candidates, the trees of the other
  * commands running concurrently. The directory check then removes everything whose sandbox is
  * absent or permissive: for an unsandboxed process every check answers "allowed".
+ *
+ * The two answers come from two calls, and another command's process can have its own profile
+ * applied between them: unsandboxed at the tag check ("allowed"), sandboxed at the directory
+ * check ("denied"). The tag is therefore checked again last. A process only ever goes from
+ * unsandboxed to sandboxed, so one that changed between the calls now denies the tag.
  */
 static int process_is_ours(pid_t pid, const char *tag) {
     if (sandbox_check(pid, "file-read-data", SB_FILTER_PATH | SB_CHECK_NO_REPORT, tag) != 0) {
         return 0;
     }
-    return sandbox_check(pid, "file-read-data", SB_FILTER_PATH | SB_CHECK_NO_REPORT, killtag_dir) == 1;
+    if (sandbox_check(pid, "file-read-data", SB_FILTER_PATH | SB_CHECK_NO_REPORT, killtag_dir) != 1) {
+        return 0;
+    }
+    return sandbox_check(pid, "file-read-data", SB_FILTER_PATH | SB_CHECK_NO_REPORT, tag) == 0;
 }
 
 static int pid_seen(const pid_t *seen, int count, pid_t pid) {
