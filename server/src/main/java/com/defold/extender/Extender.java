@@ -1235,7 +1235,13 @@ class Extender {
         File sdkDir = new File(buildState.sdk, "sdk");
         File sdkCsDir = new File(sdkDir, "cs");
         File sdkCsdmSDKDir = new File(sdkCsDir, "dmsdk");
-        File sdkProject = new File(sdkCsdmSDKDir, "dmsdk.csproj");
+        // The Defold SDK is granted read-only and is shared between jobs, but MSBuild writes obj/
+        // beside every project it restores, including one reached through a ProjectReference. The
+        // dmsdk project is self-contained source (no project reference of its own, nothing outside
+        // its directory), so the job builds against a copy inside its own build directory.
+        File jobSdkCsdmSDKDir = new File(buildState.buildDir, "dmsdk");
+        FileUtils.copyDirectory(sdkCsdmSDKDir, jobSdkCsdmSDKDir);
+        File sdkProject = new File(jobSdkCsdmSDKDir, "dmsdk.csproj");
 
         Map<String, Object> context = createContext(manifestContext);
 
