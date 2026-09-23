@@ -11,11 +11,12 @@ if [[ ! -e ${SCRIPT_DIR}/../../envs/user.env ]]; then
     echo "${SCRIPT_DIR}/../../envs/user.env doesn't exist. Runs ./server/envs/generate_user_env.sh to generate it."
     $SCRIPT_DIR/../../envs/generate_user_env.sh
 elif ! grep -q '^EXTENDER_SANDBOX_LAUNCHERPATH=' ${SCRIPT_DIR}/../../envs/user.env; then
-    # A user.env written before the process sandbox existed has no launcher path, and
-    # generate_user_env.sh is the only thing that writes one; without it the server falls back to
-    # application.yml's Linux default and the standalone-dev profile refuses to start.
-    echo "${SCRIPT_DIR}/../../envs/user.env predates the process sandbox launcher. Regenerating it."
-    $SCRIPT_DIR/../../envs/generate_user_env.sh
+    # A user.env written before the process sandbox existed has no launcher path; without it the
+    # server falls back to application.yml's Linux default and the standalone-dev profile refuses
+    # to start. Only that line is added, so local edits to the file survive.
+    echo "${SCRIPT_DIR}/../../envs/user.env predates the process sandbox launcher. Adding EXTENDER_SANDBOX_LAUNCHERPATH."
+    ENV_DIR=$(cd "${SCRIPT_DIR}/../../envs" && pwd)
+    echo "EXTENDER_SANDBOX_LAUNCHERPATH=${ENV_DIR}/../app/extender-sandbox" >> ${ENV_DIR}/user.env
 fi
 
 echo "Load user env ..."
