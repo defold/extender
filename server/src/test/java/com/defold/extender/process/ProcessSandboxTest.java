@@ -312,8 +312,13 @@ public class ProcessSandboxTest {
                 "GOOGLE_APPLICATION_CREDENTIALS", "/etc/extender/credentials/log_writer.json",
                 "HOME", "/home/extender",
                 "DYNAMO_HOME", "/inherited/sdk");
-        Map<String, String> overlay = Map.of("DYNAMO_HOME", "/var/extender/sdk/abc/defoldsdk", "EM_CACHE", "/var/extender/emcache");
-        SandboxPolicy policy = SandboxPolicy.toolchain().withEnv(Map.of("DOTNET_CLI_HOME", "/job/.dotnet"));
+        // an overlay is not always server-authored: a resolver command's overlay can carry
+        // parsed content from an uploaded dependency manifest (CocoaPods' own xcconfig has no
+        // key allowlist), so denied names must be scrubbed from it and from policy env too
+        Map<String, String> overlay = Map.of("DYNAMO_HOME", "/var/extender/sdk/abc/defoldsdk",
+                "EM_CACHE", "/var/extender/emcache", "AWS_OVERLAY_KEY", "leaked");
+        SandboxPolicy policy = SandboxPolicy.toolchain()
+                .withEnv(Map.of("DOTNET_CLI_HOME", "/job/.dotnet", "GITHUB_TOKEN", "leaked"));
 
         Map<String, String> env = sandbox(configuration, inherited)
                 .prepare(COMMAND, jobDir.toFile(), overlay, policy).env();
@@ -324,6 +329,8 @@ public class ProcessSandboxTest {
         assertFalse(env.containsKey("AWS_SECRET_ACCESS_KEY"));
         assertFalse(env.containsKey("EXTENDER_TEST_DECOY_TOKEN"));
         assertFalse(env.containsKey("GOOGLE_APPLICATION_CREDENTIALS"));
+        assertFalse(env.containsKey("AWS_OVERLAY_KEY"));
+        assertFalse(env.containsKey("GITHUB_TOKEN"));
         assertEquals("/var/extender/sdk/abc/defoldsdk", env.get("DYNAMO_HOME"));
         assertEquals("/var/extender/emcache", env.get("EM_CACHE"));
         assertEquals("/job/.dotnet", env.get("DOTNET_CLI_HOME"));

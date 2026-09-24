@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -18,6 +19,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
+import org.yaml.snakeyaml.Yaml;
 
 public class SandboxConfigurationTest {
 
@@ -57,6 +59,22 @@ public class SandboxConfigurationTest {
         assertEquals(List.of("AWS_.*", "GOOGLE_APPLICATION_CREDENTIALS"), configuration.getEnvDenyPatterns());
         assertEquals(7, configuration.getLimits().getMaxProcesses());
         assertEquals(0, configuration.getLimits().getCpuSeconds());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testShippedConfigDeniesDynamicLinkerInjectionVariables() throws IOException {
+        Map<String, Object> root;
+        try (FileInputStream in = new FileInputStream("src/main/resources/application.yml")) {
+            root = new Yaml().load(in);
+        }
+        Map<String, Object> extender = (Map<String, Object>) root.get("extender");
+        Map<String, Object> sandbox = (Map<String, Object>) extender.get("sandbox");
+        List<String> patterns = (List<String>) sandbox.get("env-deny-patterns");
+
+        assertTrue(patterns.contains("LD_PRELOAD"));
+        assertTrue(patterns.contains("DYLD_INSERT_LIBRARIES"));
+        assertTrue(patterns.contains("DYLD_LIBRARY_PATH"));
     }
 
     @Test

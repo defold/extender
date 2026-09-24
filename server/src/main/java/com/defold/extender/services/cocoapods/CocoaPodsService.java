@@ -7,6 +7,7 @@ import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.ProcessUtils;
 import com.defold.extender.process.SandboxPolicy;
 
@@ -217,7 +218,7 @@ public class CocoaPodsService {
                 String log = ProcessUtils.execCommand(List.of(
                     "/bin/sh",
                     unpackScript.getAbsolutePath()
-                ), cocoapodsBuildState.getJobDir(), spec.parsedXCConfig);
+                ), cocoapodsBuildState.getJobDir(), withoutSandboxEnvVariables(spec.parsedXCConfig));
                 LOGGER.info("Unpacked xcframeworks for {}:\n{}", podName, log);
                 String failure = findUnpackFailure(log);
                 if (failure != null) {
@@ -236,6 +237,19 @@ public class CocoaPodsService {
                 LOGGER.debug("No xcframework unpack script for {}", podName);
             }
         }
+    }
+
+    /**
+     * A pod's xcconfig is parsed with no key allowlist (see {@link XCConfigParser}), so a
+     * pod_target_xcconfig entry can set any variable name, including one of the sandbox's
+     * configured read-only-env-variables (DEVELOPER_DIR and the like). addEnvPath consults a
+     * command's own environment before the server's, so passing it through unfiltered would let
+     * a self-published pod widen this command's read grant to an arbitrary existing host path.
+     */
+    static Map<String, String> withoutSandboxEnvVariables(Map<String, String> env) {
+        Map<String, String> filtered = new HashMap<>(env);
+        filtered.keySet().removeAll(ProcessSandbox.current().configuration().getReadOnlyEnvVariables());
+        return filtered;
     }
 
     static boolean hasVendoredXCFramework(PodBuildSpec spec) {

@@ -387,14 +387,13 @@ public final class ProcessSandbox {
 
     Map<String, String> buildEnv(Path home, Path tmp, Map<String, String> overlayEnv, SandboxPolicy policy) {
         Map<String, String> env = new HashMap<>();
-        for (Map.Entry<String, String> entry : inheritedEnv.entrySet()) {
-            if (!isDenied(entry.getKey())) {
-                env.put(entry.getKey(), entry.getValue());
-            }
-        }
-        // The executor overlay is server generated (DYNAMO_HOME, build.yml env blocks) and trusted.
-        env.putAll(overlayEnv);
-        env.putAll(policy.env());
+        putAllExceptDenied(env, inheritedEnv);
+        // The executor overlay is usually server generated (DYNAMO_HOME, build.yml env blocks),
+        // but a resolver command's overlay can carry parsed content from an uploaded dependency
+        // manifest (CocoaPods' own xcconfig has no key allowlist); denied names are stripped
+        // here too rather than trusting every caller's overlay and policy env.
+        putAllExceptDenied(env, overlayEnv);
+        putAllExceptDenied(env, policy.env());
         // Anything a tool writes "at home" or in a temp dir lands in the job directory.
         env.put("HOME", home.toString());
         env.put("TMPDIR", tmp.toString());
@@ -415,6 +414,14 @@ public final class ProcessSandbox {
             }
         }
         return false;
+    }
+
+    private void putAllExceptDenied(Map<String, String> target, Map<String, String> source) {
+        for (Map.Entry<String, String> entry : source.entrySet()) {
+            if (!isDenied(entry.getKey())) {
+                target.put(entry.getKey(), entry.getValue());
+            }
+        }
     }
 
     private void addEnvPath(Set<Path> target, String variable, Map<String, String> overlayEnv) {
