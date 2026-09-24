@@ -1240,11 +1240,9 @@ class Extender {
         // dmsdk project is self-contained source (no project reference of its own, nothing outside
         // its directory), so the job builds against a copy inside its own build directory.
         File jobSdkCsdmSDKDir = new File(buildState.jobDir, "cs-dmsdk");
-        // an earlier command of this job may have left a link here; the copy would write through it
-        if (Files.isSymbolicLink(jobSdkCsdmSDKDir.toPath())) {
-            Files.delete(jobSdkCsdmSDKDir.toPath());
-        }
-        FileUtils.copyDirectory(sdkCsdmSDKDir, jobSdkCsdmSDKDir);
+        // an earlier command of this job may have left a link here, or nested inside here; the
+        // copy would write through it, so every destination entry is checked against jobDir
+        JobFiles.copyDirectory(buildState.jobDir, buildState.sdk, sdkCsdmSDKDir, jobSdkCsdmSDKDir, null);
         File sdkProject = new File(jobSdkCsdmSDKDir, "dmsdk.csproj");
 
         Map<String, Object> context = createContext(manifestContext);
