@@ -183,6 +183,24 @@ rm -f "$tmp/heartbeat"
 sleep 1
 if [ -e "$tmp/heartbeat" ]; then fail "a fork-and-exit chain outlived the command"; else pass "fork-and-exit chain killed"; fi
 
+# 15. a writable grant nested under a read-only grant is refused: Landlock unions an
+#     ancestor's rights, so the nested directory would stay executable too, with no rule
+#     able to subtract that back out afterwards (this is the shape of a real incident: an
+#     image's writable tool-state directory left inside a tree granted read-only)
+mkdir -p "$tmp/sdk/tool-state" "$tmp/unrelated"
+# shellcheck disable=SC2086
+if "$SB" --ro "$tmp/sdk" --rw "$tmp/sdk/tool-state" $DEV --net none --strict -- true 2>/dev/null; then
+    fail "a writable grant nested under a read-only grant was honoured"
+else
+    pass "writable grant nested under a read-only grant refused"
+fi
+# shellcheck disable=SC2086
+if "$SB" --ro "$tmp/sdk" --rw "$tmp/unrelated" $DEV --net none --strict -- true 2>/dev/null; then
+    pass "control: an unrelated writable grant still works"
+else
+    fail "control: an unrelated writable grant was refused, the nesting check proves nothing"
+fi
+
 if [ "$failures" -eq 0 ]; then
     echo "extender-sandbox self-test: all checks passed"
     exit 0

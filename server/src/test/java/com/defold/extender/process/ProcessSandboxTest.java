@@ -162,6 +162,27 @@ public class ProcessSandboxTest {
     }
 
     @Test
+    public void writableGrantNestedUnderAReadOnlyGrantIsRefused(@TempDir Path root) throws IOException {
+        // mirrors a real incident: an image granted its whole platform SDK tree read-only, and
+        // a writable tool-state directory lived inside it. Landlock unions an ancestor's rights,
+        // so the job directory being writable and lying under that read-only root would make it
+        // executable too - the launcher itself never re-checks this, so it must be refused here.
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        ProcessSandbox sandbox = sandbox(enabled(root), Map.of());
+
+        IOException e = assertThrows(IOException.class,
+                () -> sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), SandboxPolicy.toolchain()));
+        assertTrue(e.getMessage().contains("Landlock unions the rights"), e.getMessage());
+
+        // Seatbelt is not exposed to this (rule ordering, not a rights union), so the same
+        // configuration must not be refused there
+        SandboxConfiguration darwin = seatbelt(root);
+        List<String> argv = sandbox(darwin, Map.of()).prepare(COMMAND, jobDir.toFile(), Map.of(),
+                SandboxPolicy.toolchain()).argv();
+        assertTrue(argv.contains("--profile"), argv.toString());
+    }
+
+    @Test
     public void resolverPoliciesGetTheResolverTimeout() {
         SandboxConfiguration configuration = enabled();
         configuration.setCommandTimeout(1000);

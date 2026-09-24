@@ -422,8 +422,33 @@ static void check_file_grants(const struct paths *ro) {
     }
 }
 
+/*
+ * Landlock unions the rights of every rule matching a path's ancestors: a writable path nested
+ * under (or equal to) a read-only one would keep that ancestor's EXECUTE right and become
+ * writable and executable, with no rule able to subtract it back out afterwards. This has
+ * already happened once, from a Docker image misconfiguration (a writable tool-state directory
+ * left under a tree granted read-only), so it is refused here rather than silently widened.
+ * A --rwx path already carries EXECUTE on its own, so it is not part of this check.
+ */
+static int refuse_nested_writable_paths(const struct paths *ro, const struct paths *rw) {
+    for (int i = 0; i < rw->count; i++) {
+        for (int j = 0; j < ro->count; j++) {
+            if (has_dir_prefix(rw->items[i], ro->items[j])) {
+                fprintf(stderr, "extender-sandbox: %s is granted writable but lies under the read-only "
+                        "grant %s; Landlock unions the rights, so it would stay executable too\n",
+                        rw->items[i], ro->items[j]);
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
 static int apply_landlock(int abi, const struct paths *ro, const struct paths *rw, const struct paths *rwx,
                           int net_none) {
+    if (refuse_nested_writable_paths(ro, rw) != 0) {
+        return -1;
+    }
     uint64_t handled_fs = LL_ACCESS_FS_ABI1;
     if (abi >= 2) handled_fs |= LL_ACCESS_FS_REFER;
     if (abi >= 3) handled_fs |= LL_ACCESS_FS_TRUNCATE;
