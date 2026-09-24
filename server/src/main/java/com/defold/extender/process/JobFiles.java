@@ -14,6 +14,9 @@ import java.nio.file.StandardOpenOption;
 
 import org.apache.commons.io.FileUtils;
 
+import com.defold.extender.ExtenderException;
+import com.defold.extender.SandboxedPath;
+
 /**
  * File access the server makes in a job directory. Build commands run sandboxed but can write
  * anywhere in the job directory, including links to files the sandbox denies them; the server
@@ -73,14 +76,28 @@ public final class JobFiles {
     }
 
     /**
+     * Checks that {@code target}, which may not exist yet, is not reached through a link out of
+     * {@code jobDir}: the directories on the way to it were writable by the build.
+     */
+    private static void requireTargetWithin(File jobDir, File target) throws IOException {
+        try {
+            SandboxedPath.assertWithin(jobDir, target);
+        } catch (ExtenderException e) {
+            throw new IOException(e.getMessage(), e);
+        }
+    }
+
+    /**
      * Copies a file whose real path must lie inside {@code jobDir}; links inside it are fine
-     * (frameworks carry {@code Versions/Current}), links out of it are refused.
+     * (frameworks carry {@code Versions/Current}), links out of it are refused. So are links out
+     * of it on the way to {@code target}.
      */
     public static void copyFile(File jobDir, File source, File target) throws IOException {
         Path real = requireWithin(jobDir.toPath(), source.toPath());
         if (!Files.isRegularFile(real)) {
             throw new IOException(source + " is not a regular file");
         }
+        requireTargetWithin(jobDir, target);
         Files.createDirectories(target.toPath().toAbsolutePath().getParent());
         Files.copy(real, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
     }
@@ -91,10 +108,23 @@ public final class JobFiles {
 
     /** {@link FileUtils#copyDirectory(File, File, FileFilter)} refusing every entry that resolves outside {@code jobDir}. */
     public static void copyDirectory(File jobDir, File source, File target, FileFilter filter) throws IOException {
-        requireWithin(jobDir, source);
+        copyDirectory(jobDir, jobDir, source, target, filter);
+    }
+
+    /**
+     * As {@link #copyDirectory(File, File, File, FileFilter)}, for a source that lives in
+     * {@code sourceRoot} rather than in the job: source entries must resolve inside
+     * {@code sourceRoot}, destination entries inside {@code jobDir}.
+     */
+    public static void copyDirectory(File jobDir, File sourceRoot, File source, File target, FileFilter filter) throws IOException {
+        requireWithin(sourceRoot, source);
+        requireTargetWithin(jobDir, target);
+        Path sourcePath = source.toPath().toAbsolutePath();
+        Path targetPath = target.toPath().toAbsolutePath();
         FileFilter confined = pathname -> {
             try {
-                requireWithin(jobDir, pathname);
+                requireWithin(sourceRoot, pathname);
+                requireTargetWithin(jobDir, targetPath.resolve(sourcePath.relativize(pathname.toPath().toAbsolutePath())).toFile());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

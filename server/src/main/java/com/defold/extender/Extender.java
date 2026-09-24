@@ -2468,7 +2468,7 @@ class Extender {
 
         try {
             for (File jni : jniFolders) {
-                JobFiles.copyDirectory(copyRootFor(jni), jni, targetDir, null);
+                JobFiles.copyDirectory(buildState.jobDir, copyRootFor(jni), jni, targetDir, null);
             }
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android JNIs");
@@ -2486,7 +2486,7 @@ class Extender {
 
         try {
             for (File a : assets) {
-                JobFiles.copyDirectory(copyRootFor(a), a, targetDir, null);
+                JobFiles.copyDirectory(buildState.jobDir, copyRootFor(a), a, targetDir, null);
             }
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android assets");
@@ -2513,7 +2513,7 @@ class Extender {
                 File packageResourceDir = new File(androidResourceFolder);
                 String packageName = packageNames.get(index);
                 File targetDir = new File(packagesDir, packageName + "/res");
-                JobFiles.copyDirectory(copyRootFor(packageResourceDir), packageResourceDir, targetDir, null);
+                JobFiles.copyDirectory(buildState.jobDir, copyRootFor(packageResourceDir), packageResourceDir, targetDir, null);
 
                 String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
                 packagesList.add(relativePath);

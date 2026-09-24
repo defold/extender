@@ -77,6 +77,70 @@ public class JobFilesTest {
     }
 
     @Test
+    public void copyFileRefusesATargetDirectoryLinkedOutOfTheJob(@TempDir Path root) throws IOException {
+        Path job = Files.createDirectory(root.resolve("job"));
+        Path sdk = Files.createDirectory(root.resolve("sdk"));
+        Path header = Files.writeString(job.resolve("foo.h"), "planted");
+        Files.createDirectories(job.resolve("build/Foo.framework"));
+        Files.createSymbolicLink(job.resolve("build/Foo.framework/Headers"), sdk);
+
+        assertThrows(IOException.class, () -> JobFiles.copyFileToDirectory(job.toFile(), header.toFile(),
+                job.resolve("build/Foo.framework/Headers").toFile()));
+        assertThrows(IOException.class, () -> JobFiles.copyFile(job.toFile(), header.toFile(),
+                job.resolve("build/Foo.framework/Headers/include/foo.h").toFile()));
+        assertFalse(Files.exists(sdk.resolve("foo.h")));
+        assertFalse(Files.exists(sdk.resolve("include")));
+    }
+
+    @Test
+    public void copyFileRefusesADanglingLinkOnTheWayToTheTarget(@TempDir Path root) throws IOException {
+        Path job = Files.createDirectory(root.resolve("job"));
+        Path header = Files.writeString(job.resolve("foo.h"), "planted");
+        Files.createSymbolicLink(job.resolve("jni"), root.resolve("sdk"));
+
+        assertThrows(IOException.class,
+                () -> JobFiles.copyFile(job.toFile(), header.toFile(), job.resolve("jni/lib/foo.h").toFile()));
+        assertFalse(Files.exists(root.resolve("sdk")));
+    }
+
+    @Test
+    public void copyDirectoryRefusesALinkPlantedInTheTargetTree(@TempDir Path root) throws IOException {
+        Path job = Files.createDirectory(root.resolve("job"));
+        Path sdk = Files.createDirectory(root.resolve("sdk"));
+        Path source = Files.createDirectories(job.resolve("ext/res/values"));
+        Files.writeString(source.resolve("strings.xml"), "planted");
+        Path target = Files.createDirectories(job.resolve("build/res"));
+        Files.createSymbolicLink(target.resolve("values"), sdk);
+
+        assertThrows(IOException.class,
+                () -> JobFiles.copyDirectory(job.toFile(), job.resolve("ext/res").toFile(), target.toFile(), null));
+        assertFalse(Files.exists(sdk.resolve("strings.xml")));
+
+        Files.createSymbolicLink(job.resolve("build/jni"), sdk);
+        assertThrows(IOException.class,
+                () -> JobFiles.copyDirectory(job.toFile(), job.resolve("ext/res").toFile(), job.resolve("build/jni").toFile(), null));
+        assertFalse(Files.exists(sdk.resolve("values")));
+    }
+
+    @Test
+    public void copyDirectoryChecksASourceRootAndTheJobSeparately(@TempDir Path root) throws IOException {
+        Path job = Files.createDirectory(root.resolve("job"));
+        Path cache = Files.createDirectory(root.resolve("gradle"));
+        Path jni = Files.createDirectories(cache.resolve("transforms/foo/jni/arm64-v8a"));
+        Files.writeString(jni.resolve("libfoo.so"), "lib");
+        Path target = job.resolve("build/jni");
+
+        JobFiles.copyDirectory(job.toFile(), cache.toFile(), cache.resolve("transforms/foo/jni").toFile(), target.toFile(), null);
+        assertEquals("lib", Files.readString(target.resolve("arm64-v8a/libfoo.so")));
+
+        Path sdk = Files.createDirectory(root.resolve("sdk"));
+        Files.createSymbolicLink(job.resolve("build/jni2"), sdk);
+        assertThrows(IOException.class, () -> JobFiles.copyDirectory(job.toFile(), cache.toFile(),
+                cache.resolve("transforms/foo/jni").toFile(), job.resolve("build/jni2").toFile(), null));
+        assertFalse(Files.exists(sdk.resolve("arm64-v8a")));
+    }
+
+    @Test
     public void zipRefusesAnOutputLinkedOutOfTheBuildDirectory(@TempDir Path root) throws IOException {
         Path build = Files.createDirectory(root.resolve("build"));
         Path secret = Files.writeString(root.resolve("credentials.json"), "SECRET");
