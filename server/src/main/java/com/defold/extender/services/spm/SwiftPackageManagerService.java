@@ -595,7 +595,17 @@ public class SwiftPackageManagerService {
             if (!manifest.isFile()) {
                 continue;
             }
-            Matcher matcher = declaration.matcher(Files.readString(manifest.toPath()));
+            // a checked-out package is untrusted code that just ran with RWX on this tree (the
+            // manifest itself, or a plugin it declares); it may have replaced its own manifest
+            // with a link to an arbitrary host path, so this server-side read must not follow it
+            Path real;
+            try {
+                real = JobFiles.requireWithin(checkouts, manifest).toPath();
+            } catch (IOException e) {
+                LOGGER.warn("Refusing to read {}: {}", manifest, e.getMessage());
+                continue;
+            }
+            Matcher matcher = declaration.matcher(Files.readString(real));
             if (matcher.find()) {
                 return matcher.group(1);
             }

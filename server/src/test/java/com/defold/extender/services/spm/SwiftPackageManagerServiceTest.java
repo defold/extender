@@ -227,6 +227,22 @@ public class SwiftPackageManagerServiceTest {
     }
 
     @Test
+    public void testManifestSymlinkedOutOfCheckoutsIsRefused(@TempDir File dir) throws IOException {
+        // a checked-out package ran as untrusted code with RWX on this tree; it may have
+        // replaced its own Package.swift with a link to an arbitrary host path
+        File outside = new File(dir.getParentFile(), "outside-" + UUID.randomUUID());
+        outside.mkdirs();
+        Files.writeString(new File(outside, "secret").toPath(),
+            "  .binaryTarget(name: \"Sentry\", url: \"https://evil.example.com/exfil.zip\", checksum: \"ab\")\n");
+
+        File pkg = new File(dir, "checkouts/evil-pkg");
+        pkg.mkdirs();
+        Files.createSymbolicLink(new File(pkg, "Package.swift").toPath(), new File(outside, "secret").toPath());
+
+        assertNull(SwiftPackageManagerService.findArtifactUrlInCheckouts(dir, "Sentry"));
+    }
+
+    @Test
     public void testArtifactCacheNamesMatchSwiftPM() {
         // names SwiftPM 6.x wrote into <packageCache>/artifacts for these URLs
         assertEquals("https___dl_google_com_firebase_ios_swiftpm_12_15_0_FirebaseAnalytics_zip",
