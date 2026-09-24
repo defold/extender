@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -80,7 +79,8 @@ public class NuGetCacheService {
     /**
      * Granted to every sandboxed {@code dotnet}; created because a missing path is not granted.
      * The runtime creates {@code shm/} and {@code lockfiles/} with mkdtemp in /tmp and a rename,
-     * and /tmp is not granted, so they are created here, with the mode the runtime gives them.
+     * and /tmp is not granted, so they are created here. Their mode is left to the runtime, which
+     * owns them and sets it on first use.
      */
     public static File dotnetRuntimeStateDir() {
         File dir = new File(DOTNET_RUNTIME_STATE_DIR);
@@ -88,8 +88,7 @@ public class NuGetCacheService {
             Path path = dir.toPath().resolve(sub);
             try {
                 Files.createDirectories(path);
-                Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rwxrwxrwx"));
-            } catch (IOException | UnsupportedOperationException e) {
+            } catch (IOException e) {
                 LOGGER.warn("Cannot prepare the .NET runtime state directory {}: {}", path, e.toString());
             }
         }
