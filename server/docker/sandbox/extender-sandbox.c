@@ -840,11 +840,16 @@ int main(int argc, char **argv) {
         break;
     }
 
+    /* a signal delivered from here on (e.g. the caller's watchdog SIGTERM landing just after
+     * the command already exited on its own) must not override an outcome already decided;
+     * only one that arrived in time to actually preempt the wait above should */
+    int signal_at_exit = received_signal;
+
     kill(-pid, SIGKILL);
     reap_everything();
 
-    if (received_signal != 0) {
-        return 128 + received_signal;
+    if (signal_at_exit != 0) {
+        return 128 + signal_at_exit;
     }
     if (WIFEXITED(status)) {
         return WEXITSTATUS(status);

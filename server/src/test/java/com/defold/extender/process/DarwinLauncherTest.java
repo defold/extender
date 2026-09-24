@@ -196,6 +196,59 @@ public class DarwinLauncherTest {
                 .toList();
     }
 
+    /**
+     * The launcher's own cleanup (killing and reaping stragglers) runs after it already knows
+     * the command's real exit status; a signal arriving during that cleanup - the shape of the
+     * timeout watchdog's SIGTERM landing just after a command finishes right at its deadline -
+     * must not turn an already-decided success into a reported failure.
+     */
+    @Test
+    public void lateSIGTERMDoesNotOverrideASuccessfulExit(@TempDir Path jobDir) throws Exception {
+        SandboxConfiguration configuration = new SandboxConfiguration();
+        configuration.setEnabled(true);
+        configuration.setBackend(SandboxConfiguration.Backend.SEATBELT);
+        configuration.setLauncherPath(launcher.toString());
+        configuration.setStrict(true);
+        configuration.setReadOnlyPaths(List.of("/usr", "/bin", "/sbin", "/System", "/Library", "/private/etc", "/opt"));
+        configuration.setReadWritePaths(List.of("/dev"));
+        ProcessSandbox sandbox = new ProcessSandbox(configuration);
+
+        // a backgrounded straggler in the same process group keeps the launcher's cleanup
+        // (kill + reap) doing real work for a moment after the command itself has exited 0
+        ProcessSandbox.Launch launch = sandbox.prepare(
+                List.of("/bin/sh", "-c", "(sleep 2 &); exit 0"),
+                jobDir.toFile(), Map.of(), SandboxPolicy.toolchain());
+
+        ProcessBuilder pb = new ProcessBuilder(launch.argv());
+        pb.directory(jobDir.toFile());
+        pb.redirectErrorStream(true);
+        pb.environment().clear();
+        pb.environment().putAll(launch.env());
+        Process p = pb.start();
+        try {
+            // the launcher's direct child is the command itself (sandbox-exec execs into it,
+            // which replaces the process image but keeps the pid); watch that specific pid
+            // rather than a signal from inside it, so the launcher's own waitpid() is what
+            // decides the timing, not a race against the last bit of the command's own work
+            long deadline = System.currentTimeMillis() + 5000;
+            ProcessHandle child = null;
+            while (child == null && System.currentTimeMillis() < deadline) {
+                child = p.children().findFirst().orElse(null);
+            }
+            assertTrue(child != null, "launcher never reported a child process");
+            while (child.isAlive() && System.currentTimeMillis() < deadline) {
+                // busy-wait: any added delay here risks missing the narrow cleanup window
+            }
+            assertTrue(!child.isAlive(), "command never exited");
+            p.destroy();
+
+            assertTrue(p.waitFor(10, TimeUnit.SECONDS), "launcher did not exit");
+            assertEquals(0, p.exitValue(), "a late SIGTERM must not override the command's own successful exit");
+        } finally {
+            p.destroyForcibly();
+        }
+    }
+
     @Test
     public void degradedModeIsRefusedWhenStrict(@TempDir Path jobDir) throws Exception {
         // a launcher that cannot find sandbox-exec must not run the command in strict mode:
