@@ -225,6 +225,18 @@ public class DarwinLauncherTest {
         pb.environment().clear();
         pb.environment().putAll(launch.env());
         Process p = pb.start();
+        // drained continuously, like ProcessExecutor does: an unread pipe can fill and make a
+        // late write (e.g. a stray sandbox-exec diagnostic) block or fail once the read side is
+        // torn down, which is noise unrelated to what this test is checking
+        Thread drain = new Thread(() -> {
+            try {
+                p.getInputStream().readAllBytes();
+            } catch (IOException ignored) {
+                // the stream closes once the process is destroyed; nothing to read then
+            }
+        });
+        drain.setDaemon(true);
+        drain.start();
         try {
             // the launcher's direct child is the command itself (sandbox-exec execs into it,
             // which replaces the process image but keeps the pid); watch that specific pid
