@@ -571,4 +571,21 @@ public class SwiftPackageManagerServiceTest {
         assertEquals("15.0", resolved.getPlatformMinVersion());
         assertTrue(buildState.getBuildLogFile().isFile());
     }
+
+    @Test
+    public void testCopyLockFileRefusesALinkOnTheWayToTheTarget(@TempDir File rootDir) throws IOException {
+        SwiftPackageManagerService service = createService();
+        SpmServiceBuildState buildState = macOsBuildState(new File(rootDir, "job"));
+        File outside = new File(rootDir, "outside");
+        outside.mkdirs();
+        // simulates the xcodeproj path being redirected before copyLockFile runs, e.g. by a
+        // symlink planted somewhere earlier in the same job
+        Files.createSymbolicLink(buildState.getXcodeProjDir().toPath(), outside.toPath());
+
+        File userLockFile = new File(rootDir, "Package.resolved");
+        Files.writeString(userLockFile.toPath(), "{}");
+
+        assertThrows(IOException.class, () -> service.copyLockFile(userLockFile, buildState));
+        assertFalse(new File(outside, "project.xcworkspace").exists());
+    }
 }

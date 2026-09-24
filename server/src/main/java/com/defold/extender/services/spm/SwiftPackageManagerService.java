@@ -470,9 +470,11 @@ public class SwiftPackageManagerService {
     }
 
     // Xcode only reads the lock file from inside the generated project's workspace
-    private void copyLockFile(File userLockFile, SpmServiceBuildState buildState) throws IOException {
+    void copyLockFile(File userLockFile, SpmServiceBuildState buildState) throws IOException {
         File target = buildState.getLockFile();
-        target.getParentFile().mkdirs();
+        // as in the constructor, the directories on the way to target must not be reached
+        // through a link out of the job directory
+        JobFiles.createDirectories(buildState.getJobDir(), target.getParentFile());
         FileUtils.copyFile(userLockFile, target);
         LOGGER.info("Seeding the Swift package resolution with the uploaded {}", LOCK_FILENAME);
     }

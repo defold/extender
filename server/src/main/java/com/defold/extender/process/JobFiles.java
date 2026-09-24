@@ -88,6 +88,17 @@ public final class JobFiles {
     }
 
     /**
+     * Creates {@code dir} and any missing parents, refusing if any of them - existing or about to
+     * be created - is reached through a link out of {@code jobDir}. Plain {@link File#mkdirs()}
+     * creates the missing tail of the path through whatever its existing ancestors resolve to,
+     * including a link one of them was swapped for.
+     */
+    public static void createDirectories(File jobDir, File dir) throws IOException {
+        requireTargetWithin(jobDir, dir);
+        Files.createDirectories(dir.toPath());
+    }
+
+    /**
      * Copies a file whose real path must lie inside {@code jobDir}; links inside it are fine
      * (frameworks carry {@code Versions/Current}), links out of it are refused. So are links out
      * of it on the way to {@code target}.

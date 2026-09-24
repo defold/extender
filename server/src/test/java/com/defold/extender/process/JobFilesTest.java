@@ -141,6 +141,27 @@ public class JobFilesTest {
     }
 
     @Test
+    public void createDirectoriesMakesTheMissingTail(@TempDir Path root) throws IOException {
+        Path job = Files.createDirectory(root.resolve("job"));
+        Path dir = job.resolve("Wrapper/Sources");
+
+        JobFiles.createDirectories(job.toFile(), dir.toFile());
+
+        assertTrue(Files.isDirectory(dir));
+    }
+
+    @Test
+    public void createDirectoriesRefusesAnAncestorLinkedOutOfTheJob(@TempDir Path root) throws IOException {
+        Path job = Files.createDirectory(root.resolve("job"));
+        Path outside = Files.createDirectory(root.resolve("outside"));
+        Files.createSymbolicLink(job.resolve("SwiftPackageManagerService"), outside);
+
+        assertThrows(IOException.class, () -> JobFiles.createDirectories(job.toFile(),
+                job.resolve("SwiftPackageManagerService/Package/Sources/SpmDeps").toFile()));
+        assertFalse(Files.exists(outside.resolve("Package")));
+    }
+
+    @Test
     public void zipRefusesAnOutputLinkedOutOfTheBuildDirectory(@TempDir Path root) throws IOException {
         Path build = Files.createDirectory(root.resolve("build"));
         Path secret = Files.writeString(root.resolve("credentials.json"), "SECRET");
