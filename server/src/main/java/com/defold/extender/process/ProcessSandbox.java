@@ -177,7 +177,11 @@ public final class ProcessSandbox {
             throws IOException {
         Set<Path> readOnly = new LinkedHashSet<>();
         addPaths(readOnly, configuration.getReadOnlyPaths(), null, true);
-        addPaths(readOnly, policy.readOnlyPaths(), null, false);
+        // Unlike the server-wide configured list above, a policy's read-only paths can be
+        // job-relative (e.g. a subdirectory of a per-job cache another step just built with RWX
+        // access); those must get the same requireInsideJob check writable grants get, or an
+        // earlier sandboxed step can swap one for a symlink and turn this into an unconfined read.
+        addPaths(readOnly, policy.readOnlyPaths(), job, false);
         for (String variable : configuration.getReadOnlyEnvVariables()) {
             addEnvPath(readOnly, variable, overlayEnv);
         }
@@ -456,9 +460,11 @@ public final class ProcessSandbox {
     }
 
     /**
-     * @param job        non-null for writable grants: one inside the job directory must still be
-     *                   inside it with every link resolved, as the build itself may have planted
-     *                   the link
+     * @param job        non-null whenever {@code paths} may contain job-relative entries (writable
+     *                   grants, and a policy's read-only paths): one inside the job directory must
+     *                   still be inside it with every link resolved, as the build itself may have
+     *                   planted the link. Null for paths that never come from inside the job (the
+     *                   server-wide configured read-only list).
      * @param configured the path comes from the configuration, not from a per-job policy; only
      *                   those are remembered for the once-only missing-path log
      */

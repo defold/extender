@@ -144,6 +144,24 @@ public class ProcessSandboxTest {
     }
 
     @Test
+    public void readOnlyGrantLinkedOutOfTheJobDirectoryIsRefused(@TempDir Path root) throws IOException {
+        Path jobDir = Files.createDirectory(root.resolve("job"));
+        Path outside = Files.createDirectory(root.resolve("host-secret"));
+        Path cache = Files.createDirectories(jobDir.resolve("build/.nuget/runtime"));
+        // an earlier RWX step of the same job replaced a job-relative directory with a link out
+        Files.createSymbolicLink(cache.resolve("native"), outside);
+
+        for (SandboxConfiguration configuration : List.of(enabled(), seatbelt())) {
+            ProcessSandbox sandbox = sandbox(configuration, Map.of());
+            SandboxPolicy policy = SandboxPolicy.toolchain()
+                    .withReadOnlyPaths(List.of(cache.resolve("native").toString()));
+            IOException e = assertThrows(IOException.class,
+                    () -> sandbox.prepare(COMMAND, jobDir.toFile(), Map.of(), policy));
+            assertTrue(e.getMessage().contains("outside the job directory"), e.getMessage());
+        }
+    }
+
+    @Test
     public void resolverPoliciesGetTheResolverTimeout() {
         SandboxConfiguration configuration = enabled();
         configuration.setCommandTimeout(1000);
