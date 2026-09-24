@@ -360,7 +360,9 @@ public class CocoaPodsService {
 
         podCacheLock.lock();
         try {
+            LOGGER.info("Cloning pod cache from {} to isolated dir {}", sharedCacheDir, isolatedCacheDir);
             cloneCacheDir(sharedCacheDir, isolatedCacheDir);
+            LOGGER.info("Cloned pod cache into isolated dir {}", isolatedCacheDir);
         } finally {
             podCacheLock.unlock();
         }
@@ -370,7 +372,10 @@ public class CocoaPodsService {
         if (mergeBackEnabled) {
             podCacheLock.lock();
             try {
-                mergeCacheBack(isolatedCacheDir, currentCacheDirSnapshot());
+                Path currentSharedCacheDir = currentCacheDirSnapshot();
+                LOGGER.info("Merging isolated pod cache {} back into shared dir {}", isolatedCacheDir, currentSharedCacheDir);
+                mergeCacheBack(isolatedCacheDir, currentSharedCacheDir);
+                LOGGER.info("Merged isolated pod cache back into shared dir {}", currentSharedCacheDir);
             } finally {
                 podCacheLock.unlock();
             }
