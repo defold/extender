@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.List;
 import java.util.AbstractMap;
@@ -636,8 +635,10 @@ class Extender {
         Path targetUmbrellaHeader = Path.of(podBuildDir.toString(), String.format("%s-umbrella.h", podName));
         JobFiles.copyFile(buildState.jobDir, sourceUmbrellaHeader.toFile(), targetUmbrellaHeader.toFile());
 
-        // append to objc modulemap
-        Files.writeString(targetModuleMap, spec.swiftModuleDefinition, StandardOpenOption.APPEND);
+        // append to objc modulemap; targetModuleMap was just created fresh by the copy above,
+        // so this goes through the same containment check rather than reopening it directly
+        String moduleMapContent = Files.readString(targetModuleMap) + spec.swiftModuleDefinition;
+        JobFiles.writeString(buildState.jobDir, targetModuleMap.toFile(), moduleMapContent, StandardCharsets.UTF_8);
     }
 
     private File addCompileFileSwift(PodBuildSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
