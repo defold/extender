@@ -188,14 +188,16 @@ public class R8BuilderTest {
         assertTrue(R8Builder.isRequested(uploadDir));
     }
 
-    // Verifies that a build without _app/app.keep skips R8 before requiring aapt rules or executing its command.
-    @Test
-    public void testNoAppKeepSkipsR8WithoutAaptRules(@TempDir File tempDir) throws Exception {
+    // Verifies that a build without _app/app.keep skips R8 before requiring AAPT rules, linked resources, or executing its command.
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    public void testNoAppKeepSkipsR8WithoutAaptRules(boolean shrinkResources, @TempDir File tempDir) throws Exception {
         File uploadDir = new File(tempDir, "upload");
         File buildDir = new File(tempDir, "build");
         assertTrue(uploadDir.mkdirs());
         assertTrue(buildDir.mkdirs());
         PlatformConfig config = new PlatformConfig();
+        config.r8ResourceShrinking = shrinkResources;
 
         R8Builder builder = new R8Builder(
                 uploadDir,
@@ -210,10 +212,10 @@ public class R8BuilderTest {
                     throw new AssertionError("R8 command must not execute without app.keep");
                 });
 
-        assertNull(builder.build(List.of(), Map.of(), null));
+        assertNull(builder.build(List.of(), Map.of(), null, null));
     }
 
-    // Verifies that R8/aapt commands preserve exact quoting and literals, conditional rule flags, and data resources.
+    // Verifies that R8/aapt commands preserve exact quoting and literals, Android resource input/output paths, and data resources.
     @Test
     public void testConfiguredCommandPreservesQuotedPathSpecialCharacters() throws Exception {
         File root = new File("test-data");
@@ -231,6 +233,8 @@ public class R8BuilderTest {
         String appRules = "/tmp/Rules dir/app\"rules.keep";
         String aaptRules = "/tmp/Rules dir/aapt&generated.keep";
         String programJar = "/tmp/Program jars/game\\code.jar";
+        String resourceInput = "/tmp/Resource input/{{literal}}/compiled\"resources.apk";
+        String resourceOutput = "/tmp/Resource output/optimized & resources.apk";
 
         Map<String, Object> context = new HashMap<>();
         context.put("env.R8", r8Jar);
@@ -240,6 +244,8 @@ public class R8BuilderTest {
         context.put("classes_dex_dir", dexDir);
         context.put("rules", List.of(appRules, aaptRules));
         context.put("jars", List.of(programJar));
+        context.put("android_resources_in", resourceInput);
+        context.put("android_resources_out", resourceOutput);
 
         String rendered = new TemplateExecutor().executeOnceWithoutLogging(
                 android.r8Cmd,
@@ -256,6 +262,10 @@ public class R8BuilderTest {
         assertTrue(arguments.contains(appRules));
         assertTrue(arguments.contains(aaptRules));
         assertTrue(arguments.contains(programJar));
+        int resourcesIndex = arguments.indexOf("--android-resources");
+        assertTrue(resourcesIndex >= 0);
+        assertEquals(resourceInput, arguments.get(resourcesIndex + 1));
+        assertEquals(resourceOutput, arguments.get(resourcesIndex + 2));
 
         context.put("env.ANDROID_BUILD_TOOLS_PATH", "/tmp/Android SDK/build tools");
         context.put("manifestFile", "/tmp/Manifest dir/AndroidManifest.xml");
@@ -271,8 +281,8 @@ public class R8BuilderTest {
 
         context.put("useR8", true);
         String r8AaptCommand = new TemplateExecutor().execute(android.aapt2linkCmd, context);
-        assertTrue(r8AaptCommand.contains("--proguard"));
-        assertTrue(CommandLineTokenizer.parse(r8AaptCommand).contains(aaptRules));
+        assertFalse(r8AaptCommand.contains("--proguard"));
+        assertFalse(CommandLineTokenizer.parse(r8AaptCommand).contains(aaptRules));
     }
 
     // Verifies that requested R8 builds fail before command execution when aapt-generated keep rules are missing.
@@ -304,7 +314,7 @@ public class R8BuilderTest {
                 () -> builder.build(
                         List.of(),
                         Map.of(),
-                        new File(buildDir, "missing-aapt-generated.keep")));
+                        new File(buildDir, "missing-aapt-generated.keep"), null));
         assertTrue(exception.getMessage().contains("aapt-generated.keep"));
         assertFalse(commandExecuted[0]);
     }
@@ -337,7 +347,7 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> builder.build(List.of(), Map.of(), aaptRules));
+                () -> builder.build(List.of(), Map.of(), aaptRules, null));
 
         assertTrue(exception.getMessage().contains("forbidden filesystem directive"));
         assertFalse(commandExecuted[0]);
@@ -367,7 +377,7 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> builder.build(List.of(), Map.of(), null));
+                () -> builder.build(List.of(), Map.of(), null, null));
         assertTrue(exception.getMessage().contains("does not provide r8Cmd and r8Version"));
         assertFalse(exception.getMessage().contains("aapt-generated.keep"));
     }
@@ -405,7 +415,7 @@ public class R8BuilderTest {
 
         ExtenderException exception = assertThrows(
                 ExtenderException.class,
-                () -> builder.build(List.of(), Map.of(), aaptRules));
+                () -> builder.build(List.of(), Map.of(), aaptRules, null));
         assertTrue(exception.getOutput().contains("does not provide r8Cmd and r8Version"));
     }
 
@@ -1008,7 +1018,7 @@ public class R8BuilderTest {
         R8Builder.BuildOutput output = builder.build(
                 List.of(extensionJar.getAbsolutePath(), dependencyJar.getAbsolutePath()),
                 Map.of(extensionJar.getAbsolutePath(), extensionContext),
-                aaptRules);
+                aaptRules, null);
 
         assertNotNull(output);
         assertEquals(List.of("classes.dex"), Arrays.stream(output.dexFiles).map(File::getName).toList());
