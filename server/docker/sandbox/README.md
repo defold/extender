@@ -17,7 +17,7 @@ directory, exit code passed through (128+signal when the command died from a sig
 | Layer | Mechanism | Effect |
 |---|---|---|
 | Filesystem | Landlock (kernel >= 5.13) | Only `--ro` (read + execute), `--rw` (read/write, no execute, no device nodes) and `--rwx` paths exist for the command; everything else is `EACCES`. A `--rw`/`--rwx` path inside `--job` is refused (exit 127) when the descriptor it opens resolves outside that directory: the job can replace anything in it with a link. Landlock also denies ptrace and `/proc/<pid>/fd` access to processes outside the sandbox. On kernel >= 6.7 TCP bind/connect is denied at the LSM level too; on >= 6.12 the command cannot signal processes outside the sandbox or reach their abstract unix sockets. |
-| Network | seccomp BPF | With `--net none`, `socket()` fails with `EAFNOSUPPORT` for every family except `AF_UNIX` (needed by wineserver, MSBuild, Python multiprocessing). `--net all` lifts only this rule. |
+| Network | seccomp BPF | With `--net none`, `socket()` fails with `EAFNOSUPPORT` for every family except `AF_UNIX` (needed by wineserver, MSBuild, Python multiprocessing). `--net all` lifts only this rule. `connect()` itself is not filtered: an AF_UNIX socket, once created, can still reach any *filesystem-path* socket the command has ordinary Unix permission to reach - see the operator note below. |
 | Dangerous syscalls | seccomp BPF | `ptrace`, `process_vm_*`, `mount`/`umount`, `unshare`, `setns`, `pivot_root`, `chroot`, keyring, `bpf`, `perf_event_open`, `userfaultfd`, `io_uring_setup`, module and kexec calls return `EPERM`. The filter covers x86_64, aarch64 (Rosetta, arm64 images) and i386 (wine's 32-bit helpers); other ABIs get `EPERM`, never `SIGKILL`. |
 | Resources | rlimits | `--cpu` (RLIMIT_CPU), `--nproc`, `--fsize`, `--nofile`; `0` or absent = unlimited. |
 | Lifecycle | subreaper parent | The parent stays outside the sandbox. It kills the command's whole process tree when the command exits or when it receives SIGTERM/SIGINT/SIGHUP, including daemonised escapees that got reparented to it. Everything below it is stopped with SIGSTOP, sweep after sweep until nothing is left running, before the SIGKILL, so a chain that forks and exits cannot stay ahead of the teardown. |
@@ -80,3 +80,16 @@ through, and the self-test exits 2. Use the arm64 build of the image there, or a
   that same wineserver, is served under the first command's grants, and loses it when that
   command ends. A persistent wineserver outside the sandbox is no answer either: it would open files on
   behalf of sandboxed clients.
+* `--net none` denies creating any socket except AF_UNIX (wineserver, MSBuild, Python
+  multiprocessing all need it), but neither Landlock nor seccomp restrict what an AF_UNIX
+  socket can then `connect()` to. Landlock's unix-socket scoping (ABI >= 6) covers only the
+  *abstract* namespace; a socket bound to a filesystem path is unrestricted at every ABI this
+  launcher supports, and seccomp cannot inspect `connect()`'s target (the address is a pointer
+  into the command's own memory, which a BPF filter cannot dereference). So a command can reach
+  any filesystem-path AF_UNIX socket it has ordinary Unix DAC permission to read, independent of
+  `--net none` and of any `--ro`/`--rw`/`--rwx` grant. This is not something the launcher can
+  close on its own: never mount a host socket (`docker.sock`, an SSH/GPG agent's socket, a
+  desktop session's `XDG_RUNTIME_DIR`) into a builder container or its job directories. The
+  server additionally strips the well-known variables that would tell a build where to find one
+  (`env-deny-patterns` in `application.yml`), but that only stops a build from being *told* -
+  one that already knows or guesses a well-known path is not stopped by it.

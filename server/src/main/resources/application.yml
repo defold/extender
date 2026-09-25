@@ -103,12 +103,20 @@ extender:
             - 'JAVA_TOOL_OPTIONS'
             - '_JAVA_OPTIONS'
             - 'JDK_JAVA_OPTIONS'
-            # agent sockets: both launchers allow AF_UNIX, so a variable naming an agent's
-            # socket is enough to sign with the operator's keys from a network-off command
+            # named agent/service sockets: neither launcher restricts connect() to a
+            # filesystem-path AF_UNIX socket under --net none (Landlock's abstract-namespace
+            # scoping and seccomp's own socket() family filter do not cover this - see the
+            # sandbox README), so hiding these names only stops a build from being TOLD where
+            # such a socket is; one that already knows or guesses a well-known path (docker.sock,
+            # an agent's default socket, a runtime dir) is not stopped by this list alone
             - 'SSH_AUTH_SOCK'
             - 'SSH_AGENT_PID'
             - 'GPG_AGENT_INFO'
             - 'DBUS_SESSION_BUS_ADDRESS'
+            - 'DOCKER_HOST'
+            - 'XDG_RUNTIME_DIR'
+            - 'DISPLAY'
+            - 'WAYLAND_DISPLAY'
             # dynamic linker injection
             - 'LD_PRELOAD'
             - 'DYLD_INSERT_LIBRARIES'

@@ -78,6 +78,25 @@ public class SandboxConfigurationTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    public void testShippedConfigDeniesSocketPathVariables() throws IOException {
+        // neither launcher restricts connect() to a filesystem-path AF_UNIX socket under
+        // --net none, so a build must not be told where one is
+        Map<String, Object> root;
+        try (FileInputStream in = new FileInputStream("src/main/resources/application.yml")) {
+            root = new Yaml().load(in);
+        }
+        Map<String, Object> extender = (Map<String, Object>) root.get("extender");
+        Map<String, Object> sandbox = (Map<String, Object>) extender.get("sandbox");
+        List<String> patterns = (List<String>) sandbox.get("env-deny-patterns");
+
+        assertTrue(patterns.contains("DOCKER_HOST"));
+        assertTrue(patterns.contains("XDG_RUNTIME_DIR"));
+        assertTrue(patterns.contains("DISPLAY"));
+        assertTrue(patterns.contains("WAYLAND_DISPLAY"));
+    }
+
+    @Test
     public void testBindsFromEnvironmentVariables() {
         // This is how the Docker images hand over their writable tool state directories. Spring
         // applies the underscore/dash relaxed mapping only to the source named systemEnvironment.
