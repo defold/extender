@@ -1,0 +1,13 @@
+Resolve Package Graph
+
+Fetching from https://github.com/acme/PkgA.git
+Resolved source packages:
+  PkgA: https://github.com/acme/PkgA.git @ 1.0.0
+Downloading binary artifact https://dl.example.com/sdk/1.2.0/Foo.zip
+Downloading binary artifact https://github.com/acme/PkgA/releases/download/1.0.0/Bar.xcframework.zip
+Downloading binary artifact https://dl.example.com/sdk/1.2.0/Foo.zip
+error: failed downloading 'https://dl.example.com/sdk/1.2.0/Foo.zip' which is required by binary target 'Foo': downloadError("Could not connect to the server.")
+error: failed downloading 'https://github.com/acme/PkgA/releases/download/1.0.0/Bar.xcframework.zip' which is required by binary target 'Bar': downloadError("Could not connect to the server.")
+error: failed downloading 'https://dl.example.com/sdk/1.2.0/Foo.zip' which is required by binary target 'Foo': downloadError("Could not connect to the server.")
+xcodebuild: error: Could not resolve package dependencies:
+  failed downloading 'https://dl.example.com/sdk/1.2.0/Foo.zip' which is required by binary target 'Foo': downloadError("Could not connect to the server.")

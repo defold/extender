@@ -31,6 +31,8 @@ public class ResolvedPackages implements ResolvedNativeDeps {
     private final List<File> resources = new ArrayList<>();
     private final List<File> dynamicFrameworks = new ArrayList<>();
     private final List<File> privacyManifests = new ArrayList<>();
+    // outside the job directory, so the sandboxed engine link must be granted them explicitly
+    private final List<String> sandboxReadOnlyPaths = new ArrayList<>();
     private final File lockFile;
     private final String platformMinVersion;
 
@@ -59,7 +61,7 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         for (File entry : entries) {
             String name = entry.getName();
             if (name.endsWith(".framework") && entry.isDirectory()) {
-                boolean dynamic = FrameworkUtil.isDynamicallyLinked(entry);
+                boolean dynamic = FrameworkUtil.isDynamicallyLinked(entry, buildState.getJobDir());
                 productFrameworks.put(name.substring(0, name.length() - ".framework".length()), dynamic);
                 if (dynamic) {
                     resolved.dynamicFrameworks.add(entry);
@@ -86,7 +88,7 @@ public class ResolvedPackages implements ResolvedNativeDeps {
                 if (productFrameworks.containsKey(frameworkName)) {
                     continue;
                 }
-                boolean dynamic = FrameworkUtil.isDynamicallyLinked(entry);
+                boolean dynamic = FrameworkUtil.isDynamicallyLinked(entry, buildState.getJobDir());
                 productFrameworks.put(frameworkName, dynamic);
                 if (dynamic) {
                     resolved.dynamicFrameworks.add(entry);
@@ -115,6 +117,7 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         // Xcode's toolchain; a static wrapper's libtool line carries no -L for them
         if (swiftRuntimeLibDir != null && swiftRuntimeLibDir.isDirectory()) {
             librarySearchPaths.add(swiftRuntimeLibDir.getAbsolutePath());
+            resolved.sandboxReadOnlyPaths.add(swiftRuntimeLibDir.getAbsolutePath());
         }
         resolved.librarySearchPaths.addAll(librarySearchPaths);
         resolved.frameworks.addAll(frameworkNames);
@@ -230,6 +233,11 @@ public class ResolvedPackages implements ResolvedNativeDeps {
     @Override
     public List<String> getAdditionalIncludePaths() {
         return additionalIncludePaths;
+    }
+
+    /** Directories outside the job the engine link reads (the building Xcode's Swift runtime libs). */
+    public List<String> getSandboxReadOnlyPaths() {
+        return sandboxReadOnlyPaths;
     }
 
     @Override

@@ -42,6 +42,136 @@ extender:
     gradle:
         enabled: false
         location: /tmp/.gradle
+    # Sandbox around every build subprocess (compilers, linkers, emcc, gradle, dotnet, R8,
+    # manifest merge tool, pod, xcodebuild): Landlock/seccomp/rlimits inside the Docker images
+    # (launcher built by Dockerfile.base-env), Seatbelt/sandbox-exec on the macOS standalone
+    # builders (launcher built by scripts/standalone/setup-standalone-env.sh). Both are
+    # allowlists: everything a toolchain reads must be under read-only-paths or a directory
+    # named by read-only-env-variables (the job directory is added automatically). Paths that
+    # do not exist on a host are skipped, so one list serves every image and the Macs. Never
+    # mount secrets under a granted path. Image-specific writable state (emscripten cache, wine
+    # prefix, ...) is supplied by the image as EXTENDER_SANDBOX_IMAGEREADWRITEPATHS (comma
+    # separated) and merged with read-write-paths.
+    sandbox:
+        enabled: false
+        # landlock, seatbelt, or auto (by operating system)
+        backend: auto
+        launcher-path: /usr/local/bin/extender-sandbox
+        # fail startup when the kernel offers no Landlock/seccomp (or no sandbox-exec) instead of
+        # running degraded
+        strict: true
+        # wall-clock limit per subprocess, ms (0 = off); dependency resolvers (Gradle, pod,
+        # xcodebuild with Swift packages, dotnet publish, git, curl) get the longer
+        # resolver-command-timeout
+        command-timeout: 1200000
+        resolver-command-timeout: 3600000
+        read-only-paths: >
+            /usr,/lib,/lib64,/lib32,/bin,/sbin,/opt,/proc,/sys,
+            /etc/ld.so.cache,/etc/ld.so.conf,/etc/ld.so.conf.d,/etc/passwd,/etc/group,
+            /etc/nsswitch.conf,/etc/localtime,/etc/timezone,/etc/alternatives,/etc/ssl,
+            /etc/ca-certificates,/etc/hosts,/etc/resolv.conf,/etc/host.conf,/etc/gai.conf,
+            /etc/fonts,/etc/os-release,/etc/mime.types,/etc/python3,/etc/python3.10,/etc/wine,
+            /System,/Library/Apple,/Library/Developer,/Library/Frameworks,/Library/Java,
+            /Library/Ruby,/Library/Preferences/com.apple.LaunchServices,
+            /Library/Preferences/com.apple.dt.Xcode.plist,/Library/Preferences/com.apple.security.plist,
+            /private/var/db/timezone,~/.CFUserTextEncoding
+        # device nodes only: /dev as a whole would include the world-writable /dev/shm, where
+        # a build could leave files for the next one (macOS covers these through system.sb).
+        # Not /dev/tty: that resolves to the server's controlling terminal, which is the
+        # operator's own when the service was started from a shell. ptmx/pts stay - they are
+        # how a command allocates a pty of its own on Linux.
+        read-write-paths: /dev/null,/dev/zero,/dev/full,/dev/random,/dev/urandom,/dev/ptmx,/dev/pts
+        read-write-exec-paths: ''
+        image-read-write-paths: ''
+        # environment variables whose values are directories (or files) granted read-only and
+        # executable: the Defold SDK, the manifest merge tool, the macOS platform SDKs and
+        # xctoolchain, zig, the JDK, dotnet; DEVELOPER_DIR is widened to its Xcode.app bundle
+        # CURL_CA_BUNDLE/SSL_CERT_FILE: a CA bundle for the curl that fetches Swift binary
+        # target archives (unset in production; corporate proxies and the tests need it)
+        read-only-env-variables: >
+            DYNAMO_HOME,MANIFEST_MERGE_TOOL,PLATFORMSDK_DIR,XCTOOLCHAIN_PATH,ZIG_PATH,ZIG_PATH_0_11,
+            JAVA_HOME,DOTNET_ROOT,DEVELOPER_DIR,CURL_CA_BUNDLE,SSL_CERT_FILE
+        # (~/ is the server user's home)
+        # variables matching these regexes are not passed to subprocesses
+        env-deny-patterns:
+            - '.*(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|PRIVATE_KEY).*'
+            - 'GOOGLE_APPLICATION_CREDENTIALS'
+            - 'AWS_.*'
+            - 'EXTENDER_.*'
+            - 'SPRING_.*'
+            - 'DM_PACKAGES_URL'
+            - 'JAVA_TOOL_OPTIONS'
+            - '_JAVA_OPTIONS'
+            - 'JDK_JAVA_OPTIONS'
+            # named agent/service sockets: neither launcher restricts connect() to a
+            # filesystem-path AF_UNIX socket under --net none (Landlock's abstract-namespace
+            # scoping and seccomp's own socket() family filter do not cover this - see the
+            # sandbox README), so hiding these names only stops a build from being TOLD where
+            # such a socket is; one that already knows or guesses a well-known path (docker.sock,
+            # an agent's default socket, a runtime dir) is not stopped by this list alone
+            - 'SSH_AUTH_SOCK'
+            - 'SSH_AGENT_PID'
+            - 'GPG_AGENT_INFO'
+            - 'DBUS_SESSION_BUS_ADDRESS'
+            - 'DOCKER_HOST'
+            - 'XDG_RUNTIME_DIR'
+            - 'DISPLAY'
+            - 'WAYLAND_DISPLAY'
+            # dynamic linker injection
+            - 'LD_PRELOAD'
+            - 'DYLD_INSERT_LIBRARIES'
+            - 'DYLD_LIBRARY_PATH'
+        limits:
+            # RLIMIT_CPU sums CPU time across threads and would kill multi-threaded
+            # linkers/wasm-opt; the wall-clock command-timeout bounds runtime instead. 0 = off.
+            cpu-seconds: 0
+            # RLIMIT_NPROC is counted per uid over every thread of that uid: the server JVM,
+            # Gradle daemons, every concurrent job and every other container running as the
+            # same uid on the host. It only stops a runaway fork; a pids cgroup limit on the
+            # container is the real bound.
+            max-processes: 16384
+            max-file-size-bytes: 8589934592
+            max-open-files: 16384
+        # Seatbelt (macOS) only. Seatbelt also gates Mach service lookups and cfprefsd
+        # preference reads; the xcodebuild step adds its own (SwiftPackageManagerService).
+        # ~/ is the server user's real home. deny rules win over every grant above them.
+        darwin:
+            mach-services: ''
+            preference-domains: ''
+            deny-paths: ~/.ssh,~/.gnupg,~/.aws,~/.config/gcloud,~/Library/Keychains,/Library/Keychains
+            deny-exec-paths: /usr/bin/sudo,/usr/bin/su,/usr/bin/security,/bin/launchctl,/usr/bin/osascript
+            # directories under the real home linked into the per-job home (read-only), for
+            # tools that look up platform state through $HOME, e.g. Library/Developer
+            home-links: ''
+            # entries of the per-user darwin temp dir (/private/var/folders/xx/yyy/T) every
+            # command may write, as regexes relative to it: Foundation saves files atomically
+            # through TemporaryItems/ and <uuid>-<pid>-<hex> temp files, the /usr/bin tool shims
+            # rewrite xcrun_db, whatever TMPDIR says. The directory itself also holds every job
+            # and is never granted.
+            user-temp-patterns:
+                - 'TemporaryItems/'
+                - 'xcrun_db$'
+                - '[0-9A-Fa-f-]+-[0-9]+-[0-9A-Fa-f]+(/|$)'
+            # raw SBPL lines appended before the deny block, for iterating on a host without a
+            # release, e.g. "(allow mach-lookup (global-name \"com.apple.FSEvents\"))"
+            extra-rules: []
+    # C# / NativeAOT. A build restores its NuGet packages into a cache inside its own job
+    # directory, which it may write and execute and which goes away with the job: ilc runs out
+    # of the ilcompiler package, and the native runtime libraries are linked into the output, so
+    # a cache shared between builds is a place to leave both. The instance-wide cache is handed
+    # over read-only instead, as a NuGet fallback folder (NuGet reads packages from one and never
+    # writes to it), and is warmed at startup by the server publishing a generated stub project.
+    # Warming is only an optimisation: a runtime identifier nobody warmed is restored per job.
+    csharp:
+        # runtime identifiers to warm at startup, comma separated. One costs roughly 300MB and
+        # 5-15s (measured: linux-arm64 = 299MB in 6s), so this is set per image through
+        # EXTENDER_CSHARP_WARMRUNTIMEIDENTIFIERS to the platforms that image builds, and a
+        # windows builder warms three of them. Empty = no warming.
+        warm-runtime-identifiers: ''
+        # the shared read-only cache; empty means the image's own NUGET_PACKAGES
+        nuget-fallback-dir: ''
+        # how long a build waits for a warm of its runtime identifier that is still running
+        warm-wait-timeout: 600000
     # Resource limits for untrusted R8 input; byte limits use expanded sizes.
     r8:
         max-generated-extension-classes: 32768
@@ -68,6 +198,13 @@ extender:
         xcodegen-path: xcodegen
         wrapper-mach-o-type: staticlib # staticlib | mh_dylib
         swift-version: "6.0"
+        # a git mirror fetched more recently than this is reused as it is, so parallel builds
+        # of the same package graph cost one fetch per repository instead of one per build
+        mirror-refresh-interval: 600000
+        # binary target archives are fetched by curl into SwiftPM's package cache, where it
+        # reads them before trying the network; one download's time limit and size cap
+        artifact-download-timeout: 600000
+        max-artifact-size: 1073741824
         cache-dir-rotate-cron: "0 20 2 * * *" # once per day
         old-cache-clean-cron: "0 20 6 * * *" # once per day after directory rotation
     # refer to README_SECURITY.md for information on securing your server

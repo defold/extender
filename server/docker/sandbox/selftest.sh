@@ -1,0 +1,209 @@
+#!/bin/sh
+# Exercises extender-sandbox on a Linux host with Landlock + seccomp (any user, no capabilities).
+#
+#   docker run --rm <extender-base-env image> sh /usr/local/share/extender-sandbox/selftest.sh
+#   sh selftest.sh /path/to/extender-sandbox
+#
+# Exit 0 = all checks passed, 1 = a check failed, 2 = the kernel offers no Landlock/seccomp.
+set -u
+
+SB=${1:-/usr/local/bin/extender-sandbox}
+failures=0
+
+fail() {
+    echo "FAIL: $*" >&2
+    failures=$((failures + 1))
+}
+
+pass() {
+    echo "ok: $*"
+}
+
+probe=$("$SB" --probe) || { echo "probe failed"; exit 2; }
+echo "probe: $probe"
+case "$probe" in
+    *landlock_abi=0*|*seccomp=no*)
+        echo "kernel lacks Landlock or seccomp; the self-test needs both" >&2
+        exit 2
+        ;;
+esac
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Same shape as the server's toolchain policy: system tree read-only (including /proc, which
+# emulation layers such as Rosetta need for /proc/self/exe), one job dir writable.
+RO="--ro /usr --ro /lib --ro /lib64 --ro /bin --ro /proc --ro /etc/ld.so.cache --ro /etc/passwd"
+# individual device nodes, as the images grant them (read-write-paths in application.yml);
+# "--rw /dev" would be a directory rule and would never exercise the single-file path
+DEV="--rw /dev/null --rw /dev/zero --rw /dev/full --rw /dev/random --rw /dev/urandom"
+run() {
+    # shellcheck disable=SC2086
+    "$SB" $RO --rw "$tmp" $DEV --net none --nproc 4096 --nofile 1024 --strict -- "$@"
+}
+
+run_net() {
+    # shellcheck disable=SC2086
+    "$SB" $RO --rw "$tmp" $DEV --net all --strict -- "$@"
+}
+
+# 1. granted read-only path is readable
+if run cat /etc/passwd >/dev/null 2>&1; then pass "read of granted path"; else fail "read of granted path"; fi
+
+# 2. an unlisted path is invisible, even though the caller could read it
+if run cat /etc/hostname >/dev/null 2>&1; then fail "read of unlisted /etc/hostname succeeded"; else pass "unlisted path denied"; fi
+
+# 3. listing a directory that is not granted (only a subtree of it is) is denied
+if run ls /tmp >/dev/null 2>&1; then fail "listing /tmp succeeded"; else pass "listing ungranted directory denied"; fi
+
+# 4. writes inside the job dir work, including rename between subdirectories (REFER)
+if run sh -c "mkdir -p '$tmp/a' '$tmp/b' && echo hi > '$tmp/a/f' && mv '$tmp/a/f' '$tmp/b/f' && cat '$tmp/b/f'" 2>/dev/null | grep -q hi; then
+    pass "write and rename inside job dir"
+else
+    fail "write and rename inside job dir"
+fi
+
+# 5. writes to a read-only tree are denied. The control first proves the path is writable
+# without the sandbox: as a non-root user it is not, and the denial would then say nothing
+# about Landlock.
+ro_target=/usr/.extender-sandbox-selftest
+if echo x > "$ro_target" 2>/dev/null; then
+    rm -f "$ro_target"
+    if run sh -c "echo x > $ro_target" 2>/dev/null; then
+        fail "write into /usr succeeded"
+        rm -f "$ro_target"
+    else
+        pass "write into read-only tree denied"
+    fi
+else
+    echo "skip: /usr is not writable unsandboxed (not root), read-only check inconclusive"
+fi
+
+# 6. no exec from the writable job dir
+cp /bin/true "$tmp/true-copy" 2>/dev/null || cp "$(command -v true)" "$tmp/true-copy"
+if [ ! -x "$tmp/true-copy" ]; then
+    fail "control: could not stage an executable in the job dir, exec check proves nothing"
+elif run "$tmp/true-copy" 2>/dev/null; then
+    fail "exec from writable job dir succeeded"
+else
+    pass "exec from writable dir denied"
+fi
+
+# 7. sockets: only AF_UNIX under --net none, everything under --net all
+out=$(run "$SB" --check-sockets 2>&1)
+case "$out" in
+    "unix=ok inet=EAFNOSUPPORT inet6=EAFNOSUPPORT") pass "net none: $out" ;;
+    *) fail "net none: $out" ;;
+esac
+out=$(run_net "$SB" --check-sockets 2>&1)
+case "$out" in
+    "unix=ok inet=ok inet6=ok") pass "net all: $out" ;;
+    *) fail "net all: $out" ;;
+esac
+
+# 8. exit codes propagate
+run sh -c "exit 7"; rc=$?
+if [ "$rc" -eq 7 ]; then pass "exit code propagated"; else fail "exit code was $rc, expected 7"; fi
+
+# 9. a background process does not outlive the command
+# (the bracketed pattern keeps this script's own command lines from matching)
+sleeping() {
+    for p in /proc/[0-9]*/cmdline; do tr '\0' ' ' < "$p" 2>/dev/null; echo; done | grep -q 'sleep 3[0]0'
+}
+run sh -c "sleep 300 </dev/null >/dev/null 2>&1 & echo started" >/dev/null 2>&1
+sleep 1
+if sleeping; then fail "background sleep survived the command"; else pass "process tree cleaned up"; fi
+
+# 10. SIGTERM to the launcher kills the tree (the launcher itself is backgrounded, not a
+#     shell function, so $! is its pid)
+# shellcheck disable=SC2086
+"$SB" $RO --rw "$tmp" $DEV --net none --strict -- sleep 300 &
+launcher=$!
+sleep 1
+kill -TERM "$launcher"
+wait "$launcher"; rc=$?
+sleep 1
+if sleeping; then fail "sleep survived SIGTERM to the launcher"; else pass "SIGTERM kills the tree (launcher exit $rc)"; fi
+
+# 11. RLIMIT_FSIZE is enforced
+if run sh -c "dd if=/dev/zero of='$tmp/big' bs=1k count=8 2>/dev/null"; then
+    pass "control: an 8k write succeeds without --fsize"
+else
+    fail "control: an 8k write failed without --fsize, so the RLIMIT_FSIZE check proves nothing"
+fi
+# shellcheck disable=SC2086
+if "$SB" $RO --rw "$tmp" $DEV --fsize 4096 --strict -- sh -c "dd if=/dev/zero of='$tmp/big2' bs=1k count=8 2>/dev/null"; then
+    fail "file larger than RLIMIT_FSIZE was written"
+else
+    pass "RLIMIT_FSIZE enforced"
+fi
+
+# 12. ptrace is refused inside the sandbox (strace-like tools are not part of a build)
+if command -v strace >/dev/null 2>&1; then
+    if run strace -o /dev/null true 2>/dev/null; then fail "ptrace allowed"; else pass "ptrace denied"; fi
+fi
+
+# 13. a writable grant inside the job dir that the build turned into a link out of it is
+#     refused; the control shows the same grant without --job would reach the link's target
+outside=$(mktemp -d)
+mkdir -p "$tmp/job/inner"
+ln -s "$outside" "$tmp/job/escape"
+# shellcheck disable=SC2086
+if "$SB" $RO --rw "$tmp/job" --rwx "$tmp/job/escape" $DEV --strict -- sh -c "echo x > '$tmp/job/escape/control'" 2>/dev/null \
+        && [ -e "$outside/control" ]; then
+    # shellcheck disable=SC2086
+    if "$SB" $RO --job "$tmp/job" --rw "$tmp/job" --rwx "$tmp/job/escape" $DEV --strict -- \
+            sh -c "echo x > '$tmp/job/escape/planted'" 2>/dev/null || [ -e "$outside/planted" ]; then
+        fail "a linked-out grant inside --job was honoured"
+    else
+        pass "linked-out grant inside the job dir refused"
+    fi
+else
+    fail "control: a linked-out grant without --job did not reach its target, the --job check proves nothing"
+fi
+# shellcheck disable=SC2086
+if "$SB" $RO --job "$tmp/job" --rw "$tmp/job" --rwx "$tmp/job/inner" $DEV --strict -- true; then
+    pass "grant of a real directory inside the job dir"
+else
+    fail "grant of a real directory inside the job dir refused"
+fi
+rm -rf "$outside"
+
+# 14. processes that each start two more in new sessions and exit stay ahead of a sweep that
+#     kills one generation at a time (--nproc bounds them); they must be gone with the command
+cat > "$tmp/chain.sh" <<'CHAIN'
+setsid sh "$0" "$1" </dev/null >/dev/null 2>&1 &
+setsid sh "$0" "$1" </dev/null >/dev/null 2>&1 &
+touch "$1"
+exit 0
+CHAIN
+run sh "$tmp/chain.sh" "$tmp/heartbeat" >/dev/null 2>&1
+sleep 1
+rm -f "$tmp/heartbeat"
+sleep 1
+if [ -e "$tmp/heartbeat" ]; then fail "a fork-and-exit chain outlived the command"; else pass "fork-and-exit chain killed"; fi
+
+# 15. a writable grant nested under a read-only grant is refused: Landlock unions an
+#     ancestor's rights, so the nested directory would stay executable too, with no rule
+#     able to subtract that back out afterwards (this is the shape of a real incident: an
+#     image's writable tool-state directory left inside a tree granted read-only)
+mkdir -p "$tmp/sdk/tool-state" "$tmp/unrelated"
+# shellcheck disable=SC2086
+if "$SB" --ro "$tmp/sdk" --rw "$tmp/sdk/tool-state" $DEV --net none --strict -- true 2>/dev/null; then
+    fail "a writable grant nested under a read-only grant was honoured"
+else
+    pass "writable grant nested under a read-only grant refused"
+fi
+# shellcheck disable=SC2086
+if "$SB" --ro "$tmp/sdk" --rw "$tmp/unrelated" $DEV --net none --strict -- true 2>/dev/null; then
+    pass "control: an unrelated writable grant still works"
+else
+    fail "control: an unrelated writable grant was refused, the nesting check proves nothing"
+fi
+
+if [ "$failures" -eq 0 ]; then
+    echo "extender-sandbox self-test: all checks passed"
+    exit 0
+fi
+echo "extender-sandbox self-test: $failures check(s) failed" >&2
+exit 1

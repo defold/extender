@@ -1,0 +1,17 @@
+// Process sandbox integration fixture. Only the body of the dependencies block is spliced into
+// the generated build.gradle (RealGradleService.extractBlockContent), where Gradle evaluates it
+// inside the android builder with whatever the sandbox grants to the Gradle step. It probes the
+// escapes the sandbox must block and always fails with one summary line that
+// IntegrationTest.sandboxConfinesGradleStep asserts on:
+//
+//   SANDBOX_PROBE fs_write_outside=denied results=denied tmp=denied sdk_write=denied decoy=absent home=job
+dependencies {
+    def probe = []
+    try { new File('/opt/extender_sandbox_probe').text = 'x'; probe << 'fs_write_outside=ok' } catch (Throwable t) { probe << 'fs_write_outside=denied' }
+    probe << 'results=' + (new File('/var/extender/results').list() == null ? 'denied' : 'ok')
+    probe << 'tmp=' + (new File('/tmp').list() == null ? 'denied' : 'ok')
+    try { new File('/var/extender/sdk/extender_sandbox_probe').text = 'x'; probe << 'sdk_write=ok' } catch (Throwable t) { probe << 'sdk_write=denied' }
+    probe << 'decoy=' + (System.getenv('EXTENDER_TEST_DECOY_TOKEN') == null ? 'absent' : 'present')
+    probe << 'home=' + ((System.getenv('HOME') ?: '').startsWith(rootDir.absolutePath) ? 'job' : 'host')
+    throw new GradleException('SANDBOX_PROBE ' + probe.join(' '))
+}

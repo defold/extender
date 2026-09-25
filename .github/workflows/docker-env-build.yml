@@ -29,10 +29,10 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-    - name: Process tag name
-      id: name_postprocess
-      run: |
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Process tag name
+        id: name_postprocess
+        run: |
           PRIVATE_PLATFORM_LIST="${{ env.PRIVATE_PLATFORMS }}"
           PUBLIC_REGISTRY="${{ env.PUBLIC_REGISTRY }}"
           PRIVATE_REGISTRY_PS4="${{ env.PRIVATE_REGISTRY_PS4 }}"
@@ -66,7 +66,7 @@ jobs:
           else 
             TARGET_REGISTRY=$(echo $PUBLIC_REGISTRY)
           fi
-          
+
           case $PLATFORM in
             base|linux|build)
               BUILD_PLATFORMS="linux/amd64,linux/arm64"
@@ -93,42 +93,60 @@ jobs:
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "target_registry=$TARGET_REGISTRY" >> $GITHUB_OUTPUT
           echo "build_platforms=$BUILD_PLATFORMS" >> $GITHUB_OUTPUT
-    - name: Login to Google Artifact registry
-      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-      with:
-        registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
-        username: _json_key
-        password: ${{ secrets.DOCKER_REGISTRY_JSON_KEY }}
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      with:
-        platforms: amd64,arm64
-        image: tonistiigi/binfmt:qemu-v7.0.0
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-    - name: Build and push
-      env:
-        DM_PACKAGES_URL:  ${{ secrets.S3_URL }}
-      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-      with:
-        context: ${{ github.workspace }}/server/docker/
-        file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
-        pull: true
-        push: true
-        platforms: |
-          ${{ steps.name_postprocess.outputs.build_platforms }}
-        secret-envs: |
-          DM_PACKAGES_URL=DM_PACKAGES_URL
-        tags: |
-          ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.image_version }}
-          ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.short_sha }}
-          ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:latest
+      - name: Login to Google Artifact registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
+          username: _json_key
+          password: ${{ secrets.DOCKER_REGISTRY_JSON_KEY }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: amd64,arm64
+          image: tonistiigi/binfmt:qemu-v7.0.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - name: Build the base image for the launcher self-test
+        if: steps.name_postprocess.outputs.platform == 'base'
+        env:
+          DM_PACKAGES_URL: ${{ secrets.S3_URL }}
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ github.workspace }}/server/docker/
+          file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
+          pull: true
+          load: true
+          platforms: linux/amd64
+          secret-envs: |
+            DM_PACKAGES_URL=DM_PACKAGES_URL
+          tags: extender-base-env:selftest
+      - name: Sandbox launcher self-test
+        if: steps.name_postprocess.outputs.platform == 'base'
+        run: docker run --rm extender-base-env:selftest sh /usr/local/share/extender-sandbox/selftest.sh
 
-    - name: Notify if tests failed
-      uses: lazy-actions/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
-      if: failure()
-      with:
-        type: ${{ job.status }}
-        job_name: 'Extender: Docker environment container'
-        channel: '#defold-alarms-build'
-        url: ${{ secrets.SLACK_WEBHOOK }}
+      - name: Build and push
+        env:
+          DM_PACKAGES_URL: ${{ secrets.S3_URL }}
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ github.workspace }}/server/docker/
+          file: ${{ github.workspace }}/server/docker/Dockerfile.${{ steps.name_postprocess.outputs.dockerfile }}-env
+          pull: true
+          push: true
+          platforms: |
+            ${{ steps.name_postprocess.outputs.build_platforms }}
+          secret-envs: |
+            DM_PACKAGES_URL=DM_PACKAGES_URL
+          tags: |
+            ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.image_version }}
+            ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:${{ steps.name_postprocess.outputs.short_sha }}
+            ${{ steps.name_postprocess.outputs.target_registry }}/extender-${{ steps.name_postprocess.outputs.image_name }}-env:latest
+
+      - name: Notify if tests failed
+        uses: lazy-actions/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96
+        if: failure()
+        with:
+          type: ${{ job.status }}
+          job_name: "Extender: Docker environment container"
+          channel: "#defold-alarms-build"
+          url: ${{ secrets.SLACK_WEBHOOK }}
