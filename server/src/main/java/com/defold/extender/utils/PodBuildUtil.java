@@ -93,19 +93,19 @@ public class PodBuildUtil {
         return spec.vfsOverlay;
     }
 
-    public static File mergeVFSOverlays(File jobDir, File overlayA, File overlayB) {
+    public static File mergeVFSOverlays(File jobDir, File overlayA, File overlayB) throws IOException {
         JSONParser parser = new JSONParser();
-            try(Reader readerA = new FileReader(overlayA); Reader readerB = new FileReader(overlayB)) {
-                JSONObject parsedOverlayA = (JSONObject)parser.parse(readerA);
-                JSONObject parsedOverlayB = (JSONObject)parser.parse(readerB);
+        try (Reader readerA = new FileReader(overlayA); Reader readerB = new FileReader(overlayB)) {
+            JSONObject parsedOverlayA = (JSONObject) parser.parse(readerA);
+            JSONObject parsedOverlayB = (JSONObject) parser.parse(readerB);
 
-                JSONArray roots = (JSONArray)parsedOverlayA.get("roots");
-                roots.addAll((JSONArray)parsedOverlayB.get("roots"));
+            JSONArray roots = (JSONArray) parsedOverlayA.get("roots");
+            roots.addAll((JSONArray) parsedOverlayB.get("roots"));
 
-                JobFiles.writeString(jobDir, overlayA, parsedOverlayA.toJSONString(), StandardCharsets.UTF_8);
-            } catch (IOException | ParseException e) {
-
-            }
+            JobFiles.writeString(jobDir, overlayA, parsedOverlayA.toJSONString(), StandardCharsets.UTF_8);
+        } catch (ParseException e) {
+            throw new IOException("Failed to merge VFS overlays " + overlayA + " and " + overlayB + ": " + e.getMessage(), e);
+        }
         return overlayA;
     }
 
