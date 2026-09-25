@@ -821,6 +821,11 @@ int main(int argc, char **argv) {
         } else if (strict) {
             fprintf(stderr, "extender-sandbox: Landlock is unavailable on this kernel (strict mode)\n");
             _exit(127);
+        } else {
+            /* say so, the same way the seccomp fallback below does: without this, a per-build
+             * log in non-strict mode gives no sign that filesystem confinement was ever off */
+            fprintf(stderr, "extender-sandbox: Landlock is unavailable on this kernel; continuing "
+                    "without it (no filesystem read/write/exec restrictions)\n");
         }
 
         if (apply_seccomp(net_none) != 0) {
