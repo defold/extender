@@ -1,10 +1,5 @@
 extender:
     instance-type: BUILDER_ONLY
-    # the launcher ships in extender-base-env >= 1.9.0 (wine-env >= 1.11.0,
-    # android-env >= 1.10.0): every derived image must be rebuilt on those before this is
-    # enabled, or its container aborts at startup. The legacy winsdk-2022 image is not
-    # rebuilt and is pinned off in docker-compose.yml; override elsewhere with
-    # EXTENDER_SANDBOX_ENABLED=false / EXTENDER_SANDBOX_STRICT=false.
     sandbox:
         enabled: true
     gradle:

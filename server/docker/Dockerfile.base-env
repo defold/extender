@@ -25,15 +25,15 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-    locales \
-    libicu70 \
-    gcc \
-    libc6-dev
+  locales \
+  libicu70 \
+  gcc \
+  libc6-dev
 
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8 \
-    LANGUAGE=en_US:en \
-    LC_ALL=en_US.UTF-8
+  LANGUAGE=en_US:en \
+  LC_ALL=en_US.UTF-8
 
 #
 # Java
@@ -48,7 +48,6 @@ RUN \
   wget -q -O - "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz" | tar xJ -C "${ZIG_PATH}" --strip-components=1 && \
   "${ZIG_PATH}/zig" version
 
-# Added 1.9.1
 RUN \
   mkdir -p "${DOTNET_ROOT}" && \
   mkdir -p "${NUGET_PACKAGES}" && \
@@ -109,28 +108,28 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-    locales \
-    libicu70 \
-    ca-certificates && \
-    locale-gen en_US.UTF-8 && \
-    apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-# Add extender user
-    useradd -r -u 2222 extender && \
-    mkdir -p /var/extender && \
-# Extender data cache and SDK cache; the SDK dir exists so a named volume mounted there
-# inherits the ownership
-    mkdir -p /var/extender/cache/data /var/extender/sdk && \
-    chown extender: /var/extender /var/extender/sdk && \
-    chown -R extender: /var/extender/cache && \
-# NuGet restore writes here at build time; the toolchains themselves (java, dotnet) stay
-# root-owned so a compromised build subprocess cannot modify them
-    chown -R extender: "${NUGET_PACKAGES}"
+  locales \
+  libicu70 \
+  ca-certificates && \
+  locale-gen en_US.UTF-8 && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* && \
+  # Add extender user
+  useradd -r -u 2222 extender && \
+  mkdir -p /var/extender && \
+  # Extender data cache and SDK cache; the SDK dir exists so a named volume mounted there
+  # inherits the ownership
+  mkdir -p /var/extender/cache/data /var/extender/sdk && \
+  chown extender: /var/extender /var/extender/sdk && \
+  chown -R extender: /var/extender/cache && \
+  # NuGet restore writes here at build time; the toolchains themselves (java, dotnet) stay
+  # root-owned so a compromised build subprocess cannot modify them
+  chown -R extender: "${NUGET_PACKAGES}"
 
 ENV LANG=en_US.UTF-8 \
-    LANGUAGE=en_US:en \
-    LC_ALL=en_US.UTF-8
+  LANGUAGE=en_US:en \
+  LC_ALL=en_US.UTF-8
 
 
 EXPOSE 9000

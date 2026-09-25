@@ -25,9 +25,7 @@ extender:
         old-cache-clean-cron: "0 20 6 * * *" # once per day after directory rotation
     csharp:
         # the Apple runtime identifiers this host builds for; the shared cache is the
-        # NUGET_PACKAGES that envs/generate_user_env.sh points at (server/app/.nuget). The five
-        # ios/iossimulator identifiers are deliberately absent: restoring them pulls nothing,
-        # so there is nothing to warm.
+        # NUGET_PACKAGES that envs/generate_user_env.sh points at (server/app/.nuget)
         warm-runtime-identifiers: osx-arm64,osx-x64
     # Seatbelt sandbox around every build subprocess. The launcher is compiled by
     # scripts/standalone/setup-standalone-env.sh into server/app/extender-sandbox and its
