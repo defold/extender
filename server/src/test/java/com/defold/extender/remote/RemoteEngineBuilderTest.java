@@ -45,8 +45,6 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import org.apache.http.HttpEntity;
 
@@ -57,7 +55,6 @@ import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.progress.BuildProgressService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GCPInstanceService;
-import com.defold.extender.services.data.SdkSelection;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
@@ -167,15 +164,11 @@ public class RemoteEngineBuilderTest {
     }
 
     private Path submitBuild(RemoteEngineBuilder builder, String jobName) throws Exception {
-        return submitBuild(builder, jobName, null);
-    }
-
-    private Path submitBuild(RemoteEngineBuilder builder, String jobName, SdkSelection selection) throws Exception {
         Path projectDirectory = Files.createDirectories(tmpDir.resolve(jobName).resolve("upload"));
         Files.writeString(projectDirectory.resolve("main.cpp"), "int main() { return 0; }");
         File jobDirectory = Files.createDirectories(tmpDir.resolve(jobName).resolve("job_" + jobName)).toFile();
         executor.submit(() -> {
-            builder.buildAsync(mockInstanceConfig(), projectDirectory.toFile(), "arm64-ios", "testsdk", selection,
+            builder.buildAsync(mockInstanceConfig(), projectDirectory.toFile(), "arm64-ios", "testsdk",
                 jobDirectory, new MetricsWriter(new SimpleMeterRegistry()));
             return null;
         });
@@ -548,60 +541,4 @@ public class RemoteEngineBuilderTest {
             }
         }
     }
-    @Test
-    public void sendsAndRequiresSdkSourceAcknowledgement() throws Exception {
-        SdkSelection selection = new SdkSelection("a".repeat(64), "osx", "xcode26_5");
-        stubSuccessfulJobPipeline("pinned-job");
-        builderMock.stubFor(post(urlPathMatching("/build_async/.*"))
-            .willReturn(aResponse().withStatus(200).withBody("pinned-job")
-                .withHeader(SdkSelection.SOURCE_HEADER, selection.sourceId())
-                .withHeader(SdkSelection.NAME_HEADER, selection.sdkName())
-                .withHeader(SdkSelection.VERSION_HEADER, selection.sdkVersion())));
-        builderMock.stubFor(get(urlPathEqualTo("/job_result")).willReturn(aResponse().withStatus(200).withBody("result")));
-        Path result = submitBuild(createBuilder(1), "pinned", selection);
-        assertTrue(waitFor(() -> Files.exists(result.resolve(BuilderConstants.BUILD_RESULT_FILENAME)), 10_000));
-        builderMock.verify(postRequestedFor(urlPathMatching("/build_async/.*"))
-            .withHeader(SdkSelection.SOURCE_HEADER, com.github.tomakehurst.wiremock.client.WireMock.equalTo(selection.sourceId()))
-            .withHeader(SdkSelection.NAME_HEADER, com.github.tomakehurst.wiremock.client.WireMock.equalTo(selection.sdkName()))
-            .withHeader(SdkSelection.VERSION_HEADER, com.github.tomakehurst.wiremock.client.WireMock.equalTo(selection.sdkVersion())));
-    }
-
-    @Test
-    public void rejectsBuilderThatIgnoresSdkSourceSelection() throws Exception {
-        stubSuccessfulJobPipeline("legacy-job");
-        SdkSelection selection = new SdkSelection("a".repeat(64), "osx", "xcode26_5");
-        Path result = submitBuild(createBuilder(1), "unacknowledged", selection);
-        Path error = result.resolve(BuilderConstants.BUILD_ERROR_FILENAME);
-        assertTrue(waitFor(() -> Files.exists(error) && fileContains(error, "did not acknowledge"), 10_000));
-        builderMock.verify(0, getRequestedFor(urlPathEqualTo("/job_status")));
-        builderMock.verify(0, getRequestedFor(urlPathEqualTo("/job_result")));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {SdkSelection.SOURCE_HEADER, SdkSelection.NAME_HEADER, SdkSelection.VERSION_HEADER})
-    public void rejectsMismatchedSdkSourceAcknowledgement(String mismatchedHeader) throws Exception {
-        SdkSelection selection = new SdkSelection("a".repeat(64), "osx", "xcode26_5");
-        builderMock.stubFor(post(urlPathMatching("/build_async/.*"))
-            .willReturn(aResponse().withStatus(200).withBody("wrong-sdk-job")
-                .withHeader(SdkSelection.SOURCE_HEADER,
-                    mismatchedHeader.equals(SdkSelection.SOURCE_HEADER) ? "b".repeat(64) : selection.sourceId())
-                .withHeader(SdkSelection.NAME_HEADER,
-                    mismatchedHeader.equals(SdkSelection.NAME_HEADER) ? "other" : selection.sdkName())
-                .withHeader(SdkSelection.VERSION_HEADER,
-                    mismatchedHeader.equals(SdkSelection.VERSION_HEADER) ? "other" : selection.sdkVersion())));
-        Path result = submitBuild(createBuilder(1), "mismatched", selection);
-        Path error = result.resolve(BuilderConstants.BUILD_ERROR_FILENAME);
-        assertTrue(waitFor(() -> Files.exists(error) && fileContains(error, "did not acknowledge"), 10_000));
-        builderMock.verify(0, getRequestedFor(urlPathEqualTo("/job_status")));
-        builderMock.verify(0, getRequestedFor(urlPathEqualTo("/job_result")));
-    }
-
-    private static boolean fileContains(Path path, String text) {
-        try {
-            return Files.readString(path).contains(text);
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
 }

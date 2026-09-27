@@ -277,88 +277,13 @@ In case if new version of base image will be released do not forget to update ta
 
 ## How to configure remote hosts
 Frontend instance should run with configs that contains urls to remote hosts. For example, see `server/configs/application-local-dev-app.yml`.
-Keys in `extender.remote-builder.platforms` have the form `<sdk_name>-<sdk_version>`,
-matching the pair for the requested target in `platform.sdks.json`. For example,
-`"arm64-nx64": ["nssdk", "2143"]` selects `nssdk-2143`, with `nssdk-latest` as a fallback.
-A `FRONTEND_ONLY` instance reports the missing builder key if neither is configured;
-a `MIXED` instance can build locally instead.
+Keys in `extender.remote-builder.platform` should be formed in the following way: `<platform_name>-<sdk_version>` and the mappings must have the same names as used in https://github.com/defold/defold/blob/generate-platform-sdks-mappings/share/platform.sdks.json. Here's how it works:
 
-## SDK sources and caching
-
-Configure `extender.sdk.sources` as an ordered list of **paired** mapping and archive URL
-patterns. Each pattern takes the engine SHA through `%s`. Resolution tries each mapping
-until it finds a valid entry for the requested target platform. HTTP 200 alone does not
-select a source. The builder downloads the archive and its `.sha256` checksum from the
-selected source, without falling back to an unrelated archive.
-
-For example, a deployment supporting public and Switch SDKs can use:
-
-```yaml
-extender:
-    sdk:
-        sources:
-            - mappings-url: https://d.defold.com/archive/stable/%s/engine/platform.sdks.json
-              sdk-url: https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip
-            - mappings-url: https://d.defold.com/archive/%s/engine/platform.sdks.json
-              sdk-url: https://d.defold.com/archive/%s/engine/defoldsdk.zip
-            - mappings-url: https://d-switch.defold.com/archive/stable/%s/engine/platform.sdks.json
-              sdk-url: https://d-switch.defold.com/archive/stable/%s/engine/defoldsdk.zip
-            - mappings-url: https://d-switch.defold.com/archive/%s/engine/platform.sdks.json
-              sdk-url: https://d-switch.defold.com/archive/%s/engine/defoldsdk.zip
-```
-
-Configure the same source URL pairs on the frontend and its builders. The frontend sends
-`X-Extender-Sdk-Source` (a digest of the resolved mapping and archive URLs),
-`X-Extender-Sdk-Name`, and `X-Extender-Sdk-Version` with remote build requests. A builder
-looks up that source in its own configuration, validates the SDK name/version against the
-mapping, and uses that exact resolution for the build. It never accepts an arbitrary URL
-from the request or falls back to another source for a pinned request. The builder echoes
-all three headers; the frontend rejects a missing or mismatched acknowledgement. Upgrade
-builders before frontends. Source-selection headers are rejected on frontend/mixed
-instances, so ordinary client requests cannot override routing.
-
-Include every required source in an overriding Spring profile: Spring replaces lists
-instead of appending profile entries. Defaults contain only the public sources; console
-deployments must add their sources and configure the corresponding builders and authentication.
-
-**Configuration migration:** `sources` replaces `sdk-urls` and `mappings-urls`. As a
-transition, both legacy lists are still accepted when each mapping URL has exactly one
-archive URL obtained by replacing `platform.sdks.json` with `defoldsdk.zip`. Pairing uses
-URL identity, not matching list positions, and preserves mapping-list priority. Legacy
-lists take precedence over `sources` (including inherited defaults) and produce a startup
-warning; remove both legacy properties when migrating. Incomplete or ambiguous legacy
-lists fail startup with migration instructions. Custom URL layouts should use explicit
-`sources` pairs.
-
-Successful resolutions are cached by `(engine SHA, target platform, selected source)`; the
-source is unspecified for ordinary client requests. Concurrent requests for the same key
-share one lookup. `mappings-cache-size` limits the number of resolved
-keys. Failures are not cached, so a later request can retry after publication or an outage.
-
-Extracted SDKs are stored under `sdk-<SHA-256 of the selected archive URL>/defoldsdk`.
-The URL includes the engine SHA. Multiple targets using one archive share the extracted
-SDK; public and console archives with the same engine SHA stay separate. Archive download
-coordination, reference counts, and eviction use this same identity. `cache-size` counts
-archives. Legacy directories named only by engine SHA are not reused and are eligible for
-normal eviction. Plan for a cold SDK cache after upgrading.
-
-After a successful download or cache hit, the server atomically writes a resolution sidecar
-beside the extracted SDK. It records the engine SHA, target, source digest and SDK name/version,
-without URLs or credentials. After a restart or memory-cache eviction, resolution can use
-these records without contacting the mapping service. Records are considered only for
-currently configured sources and matching SHA/target/source identities, and only while the
-extracted archive exists. Corrupt metadata is ignored. Archive eviction removes its metadata
-as well. Set `cache-clear-on-exit: false` to retain archives and metadata across graceful
-restarts; the default clears them on shutdown. Frontends without downloaded archives still
-need a memory-cache hit or an available
-mapping service. Successfully cached artifacts are assumed immutable; replacing content at
-an existing URL requires invalidating the affected cache or restarting with cleanup enabled.
-
-SDK download and mapping diagnostics identify sources by digest, without exposing URL user
-information, signed query strings or raw HTTP/parser exception messages.
-
-Setting `DYNAMO_HOME` continues to select a local SDK. Its mapping is read locally on each
-resolution, and its SDK does not participate in the downloaded archive cache.
+1. Frontend instance get a request. The request contains a sha1 matching an engine version and which platform to build.
+2. Frontend instance downloads `platform.sdks.json` for the specified engine sha1.
+3. Frontend instance looks into `platform.sdks.json` for information according to requested platform. For example, user try to build engine for platform `js-web`. In that case frontend instance found `["emsdk", "3155"]`.
+4. Frontend instance search through `extender.remote-builder.platforms` using the keys: `<platform>-<sdk_version>` and `<platform>-latest`. If no mappings was found - frontend instance starts local build (which highly likely will fail because no appropriate environment was configured). For our example frontend instance search for `emsdk-3155` and `emsdk-latest`. 
+5. Frontend instance sends a build request to the found server url.
 
 # Testing notes
 When runs integration tests on Macos at arm chips - check docker engine configuration. It's better to use `Virtual Machine option` -> `Apple Virtualization framework` with checked `Use Rosetta for x86_64/amd64 emulation on Apple Silicon` checkbox. See [Speeding up local runs](#speeding-up-local-runs-apple-silicon) for the flags that make a local run practical.

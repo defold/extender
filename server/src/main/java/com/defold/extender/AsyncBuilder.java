@@ -20,7 +20,6 @@ import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.cocoapods.CocoaPodsService;
 import com.defold.extender.services.data.DefoldSdk;
-import com.defold.extender.services.data.ResolvedSdk;
 import com.defold.extender.services.spm.SwiftPackageManagerService;
 
 import org.apache.commons.io.FileUtils;
@@ -97,7 +96,7 @@ public class AsyncBuilder {
     }
 
     @Async(value="extenderTaskExecutor")
-    public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion, ResolvedSdk resolved,
+    public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion,
             File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException {
         String jobName = jobDirectory.getName();
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
@@ -111,7 +110,7 @@ public class AsyncBuilder {
 
             // Get SDK
             progressReporter.stage(BuildStage.SDK, "Downloading Defold SDK " + sdkVersion);
-            try (DefoldSdk sdk = defoldSdkService.getSdk(resolved)) {
+            try (DefoldSdk sdk = defoldSdkService.getSdk(sdkVersion)) {
                 metricsWriter.measureSdkDownload(sdkVersion);
 
                 extender = new Extender.Builder()

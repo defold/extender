@@ -10,12 +10,4 @@ public class PlatformNotSupportedException extends ExtenderException {
     public PlatformNotSupportedException(Exception e, String platform) {
         super(e, String.format(ERROR_MESSAGE, platform));
     }
-
-    public PlatformNotSupportedException(String platform, String sdkVersion) {
-        super(String.format("Platform '%s' is not supported on the current server for engine '%s': no configured SDK source contains this platform.", platform, sdkVersion));
-    }
-
-    public PlatformNotSupportedException(String platform, String sdkVersion, String builderKey) {
-        super(String.format("Platform '%s' is not supported on the current server for engine '%s': remote builder '%s' is not configured or remote building is disabled.", platform, sdkVersion, builderKey));
-    }
 }

@@ -12,8 +12,6 @@ import com.defold.extender.services.DefoldSdkService;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.HealthReporterService;
 import com.defold.extender.services.UserUpdateService;
-import com.defold.extender.services.data.ResolvedSdk;
-import com.defold.extender.services.data.SdkSelection;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.fileupload2.core.FileUploadException;
@@ -21,6 +19,7 @@ import org.apache.commons.fileupload2.jakarta.JakartaServletFileUpload;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.jetty.io.EofException;
+import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -192,13 +191,6 @@ public class ExtenderController {
             throw new VersionNotSupportedException(sdkVersionString);
         }
 
-        SdkSelection requestedSelection = SdkSelection.fromHeaders(
-            request.getHeader(SdkSelection.SOURCE_HEADER), request.getHeader(SdkSelection.NAME_HEADER),
-            request.getHeader(SdkSelection.VERSION_HEADER));
-        if (requestedSelection != null && instanceType != InstanceType.BUILDER_ONLY) {
-            throw new ExtenderException("SDK source selection is only accepted by builder instances");
-        }
-
         this.userUpdateService.update();
 
         File jobDirectory;
@@ -247,30 +239,37 @@ public class ExtenderController {
             ProgressReporter progressReporter = buildProgressService.register(jobDirectory.getName());
             progressReporter.stage(BuildStage.RECEIVED, "Build request received");
 
-            ResolvedSdk resolved = defoldSdkService.resolveSdk(sdkVersion, platform, requestedSelection);
             if (instanceType.equals(InstanceType.BUILDER_ONLY)) {
                 progressReporter.stage(BuildStage.QUEUED, "Build queued");
-                asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, resolved, jobDirectory, uploadDirectory, buildDirectory);
+                asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
             } else {
+                String[] buildEnvDescription = null;
+                try {
+                    JSONObject mappings = defoldSdkService.getPlatformSdkMappings(sdkVersion, platform);
+                    buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, mappings);
+                } catch(ExtenderException exc) {
+                    if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
+                        LOGGER.error("Unsupported engine version '{}'", sdkVersion);
+                        throw new VersionNotSupportedException(sdkVersion);
+                    }
+                } catch (NullPointerException exc) {
+                    LOGGER.error("Unsupported build platform '{}'", platform);
+                    throw new PlatformNotSupportedException(platform);
+                }
                 // Build engine locally or on remote builder
-                if (remoteBuilderEnabled && isRemotePlatform(resolved.sdkName(), resolved.sdkVersion())) {
+                if (remoteBuilderEnabled && buildEnvDescription != null && isRemotePlatform(buildEnvDescription[0], buildEnvDescription[1])) {
                     LOGGER.info("Building engine on remote builder");
-                    RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(resolved.sdkName(), resolved.sdkVersion());
+                    RemoteInstanceConfig remoteInstanceConfig = getRemoteBuilderConfig(buildEnvDescription[0], buildEnvDescription[1]);
                     progressReporter.stage(BuildStage.QUEUED, "Build queued on remote builder");
-                    this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, resolved.selection(), jobDirectory, metricsWriter);
+                    this.remoteEngineBuilder.buildAsync(remoteInstanceConfig, uploadDirectory, platform, sdkVersion, jobDirectory, metricsWriter);
                 } else if (instanceType.equals(InstanceType.MIXED)) {
                     progressReporter.stage(BuildStage.QUEUED, "Build queued");
-                    asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, resolved, jobDirectory, uploadDirectory, buildDirectory);
+                    asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
                 } else {
                     // no remote builder was found and current instance can't build
                     LOGGER.error("Unsupported build platform '{}'", platform);
-                    throw new PlatformNotSupportedException(platform, sdkVersion, resolved.sdkName() + "-" + resolved.sdkVersion());
+                    throw new PlatformNotSupportedException(platform);
                 }
-            }
-            if (requestedSelection != null) {
-                response.setHeader(SdkSelection.SOURCE_HEADER, requestedSelection.sourceId());
-                response.setHeader(SdkSelection.NAME_HEADER, requestedSelection.sdkName());
-                response.setHeader(SdkSelection.VERSION_HEADER, requestedSelection.sdkVersion());
             }
             response.getWriter().write(jobDirectory.getName());
             response.getWriter().flush();

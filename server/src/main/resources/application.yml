@@ -14,11 +14,12 @@ extender:
         cache-size: 10
         mappings-cache-size: 20
         cache-clear-on-exit: true
-        sources:
-            - mappings-url: https://d.defold.com/archive/stable/%s/engine/platform.sdks.json
-              sdk-url: https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip
-            - mappings-url: https://d.defold.com/archive/%s/engine/platform.sdks.json
-              sdk-url: https://d.defold.com/archive/%s/engine/defoldsdk.zip
+        sdk-urls: >
+            https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip,
+            https://d.defold.com/archive/%s/engine/defoldsdk.zip
+        mappings-urls: >
+            https://d.defold.com/archive/stable/%s/engine/platform.sdks.json,
+            https://d.defold.com/archive/%s/engine/platform.sdks.json
         max-verification-retry-count: 3
         enable-sdk-verification: true
     server:
