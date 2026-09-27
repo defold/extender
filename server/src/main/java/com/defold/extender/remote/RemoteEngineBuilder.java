@@ -10,6 +10,7 @@ import com.defold.extender.progress.BuildStage;
 import com.defold.extender.progress.ProgressReporter;
 import com.defold.extender.services.DataCacheService;
 import com.defold.extender.services.GCPInstanceService;
+import com.defold.extender.services.data.SdkSelection;
 import com.defold.extender.tracing.ExtenderTracerInterceptor;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -171,6 +172,7 @@ public class RemoteEngineBuilder {
                         final File projectDirectory,
                         final String platform,
                         final String sdkVersion,
+                        final SdkSelection selection,
                         File jobDirectory, MetricsWriter metricsWriter) throws FileNotFoundException, IOException {
 
         LOGGER.info("Building engine remotely at {}", remoteInstanceConfig.getUrl());
@@ -200,6 +202,11 @@ public class RemoteEngineBuilder {
             final String serverUrl = String.format("%s/build_async/%s/%s", remoteInstanceConfig.getUrl(), platform, sdkVersion);
             final HttpPost request = new HttpPost(serverUrl);
             request.setEntity(httpEntity);
+            if (selection != null) {
+                request.setHeader(SdkSelection.SOURCE_HEADER, selection.sourceId());
+                request.setHeader(SdkSelection.NAME_HEADER, selection.sdkName());
+                request.setHeader(SdkSelection.VERSION_HEADER, selection.sdkVersion());
+            }
 
             touchInstance(remoteInstanceConfig.getInstanceId());
             try (CloseableHttpResponse response = httpClient.execute(request)) {
@@ -213,6 +220,12 @@ public class RemoteEngineBuilder {
                     return;
                 }
 
+                if (selection != null
+                        && (!matchesHeader(response, SdkSelection.SOURCE_HEADER, selection.sourceId())
+                            || !matchesHeader(response, SdkSelection.NAME_HEADER, selection.sdkName())
+                            || !matchesHeader(response, SdkSelection.VERSION_HEADER, selection.sdkVersion()))) {
+                    throw new IOException("Remote builder did not acknowledge the selected SDK source and version; upgrade the builder");
+                }
                 String jobId = EntityUtils.toString(response.getEntity());
                 LOGGER.info(String.format("Remote async build posted. Wait job id: %s", jobId));
                 if (buildProgressService.isEnabled()) {
@@ -304,6 +317,11 @@ public class RemoteEngineBuilder {
                 LOGGER.info("Keeping job directory due to debug flags");
             }
         }
+    }
+
+    private static boolean matchesHeader(CloseableHttpResponse response, String name, String value) {
+        org.apache.http.Header header = response.getFirstHeader(name);
+        return header != null && value.equals(header.getValue());
     }
 
     // The job result stays on the builder for extender.job-result.lifetime, so a download

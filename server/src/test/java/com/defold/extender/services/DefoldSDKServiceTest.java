@@ -1,425 +1,518 @@
 package com.defold.extender.services;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.ExtenderUtil;
+import com.defold.extender.PlatformNotSupportedException;
+import com.defold.extender.VersionNotSupportedException;
 import com.defold.extender.services.data.DefoldSdk;
+import com.defold.extender.services.data.ResolvedSdk;
+import com.defold.extender.services.data.SdkSelection;
 import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
-import org.apache.commons.io.FileUtils;
-import org.json.simple.parser.ParseException;
-import org.json.simple.JSONObject;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
-import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DefoldSDKServiceTest {
-    private static DefoldSdkServiceConfiguration configuration;
-    private static DefoldSdkServiceConfiguration zeroCacheConfiguration;
-    private static DefoldSdkServiceConfiguration otherLocationConfiguration;
+    private static final String HASH = "same-engine-sha";
+    private static final String LINUX = "x86_64-linux";
+    private static final String SWITCH = "arm64-nx64";
+    private static final String ANDROID = "arm64-android";
+    private static final String PUBLIC_MAPPING = "{\"x86_64-linux\":[\"linux\",\"latest\"],\"arm64-android\":[\"android\",\"ndk25\"]}";
+    private static final String SWITCH_MAPPING = "{\"arm64-nx64\":[\"nssdk\",\"2143\"],\"x86_64-linux\":[\"linux\",\"other\"]}";
 
-    private static WireMockServer mockServer;
-    private static int serverPort = 8090;
-    private static Path tmpHTTPRoot;
+    @TempDir Path sdkLocation;
+    private WireMockServer server;
+    private DefoldSdkServiceConfiguration configuration;
+    private DefoldSdkService service;
 
-    @BeforeAll
-    public static void beforeAll() throws IOException {
-        tmpHTTPRoot = Files.createTempDirectory("defoldsdk_http");
-        Path sdkLocation = Files.createTempDirectory("defoldsdk");
-        Path sdkOtherLocation = Files.createTempDirectory("defoldsdk_test");
-
-        DefoldSDKServiceTest.configuration = DefoldSdkServiceConfiguration.builder()
+    @BeforeEach
+    void setUp() throws Exception {
+        server = new WireMockServer(WireMockConfiguration.options().dynamicPort());
+        server.start();
+        configuration = DefoldSdkServiceConfiguration.builder()
             .location(sdkLocation)
-            .sdkUrls(new String[]{"https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "https://d.defold.com/archive/%s/engine/defoldsdk.zip"})
-            .mappingsUrls(new String[] {"https://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "https://d.defold.com/archive/%s/engine/platform.sdks.json"})
+            .sources(List.of(source("public"), source("switch")))
             .cacheSize(3)
             .mappingsCacheSize(3)
             .cacheClearOnExit(true)
-            .enableSdkVerification(false)
-            .maxVerificationRetryCount(3)
-            .maxRedirectCount(5)
+            .enableSdkVerification(true)
+            .maxVerificationRetryCount(2)
             .build();
-
-        DefoldSDKServiceTest.zeroCacheConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.configuration.toBuilder());
-        zeroCacheConfiguration.setCacheSize(0);
-
-        Files.createDirectories(DefoldSDKServiceTest.configuration.getLocation());
-
-        DefoldSDKServiceTest.otherLocationConfiguration = new DefoldSdkServiceConfiguration(DefoldSDKServiceTest.zeroCacheConfiguration.toBuilder());
-        DefoldSDKServiceTest.otherLocationConfiguration.setLocation(sdkOtherLocation);
-        Files.createDirectories(DefoldSDKServiceTest.otherLocationConfiguration.getLocation());
-
-        // prepare content for serving
-        Files.createDirectories(tmpHTTPRoot);
-        FileUtils.copyDirectory(new File("test-data/checksum_sdk/"), new File(tmpHTTPRoot.toFile(), "__files"), File::isFile);
-
-        // Configure WireMock to respond with the contents of a local file
-        DefoldSDKServiceTest.mockServer = new WireMockServer(WireMockConfiguration.options()
-            .port(serverPort)
-            .withRootDirectory(tmpHTTPRoot.toString())
-        );
-        DefoldSDKServiceTest.mockServer.start();
-        WireMock.configureFor("localhost", serverPort);
-
-        stubFor(head(urlEqualTo("/test_sdk.zip"))
-                .willReturn(aResponse()
-                        .withStatus(200)));
-        stubFor(get(urlEqualTo("/test_sdk.zip"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withBodyFile("test_sdk.zip")
-                        .withHeader("Content-Type", "application/zip")));
-        stubFor(get(urlEqualTo("/test_sdk.sha256"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withBodyFile("test_sdk.sha256")
-                        .withHeader("Content-Type", "text/plain")));
-        // stub for invalid checksums
-        stubFor(head(urlEqualTo("/test_sdk_invalid.zip"))
-                .willReturn(aResponse()
-                        .withStatus(200)));
-        stubFor(get(urlEqualTo("/test_sdk_invalid.zip"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withBodyFile("test_sdk.zip")
-                        .withHeader("Content-Type", "application/zip")));
-        stubFor(get(urlEqualTo("/test_sdk_invalid.sha256"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withBodyFile("test_sdk_invalid.sha256")
-                        .withHeader("Content-Type", "text/plain")));
-        // stub for missing checksum file - zip exists but .sha256 is not found
-        stubFor(head(urlEqualTo("/test_sdk_no_checksum.zip"))
-                .willReturn(aResponse()
-                        .withStatus(200)));
-        stubFor(get(urlEqualTo("/test_sdk_no_checksum.zip"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withBodyFile("test_sdk.zip")
-                        .withHeader("Content-Type", "application/zip")));
-        stubFor(get(urlEqualTo("/test_sdk_no_checksum.sha256"))
-                .willReturn(aResponse()
-                        .withStatus(404)));
-
-        // first call should fail; second - should be successful
-        stubFor(get(urlEqualTo("/unstable_sdk_mapping.json"))
-                .inScenario("request_chain")
-                .whenScenarioStateIs(STARTED)
-                .willReturn(aResponse()
-                        .withStatus(404))
-                .willSetStateTo("not_found"));
-        stubFor(get(urlEqualTo("/unstable_sdk_mapping.json"))
-                .inScenario("request_chain")
-                .whenScenarioStateIs("not_found")
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withBody("{}")
-                ));
+        service = new DefoldSdkService(configuration, new SimpleMeterRegistry());
+        // Keep these tests independent of a developer's local SDK environment.
+        ReflectionTestUtils.setField(service, "dynamoHome", null);
+        stubMapping("public", PUBLIC_MAPPING);
+        stubMapping("switch", SWITCH_MAPPING);
+        stubArchive("public", "public");
+        stubArchive("switch", "switch");
     }
 
-    @AfterAll
-    public static void afterAll() throws IOException {
-        FileUtils.deleteDirectory(DefoldSDKServiceTest.configuration.getLocation().toFile());
-        FileUtils.deleteDirectory(DefoldSDKServiceTest.otherLocationConfiguration.getLocation().toFile());
+    @AfterEach
+    void tearDown() {
+        server.stop();
+    }
 
-        if (DefoldSDKServiceTest.mockServer != null) {
-            DefoldSDKServiceTest.mockServer.stop();
+    private DefoldSdkServiceConfiguration.Source source(String name) {
+        return new DefoldSdkServiceConfiguration.Source(
+            server.baseUrl() + "/" + name + "/%s/platform.sdks.json",
+            server.baseUrl() + "/" + name + "/%s/defoldsdk.zip");
+    }
+
+    private String mappingPath(String source) {
+        return "/" + source + "/" + HASH + "/platform.sdks.json";
+    }
+
+    private String archivePath(String source) {
+        return "/" + source + "/" + HASH + "/defoldsdk.zip";
+    }
+
+    private void stubMapping(String source, String body) {
+        server.stubFor(get(urlPathMatching("/" + source + "/[^/]+/platform.sdks.json"))
+            .willReturn(okJson(body)));
+    }
+
+    private byte[] zip(String path, String content) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+            zip.putNextEntry(new ZipEntry(path));
+            zip.write(content.getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
         }
-        FileUtils.deleteDirectory(tmpHTTPRoot.toFile());
+        return bytes.toByteArray();
+    }
+
+    private void stubArchive(String source, String marker) throws Exception {
+        byte[] archive = zip("defoldsdk/source.txt", marker);
+        server.stubFor(get(urlEqualTo(archivePath(source))).willReturn(ok().withBody(archive).withFixedDelay(100)));
+        String checksum = ExtenderUtil.calculateSHA256(new ByteArrayInputStream(archive));
+        server.stubFor(get(urlEqualTo(archivePath(source).replace(".zip", ".sha256"))).willReturn(ok(checksum)));
+    }
+
+    private String marker(DefoldSdk sdk) throws Exception {
+        return Files.readString(sdk.toFile().toPath().resolve("source.txt"));
     }
 
     @Test
-    @Disabled("SDK too large to download on every test round.")
-    public void t() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.configuration, new SimpleMeterRegistry());
-        DefoldSdk sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac");
-        System.out.println(sdk.toFile().getCanonicalFile());
+    void fallsBackToSourceSupportingPlatform() throws Exception {
+        ResolvedSdk result = service.resolveSdk(HASH, SWITCH);
+        assertEquals("nssdk", result.sdkName());
+        assertEquals("2143", result.sdkVersion());
+        assertEquals(server.baseUrl() + mappingPath("switch"), result.mappingsUri().toString());
+        assertEquals(server.baseUrl() + archivePath("switch"), result.archiveUri().toString());
+        server.verify(1, getRequestedFor(urlEqualTo(mappingPath("public"))));
+        server.verify(1, getRequestedFor(urlEqualTo(mappingPath("switch"))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cachesResolutionByHashAndPlatform(boolean switchFirst) throws Exception {
+        for (String platform : switchFirst ? List.of(SWITCH, LINUX) : List.of(LINUX, SWITCH)) {
+            service.resolveSdk(HASH, platform);
+        }
+        assertEquals("linux", service.resolveSdk(HASH, LINUX).sdkName());
+        assertEquals("latest", service.resolveSdk(HASH, LINUX).sdkVersion());
+        assertEquals("nssdk", service.resolveSdk(HASH, SWITCH).sdkName());
+        assertEquals(2, service.mappingsCache.size());
+        server.verify(2, getRequestedFor(urlEqualTo(mappingPath("public"))));
+        server.verify(1, getRequestedFor(urlEqualTo(mappingPath("switch"))));
+        service.resolveSdk("another-sha", LINUX);
+        server.verify(1, getRequestedFor(urlEqualTo("/public/another-sha/platform.sdks.json")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void separatesArchivesForSameHashAndSharesPublicArchive(boolean switchFirst) throws Exception {
+        for (String platform : switchFirst ? List.of(SWITCH, LINUX) : List.of(LINUX, SWITCH)) {
+            try (DefoldSdk sdk = service.getSdk(HASH, platform)) {
+                assertEquals(platform.equals(SWITCH) ? "switch" : "public", marker(sdk));
+                assertEquals(HASH, sdk.getHash());
+            }
+        }
+        try (DefoldSdk linux = service.getSdk(HASH, LINUX);
+             DefoldSdk android = service.getSdk(HASH, ANDROID);
+             DefoldSdk nintendo = service.getSdk(HASH, SWITCH)) {
+            assertEquals(linux.toFile(), android.toFile());
+            assertNotEquals(linux.toFile(), nintendo.toFile());
+        }
+        DefoldSdkService restarted = restartService();
+        try (DefoldSdk sdk = restarted.getSdk(HASH, SWITCH)) {
+            assertEquals("switch", marker(sdk));
+        }
+        server.verify(1, getRequestedFor(urlEqualTo(archivePath("public"))));
+        server.verify(1, getRequestedFor(urlEqualTo(archivePath("switch"))));
     }
 
     @Test
-    @Disabled("SDK too large to download on every test round.")
-    public void onlyStoreTheNewest() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.configuration, new SimpleMeterRegistry());
-
-        String[] sdksToDownload = {
-                "fe2b689302e79b7cf8c0bc7d934f23587b268c8a",
-                "8f3e864464062e1b35c207521dc65dfd77899cdf",
-                "e41438cca6cc1550d4a0131b8fc3858c2a4097f1",
-                "7107bc8781535e83cbb30734b32d6b32a3039cd0",
-                "f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac"};
-
-        // Download all SDK:s
-        for (String sdkHash : sdksToDownload) {
-            defoldSdkService.getSdk(sdkHash);
-        }
-
-        List<String> collect = null;
-        try (Stream<Path> entries = Files.list(DefoldSDKServiceTest.configuration.getLocation())) {
-            collect = entries.map(path -> path.toFile().getName()).collect(Collectors.toList());
-        }
-
-        assertEquals(DefoldSDKServiceTest.configuration.getCacheSize(), collect.size());
-        assertTrue(collect.contains("e41438cca6cc1550d4a0131b8fc3858c2a4097f1"));
-        assertTrue(collect.contains("7107bc8781535e83cbb30734b32d6b32a3039cd0"));
-        assertTrue(collect.contains("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac"));
-    }
-
-    @Test
-    public void testGetSDK() throws IOException, ExtenderException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.configuration, new SimpleMeterRegistry());
-
-        File dir = new File(DefoldSDKServiceTest.configuration.getLocation().toFile(), "notexist");
-        assertFalse(Files.exists(dir.toPath()));
-
-        assertThrows(ExtenderException.class, () -> defoldSdkService.getSdk("notexist"));
-    }
-
-    @Test
-    public void testGetSDKRefCount() throws IOException, ExtenderException, InterruptedException {
-        final String testSdk = "11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96";
-        final int expectedRefCount = 3;
-        List<DefoldSdk> sdks = new ArrayList<>();
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
-
-        // check when several threads request one sdk and that sdk need to be downloaded
-        ExecutorService service = Executors.newFixedThreadPool(10);
-        CountDownLatch latch = new CountDownLatch(expectedRefCount);
-        for (int i = 0; i < expectedRefCount; ++i) {
-            service.submit(() -> {
-                try {
-                    sdks.add(defoldSdkService.getSdk(testSdk));
-                } catch (ExtenderException e) {
-                    e.printStackTrace();
-                }
-                latch.countDown();
-            });
-        }
-        latch.await();
-        assertEquals(expectedRefCount, defoldSdkService.getSdkRefCount(testSdk));
-
-        // check acquisition with several thread already downloaded sdk
-        CountDownLatch latch2 = new CountDownLatch(expectedRefCount);
-        for (int i = 0; i < expectedRefCount; ++i) {
-            service.submit(() -> {
-                try {
-                    sdks.add(defoldSdkService.getSdk(testSdk));
-                } catch (ExtenderException e) {
-                    e.printStackTrace();
-                }
-                latch2.countDown();
-            });
-        }
-        latch2.await();
-        assertEquals(expectedRefCount * 2, defoldSdkService.getSdkRefCount(testSdk));
-        // check acquisition in sequence
-        for (int i = 0; i < expectedRefCount; ++i) {
-            sdks.add(defoldSdkService.getSdk(testSdk));
-        }
-        assertEquals(expectedRefCount * 3, defoldSdkService.getSdkRefCount(testSdk));
-        for (int i = 0; i < expectedRefCount * 3; ++i) {
-            sdks.get(i).close();
-        }
-        assertEquals(0, defoldSdkService.getSdkRefCount(testSdk));
-
-        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
-            throw new Exception("Something happened");
-        } catch (Exception exc) {}
-
-        assertEquals(0, defoldSdkService.getSdkRefCount(testSdk));
-        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
-            System.out.println("Normal return from scoped resource");
-        }
-
-        assertEquals(0, defoldSdkService.getSdkRefCount(testSdk));
-
-        defoldSdkService.evictCache();
-        assertFalse(new File(DefoldSDKServiceTest.configuration.getLocation().toFile(), testSdk).exists());
-    }
-
-    @Test
-    public void testSdkCorrectPath() throws IOException, ExtenderException {
-        final String testSdk = "11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96";
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.otherLocationConfiguration, new SimpleMeterRegistry());
-        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
-            assertTrue(new File(String.format("%s/extender/build.yml", sdk.toFile().getAbsolutePath())).exists());
-        }
-
-        defoldSdkService.evictCache();
-        assertFalse(new File(DefoldSDKServiceTest.otherLocationConfiguration.getLocation().toFile(), testSdk).exists());
-    }
-
-    @Test
-    public void testMappingsCacheSize() throws IOException, ExtenderException, ParseException {
-        String[] mappingsToDownload = {
-            "691478c02875b80e76da65d2f5756394e7a906b1",
-            "e4aaff11f49c941fde1dd93883cf69c6b8abebe4",
-            "3251ca82359cf238a1074e383281e3126547d50b",
-            "edfdbe31830c1f8aa4d96644569ae87a8ea32672",
-            "d01194cf0fb576b516a1dca6af6f643e9e590051"};
-
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
-        for (String hash : mappingsToDownload) {
-            defoldSdkService.getPlatformSdkMappings(hash);
-        }
-        assertEquals(DefoldSDKServiceTest.zeroCacheConfiguration.getMappingsCacheSize(), defoldSdkService.mappingsCache.size());
-        String expectedHashes[] = {
-            "3251ca82359cf238a1074e383281e3126547d50b",
-            "edfdbe31830c1f8aa4d96644569ae87a8ea32672",
-            "d01194cf0fb576b516a1dca6af6f643e9e590051"
-        };
-        for (String hash : expectedHashes) {
-            assertTrue(defoldSdkService.mappingsCache.containsKey(hash));
-        }
-    }
-
-    @Test
-    public void testNonExistMappings() throws IOException {
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
-        assertThrows(ExtenderException.class, () -> defoldSdkService.getPlatformSdkMappings("non-exist"));
-    }
-
-    @Test
-    public void testConcurrentMappingsDownloading() throws IOException, InterruptedException {
-        String[] mappingsToDownload = {
-            "691478c02875b80e76da65d2f5756394e7a906b1",
-            "691478c02875b80e76da65d2f5756394e7a906b1",
-            "691478c02875b80e76da65d2f5756394e7a906b1",
-            "691478c02875b80e76da65d2f5756394e7a906b1",
-            "e4aaff11f49c941fde1dd93883cf69c6b8abebe4",
-            "3251ca82359cf238a1074e383281e3126547d50b",
-            "691478c02875b80e76da65d2f5756394e7a906b1",
-            "edfdbe31830c1f8aa4d96644569ae87a8ea32672",
-            "d01194cf0fb576b516a1dca6af6f643e9e590051"};
-        DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
-        ExecutorService service = Executors.newFixedThreadPool(10);
-        CountDownLatch latch = new CountDownLatch(mappingsToDownload.length);
-        for (final String hash : mappingsToDownload) {
-            service.submit(() -> {
-                try {
-                    defoldSdkService.getPlatformSdkMappings(hash);
-                } catch (ExtenderException|IOException|ParseException e) {
-                    e.printStackTrace();
-                }
-                latch.countDown();
-            });
-        }
-        latch.await();
-        assertEquals(DefoldSDKServiceTest.zeroCacheConfiguration.getMappingsCacheSize(), defoldSdkService.mappingsCache.size());
-        for (Map.Entry<String, JSONObject> entry : defoldSdkService.mappingsCache.entrySet()) {
-            assertNotNull(entry.getValue());
-        }
-    }
-
-    @Test
-    public void testChecksumVerification() throws IOException {
-        Path tmpLocation = Files.createTempDirectory("defoldsdk_checksum_test");
-        try {
-            DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
-                .location(tmpLocation)
-                .cacheSize(1)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-                .enableSdkVerification(true)
-                .maxVerificationRetryCount(3)
-                .build();
-            DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
-            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk"));
+    void concurrentPlatformsShareOnlyTheirSelectedArchive() throws Exception {
+        List<String> platforms = List.of(LINUX, SWITCH, ANDROID, SWITCH, LINUX, ANDROID);
+        CountDownLatch start = new CountDownLatch(1);
+        List<DefoldSdk> acquired = new ArrayList<>();
+        try (var executor = Executors.newFixedThreadPool(platforms.size())) {
+            List<Future<DefoldSdk>> tasks = new ArrayList<>();
+            for (String platform : platforms) {
+                tasks.add(executor.submit(() -> {
+                    assertTrue(start.await(5, TimeUnit.SECONDS));
+                    return service.getSdk(HASH, platform);
+                }));
+            }
+            start.countDown();
+            for (int i = 0; i < tasks.size(); ++i) {
+                DefoldSdk sdk = tasks.get(i).get(10, TimeUnit.SECONDS);
+                acquired.add(sdk);
+                assertEquals(platforms.get(i).equals(SWITCH) ? "switch" : "public", marker(sdk));
+            }
+            assertEquals(4, service.getSdkRefCount(service.resolveSdk(HASH, LINUX).cacheKey()));
+            assertEquals(2, service.getSdkRefCount(service.resolveSdk(HASH, SWITCH).cacheKey()));
         } finally {
-            FileUtils.deleteDirectory(tmpLocation.toFile());
+            acquired.forEach(DefoldSdk::close);
+        }
+        server.verify(3, getRequestedFor(urlEqualTo(mappingPath("public"))));
+        server.verify(1, getRequestedFor(urlEqualTo(mappingPath("switch"))));
+        server.verify(1, getRequestedFor(urlEqualTo(archivePath("public"))));
+        server.verify(1, getRequestedFor(urlEqualTo(archivePath("switch"))));
+    }
+
+    @Test
+    void evictionAndCopiesUseArchiveReferenceCounts() throws Exception {
+        configuration.setCacheSize(0);
+        String publicKey = service.resolveSdk(HASH, LINUX).cacheKey();
+        String switchKey = service.resolveSdk(HASH, SWITCH).cacheKey();
+        try (DefoldSdk linux = service.getSdk(HASH, LINUX);
+             DefoldSdk copy = DefoldSdk.copyOf(linux);
+             DefoldSdk nintendo = service.getSdk(HASH, SWITCH)) {
+            assertEquals(2, service.getSdkRefCount(publicKey));
+            assertEquals(1, service.getSdkRefCount(switchKey));
+            service.evictCache();
+            assertEquals("public", marker(copy));
+            assertEquals("switch", marker(nintendo));
+        }
+        assertEquals(0, service.getSdkRefCount(publicKey));
+        assertEquals(0, service.getSdkRefCount(switchKey));
+        service.evictCache();
+        assertFalse(Files.exists(sdkLocation.resolve(publicKey)));
+        assertFalse(Files.exists(sdkLocation.resolve(switchKey)));
+    }
+
+    @Test
+    void ignoresLegacyHashOnlyCacheDirectory() throws Exception {
+        Path legacy = sdkLocation.resolve(HASH).resolve("defoldsdk");
+        Files.createDirectories(legacy);
+        Files.writeString(legacy.resolve("source.txt"), "wrong legacy SDK");
+        try (DefoldSdk sdk = service.getSdk(HASH, SWITCH)) {
+            assertEquals("switch", marker(sdk));
+            assertNotEquals(legacy, sdk.toFile().toPath());
+        }
+        server.verify(1, getRequestedFor(urlEqualTo(archivePath("switch"))));
+    }
+
+    @Test
+    void missingPlatformDoesNotPoisonSuccessfulResolutionOrLaterPublication() throws Exception {
+        stubMapping("switch", PUBLIC_MAPPING);
+        PlatformNotSupportedException error = assertThrows(PlatformNotSupportedException.class,
+            () -> service.resolveSdk(HASH, SWITCH));
+        assertTrue(error.getMessage().contains(HASH));
+        assertTrue(error.getMessage().contains(SWITCH));
+        assertEquals("linux", service.resolveSdk(HASH, LINUX).sdkName());
+        stubMapping("switch", SWITCH_MAPPING);
+        assertEquals("nssdk", service.resolveSdk(HASH, SWITCH).sdkName());
+    }
+
+    @Test
+    void missingVersionIsRetried() throws Exception {
+        server.stubFor(get(urlPathMatching("/.*/platform.sdks.json")).willReturn(notFound()));
+        assertThrows(VersionNotSupportedException.class, () -> service.resolveSdk(HASH, SWITCH));
+        stubMapping("switch", SWITCH_MAPPING);
+        assertEquals("nssdk", service.resolveSdk(HASH, SWITCH).sdkName());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid json", "[]", "{\"arm64-nx64\":null}", "{\"arm64-nx64\":[\"nssdk\"]}", "{\"arm64-nx64\":[\"nssdk\",2143]}", "{\"arm64-nx64\":[\"\",\"2143\"]}"})
+    void malformedMappingPreservesDiagnosticsAndCanRecover(String body) throws Exception {
+        stubMapping("switch", body);
+        ExtenderException error = assertThrows(ExtenderException.class, () -> service.resolveSdk(HASH, SWITCH));
+        assertFalse(error instanceof PlatformNotSupportedException);
+        assertFalse(error instanceof VersionNotSupportedException);
+        assertTrue(error.getMessage().contains("source "));
+        stubMapping("switch", SWITCH_MAPPING);
+        assertEquals("nssdk", service.resolveSdk(HASH, SWITCH).sdkName());
+    }
+
+    @Test
+    void continuesAfterMalformedSource() throws Exception {
+        stubMapping("public", "invalid json");
+        assertEquals("nssdk", service.resolveSdk(HASH, SWITCH).sdkName());
+    }
+
+    @Test
+    void transientMappingFailureIsNotReportedAsUnsupportedOrCached() throws Exception {
+        server.stubFor(get(urlEqualTo(mappingPath("switch"))).willReturn(aResponse().withStatus(503)));
+        ExtenderException error = assertThrows(ExtenderException.class, () -> service.resolveSdk(HASH, SWITCH));
+        assertFalse(error instanceof PlatformNotSupportedException);
+        assertTrue(error.getMessage().contains("503"));
+        assertTrue(error.getMessage().contains(HASH));
+        server.stubFor(get(urlEqualTo(mappingPath("switch"))).willReturn(okJson(SWITCH_MAPPING)));
+        assertEquals("nssdk", service.resolveSdk(HASH, SWITCH).sdkName());
+    }
+
+    @Test
+    void boundsMappingCacheAndKeepsRecentlyUsedResolution() throws Exception {
+        configuration.setMappingsCacheSize(2);
+        service.resolveSdk("first", LINUX);
+        service.resolveSdk("second", LINUX);
+        service.resolveSdk("first", LINUX);
+        service.resolveSdk("third", LINUX);
+        assertEquals(2, service.mappingsCache.size());
+        service.resolveSdk("first", LINUX);
+        server.verify(1, getRequestedFor(urlEqualTo("/public/first/platform.sdks.json")));
+        service.resolveSdk("second", LINUX);
+        server.verify(2, getRequestedFor(urlEqualTo("/public/second/platform.sdks.json")));
+    }
+
+    @Test
+    void badChecksumDoesNotPublishCacheAndNextRequestCanRetry() throws Exception {
+        String checksumPath = archivePath("switch").replace(".zip", ".sha256");
+        server.stubFor(get(urlEqualTo(checksumPath)).willReturn(ok("bad checksum")));
+        String key = service.resolveSdk(HASH, SWITCH).cacheKey();
+        ExtenderException error = assertThrows(ExtenderException.class, () -> service.getSdk(HASH, SWITCH));
+        assertTrue(error.getMessage().contains("checksum verification failed"));
+        assertEquals(0, service.getSdkRefCount(key));
+        assertFalse(Files.exists(sdkLocation.resolve(key)));
+        server.verify(2, getRequestedFor(urlEqualTo(archivePath("switch"))));
+        stubArchive("switch", "switch");
+        try (DefoldSdk sdk = service.getSdk(HASH, SWITCH)) {
+            assertEquals("switch", marker(sdk));
+            assertTrue(sdk.isValid());
         }
     }
 
     @Test
-    public void testInvalidVerification() throws IOException {
-        Path tmpLocation = Files.createTempDirectory("defoldsdk_invalid_test");
+    void requiresChecksumWhenVerificationIsEnabled() throws Exception {
+        server.stubFor(get(urlEqualTo(archivePath("switch").replace(".zip", ".sha256"))).willReturn(notFound()));
+        ExtenderException error = assertThrows(ExtenderException.class, () -> service.getSdk(HASH, SWITCH));
+        assertTrue(error.getMessage().contains("checksum returned HTTP 404"));
+        assertFalse(Files.exists(sdkLocation.resolve(service.resolveSdk(HASH, SWITCH).cacheKey())));
+    }
+
+    @Test
+    void selectedArchiveFailureDoesNotFallBackToPublicArchive() {
+        server.stubFor(get(urlEqualTo(archivePath("switch"))).willReturn(aResponse().withStatus(503)));
+        ExtenderException error = assertThrows(ExtenderException.class, () -> service.getSdk(HASH, SWITCH));
+        assertTrue(error.getMessage().contains("SDK archive returned HTTP 503"));
+        server.verify(0, getRequestedFor(urlEqualTo(archivePath("public"))));
+    }
+
+    @Test
+    void validatesArchiveStructureEvenWithoutChecksumVerification() throws Exception {
+        configuration.setEnableSdkVerification(false);
+        server.stubFor(get(urlEqualTo(archivePath("switch"))).willReturn(ok().withBody(zip("wrong/source.txt", "bad"))));
+        ExtenderException error = assertThrows(ExtenderException.class, () -> service.getSdk(HASH, SWITCH));
+        assertTrue(error.getMessage().contains("does not contain a defoldsdk directory"));
+        assertFalse(Files.exists(sdkLocation.resolve(service.resolveSdk(HASH, SWITCH).cacheKey())));
+    }
+
+    @Test
+    void localSdkDoesNotUseRemoteSourcesOrResolutionCache() throws Exception {
+        Path local = sdkLocation.resolve("local");
+        Files.createDirectories(local);
+        Files.writeString(local.resolve("platform.sdks.json"), SWITCH_MAPPING);
+        ReflectionTestUtils.setField(service, "dynamoHome", local.toFile());
+        assertEquals("2143", service.resolveSdk("local", SWITCH).sdkVersion());
+        try (DefoldSdk sdk = service.getSdk("local", SWITCH)) {
+            assertEquals(local.toFile(), sdk.toFile());
+            assertEquals("local", sdk.getHash());
+        }
+        Files.writeString(local.resolve("platform.sdks.json"), PUBLIC_MAPPING);
+        assertThrows(PlatformNotSupportedException.class, () -> service.resolveSdk("local", SWITCH));
+        assertEquals(0, service.getSdkRefCount("local"));
+        assertTrue(server.getAllServeEvents().isEmpty());
+    }
+
+    @Test
+    void validatesSourcePairs() {
+        configuration.setSources(List.of(new DefoldSdkServiceConfiguration.Source("http://example.com/%s.json", null)));
+        assertThrows(IllegalArgumentException.class, () -> new DefoldSdkService(configuration, new SimpleMeterRegistry()));
+    }
+    private DefoldSdkService restartService() throws Exception {
+        DefoldSdkService restarted = new DefoldSdkService(configuration, new SimpleMeterRegistry());
+        ReflectionTestUtils.setField(restarted, "dynamoHome", null);
+        return restarted;
+    }
+
+    @Test
+    void selectedSourceSurvivesRecoveryAndDifferentBuilderCacheContents() throws Exception {
+        server.stubFor(get(urlEqualTo(mappingPath("public"))).willReturn(aResponse().withStatus(503)));
+        ResolvedSdk frontend = service.resolveSdk(HASH, SWITCH);
+        assertEquals("2143", frontend.sdkVersion());
+        server.stubFor(get(urlEqualTo(mappingPath("public")))
+            .willReturn(okJson("{\"arm64-nx64\":[\"nssdk\",\"new\"]}")));
+        DefoldSdkService builder = restartService();
+        assertEquals("new", builder.resolveSdk(HASH, SWITCH).sdkVersion());
+        ResolvedSdk pinned = builder.resolveSdk(HASH, SWITCH, frontend.selection());
+        assertEquals(frontend, pinned);
+        try (DefoldSdk sdk = builder.getSdk(pinned)) {
+            assertEquals("switch", marker(sdk));
+        }
+        server.verify(0, getRequestedFor(urlEqualTo(archivePath("public"))));
+    }
+
+    @Test
+    void rejectsUnknownSourceAndMismatchedSdkVersion() throws Exception {
+        SdkSelection unknown = new SdkSelection("0".repeat(64), "nssdk", "2143");
+        ExtenderException error = assertThrows(ExtenderException.class, () -> service.resolveSdk(HASH, SWITCH, unknown));
+        assertTrue(error.getMessage().contains("not configured"));
+        assertTrue(server.getAllServeEvents().isEmpty());
+        SdkSelection selected = service.resolveSdk(HASH, SWITCH).selection();
+        SdkSelection mismatch = new SdkSelection(selected.sourceId(), selected.sdkName(), "wrong");
+        assertThrows(ExtenderException.class, () -> service.resolveSdk(HASH, SWITCH, mismatch));
+        assertThrows(ExtenderException.class, () -> service.resolveSdk(HASH, SWITCH, mismatch));
+        assertEquals("2143", service.resolveSdk(HASH, SWITCH, selected).sdkVersion());
+    }
+
+    @Test
+    void pinnedSourceDoesNotFallBackWhenUnavailable() throws Exception {
+        SdkSelection selected = service.resolveSdk(HASH, SWITCH).selection();
+        stubMapping("public", SWITCH_MAPPING);
+        server.stubFor(get(urlEqualTo(mappingPath("switch"))).willReturn(aResponse().withStatus(503)));
+        DefoldSdkService builder = restartService();
+        server.resetRequests();
+        assertThrows(ExtenderException.class, () -> builder.resolveSdk(HASH, SWITCH, selected));
+        server.verify(0, getRequestedFor(urlEqualTo(mappingPath("public"))));
+    }
+
+    @Test
+    void cachedArchiveWorksDuringMappingOutageAfterEvictionAndRestart() throws Exception {
+        configuration.setMappingsCacheSize(1);
+        Path archive;
+        SdkSelection selection;
+        try (DefoldSdk sdk = service.getSdk(HASH, LINUX)) {
+            archive = sdk.toFile().toPath();
+            selection = service.resolveSdk(HASH, LINUX).selection();
+        }
+        service.resolveSdk("another-sha", LINUX); // evict the successful resolution
+        server.stubFor(get(urlPathMatching("/.*/platform.sdks.json")).willReturn(aResponse().withStatus(503)));
+        server.resetRequests();
+        try (DefoldSdk sdk = service.getSdk(HASH, LINUX)) {
+            assertEquals(archive, sdk.toFile().toPath());
+            assertEquals("public", marker(sdk));
+        }
+        DefoldSdkService restarted = restartService();
+        try (DefoldSdk sdk = restarted.getSdk(HASH, LINUX)) {
+            assertEquals(archive, sdk.toFile().toPath());
+        }
+        assertEquals(selection, restarted.resolveSdk(HASH, LINUX, selection).selection());
+        assertTrue(server.getAllServeEvents().isEmpty());
+    }
+
+    @Test
+    void corruptMetadataFallsBackToRemoteResolution() throws Exception {
+        Path directory;
+        try (DefoldSdk sdk = service.getSdk(HASH, SWITCH)) {
+            directory = sdk.toFile().toPath().getParent();
+        }
+        try (var files = Files.list(directory)) {
+            for (Path path : files.filter(p -> p.getFileName().toString().startsWith("resolution-")).toList()) {
+                Files.writeString(path, "{broken");
+            }
+        }
+        server.resetRequests();
+        try (DefoldSdk sdk = restartService().getSdk(HASH, SWITCH)) {
+            assertEquals("switch", marker(sdk));
+        }
+        server.verify(1, getRequestedFor(urlEqualTo(mappingPath("switch"))));
+        server.verify(0, getRequestedFor(urlEqualTo(archivePath("switch"))));
+    }
+
+    @Test
+    void removedSourcesCannotBeResurrectedFromArchiveMetadata() throws Exception {
+        try (DefoldSdk sdk = service.getSdk(HASH, SWITCH)) {
+            assertEquals("switch", marker(sdk));
+        }
+        configuration.setSources(List.of(source("public")));
+        assertThrows(PlatformNotSupportedException.class, () -> restartService().getSdk(HASH, SWITCH));
+    }
+
+    @Test
+    void errorsAndLogsDoNotExposeUrlCredentialsOrParserContents() throws Exception {
+        String secret = "secret-review-token";
+        String base = server.baseUrl().replace("http://", "http://credential-user:credential-password@");
+        configuration.setSources(List.of(new DefoldSdkServiceConfiguration.Source(
+            base + "/switch/%s/platform.sdks.json?token=" + secret,
+            base + "/switch/%s/defoldsdk.zip?token=" + secret)));
+        DefoldSdkService secured = restartService();
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(DefoldSdkService.class);
+        var logs = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        logs.start();
+        logger.addAppender(logs);
         try {
-            DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
-                .location(tmpLocation)
-                .cacheSize(0)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-                .enableSdkVerification(false)
-                .maxVerificationRetryCount(3)
-                .build();
-            DefoldSdkService sdkService = new DefoldSdkService(disabledVerificationConf, new SimpleMeterRegistry());
-            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
-
-            DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
-                .location(tmpLocation)
-                .cacheSize(0)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-                .enableSdkVerification(true)
-                .maxVerificationRetryCount(3)
-                .build();
-            DefoldSdkService sdkService1 = new DefoldSdkService(enabledVerificationConf, new SimpleMeterRegistry());
-            // no exception because sdk folder already exists
-            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
-            // force remove cache
-            sdkService1.evictCache();
-
-            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid"));
-            assertTrue(exc.getMessage().contains("Sdk verification failed"));
+            server.stubFor(get(urlPathEqualTo(mappingPath("switch"))).willReturn(aResponse().withStatus(503)));
+            ExtenderException error = assertThrows(ExtenderException.class, () -> secured.resolveSdk(HASH, SWITCH));
+            assertTrue(error.getMessage().contains("503"));
+            assertFalse(error.getMessage().contains(secret));
+            assertFalse(error.getMessage().contains("credential-"));
+            server.stubFor(get(urlPathEqualTo(mappingPath("switch"))).willReturn(okJson("{\"" + secret + "\":invalid}")));
+            error = assertThrows(ExtenderException.class, () -> secured.resolveSdk(HASH, SWITCH));
+            assertFalse(error.getMessage().contains(secret));
+            server.stubFor(get(urlPathEqualTo(mappingPath("switch"))).willReturn(okJson(SWITCH_MAPPING)));
+            ResolvedSdk resolved = secured.resolveSdk(HASH, SWITCH);
+            assertFalse(resolved.toString().contains(secret));
+            server.stubFor(get(urlPathEqualTo(archivePath("switch"))).willReturn(aResponse().withStatus(503)));
+            error = assertThrows(ExtenderException.class, () -> secured.getSdk(resolved));
+            assertTrue(error.getMessage().contains("503"));
+            assertFalse(error.getMessage().contains(secret));
+            assertFalse(error.getMessage().contains("credential-"));
+            synchronized (logs) {
+                for (var event : logs.list) {
+                    assertFalse(event.getFormattedMessage().contains(secret));
+                    assertFalse(event.getFormattedMessage().contains("credential-"));
+                }
+            }
         } finally {
-            FileUtils.deleteDirectory(tmpLocation.toFile());
+            logger.detachAppender(logs);
+            logs.stop();
         }
     }
 
     @Test
-    public void testMissingChecksumVerification() throws IOException {
-        Path tmpLocation = Files.createTempDirectory("defoldsdk_nochecksum_test");
-        try {
-            DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
-                .location(tmpLocation)
-                .cacheSize(0)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
-                .enableSdkVerification(true)
-                .maxVerificationRetryCount(3)
-                .build();
-            DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
-
-            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService.getSdk("test_sdk_no_checksum"));
-            assertTrue(exc.getMessage().contains("Sdk verification failed"));
-        } finally {
-            FileUtils.deleteDirectory(tmpLocation.toFile());
+    void persistedMetadataDoesNotContainConfiguredUrls() throws Exception {
+        configuration.setEnableSdkVerification(false);
+        configuration.setSources(List.of(new DefoldSdkServiceConfiguration.Source(
+            server.baseUrl() + "/switch/%s/platform.sdks.json?token=secret-token",
+            server.baseUrl() + "/switch/%s/defoldsdk.zip?token=secret-token")));
+        server.stubFor(get(urlPathEqualTo(mappingPath("switch"))).willReturn(okJson(SWITCH_MAPPING)));
+        server.stubFor(get(urlPathEqualTo(archivePath("switch"))).willReturn(ok().withBody(zip("defoldsdk/source.txt", "switch"))));
+        try (DefoldSdk sdk = restartService().getSdk(HASH, SWITCH);
+             var files = Files.list(sdk.toFile().toPath().getParent())) {
+            List<Path> metadata = files.filter(p -> p.getFileName().toString().startsWith("resolution-")).toList();
+            assertEquals(1, metadata.size());
+            String text = Files.readString(metadata.get(0));
+            assertFalse(text.contains("secret-token"));
+            assertFalse(text.contains("http"));
+            assertTrue(text.contains(HASH));
         }
     }
 
-    @Test
-    public void testUnstableAccessSdkMappings() throws IOException {
-        DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
-            .location(DefoldSDKServiceTest.configuration.getLocation())
-            .cacheSize(0)
-            .mappingsUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.json"})
-            .enableSdkVerification(false)
-            .maxVerificationRetryCount(1)
-            .build();
-        DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
-        assertThrows(ExtenderException.class, () -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping"));
-
-        assertDoesNotThrow(() -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping"));
-    }
 }
