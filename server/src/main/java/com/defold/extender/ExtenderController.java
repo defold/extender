@@ -245,7 +245,7 @@ public class ExtenderController {
             } else {
                 String[] buildEnvDescription = null;
                 try {
-                    JSONObject mappings = defoldSdkService.getPlatformSdkMappings(sdkVersion);
+                    JSONObject mappings = defoldSdkService.getPlatformSdkMappings(sdkVersion, platform);
                     buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, mappings);
                 } catch(ExtenderException exc) {
                     if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
