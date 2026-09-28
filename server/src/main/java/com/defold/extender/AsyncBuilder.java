@@ -110,7 +110,7 @@ public class AsyncBuilder {
 
             // Get SDK
             progressReporter.stage(BuildStage.SDK, "Downloading Defold SDK " + sdkVersion);
-            try (DefoldSdk sdk = defoldSdkService.getSdk(sdkVersion)) {
+            try (DefoldSdk sdk = defoldSdkService.getSdk(sdkVersion, platform)) {
                 metricsWriter.measureSdkDownload(sdkVersion);
 
                 extender = new Extender.Builder()
