@@ -26,7 +26,7 @@ apply plugin: 'io.spring.dependency-management'
 ext {
     extenderVersion = findProperty('extenderVersion') ?: '1.4.47'
     // Source of truth for the platform() pins in dependencies{} below.
-    jacksonBomVersion = '3.2.2'
+    jacksonBomVersion = '3.2.3'
     junitBomVersion = '6.1.3'
 }
 
@@ -82,7 +82,7 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.107.0')
+    implementation('com.google.cloud:google-cloud-compute:1.108.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('commons-chain:commons-chain:1.2')
     implementation('tools.jackson.core:jackson-databind')
