@@ -59,8 +59,10 @@ extender:
         old-cache-clean-cron: "0 10 6 * * *" # once per day after directory rotation
         # run 'pod install' against a private clone of the cache dir (cheap copy-on-write on APFS)
         # instead of holding the cache lock for the whole install. Avoids concurrent installs
-        # racing on CocoaPods' own on-disk cache.
-        isolated-install: false
+        # racing on CocoaPods' own on-disk cache. When disabled, all 'pod install' runs are
+        # serialized across builds. home-dir-prefix and the job working dir (java.io.tmpdir) must
+        # be on the same APFS volume, otherwise every build does a full copy of the pod cache.
+        isolated-install: true
         # after an isolated install, copy newly downloaded pods/specs back into the shared cache
         # so later builds can reuse them. Only takes effect when isolated-install is true.
         merge-back: false

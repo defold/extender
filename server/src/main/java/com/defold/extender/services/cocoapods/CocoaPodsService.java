@@ -7,6 +7,7 @@ import com.defold.extender.TemplateExecutor;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessUtils;
+import com.defold.extender.utils.FileCloneUtil;
 
 import org.apache.commons.io.FileUtils;
 import org.json.simple.JSONObject;
@@ -41,7 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.UUID;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Service
 @ConditionalOnProperty(prefix = "extender", name = "cocoapods.enabled", havingValue = "true")
@@ -68,14 +69,18 @@ public class CocoaPodsService {
     private static final String CURRENT_CACHE_DIR_FILE = "current_pod_cache.txt";
     private static final String OLD_CACHE_DIR_FILE = "old_pod_caches.txt";
     private final Object syncLock = new Object();
-    // Serializes every operation that runs a 'pod' command against the shared CP_HOME_DIR
-    // (install, spec cat, repo update, repo add-cdn). CocoaPods' own on-disk cache
-    // (downloader/cache.rb) is not safe under concurrent 'pod' processes: two installs racing
-    // on the same cache directory can each delete/replace the other's lock file or partially
-    // overwrite a pod's extracted files, failing with Errno::ENOENT. A fair lock is used so a
-    // pending scheduled task (repo update, cache rotation) is not starved by a steady stream
-    // of builds.
-    private final ReentrantLock podCacheLock = new ReentrantLock(true);
+    // Guards the shared CocoaPods home directory (CP_HOME_DIR).
+    // Write lock: anything that runs a 'pod' command against the shared dir or modifies it
+    // (non-isolated install and spec cat, repo update, repo add-cdn, rotation, cleanup,
+    // merge-back). CocoaPods' own on-disk cache (downloader/cache.rb) is not safe under
+    // concurrent 'pod' processes: two installs racing on the same cache directory can each
+    // delete/replace the other's lock file or partially overwrite a pod's extracted files,
+    // failing with Errno::ENOENT. So a non-isolated install is a writer, not a reader.
+    // Read lock: cloning the shared dir for an isolated install; clones may run concurrently.
+    // A fair lock is used so a pending scheduled task (repo update, cache rotation) is not
+    // starved by a steady stream of builds. Never take the write lock while holding the read
+    // lock: ReentrantReadWriteLock does not support upgrading.
+    private final ReentrantReadWriteLock podCacheLock = new ReentrantReadWriteLock(true);
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
     private final String podfileTemplateContents;
@@ -84,9 +89,9 @@ public class CocoaPodsService {
     private @Value("${extender.cocoapods.cdn-concurrency:10}") int maxPodCDNConcurrency;
     // When enabled, 'pod install' runs against a private, disposable clone of the shared cache
     // directory instead of holding podCacheLock for the whole install. The clone itself is cheap
-    // (APFS copy-on-write via 'cp -c'), so the lock is only held for the brief clone step, and
-    // concurrent installs never touch the same on-disk cache files at once.
-    private @Value("${extender.cocoapods.isolated-install:false}") boolean isolatedInstallEnabled;
+    // (APFS copy-on-write via clonefile(2)), so only the read lock is held for the brief clone
+    // step, and concurrent installs never touch the same on-disk cache files at once.
+    private @Value("${extender.cocoapods.isolated-install:true}") boolean isolatedInstallEnabled;
     // When enabled (and isolated-install is on), newly downloaded pods/specs from an isolated
     // install are copied back into the shared cache once the install finishes, so later builds
     // can reuse them instead of re-downloading from the CDN. Off by default: simplest behaviour
@@ -329,11 +334,11 @@ public class CocoaPodsService {
         // CocoaPods' own on-disk cache under CP_HOME_DIR is not safe for concurrent 'pod'
         // processes, so only one 'pod install'/'pod spec cat' (across all concurrent builds)
         // may run at a time. See podCacheLock for details.
-        podCacheLock.lock();
+        podCacheLock.writeLock().lock();
         try {
             return installPodsLocked(cocoapodsBuildState, currentCacheDirSnapshot());
         } finally {
-            podCacheLock.unlock();
+            podCacheLock.writeLock().unlock();
         }
     }
 
@@ -345,85 +350,57 @@ public class CocoaPodsService {
 
     /**
      * Run 'pod install' against a private, disposable clone of the shared cache directory instead
-     * of the shared directory itself. The clone is created with an APFS copy-on-write clone
-     * ('cp -c'), which is effectively free until files diverge, so this avoids holding
-     * podCacheLock for the whole install: the lock is only held briefly to create a consistent
-     * clone, and every concurrent build gets its own private copy of the cache to mutate freely,
-     * eliminating the on-disk races that CocoaPods' own cache locking does not handle
-     * (see podCacheLock's class-level comment).
+     * of the shared directory itself. The clone is created with APFS copy-on-write clones
+     * (Files.copy uses clonefile(2) on macOS), which are effectively free until files diverge, so
+     * this avoids holding podCacheLock for the whole install: only the read lock is held briefly
+     * to create a consistent clone, and every concurrent build gets its own private copy of the
+     * cache to mutate freely, eliminating the on-disk races that CocoaPods' own cache locking
+     * does not handle (see podCacheLock's comment).
+     * If merge-back is enabled, files that are new in the clone are copied back into the shared
+     * cache under the write lock. Existing shared files are never overwritten, since spec repo
+     * files may have been refreshed by 'pod repo update' in the meantime.
      * @param cocoapodsBuildState Cocoapod's service build state
      * @return An InstalledPods object with installed pods
      */
     private InstalledPods installPodsIsolated(CocoaPodsServiceBuildState cocoapodsBuildState) throws IOException, ExtenderException {
-        Path sharedCacheDir = currentCacheDirSnapshot();
-        Path isolatedCacheDir = Path.of(cocoapodsBuildState.getWorkingDir().toString(), "pod_cache");
+        Path isolatedCacheDir = cocoapodsBuildState.getWorkingDir().toPath().resolve("pod_cache");
+        Path sharedCacheDir;
 
-        podCacheLock.lock();
+        podCacheLock.readLock().lock();
         try {
+            sharedCacheDir = currentCacheDirSnapshot();
             LOGGER.info("Cloning pod cache from {} to isolated dir {}", sharedCacheDir, isolatedCacheDir);
-            cloneCacheDir(sharedCacheDir, isolatedCacheDir);
+            Files.createDirectories(sharedCacheDir);
+            FileCloneUtil.cloneTree(sharedCacheDir, isolatedCacheDir, false);
             LOGGER.info("Cloned pod cache into isolated dir {}", isolatedCacheDir);
         } finally {
-            podCacheLock.unlock();
+            podCacheLock.readLock().unlock();
         }
 
         InstalledPods installedPods = installPodsLocked(cocoapodsBuildState, isolatedCacheDir);
 
         if (mergeBackEnabled) {
-            podCacheLock.lock();
+            podCacheLock.writeLock().lock();
             try {
                 Path currentSharedCacheDir = currentCacheDirSnapshot();
-                LOGGER.info("Merging isolated pod cache {} back into shared dir {}", isolatedCacheDir, currentSharedCacheDir);
-                mergeCacheBack(isolatedCacheDir, currentSharedCacheDir);
-                LOGGER.info("Merged isolated pod cache back into shared dir {}", currentSharedCacheDir);
+                if (!currentSharedCacheDir.equals(sharedCacheDir)) {
+                    LOGGER.info("Pod cache rotated during install ({} -> {}), skipping merge-back", sharedCacheDir, currentSharedCacheDir);
+                } else {
+                    LOGGER.info("Merging isolated pod cache {} back into shared dir {}", isolatedCacheDir, sharedCacheDir);
+                    FileCloneUtil.cloneTree(isolatedCacheDir, sharedCacheDir, true);
+                    LOGGER.info("Merged isolated pod cache back into shared dir {}", sharedCacheDir);
+                }
+            } catch (IOException exc) {
+                LOGGER.warn("Failed to merge isolated pod cache {} back into shared dir {}", isolatedCacheDir, sharedCacheDir, exc);
             } finally {
-                podCacheLock.unlock();
+                podCacheLock.writeLock().unlock();
             }
         }
 
         return installedPods;
     }
 
-    /**
-     * Clone the shared CocoaPods cache directory into a private location using clonefile(2) via
-     * 'cp -R -c'. On APFS this is a fast, space-free copy-on-write clone; on filesystems without
-     * clone support 'cp' transparently falls back to a regular copy.
-     */
-    private static void cloneCacheDir(Path sourceCacheDir, Path targetCacheDir) throws IOException, ExtenderException {
-        Files.createDirectories(sourceCacheDir);
-        Files.createDirectories(targetCacheDir);
-        ProcessUtils.execCommand(List.of(
-                "cp",
-                "-R",
-                "-c",
-                sourceCacheDir.toString() + "/.",
-                targetCacheDir.toString()
-            ), null, null);
-    }
-
-    /**
-     * Copy any pod sources/specs downloaded into the isolated cache clone back into the shared
-     * cache directory, so subsequent builds can reuse them instead of hitting the CDN again.
-     * Runs under podCacheLock so it can't race with a concurrent isolated install cloning the
-     * shared directory, or with repo update/rotation.
-     *
-     * Paths already present in the shared cache are overwritten rather than skipped (no '-n'):
-     * CocoaPods keys its cache paths by content hash/version, so a path that exists in both
-     * places is guaranteed to hold identical content, and re-cloning it is cheap on APFS. Using
-     * '-n' instead would make 'cp' exit non-zero whenever anything is skipped, which is the
-     * common case here and would be misread as a failed merge.
-     */
-    private static void mergeCacheBack(Path isolatedCacheDir, Path sharedCacheDir) throws ExtenderException {
-        ProcessUtils.execCommand(List.of(
-                "cp",
-                "-R",
-                "-c",
-                isolatedCacheDir.toString() + "/.",
-                sharedCacheDir.toString()
-            ), null, null);
-    }
-
-    // Named for the shared-cache path, where the caller holds podCacheLock for this whole call.
+    // Named for the shared-cache path, where the caller holds podCacheLock's write lock for this whole call.
     // Also used, unlocked, by installPodsIsolated() to run against a private cache clone that
     // only this build can see, in which case no lock is needed here at all.
     private InstalledPods installPodsLocked(CocoaPodsServiceBuildState cocoapodsBuildState, Path cacheDir) throws IOException, ExtenderException {
@@ -724,7 +701,7 @@ public class CocoaPodsService {
     private void initializeTrunkRepo() {
         // shares podCacheLock with installPods()/updateSpecRepo(): 'pod repo add-cdn' mutates the
         // same shared spec repo that a concurrent 'pod install' resolves dependencies against.
-        podCacheLock.lock();
+        podCacheLock.writeLock().lock();
         try {
             Path cacheDir;
             synchronized(syncLock) {
@@ -743,7 +720,7 @@ public class CocoaPodsService {
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during repo init", exc);
         } finally {
-            podCacheLock.unlock();
+            podCacheLock.writeLock().unlock();
         }
     }
 
@@ -761,7 +738,7 @@ public class CocoaPodsService {
         // hold the lock across the currentCacheDir switch and the trunk repo initialization of
         // the new directory, so that no 'pod install' can observe the new cache dir before it has
         // a spec repo to resolve against
-        podCacheLock.lock();
+        podCacheLock.writeLock().lock();
         try {
             Path cacheDir;
             synchronized(this.syncLock) {
@@ -780,7 +757,7 @@ public class CocoaPodsService {
             }
             initializeTrunkRepo();
         } finally {
-            podCacheLock.unlock();
+            podCacheLock.writeLock().unlock();
         }
     }
 
@@ -788,11 +765,11 @@ public class CocoaPodsService {
     private void cleanupOldCacheDirectories() {
         // serializes access to OLD_CACHE_DIR_FILE against rotatePodCacheDirectory(), which appends
         // to the same file
-        podCacheLock.lock();
+        podCacheLock.writeLock().lock();
         try {
             cleanupOldCacheDirectoriesLocked();
         } finally {
-            podCacheLock.unlock();
+            podCacheLock.writeLock().unlock();
         }
     }
 
@@ -882,7 +859,7 @@ public class CocoaPodsService {
         // 'pod repo update' rewrites the shared spec cache in place; without podCacheLock a
         // concurrent 'pod install' can observe a spec file mid-write and fail to resolve a
         // dependency that is genuinely available (see class-level lock comment).
-        podCacheLock.lock();
+        podCacheLock.writeLock().lock();
         try {
             LOGGER.info("Run pod spec update");
             Path cacheDir;
@@ -901,7 +878,7 @@ public class CocoaPodsService {
         } catch(ExtenderException exc) {
             LOGGER.warn("Exception during spec repo update", exc);
         } finally {
-            podCacheLock.unlock();
+            podCacheLock.writeLock().unlock();
         }
     }
 }
