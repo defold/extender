@@ -19,12 +19,14 @@ Ensure that on host is installed:
 Before running Extender you need to have prepackaged toolchains and sdks. Full instruction how it can be done you can find [here](https://github.com/defold/defold/tree/dev/scripts/package).
 
 Ensure that you have the following tools packaged:
-* iPhoneOS26.2.sdk
-* iPhoneSimulator26.2.sdk
-* MacOSX26.2.sdk
-* XcodeDefault26.2.xctoolchain.darwin
+* iPhoneOS27.1.sdk
+* iPhoneSimulator27.1.sdk
+* MacOSX27.0.sdk
+* XcodeDefault27.1.xctoolchain.darwin
 
 NOTE: Complete list of needed packages see [link](./server/scripts/standalone/setup-standalone-env.sh)
+
+Xcode 27 [runs only on Apple silicon](https://developer.apple.com/documentation/xcode-release-notes/xcode-27-release-notes), and Xcode 27.1 [requires macOS Tahoe 26.6 or later](https://developer.apple.com/xcode/system-requirements). Swift Package Manager builds also need the full Xcode 27.1 app. If it is installed somewhere other than `/Applications/Xcode.app`, add a `"27.1"` entry under `extender.spm.xcode-developer-dirs` in the server configuration, pointing to its `Contents/Developer` path.
 
 After obtain packages with sdks and toolchains you make it available via HTTP. The easiest way to do these is to run Python HTTP server on local machine. For example,
 ```sh
@@ -40,14 +42,16 @@ Generate file with environment variables via
 ```
 It produces file with environemnt variables (`user.env`) which contains specific to your host pathes.
 
-You should run those script every time when JDK verison are updated.
+Run this script again when the JDK or the Xcode toolchain version in `server/envs/macos.env` changes. It updates the toolchain paths in `user.env`.
 
 Setup all needed packages via
 ```sh
     DM_PACKAGES_URL=<url_where_package_located> ./server/scripts/standalone/setup-standalone-env.sh
 ```
 If you run local HTTP server from previous step replace `<url_where_package_located>` with `http://localhost:8000`.
-It's download packages, unpack it to correct folder and generate .env file with correct pathes.
+It downloads the packages and unpacks them into `platformsdk`.
+
+For deployed builds, route `osx-xcode27_1` to this Apple silicon host in the frontend configuration. Keep older Xcode routes on hosts with their matching toolchains and SDKs.
 
 ### Local Extender's application
 There are two ways to obtain Extender's jars:
