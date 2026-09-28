@@ -14,12 +14,15 @@ extender:
         cache-size: 10
         mappings-cache-size: 20
         cache-clear-on-exit: true
-        sdk-urls: >
-            https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip,
-            https://d.defold.com/archive/%s/engine/defoldsdk.zip
-        mappings-urls: >
-            https://d.defold.com/archive/stable/%s/engine/platform.sdks.json,
-            https://d.defold.com/archive/%s/engine/platform.sdks.json
+        # Per-platform url lists tried in order, "other" is the fallback. Keys with '_' must be bracketed: "[x86_64-ps4]"
+        sdk-urls:
+            other:
+                - https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip
+                - https://d.defold.com/archive/%s/engine/defoldsdk.zip
+        mappings-urls:
+            other:
+                - https://d.defold.com/archive/stable/%s/engine/platform.sdks.json
+                - https://d.defold.com/archive/%s/engine/platform.sdks.json
         max-verification-retry-count: 3
         enable-sdk-verification: true
     server:

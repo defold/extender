@@ -25,6 +25,8 @@ import org.apache.commons.io.FileUtils;
 import org.json.simple.parser.ParseException;
 import org.json.simple.JSONObject;
 import org.junit.jupiter.api.AfterAll;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 
 public class DefoldSDKServiceTest {
+    private static final String PLATFORM = "x86_64-linux";
+
     private static DefoldSdkServiceConfiguration configuration;
     private static DefoldSdkServiceConfiguration zeroCacheConfiguration;
     private static DefoldSdkServiceConfiguration otherLocationConfiguration;
@@ -56,8 +60,8 @@ public class DefoldSDKServiceTest {
 
         DefoldSDKServiceTest.configuration = DefoldSdkServiceConfiguration.builder()
             .location(sdkLocation)
-            .sdkUrls(new String[]{"https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "https://d.defold.com/archive/%s/engine/defoldsdk.zip"})
-            .mappingsUrls(new String[] {"https://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "https://d.defold.com/archive/%s/engine/platform.sdks.json"})
+            .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "https://d.defold.com/archive/%s/engine/defoldsdk.zip")))
+            .mappingsUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("https://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "https://d.defold.com/archive/%s/engine/platform.sdks.json")))
             .cacheSize(3)
             .mappingsCacheSize(3)
             .cacheClearOnExit(true)
@@ -127,6 +131,17 @@ public class DefoldSDKServiceTest {
                 .willReturn(aResponse()
                         .withStatus(404)));
 
+        stubFor(get(urlEqualTo("/platform_sdk_mapping.json"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBody("{\"source\": \"other\"}")
+                        .withHeader("Content-Type", "application/json")));
+        stubFor(get(urlEqualTo("/ps4/platform_sdk_mapping.json"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBody("{\"source\": \"ps4\"}")
+                        .withHeader("Content-Type", "application/json")));
+
         // first call should fail; second - should be successful
         stubFor(get(urlEqualTo("/unstable_sdk_mapping.json"))
                 .inScenario("request_chain")
@@ -158,7 +173,7 @@ public class DefoldSDKServiceTest {
     @Disabled("SDK too large to download on every test round.")
     public void t() throws IOException, ExtenderException {
         DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.configuration, new SimpleMeterRegistry());
-        DefoldSdk sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac");
+        DefoldSdk sdk = defoldSdkService.getSdk("f7778a8f59ef2a8dda5d445f471368e8bd1cb1ac", PLATFORM);
         System.out.println(sdk.toFile().getCanonicalFile());
     }
 
@@ -176,7 +191,7 @@ public class DefoldSDKServiceTest {
 
         // Download all SDK:s
         for (String sdkHash : sdksToDownload) {
-            defoldSdkService.getSdk(sdkHash);
+            defoldSdkService.getSdk(sdkHash, PLATFORM);
         }
 
         List<String> collect = null;
@@ -197,7 +212,7 @@ public class DefoldSDKServiceTest {
         File dir = new File(DefoldSDKServiceTest.configuration.getLocation().toFile(), "notexist");
         assertFalse(Files.exists(dir.toPath()));
 
-        assertThrows(ExtenderException.class, () -> defoldSdkService.getSdk("notexist"));
+        assertThrows(ExtenderException.class, () -> defoldSdkService.getSdk("notexist", PLATFORM));
     }
 
     @Test
@@ -213,7 +228,7 @@ public class DefoldSDKServiceTest {
         for (int i = 0; i < expectedRefCount; ++i) {
             service.submit(() -> {
                 try {
-                    sdks.add(defoldSdkService.getSdk(testSdk));
+                    sdks.add(defoldSdkService.getSdk(testSdk, PLATFORM));
                 } catch (ExtenderException e) {
                     e.printStackTrace();
                 }
@@ -228,7 +243,7 @@ public class DefoldSDKServiceTest {
         for (int i = 0; i < expectedRefCount; ++i) {
             service.submit(() -> {
                 try {
-                    sdks.add(defoldSdkService.getSdk(testSdk));
+                    sdks.add(defoldSdkService.getSdk(testSdk, PLATFORM));
                 } catch (ExtenderException e) {
                     e.printStackTrace();
                 }
@@ -239,7 +254,7 @@ public class DefoldSDKServiceTest {
         assertEquals(expectedRefCount * 2, defoldSdkService.getSdkRefCount(testSdk));
         // check acquisition in sequence
         for (int i = 0; i < expectedRefCount; ++i) {
-            sdks.add(defoldSdkService.getSdk(testSdk));
+            sdks.add(defoldSdkService.getSdk(testSdk, PLATFORM));
         }
         assertEquals(expectedRefCount * 3, defoldSdkService.getSdkRefCount(testSdk));
         for (int i = 0; i < expectedRefCount * 3; ++i) {
@@ -247,12 +262,12 @@ public class DefoldSDKServiceTest {
         }
         assertEquals(0, defoldSdkService.getSdkRefCount(testSdk));
 
-        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
+        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk, PLATFORM)) {
             throw new Exception("Something happened");
         } catch (Exception exc) {}
 
         assertEquals(0, defoldSdkService.getSdkRefCount(testSdk));
-        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
+        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk, PLATFORM)) {
             System.out.println("Normal return from scoped resource");
         }
 
@@ -266,7 +281,7 @@ public class DefoldSDKServiceTest {
     public void testSdkCorrectPath() throws IOException, ExtenderException {
         final String testSdk = "11d2cd3a9be17b2fc5a2cb5cea59bbfb4af1ca96";
         DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.otherLocationConfiguration, new SimpleMeterRegistry());
-        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk)) {
+        try (DefoldSdk sdk = defoldSdkService.getSdk(testSdk, PLATFORM)) {
             assertTrue(new File(String.format("%s/extender/build.yml", sdk.toFile().getAbsolutePath())).exists());
         }
 
@@ -285,7 +300,7 @@ public class DefoldSDKServiceTest {
 
         DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
         for (String hash : mappingsToDownload) {
-            defoldSdkService.getPlatformSdkMappings(hash);
+            defoldSdkService.getPlatformSdkMappings(hash, PLATFORM);
         }
         assertEquals(DefoldSDKServiceTest.zeroCacheConfiguration.getMappingsCacheSize(), defoldSdkService.mappingsCache.size());
         String expectedHashes[] = {
@@ -301,7 +316,7 @@ public class DefoldSDKServiceTest {
     @Test
     public void testNonExistMappings() throws IOException {
         DefoldSdkService defoldSdkService = new DefoldSdkService(DefoldSDKServiceTest.zeroCacheConfiguration, new SimpleMeterRegistry());
-        assertThrows(ExtenderException.class, () -> defoldSdkService.getPlatformSdkMappings("non-exist"));
+        assertThrows(ExtenderException.class, () -> defoldSdkService.getPlatformSdkMappings("non-exist", PLATFORM));
     }
 
     @Test
@@ -322,7 +337,7 @@ public class DefoldSDKServiceTest {
         for (final String hash : mappingsToDownload) {
             service.submit(() -> {
                 try {
-                    defoldSdkService.getPlatformSdkMappings(hash);
+                    defoldSdkService.getPlatformSdkMappings(hash, PLATFORM);
                 } catch (ExtenderException|IOException|ParseException e) {
                     e.printStackTrace();
                 }
@@ -343,12 +358,12 @@ public class DefoldSDKServiceTest {
             DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(1)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(true)
                 .maxVerificationRetryCount(3)
                 .build();
             DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
-            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk"));
+            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk", PLATFORM));
         } finally {
             FileUtils.deleteDirectory(tmpLocation.toFile());
         }
@@ -361,27 +376,27 @@ public class DefoldSDKServiceTest {
             DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(0)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(false)
                 .maxVerificationRetryCount(3)
                 .build();
             DefoldSdkService sdkService = new DefoldSdkService(disabledVerificationConf, new SimpleMeterRegistry());
-            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
+            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid", PLATFORM));
 
             DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(0)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(true)
                 .maxVerificationRetryCount(3)
                 .build();
             DefoldSdkService sdkService1 = new DefoldSdkService(enabledVerificationConf, new SimpleMeterRegistry());
             // no exception because sdk folder already exists
-            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid"));
+            assertDoesNotThrow(() -> sdkService.getSdk("test_sdk_invalid", PLATFORM));
             // force remove cache
             sdkService1.evictCache();
 
-            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid"));
+            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService1.getSdk("test_sdk_invalid", PLATFORM));
             assertTrue(exc.getMessage().contains("Sdk verification failed"));
         } finally {
             FileUtils.deleteDirectory(tmpLocation.toFile());
@@ -395,13 +410,13 @@ public class DefoldSDKServiceTest {
             DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(0)
-                .sdkUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.zip"})
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(true)
                 .maxVerificationRetryCount(3)
                 .build();
             DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
 
-            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService.getSdk("test_sdk_no_checksum"));
+            ExtenderException exc = assertThrows(ExtenderException.class, () -> sdkService.getSdk("test_sdk_no_checksum", PLATFORM));
             assertTrue(exc.getMessage().contains("Sdk verification failed"));
         } finally {
             FileUtils.deleteDirectory(tmpLocation.toFile());
@@ -413,13 +428,57 @@ public class DefoldSDKServiceTest {
         DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
             .location(DefoldSDKServiceTest.configuration.getLocation())
             .cacheSize(0)
-            .mappingsUrls(new String[] {"http://localhost:" + String.valueOf(serverPort) + "/%s.json"})
+            .mappingsUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.json")))
             .enableSdkVerification(false)
             .maxVerificationRetryCount(1)
             .build();
         DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
-        assertThrows(ExtenderException.class, () -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping"));
+        assertThrows(ExtenderException.class, () -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping", PLATFORM));
 
-        assertDoesNotThrow(() -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping"));
+        assertDoesNotThrow(() -> sdkService.getPlatformSdkMappings("unstable_sdk_mapping", PLATFORM));
+    }
+
+    @Test
+    public void testPlatformSpecificUrls() throws Exception {
+        Path tmpLocation = Files.createTempDirectory("defoldsdk_platform_test");
+        try {
+            String base = "http://localhost:" + String.valueOf(serverPort);
+            DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
+                .location(tmpLocation)
+                .cacheSize(5)
+                .sdkUrls(Map.of(
+                    DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of(base + "/%s.zip"),
+                    "x86_64-ps4", List.of(base + "/%s.zip")))
+                .mappingsUrls(Map.of(
+                    DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of(base + "/%s.json"),
+                    "x86_64-ps4", List.of(base + "/missing/%s.json", base + "/ps4/%s.json")))
+                .enableSdkVerification(false)
+                .maxVerificationRetryCount(1)
+                .build();
+            DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
+
+            assertEquals("other", sdkService.getPlatformSdkMappings("platform_sdk_mapping", PLATFORM).get("source"));
+            assertEquals("ps4", sdkService.getPlatformSdkMappings("platform_sdk_mapping", "x86_64-ps4").get("source"));
+            assertThrows(ExtenderException.class, () -> sdkService.getPlatformSdkMappings("platform_sdk_mapping_x86_64-ps4", PLATFORM));
+
+            try (DefoldSdk sdk = sdkService.getSdk("test_sdk", PLATFORM)) {
+                assertTrue(sdk.toFile().toPath().startsWith(tmpLocation.resolve("test_sdk")));
+            }
+            try (DefoldSdk sdk = sdkService.getSdk("test_sdk", "x86_64-ps4")) {
+                assertTrue(sdk.toFile().toPath().startsWith(tmpLocation.resolve("test_sdk+x86_64-ps4")));
+            }
+        } finally {
+            FileUtils.deleteDirectory(tmpLocation.toFile());
+        }
+    }
+
+    @Test
+    public void testUrlsBinding() {
+        MapConfigurationPropertySource source = new MapConfigurationPropertySource(Map.of(
+            "extender.sdk.sdk-urls.other", "https://a/%s.zip, https://b/%s.zip",
+            "extender.sdk.sdk-urls[x86_64-ps4]", "https://ps4/%s.zip"));
+        DefoldSdkServiceConfiguration conf = new Binder(source).bind("extender.sdk", DefoldSdkServiceConfiguration.class).get();
+        assertEquals(List.of("https://a/%s.zip", "https://b/%s.zip"), conf.getSdkUrls(PLATFORM));
+        assertEquals(List.of("https://ps4/%s.zip"), conf.getSdkUrls("x86_64-ps4"));
     }
 }

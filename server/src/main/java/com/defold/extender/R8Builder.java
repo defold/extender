@@ -30,7 +30,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import com.defold.extender.process.JobFiles;
 
-/** Builds Android dex files with R8 and owns all R8 rule discovery and assembly. */
+/** Builds Android dex files and resources with R8 and owns all R8 rule discovery and assembly. */
 final class R8Builder {
     private static final Logger LOGGER = LoggerFactory.getLogger(R8Builder.class);
 
@@ -51,11 +51,13 @@ final class R8Builder {
         final File[] dexFiles;
         final File mappingFile;
         final File[] metaInformationFiles;
+        final File compiledResources;
 
-        BuildOutput(File[] dexFiles, File mappingFile, File[] metaInformationFiles) {
+        BuildOutput(File[] dexFiles, File mappingFile, File[] metaInformationFiles, File compiledResources) {
             this.dexFiles = dexFiles;
             this.mappingFile = mappingFile;
             this.metaInformationFiles = metaInformationFiles;
+            this.compiledResources = compiledResources;
         }
     }
 
@@ -863,7 +865,9 @@ final class R8Builder {
                 "env.R8",
                 "env.LIBRARYJAR",
                 "classes_dex_dir",
-                "mapping")) {
+                "mapping",
+                "android_resources_in",
+                "android_resources_out")) {
             Object value = escaped.get(key);
             if (value instanceof String) {
                 escaped.put(key, escapeDoubleQuotedCommandValue((String) value));
@@ -946,10 +950,29 @@ final class R8Builder {
         return metaInformationFiles.toArray(File[]::new);
     }
 
+    private File collectR8Resources(File r8OutputDir, File linkedResources) throws ExtenderException {
+        File optimizedResources = new File(r8OutputDir, "compiledresources.apk");
+        if (!optimizedResources.isFile()) {
+            throw new ExtenderException("R8 completed without producing optimized compiledresources.apk");
+        }
+        try {
+            try (ZipFile archive = new ZipFile(optimizedResources)) {
+                if (archive.getEntry("AndroidManifest.xml") == null || archive.getEntry("resources.pb") == null) {
+                    throw new ExtenderException("R8 produced an invalid proto resource archive: expected AndroidManifest.xml and resources.pb");
+                }
+            }
+            LOGGER.info("R8 Android resources: {} -> {} bytes", linkedResources.length(), optimizedResources.length());
+            return moveR8OutputFile(r8OutputDir, optimizedResources);
+        } catch (IOException e) {
+            throw new ExtenderException(e, "Failed to collect R8 Android resources");
+        }
+    }
+
     BuildOutput build(
             List<String> allJars,
             Map<String, ExtensionContext> extensionJarMap,
-            File aaptGeneratedRules) throws ExtenderException {
+            File aaptGeneratedRules,
+            File linkedResources) throws ExtenderException {
         File appRules = new File(uploadDir, APP_RULES_PATH);
         if (!isRequested(uploadDir)) {
             LOGGER.info("No app.keep file present. Skipping R8 step.");
@@ -973,7 +996,13 @@ final class R8Builder {
             throw new ExtenderException(e, "R8 shrinking was requested, but its configuration could not be resolved");
         }
         validateConfiguration(platformConfig.r8Cmd, r8Version);
-        if (aaptGeneratedRules == null || !aaptGeneratedRules.isFile()) {
+        boolean shrinkResources = Boolean.TRUE.equals(platformConfig.r8ResourceShrinking);
+        if (shrinkResources) {
+            if (linkedResources == null || !linkedResources.isFile()) {
+                throw new ExtenderException(
+                        "R8 resource shrinking was requested, but aapt2 did not produce compiledresources.apk");
+            }
+        } else if (aaptGeneratedRules == null || !aaptGeneratedRules.isFile()) {
             throw new ExtenderException(
                     "R8 shrinking was requested, but aapt2 did not generate aapt-generated.keep");
         }
@@ -989,12 +1018,14 @@ final class R8Builder {
                 R8RulePolicy.readAndValidate(appRules, ruleBudget),
                 emptyRuleBase);
         ruleFiles.add(sanitizedAppRules.getAbsolutePath());
-        File sanitizedAaptRules = new File(sanitizedRulesDir, "aapt-generated.keep");
-        R8RulePolicy.writeSanitized(
-                sanitizedAaptRules,
-                R8RulePolicy.readAndValidate(aaptGeneratedRules, ruleBudget),
-                emptyRuleBase);
-        ruleFiles.add(sanitizedAaptRules.getAbsolutePath());
+        if (!shrinkResources) {
+            File sanitizedAaptRules = new File(sanitizedRulesDir, "aapt-generated.keep");
+            R8RulePolicy.writeSanitized(
+                    sanitizedAaptRules,
+                    R8RulePolicy.readAndValidate(aaptGeneratedRules, ruleBudget),
+                    emptyRuleBase);
+            ruleFiles.add(sanitizedAaptRules.getAbsolutePath());
+        }
 
         Set<String> seenUntrustedRules = new LinkedHashSet<>();
         int sanitizedExtensionRuleIndex = 0;
@@ -1048,6 +1079,10 @@ final class R8Builder {
         File r8OutputDir = createR8OutputDirectory();
         File mappingFile = new File(buildDir, "mapping.txt");
 
+        if (shrinkResources) {
+            context.put("android_resources_in", linkedResources.getAbsolutePath());
+            context.put("android_resources_out", new File(r8OutputDir, "compiledresources.apk").getAbsolutePath());
+        }
         context.put("classes_dex_dir", r8OutputDir.getAbsolutePath());
         context.put("jars", programJars);
         context.put("rules", new ArrayList<>(ruleFiles));
@@ -1069,6 +1104,7 @@ final class R8Builder {
             throw new ExtenderException("R8 completed without producing classes.dex and mapping.txt");
         }
         File[] metaInformationFiles = collectR8MetaInformationFiles(r8OutputDir);
-        return new BuildOutput(dexFiles, mappingFile, metaInformationFiles);
+        File compiledResources = shrinkResources ? collectR8Resources(r8OutputDir, linkedResources) : linkedResources;
+        return new BuildOutput(dexFiles, mappingFile, metaInformationFiles, compiledResources);
     }
 }

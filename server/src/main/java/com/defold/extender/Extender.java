@@ -2592,6 +2592,7 @@ class Extender {
 
         File rJavaDir = null;
         File aaptKeepRules = null;
+        File compiledResources = null;
         // 1.2.174
         if (platformConfig.aapt2compileCmd != null) {
             // compile and link all of the resource files
@@ -2600,7 +2601,7 @@ class Extender {
             // we finally also get one or more R.java files which we use in the next step when compiling all java files
             File compiledResourcesDir = compileAndroidResources(androidResourceFolders, mergedAppContext);
             Map<String, File> files = linkAndroidResources(compiledResourcesDir, mergedAppContext);
-            outputFiles.add(files.get("outApkFile"));
+            compiledResources = files.get("outApkFile");
             outputFiles.add(files.get("resourceIdsFile"));
             rJavaDir = files.get("outJavaDirectory");
             aaptKeepRules = files.get("aaptKeepRules");
@@ -2627,8 +2628,10 @@ class Extender {
         R8Builder.BuildOutput r8Output = r8Builder.build(
                 allJars,
                 extensionJarMap,
-                aaptKeepRules);
+                aaptKeepRules,
+                compiledResources);
         if (r8Output != null) {
+            compiledResources = r8Output.compiledResources;
             outputFiles.addAll(Arrays.asList(r8Output.dexFiles));
             outputFiles.add(r8Output.mappingFile);
             outputFiles.addAll(Arrays.asList(r8Output.metaInformationFiles));
@@ -2640,6 +2643,9 @@ class Extender {
             }
         }
 
+        if (compiledResources != null) {
+            outputFiles.add(compiledResources);
+        }
         outputFiles.addAll(copyAndroidResourceFolders(androidResourceFolders));
         outputFiles.addAll(copyAndroidAssetFolders());
         outputFiles.addAll(copyAndroidJniFolders());

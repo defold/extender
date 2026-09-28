@@ -175,6 +175,23 @@ Downloaded Defold SDKs are kept in an external docker volume (`extender-sdk-cach
 they are fetched once instead of on every run. This is on by default locally and off in CI; set
 `EXTENDER_DEV_CACHE=0` to opt out. Remove the cache with `docker volume rm extender-sdk-cache`.
 
+## R8 Android resource shrinking
+
+A Defold SDK can opt into integrated R8 code/resource shrinking with the nullable
+`r8ResourceShrinking: true` platform configuration field. Its `r8Cmd` must supply
+`--android-resources "{{{android_resources_in}}}" "{{{android_resources_out}}}"`,
+and its AAPT2 link command must omit `--proguard`. R8 receives the linked proto
+archive and returns the optimized archive under the existing `compiledresources.apk`
+name. A missing or invalid optimized archive fails the build.
+
+Older SDKs without the capability retain their code-only R8 path and AAPT-generated
+keep rules. D8 builds keep their original archive. Resource shrinking uses the same
+`_app/app.keep` opt-in as code optimization.
+
+See [the resource regression fixture](test-data/r8-resources/README.md) for portable
+unit tests and the full Bob/APK/AAB/device verification script. Deploy compatible
+Extender servers before publishing SDKs that enable the new capability.
+
 ## How to debug running instance
 To enable remote JVM debug need to add following additional options to entrypoint section in `./server/docker/common-services.yml` for `common_builder` service
 ```

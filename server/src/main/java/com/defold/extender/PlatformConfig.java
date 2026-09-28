@@ -32,6 +32,8 @@ public class PlatformConfig {
     public String r8RuleSourceRe;
     public String r8Cmd;
     public String r8Version;
+    // Absent in SDKs that only optimize code. Nullable for platform inheritance.
+    public Boolean r8ResourceShrinking;
     // Legacy SDK deserialization only. Extender deliberately never reads these fields.
     @Deprecated public String proGuardCmd;
     @Deprecated public String proGuardSourceRe;

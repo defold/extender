@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.defold.r8resources">
+    <uses-sdk android:minSdkVersion="21" />
+    <application android:label="@string/manifest_kept">
+        <activity android:name="com.defold.r8resources.ResourceMain" android:exported="true" />
+    </application>
+</manifest>

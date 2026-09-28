@@ -129,14 +129,22 @@ public class DefoldSdkService {
         return sdkVersion == null || LOCAL_VERSION.equals(sdkVersion) || System.getenv("DYNAMO_HOME") != null;
     }
 
-    public DefoldSdk getSdk(String hash) throws ExtenderException {
+    // '+' is not allowed in sdk versions, so platform-specific ids can't collide with plain hashes
+    private String getCacheId(String hash, String platform) {
+        String key = configuration.getUrlKey(platform);
+        return DefoldSdkServiceConfiguration.DEFAULT_URL_KEY.equals(key) ? hash : hash + "+" + key;
+    }
+
+    public DefoldSdk getSdk(String hash, String platform) throws ExtenderException {
         if (isLocalSdk(hash)){
             return getLocalSdk();
         }
+        String cacheId = getCacheId(hash, platform);
+        List<String> sdkUrls = configuration.getSdkUrls(platform);
         // use ConcurrentHashMap with CompletableFuture here to avoid situation when
         // several builds needs the same defoldsdk which doesn't exist locally. So one build job starts downloading,
         // all other jobs wait for download complete and all of then continue running.
-        CompletableFuture<DefoldSdk> operation = operationCache.computeIfAbsent(hash, this::getRemoteSdk);
+        CompletableFuture<DefoldSdk> operation = operationCache.computeIfAbsent(cacheId, id -> getRemoteSdk(id, hash, sdkUrls));
         try (DefoldSdk sdk = operation.get()){
             if (sdk == null) {
                 throw new ExtenderException(String.format("The given sdk does not exist: %s", hash));
@@ -151,17 +159,17 @@ public class DefoldSdkService {
             LOGGER.error(String.format("The given sdk cannot be downloaded: %s", hash), e);
             throw new ExtenderException(String.format("The given sdk cannot be downloaded: %s", hash));
         } finally {
-            operationCache.remove(hash);
+            operationCache.remove(cacheId);
         }
     }
 
-    public CompletableFuture<DefoldSdk> getRemoteSdk(String hash) {
+    public CompletableFuture<DefoldSdk> getRemoteSdk(String cacheId, String hash, List<String> urlPatterns) {
         return CompletableFuture.supplyAsync(() -> {
             long methodStart = System.currentTimeMillis();
             // Define SDK directory for this version
-            File sdkDirectory = new File(this.configuration.getLocation().toFile(), hash);
+            File sdkDirectory = new File(this.configuration.getLocation().toFile(), cacheId);
             File sdkRootDirectory = new File(sdkDirectory, "defoldsdk");
-            DefoldSdk sdk = new DefoldSdk(sdkRootDirectory, hash, this);
+            DefoldSdk sdk = new DefoldSdk(sdkRootDirectory, cacheId, this);
             boolean isVerified = false;
             // If directory does not exist, create it and download SDK
             if (Files.exists(sdkDirectory.toPath())) {
@@ -170,7 +178,7 @@ public class DefoldSdkService {
             } else  {
                 boolean sdkFound = false;
                 String url = null;
-                for (String urlPattern : configuration.getSdkUrls()) {
+                for (String urlPattern : urlPatterns) {
                     try {
                         url = String.format(urlPattern, hash);
                         URI sdkURI = URI.create(url);
@@ -347,16 +355,16 @@ public class DefoldSdkService {
         return (JSONObject)parser.parse(new FileReader(Path.of(getLocalSdk().toFile().getAbsolutePath(), "platform.sdks.json").toFile()));
     }
 
-    private CompletableFuture<JSONObject> downloadSdkMappings(String hash) {
+    private CompletableFuture<JSONObject> downloadSdkMappings(String cacheId, String hash, List<String> urlPatterns) {
         return CompletableFuture.supplyAsync(() -> {
             JSONObject result = null;
             synchronized(mappingsCache) {
-                if (mappingsCache.containsKey(hash)) {
-                    result = mappingsCache.get(hash);
+                if (mappingsCache.containsKey(cacheId)) {
+                    result = mappingsCache.get(cacheId);
                 }
             }
             if (result == null) {
-                for (String url_pattern : configuration.getMappingsUrls()) {
+                for (String url_pattern : urlPatterns) {
                     try {
                         URI url = URI.create(String.format(url_pattern, hash));
                         try (ClientHttpResponse response = doRequestWithRedirects(url, HttpMethod.GET, configuration.getMaxRedirectCount())) {
@@ -365,7 +373,7 @@ public class DefoldSdkService {
                                 LOGGER.info("The given sdk does not exist: {} {}", url, responseCode.toString());
                                 continue;
                             }
-            
+
                             LOGGER.info("Downloading platform sdks mappings from {} ...", url);
                             InputStream body = response.getBody();
                             JSONParser parser = new JSONParser();
@@ -381,15 +389,17 @@ public class DefoldSdkService {
             }
             if (result != null) {
                 synchronized(mappingsCache) {
-                    mappingsCache.put(hash, result);
+                    mappingsCache.put(cacheId, result);
                 }
             }
             return result;
         });
     }
 
-    private JSONObject getRemotePlatformSdkMappings(String hash) throws IOException, ExtenderException {
-        CompletableFuture<JSONObject> operation = mappingsDownloadOperationCache.computeIfAbsent(hash, this::downloadSdkMappings);
+    private JSONObject getRemotePlatformSdkMappings(String hash, String platform) throws IOException, ExtenderException {
+        String cacheId = getCacheId(hash, platform);
+        List<String> mappingsUrls = configuration.getMappingsUrls(platform);
+        CompletableFuture<JSONObject> operation = mappingsDownloadOperationCache.computeIfAbsent(cacheId, id -> downloadSdkMappings(id, hash, mappingsUrls));
         try {
             JSONObject result = operation.get();
             if (result == null) {
@@ -401,13 +411,13 @@ public class DefoldSdkService {
         } catch (InterruptedException|ExecutionException exc) {
             LOGGER.error(String.format("Mappings downloading %s was interrupted", hash), exc);
         } finally {
-            mappingsDownloadOperationCache.remove(hash);
+            mappingsDownloadOperationCache.remove(cacheId);
         }
         throw new ExtenderException(String.format("Cannot find platform sdks mappings for hash: %s", hash));
     }
 
-    public JSONObject getPlatformSdkMappings(String hash) throws IOException, ExtenderException, ParseException {
-        return isLocalSdk(hash) ? getLocalPlatformSdkMappings() : getRemotePlatformSdkMappings(hash);
+    public JSONObject getPlatformSdkMappings(String hash, String platform) throws IOException, ExtenderException, ParseException {
+        return isLocalSdk(hash) ? getLocalPlatformSdkMappings() : getRemotePlatformSdkMappings(hash, platform);
     }
 
     public void acquireSdk(String hash) {

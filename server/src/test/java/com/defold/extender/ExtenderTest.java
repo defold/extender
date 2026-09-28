@@ -345,7 +345,9 @@ public class ExtenderTest {
         assertTrue(android.dxCmd.contains("--min-api {{minAndroidSdkVersion}}"));
         assertEquals("{{env.R8_VERSION}}", android.r8Version);
         assertEquals("(?i).+(\\.keep)$", android.r8RuleSourceRe);
-        assertTrue(android.aapt2linkCmd.contains("{{#useR8}}--proguard \"{{{aaptKeepRules}}}\""));
+        assertTrue(android.r8ResourceShrinking);
+        assertTrue(android.r8Cmd.contains("--android-resources"));
+        assertFalse(android.aapt2linkCmd.contains("--proguard"));
         assertFalse(android.aapt2linkCmd.contains("--proguard-main-dex"));
         assertNull(android.proGuardCmd);
         assertNull(android.proGuardSourceRe);
@@ -371,14 +373,12 @@ public class ExtenderTest {
                         "        PROGUARD:                 \"{{env.ANDROID_PROGUARD}}\"\n"
                                 + "        LIBRARYJAR:               \"{{env.ANDROID_LIBRARYJAR}}\"\n")
                 .replace(
-                        "    r8Cmd: 'java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib \"{{{env.LIBRARYJAR}}}\" --pg-map-output \"{{{mapping}}}\" --output \"{{{classes_dex_dir}}}\" {{#rules}}--pg-conf \"{{{.}}}\" {{/rules}} {{#jars}}\"{{{.}}}\" {{/jars}}'\n"
+                        "    r8Cmd: 'java -cp \"{{{env.R8}}}\" com.android.tools.r8.R8 --release --min-api {{minAndroidSdkVersion}} --lib \"{{{env.LIBRARYJAR}}}\" --pg-map-output \"{{{mapping}}}\" --output \"{{{classes_dex_dir}}}\" --android-resources \"{{{android_resources_in}}}\" \"{{{android_resources_out}}}\" {{#rules}}--pg-conf \"{{{.}}}\" {{/rules}} {{#jars}}\"{{{.}}}\" {{/jars}}'\n"
                                 + "    r8Version: '{{env.R8_VERSION}}'\n"
+                                + "    r8ResourceShrinking: true\n"
                                 + "    r8RuleSourceRe: '(?i).+(\\.keep)$'\n",
                         "    proGuardCmd: 'legacy-proguard-command'\n"
-                                + "    proGuardSourceRe: '(?i).+(\\.pro)$'\n")
-                .replace(
-                        " {{#useR8}}--proguard \"{{{aaptKeepRules}}}\" {{/useR8}}",
-                        " ");
+                                + "    proGuardSourceRe: '(?i).+(\\.pro)$'\n");
 
         File sdk = new File(tempDir, "legacy-sdk");
         File sdkExtenderDir = new File(sdk, "extender");
@@ -392,6 +392,7 @@ public class ExtenderTest {
         assertEquals("(?i).+(\\.pro)$", android.proGuardSourceRe);
         assertEquals("{{env.ANDROID_PROGUARD}}", android.env.get("PROGUARD"));
         assertNull(android.r8Cmd);
+        assertNull(android.r8ResourceShrinking);
         assertFalse(android.aapt2linkCmd.contains("useR8"));
         assertFalse(android.aapt2linkCmd.contains("aaptKeepRules"));
         assertFalse(android.aapt2linkCmd.contains("--proguard"));

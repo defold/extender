@@ -1,0 +1,7 @@
+<resources>
+    <string name="manifest_kept">Manifest reference</string>
+    <string name="code_kept">Live code reference</string>
+    <string name="xml_kept">Live XML reference</string>
+    <string name="unused_string">Unreferenced string</string>
+    <string name="dead_code_string">Removed code reference</string>
+</resources>
