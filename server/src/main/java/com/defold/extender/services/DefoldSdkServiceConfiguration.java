@@ -1,6 +1,7 @@
 package com.defold.extender.services;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -22,8 +23,8 @@ public class DefoldSdkServiceConfiguration {
     public static final String DEFAULT_URL_KEY = "other";
 
     private Path location;
-    private Map<String, String> sdkUrls;
-    private Map<String, String> mappingsUrls;
+    private Map<String, List<String>> sdkUrls;
+    private Map<String, List<String>> mappingsUrls;
     private int cacheSize;
     @Builder.Default private int mappingsCacheSize = 20;
     // retry count in case of checksum validation fail
@@ -40,21 +41,21 @@ public class DefoldSdkServiceConfiguration {
         return DEFAULT_URL_KEY;
     }
 
-    public String getSdkUrl(String platform) {
+    public List<String> getSdkUrls(String platform) {
         return resolve(sdkUrls, platform);
     }
 
-    public String getMappingsUrl(String platform) {
+    public List<String> getMappingsUrls(String platform) {
         return resolve(mappingsUrls, platform);
     }
 
-    private static String resolve(Map<String, String> urls, String platform) {
+    private static List<String> resolve(Map<String, List<String>> urls, String platform) {
         if (urls == null) {
-            return null;
+            return List.of();
         }
         if (platform != null && urls.containsKey(platform)) {
             return urls.get(platform);
         }
-        return urls.get(DEFAULT_URL_KEY);
+        return urls.getOrDefault(DEFAULT_URL_KEY, List.of());
     }
 }
