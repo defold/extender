@@ -60,6 +60,9 @@ public class WebSecurityConfig {
                 case "ps5":
                     http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-ps5/**").hasRole("PS5")).httpBasic(withDefaults());
                     break;
+                case "xbox":
+                    http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.requestMatchers("/build_async/x86_64-xbone/**").hasRole("XBOX")).httpBasic(withDefaults());
+                    break;
             }
         }
         // if (authenticatedPlatforms.length > 0) {
