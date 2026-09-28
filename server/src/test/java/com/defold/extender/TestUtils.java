@@ -125,8 +125,11 @@ public class TestUtils {
         try (BufferedReader reader = new BufferedReader(new FileReader(inputFile))) {
             String line = reader.readLine();
             while (line != null) {
-                String[] splitted = line.split("=");
-                result.put(splitted[0], splitted[1]);
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
+                    String[] splitted = line.split("=", 2);
+                    result.put(splitted[0], splitted[1]);
+                }
                 line = reader.readLine();
             }
             reader.close();
