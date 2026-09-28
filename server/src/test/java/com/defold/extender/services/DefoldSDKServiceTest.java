@@ -25,6 +25,8 @@ import org.apache.commons.io.FileUtils;
 import org.json.simple.parser.ParseException;
 import org.json.simple.JSONObject;
 import org.junit.jupiter.api.AfterAll;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -58,8 +60,8 @@ public class DefoldSDKServiceTest {
 
         DefoldSDKServiceTest.configuration = DefoldSdkServiceConfiguration.builder()
             .location(sdkLocation)
-            .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, "https://d.defold.com/archive/%s/engine/defoldsdk.zip"))
-            .mappingsUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, "https://d.defold.com/archive/%s/engine/platform.sdks.json"))
+            .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip", "https://d.defold.com/archive/%s/engine/defoldsdk.zip")))
+            .mappingsUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("https://d.defold.com/archive/stable/%s/engine/platform.sdks.json", "https://d.defold.com/archive/%s/engine/platform.sdks.json")))
             .cacheSize(3)
             .mappingsCacheSize(3)
             .cacheClearOnExit(true)
@@ -356,7 +358,7 @@ public class DefoldSDKServiceTest {
             DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(1)
-                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, "http://localhost:" + String.valueOf(serverPort) + "/%s.zip"))
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(true)
                 .maxVerificationRetryCount(3)
                 .build();
@@ -374,7 +376,7 @@ public class DefoldSDKServiceTest {
             DefoldSdkServiceConfiguration disabledVerificationConf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(0)
-                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, "http://localhost:" + String.valueOf(serverPort) + "/%s.zip"))
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(false)
                 .maxVerificationRetryCount(3)
                 .build();
@@ -384,7 +386,7 @@ public class DefoldSDKServiceTest {
             DefoldSdkServiceConfiguration enabledVerificationConf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(0)
-                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, "http://localhost:" + String.valueOf(serverPort) + "/%s.zip"))
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(true)
                 .maxVerificationRetryCount(3)
                 .build();
@@ -408,7 +410,7 @@ public class DefoldSDKServiceTest {
             DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
                 .location(tmpLocation)
                 .cacheSize(0)
-                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, "http://localhost:" + String.valueOf(serverPort) + "/%s.zip"))
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.zip")))
                 .enableSdkVerification(true)
                 .maxVerificationRetryCount(3)
                 .build();
@@ -426,7 +428,7 @@ public class DefoldSDKServiceTest {
         DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
             .location(DefoldSDKServiceTest.configuration.getLocation())
             .cacheSize(0)
-            .mappingsUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, "http://localhost:" + String.valueOf(serverPort) + "/%s.json"))
+            .mappingsUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of("http://localhost:" + String.valueOf(serverPort) + "/%s.json")))
             .enableSdkVerification(false)
             .maxVerificationRetryCount(1)
             .build();
@@ -445,11 +447,11 @@ public class DefoldSDKServiceTest {
                 .location(tmpLocation)
                 .cacheSize(5)
                 .sdkUrls(Map.of(
-                    DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, base + "/%s.zip",
-                    "x86_64-ps4", base + "/%s.zip"))
+                    DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of(base + "/%s.zip"),
+                    "x86_64-ps4", List.of(base + "/%s.zip")))
                 .mappingsUrls(Map.of(
-                    DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, base + "/%s.json",
-                    "x86_64-ps4", base + "/ps4/%s.json"))
+                    DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of(base + "/%s.json"),
+                    "x86_64-ps4", List.of(base + "/missing/%s.json", base + "/ps4/%s.json")))
                 .enableSdkVerification(false)
                 .maxVerificationRetryCount(1)
                 .build();
@@ -457,15 +459,26 @@ public class DefoldSDKServiceTest {
 
             assertEquals("other", sdkService.getPlatformSdkMappings("platform_sdk_mapping", PLATFORM).get("source"));
             assertEquals("ps4", sdkService.getPlatformSdkMappings("platform_sdk_mapping", "x86_64-ps4").get("source"));
+            assertThrows(ExtenderException.class, () -> sdkService.getPlatformSdkMappings("platform_sdk_mapping_x86_64-ps4", PLATFORM));
 
             try (DefoldSdk sdk = sdkService.getSdk("test_sdk", PLATFORM)) {
                 assertTrue(sdk.toFile().toPath().startsWith(tmpLocation.resolve("test_sdk")));
             }
             try (DefoldSdk sdk = sdkService.getSdk("test_sdk", "x86_64-ps4")) {
-                assertTrue(sdk.toFile().toPath().startsWith(tmpLocation.resolve("test_sdk_x86_64-ps4")));
+                assertTrue(sdk.toFile().toPath().startsWith(tmpLocation.resolve("test_sdk+x86_64-ps4")));
             }
         } finally {
             FileUtils.deleteDirectory(tmpLocation.toFile());
         }
+    }
+
+    @Test
+    public void testUrlsBinding() {
+        MapConfigurationPropertySource source = new MapConfigurationPropertySource(Map.of(
+            "extender.sdk.sdk-urls.other", "https://a/%s.zip, https://b/%s.zip",
+            "extender.sdk.sdk-urls[x86_64-ps4]", "https://ps4/%s.zip"));
+        DefoldSdkServiceConfiguration conf = new Binder(source).bind("extender.sdk", DefoldSdkServiceConfiguration.class).get();
+        assertEquals(List.of("https://a/%s.zip", "https://b/%s.zip"), conf.getSdkUrls(PLATFORM));
+        assertEquals(List.of("https://ps4/%s.zip"), conf.getSdkUrls("x86_64-ps4"));
     }
 }
