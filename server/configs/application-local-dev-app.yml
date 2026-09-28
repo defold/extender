@@ -1,10 +1,14 @@
 extender:
     sdk:
-        # Per-platform urls, "other" is the fallback. Keys with '_' must be bracketed: "[x86_64-ps4]"
+        # Per-platform url lists tried in order, "other" is the fallback. Keys with '_' must be bracketed: "[x86_64-ps4]"
         sdk-urls:
-            other: https://d.defold.com/archive/%s/engine/defoldsdk.zip
+            other:
+                - https://d.defold.com/archive/stable/%s/engine/defoldsdk.zip
+                - https://d.defold.com/archive/%s/engine/defoldsdk.zip
         mappings-urls:
-            other: https://d.defold.com/archive/%s/engine/platform.sdks.json
+            other:
+                - https://d.defold.com/archive/stable/%s/engine/platform.sdks.json
+                - https://d.defold.com/archive/%s/engine/platform.sdks.json
     instance-type: FRONTEND_ONLY
     remote-builder:
         enabled: true
