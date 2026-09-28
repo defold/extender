@@ -5,12 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.utils.PodBuildUtil;
@@ -46,6 +47,7 @@ public class PodBuildUtilTest {
     // exist and the compile fails with "file not found" instead of falling back to the correct
     // -I search directory.
     @Test
+    @EnabledOnOs({OS.MAC})
     public void testPublicHeaderInXCFrameworkResolvesToItsRealDirectory() throws IOException, ExtenderException {
         File xcframeworkHeadersDir = new File(this.workingDir, "SomeSDK.xcframework/ios-arm64/Headers");
         xcframeworkHeadersDir.mkdirs();
