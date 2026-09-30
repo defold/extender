@@ -2,6 +2,8 @@ package com.defold.extender;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.regex.Pattern;
 
@@ -47,46 +49,8 @@ public final class SandboxedPath {
                 String.format("Path traversal detected: '%s' escapes root directory", childPath));
         }
 
-        // For existing files, also verify via real path (resolves symlinks)
         File resolvedFile = resolved.toFile();
-        if (resolvedFile.exists()) {
-            try {
-                Path realRoot = root.toPath().toRealPath();
-                Path realResolved = resolvedFile.toPath().toRealPath();
-                if (!realResolved.startsWith(realRoot)) {
-                    throw new ExtenderException(
-                        String.format("Symlink escape detected: '%s' resolves outside root directory", childPath));
-                }
-            } catch (IOException e) {
-                throw new ExtenderException(
-                    String.format("Failed to resolve real path for '%s': %s", childPath, e.getMessage()));
-            }
-        } else {
-            // For non-existent files, walk up to the nearest existing ancestor
-            // and verify it resolves within root
-            Path current = resolved.getParent();
-            while (current != null && !current.toFile().exists()) {
-                current = current.getParent();
-            }
-
-            Path existedRoot = rootPath;
-            while (existedRoot != null && !existedRoot.toFile().exists()) {
-                existedRoot = existedRoot.getParent();
-            }
-            if (current != null && existedRoot != null) {
-                try {
-                    Path realAncestor = current.toRealPath();
-                    Path realRoot = existedRoot.toRealPath();
-                    if (!realAncestor.startsWith(realRoot) && !realAncestor.equals(realRoot)) {
-                        throw new ExtenderException(
-                            String.format("Symlink escape detected: ancestor of '%s' resolves outside root directory", childPath));
-                    }
-                } catch (IOException e) {
-                    throw new ExtenderException(
-                        String.format("Failed to resolve real path for ancestor of '%s': %s", childPath, e.getMessage()));
-                }
-            }
-        }
+        assertRealPathWithin(root, resolved, childPath);
 
         return resolvedFile;
     }
@@ -107,19 +71,34 @@ public final class SandboxedPath {
                 String.format("Path '%s' is outside the allowed directory '%s'", target.getPath(), root.getPath()));
         }
 
-        // For existing files, also check via real path to catch symlink escapes
-        if (target.exists() && root.exists()) {
-            try {
-                Path realRoot = root.toPath().toRealPath();
-                Path realTarget = target.toPath().toRealPath();
-                if (!realTarget.startsWith(realRoot)) {
-                    throw new ExtenderException(
-                        String.format("Symlink escape detected: '%s' resolves outside '%s'", target.getPath(), root.getPath()));
-                }
-            } catch (IOException e) {
+        assertRealPathWithin(root, targetPath, target.getPath());
+    }
+
+    /**
+     * Checks the real path of {@code path}, or of its nearest existing ancestor when it does not
+     * exist yet, against the real path of {@code root}, so a link on the way out of root is caught
+     * before anything is created through it. A dangling link counts as existing and is refused.
+     */
+    private static void assertRealPathWithin(File root, Path path, String name) throws ExtenderException {
+        Path existing = path;
+        while (existing != null && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            existing = existing.getParent();
+        }
+        Path existingRoot = root.toPath().toAbsolutePath().normalize();
+        while (existingRoot != null && !Files.exists(existingRoot)) {
+            existingRoot = existingRoot.getParent();
+        }
+        if (existing == null || existingRoot == null) {
+            return;
+        }
+        try {
+            if (!existing.toRealPath().startsWith(existingRoot.toRealPath())) {
                 throw new ExtenderException(
-                    String.format("Failed to resolve real path: %s", e.getMessage()));
+                    String.format("Symlink escape detected: '%s' resolves outside '%s'", name, root.getPath()));
             }
+        } catch (IOException e) {
+            throw new ExtenderException(
+                String.format("Failed to resolve real path for '%s': %s", name, e.getMessage()));
         }
     }
 

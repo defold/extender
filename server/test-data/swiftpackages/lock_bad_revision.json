@@ -1,0 +1,11 @@
+{
+  "pins" : [
+    {
+      "identity" : "sentry-cocoa",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getsentry/sentry-cocoa.git",
+      "state" : { "revision" : "main; rm -rf /", "version" : "9.0.0" }
+    }
+  ],
+  "version" : 2
+}

@@ -1,0 +1,18 @@
+Resolve Package Graph
+
+Fetching from https://github.com/acme/PkgA.git
+
+Fetching from https://github.com/acme/PkgB.git
+skipping cache due to an error: Failed to clone repository https://github.com/acme/PkgB.git:
+    Cloning into bare repository '/job/SwiftPackageManagerService/pkgcache/repositories/PkgB-3a077344'...
+    fatal: transport 'https' not allowed
+
+Resolved source packages:
+  Package: (null)
+
+2026-09-04 22:32:41.360 xcodebuild[95304:58452839] Writing error result bundle to /var/folders/ym/b9r0ldbx2_7c94bph_0rpw8m0000gn/T/ResultBundle_2026-04-09_22-32-0041.xcresult
+xcodebuild: error: Could not resolve package dependencies:
+  Failed to clone repository https://github.com/acme/PkgB.git:
+    Cloning into bare repository '/job/SwiftPackageManagerService/cloned/repositories/PkgB-3a077344'...
+    fatal: transport 'https' not allowed
+

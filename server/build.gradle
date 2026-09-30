@@ -177,6 +177,11 @@ compileJava {
 bootJar {
     archiveBaseName = 'extender'
     version = project.ext.extenderVersion
+    // ProcessHardening calls prctl through the FFM API; without this the JVM warns at the first
+    // call and later releases refuse it
+    manifest {
+        attributes 'Enable-Native-Access': 'ALL-UNNAMED'
+    }
     // See the note on :manifestmergetool:mainJar - server/app/extender.jar is what the docker
     // containers run, so it is declared as an output and restored if deleted.
     outputs.file("${project.projectDir}/app/extender.jar")
@@ -241,6 +246,7 @@ task buildStandalone() {
 }
 
 test {
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
     useJUnitPlatform {
         if (project.hasProperty("excludeTags")) {
             excludeTags project.getProperty("excludeTags")
@@ -261,7 +267,10 @@ test {
     //   -PreuseStack=true                       leave the docker stack running between runs
     //   -PspmE2e=true                           run the network-touching SPM service test on a Mac
     //                                           with Xcode + xcodegen installed
-    ["targetPlatforms", "defoldVersions", "reuseStack", "spmE2e"].each { name ->
+    //   -PmacSandboxE2e=true                    boot the standalone server from server/app on a Mac
+    //                                           and build arm64-osx under the Seatbelt sandbox
+    //   -PmacSandboxSdk=<sha1>                  Defold SDK for that run (default: the latest release)
+    ["targetPlatforms", "defoldVersions", "reuseStack", "spmE2e", "macSandboxE2e", "macSandboxSdk"].each { name ->
         if (project.hasProperty(name)) {
             systemProperty "extender.test.${name}", project.getProperty(name)
         }

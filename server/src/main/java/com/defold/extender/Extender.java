@@ -12,8 +12,6 @@ import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
@@ -24,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.List;
 import java.util.AbstractMap;
@@ -43,6 +40,7 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.services.GradleArtifact;
 import com.defold.extender.services.GradleService;
 import com.defold.extender.services.ResolvedNativeDeps;
@@ -87,6 +85,8 @@ class Extender {
     // Android dependencies: a standalone .jar, or an exploded .aar directory in either the local
     // archive layout or AGP's EXPLODED_AAR layout.
     private List<File> androidPackages;
+    // the shared Gradle cache the resolved artifacts were exploded into; null until resolve()
+    private File gradleCacheDir;
     // Maven AARs keep their legacy externally visible package names even though their content is
     // consumed directly from AGP's transform cache.
     private Map<File, String> androidPackageResourceNames;
@@ -582,7 +582,7 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(buildState.jobDir, pod.intermediatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -606,7 +606,7 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(pod.dir));
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
-        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, pod.swiftSourceFilePaths);
+        File sourceListFile = ExtenderUtil.writeSourceFilesListToTmpFile(buildState.jobDir, pod.intermediatedDir, pod.swiftSourceFilePaths);
 
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
@@ -628,15 +628,17 @@ class Extender {
         String podName = spec.name;
         Path sourceModuleMap = Path.of(podDir.toString(), "Target Support Files", podName, String.format("%s.modulemap", podName));
         Path targetModuleMap = Path.of(podBuildDir.toString(), String.format("%s.modulemap", spec.moduleName)); // it's not a bug. Cocoapods installs module map in Target support Files with spec.name but in compiler options it waits spec.moduleName
-        Files.copy(sourceModuleMap, targetModuleMap, StandardCopyOption.REPLACE_EXISTING);
+        JobFiles.copyFile(buildState.jobDir, sourceModuleMap.toFile(), targetModuleMap.toFile());
 
         // copy umbrella header
         Path sourceUmbrellaHeader = Path.of(podDir.toString(), "Target Support Files", podName, String.format("%s-umbrella.h", podName));
         Path targetUmbrellaHeader = Path.of(podBuildDir.toString(), String.format("%s-umbrella.h", podName));
-        Files.copy(sourceUmbrellaHeader, targetUmbrellaHeader, StandardCopyOption.REPLACE_EXISTING);
+        JobFiles.copyFile(buildState.jobDir, sourceUmbrellaHeader.toFile(), targetUmbrellaHeader.toFile());
 
-        // append to objc modulemap
-        Files.writeString(targetModuleMap, spec.swiftModuleDefinition, StandardOpenOption.APPEND);
+        // append to objc modulemap; targetModuleMap was just created fresh by the copy above,
+        // so this goes through the same containment check rather than reopening it directly
+        String moduleMapContent = Files.readString(targetModuleMap) + spec.swiftModuleDefinition;
+        JobFiles.writeString(buildState.jobDir, targetModuleMap.toFile(), moduleMapContent, StandardCharsets.UTF_8);
     }
 
     private File addCompileFileSwift(PodBuildSpec pod, int index, File src, Map<String, Object> manifestContext, List<String> commands) throws IOException, InterruptedException, ExtenderException {
@@ -655,8 +657,8 @@ class Extender {
         List<String> frameworkPaths = new ArrayList<>();
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
-        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, swiftSourceFilePaths);
-        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(pod.intermediatedDir, Set.of(swiftPrimarySourceFile));
+        File sourceFileList = ExtenderUtil.writeSourceFilesListToTmpFile(buildState.jobDir, pod.intermediatedDir, swiftSourceFilePaths);
+        File primarySourceFile = ExtenderUtil.writeSourceFilesListToTmpFile(buildState.jobDir, pod.intermediatedDir, Set.of(swiftPrimarySourceFile));
         Map<String, Object> context = createContext(manifestContext);
         context.put("ext", ImmutableMap.of("includes", includes, "frameworks", frameworks, "frameworkPaths", frameworkPaths));
         context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, o));
@@ -986,7 +988,7 @@ class Extender {
 
     void buildPodAsFramework(PodBuildSpec spec, String targetPlatform, File targetSupportFileDir) throws ExtenderException, IOException, InterruptedException {
         // Collect resource bundles
-        List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform);
+        List<File> resourceBundles = ResolvedPods.createPodResourceBundles(spec, spec.buildDir, targetPlatform, buildState.getJobDir());
 
         if (PodUtils.hasSourceFiles(spec)) {
             Map<String, Collection<File>> enumeratedFiles = new HashMap<>();
@@ -1000,31 +1002,31 @@ class Extender {
             String frameworkHeadersDirPath = frameworkHeaders.toString();
             // Collect headers
             for (File header : spec.publicHeaders) {
-                FileUtils.copyFileToDirectory(header, frameworkHeaders);
+                JobFiles.copyFileToDirectory(buildState.jobDir, header, frameworkHeaders);
                 PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkHeadersDirPath, header);
             }
 
             // copy first time
             File sourceModuleMap = Path.of(targetSupportFileDir.toString(), podName, String.format("%s.modulemap", podName)).toFile();
-            FileUtils.copyFile(sourceModuleMap, new File(frameworkModules, "module.modulemap"));
+            JobFiles.copyFile(buildState.jobDir, sourceModuleMap, new File(frameworkModules, "module.modulemap"));
             PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkModules.toString(), sourceModuleMap);
 
             File sourceUmbrellaHeader = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-umbrella.h", podName)).toFile();
-            FileUtils.copyFileToDirectory(sourceUmbrellaHeader, frameworkHeaders);
+            JobFiles.copyFileToDirectory(buildState.jobDir, sourceUmbrellaHeader, frameworkHeaders);
             PodBuildUtil.putFileNameIntoVFS(enumeratedFiles, frameworkHeadersDirPath, sourceUmbrellaHeader);
 
-            PodBuildUtil.generateVFSOverlay(spec, enumeratedFiles);
+            PodBuildUtil.generateVFSOverlay(buildState.jobDir, spec, enumeratedFiles);
             // Compile library
             File library = buildPodLibrary(spec);
 
-            FileUtils.copyFile(library, new File(frameworkDir, spec.moduleName));
+            JobFiles.copyFile(buildState.jobDir, library, new File(frameworkDir, spec.moduleName));
 
             // copy from generateSwiftCompatabilityHeader
             if (spec.swiftModuleHeader != null && spec.swiftModuleHeader.exists()) {
-                FileUtils.copyFileToDirectory(spec.swiftModuleHeader, frameworkHeaders);
+                JobFiles.copyFileToDirectory(buildState.jobDir, spec.swiftModuleHeader, frameworkHeaders);
                 // copy the second time because during generating swift compatibility header modulemap was updated
                 File updatedModuleMap = new File(spec.buildDir, String.format("%s.modulemap", spec.moduleName));
-                FileUtils.copyFile(updatedModuleMap, new File(frameworkModules, "module.modulemap"), StandardCopyOption.REPLACE_EXISTING);
+                JobFiles.copyFile(buildState.jobDir, updatedModuleMap, new File(frameworkModules, "module.modulemap"));
             }
 
             // Copy swift module 
@@ -1032,21 +1034,21 @@ class Extender {
             if (swiftModule.exists()) {
                 File targetSwiftModuleDir = new File(frameworkModules, spec.moduleName + ".swiftmodule");
                 File targetSwiftModuleName = new File(targetSwiftModuleDir, String.format("%s.swiftmodule", PodUtils.swiftModuleNameFromPlatform(targetPlatform)));
-                FileUtils.copyFile(swiftModule, targetSwiftModuleName, StandardCopyOption.REPLACE_EXISTING);
+                JobFiles.copyFile(buildState.jobDir, swiftModule, targetSwiftModuleName);
             }
             // 4.2. Copy modulemap
             for (File bundle : resourceBundles) {
-                FileUtils.copyDirectoryToDirectory(bundle, frameworkDir);
+                JobFiles.copyDirectoryToDirectory(buildState.jobDir, bundle, frameworkDir);
             }
             Set<File> resources = new HashSet<>();
             ResolvedPods.addPodResources(spec, resources);
             for (File res : resources) {
-                FileUtils.copyFileToDirectory(res, frameworkDir);
+                JobFiles.copyFileToDirectory(buildState.jobDir, res, frameworkDir);
             }
 
             // copy Info.plist
             File sourceInfoPlist = Path.of(targetSupportFileDir.toString(), podName, String.format("%s-Info.plist", podName)).toFile();
-            PodBuildUtil.generatedInfoPlistFromTemplate(sourceInfoPlist, Map.of(
+            PodBuildUtil.generatedInfoPlistFromTemplate(buildState.jobDir, sourceInfoPlist, Map.of(
                 "PODS_DEVELOPMENT_LANGUAGE", "en",
                 "EXECUTABLE_NAME", spec.moduleName,
                 "PRODUCT_BUNDLE_IDENTIFIER", String.format("org.cocoapods.%s", spec.moduleName),
@@ -1064,7 +1066,7 @@ class Extender {
                 "--timestamp=none",
                 "--generate-entitlement-der",
                 frameworkDir.getAbsolutePath()
-            ), null, null);
+            ), buildState.getJobDir(), null);
         }
     }
 
@@ -1110,7 +1112,7 @@ class Extender {
         boolean asFramework = resolvedPods.useFrameworks();
         LOGGER.info("buildPods - compiling pod source file as {}", asFramework ? "frameworks" : "libraries");
         for (PodBuildSpec pod : resolvedPods.getPodSpecs()) {
-            PodBuildUtil.generateHeaderMap(pod);
+            PodBuildUtil.generateHeaderMap(pod, buildState.getJobDir());
             if (asFramework) {
                 buildPodAsFramework(pod, buildState.fullPlatform, resolvedPods.getTargetSupportFilesDir());
             } else {
@@ -1147,11 +1149,10 @@ class Extender {
                     }
                 }
                 if (resourceFile.isFile()) {
-                    resourceDest.getParentFile().mkdirs();
-                    Files.copy(resourceFile.toPath(), resourceDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    JobFiles.copyFile(buildState.jobDir, resourceFile, resourceDest);
                 } else {
                     resourceDest.mkdirs();
-                    FileUtils.copyDirectory(resourceFile, resourceDest);
+                    JobFiles.copyDirectory(buildState.jobDir, resourceFile, resourceDest, null);
                 }
                 if (!collision) {
                     outputFiles.add(resourceDest);
@@ -1164,7 +1165,7 @@ class Extender {
                 // copy framework and filter out certain files and folders
                 LOGGER.info("buildNativeDepsArtifacts - adding {}", framework.getName());
                 File frameworkDestDir = new File(frameworksBuildDir, framework.getName());
-                FileUtils.copyDirectory(framework, frameworkDestDir, new FileFilter() {
+                JobFiles.copyDirectory(buildState.jobDir, framework, frameworkDestDir, new FileFilter() {
                     @Override
                     public boolean accept(File pathname) {
                         String name = pathname.getName();
@@ -1179,7 +1180,7 @@ class Extender {
             if (lockFile != null) {
                 LOGGER.info("buildNativeDepsArtifacts - adding {} to build output", lockFile.getName());
                 File destLockFile = new File(buildState.buildDir, lockFile.getName());
-                FileUtils.copyFile(lockFile, destLockFile);
+                JobFiles.copyFile(buildState.jobDir, lockFile, destLockFile);
                 outputFiles.add(destLockFile);
             }
         }
@@ -1235,7 +1236,15 @@ class Extender {
         File sdkDir = new File(buildState.sdk, "sdk");
         File sdkCsDir = new File(sdkDir, "cs");
         File sdkCsdmSDKDir = new File(sdkCsDir, "dmsdk");
-        File sdkProject = new File(sdkCsdmSDKDir, "dmsdk.csproj");
+        // The Defold SDK is granted read-only and is shared between jobs, but MSBuild writes obj/
+        // beside every project it restores, including one reached through a ProjectReference. The
+        // dmsdk project is self-contained source (no project reference of its own, nothing outside
+        // its directory), so the job builds against a copy inside its own build directory.
+        File jobSdkCsdmSDKDir = new File(buildState.jobDir, "cs-dmsdk");
+        // an earlier command of this job may have left a link here, or nested inside here; the
+        // copy would write through it, so every destination entry is checked against jobDir
+        JobFiles.copyDirectory(buildState.jobDir, buildState.sdk, sdkCsdmSDKDir, jobSdkCsdmSDKDir, null);
+        File sdkProject = new File(jobSdkCsdmSDKDir, "dmsdk.csproj");
 
         Map<String, Object> context = createContext(manifestContext);
 
@@ -1385,9 +1394,11 @@ class Extender {
                 File sourcesListFile = new File(extBuildDir, "sources.txt");
 
                 // Write source paths to sources.txt
+                StringBuilder sourcesList = new StringBuilder();
                 for (File javaFile : srcFiles) {
-                    FileUtils.writeStringToFile(sourcesListFile, javaFile.getAbsolutePath() + "\n", Charset.defaultCharset(), true);
+                    sourcesList.append(javaFile.getAbsolutePath()).append('\n');
                 }
+                JobFiles.writeString(buildState.jobDir, sourcesListFile, sourcesList.toString(), Charset.defaultCharset());
 
                 File classesDir = new File(extBuildDir, "classes");
                 Files.createDirectories(classesDir.toPath());
@@ -1525,7 +1536,7 @@ class Extender {
         mainContext.put("ext", ImmutableMap.of("symbols", ExtenderUtil.makeUnique(extSymbols)));
 
         String main = templateExecutor.execute(config.main, mainContext);
-        FileUtils.writeStringToFile(maincpp, main, Charset.defaultCharset());
+        JobFiles.writeString(buildState.jobDir, maincpp, main, Charset.defaultCharset());
 
         File mainObject = compileMain(maincpp, linkContext);
 
@@ -1553,6 +1564,11 @@ class Extender {
 
         if (this.needsCSLibraries) {
             CSharpBuilder.updateContext(buildState.fullPlatform, buildState.buildDir, context);
+            // The NativeAOT runtime archives go on the link line, and they live in whichever NuGet
+            // cache resolved them - the instance-wide one when it is warm, the job's own otherwise.
+            // The link runs under the toolchain policy, which knows about neither.
+            processExecutor.setPolicy(processExecutor.getPolicy().withReadOnlyPaths(
+                    List.of(CSharpBuilder.getNativePath(buildState.fullPlatform, buildState.buildDir).toString())));
         }
 
         List<String> commands = platformConfig.linkCmds; // Used by e.g. the Switch platform
@@ -1602,7 +1618,7 @@ class Extender {
         }
 
         for (String filepath : dynamicLibsPathes) {
-            FileUtils.copyFileToDirectory(new File(filepath), buildState.buildDir);
+            JobFiles.copyFileToDirectory(buildState.jobDir, new File(filepath), buildState.buildDir);
         }
 
         // Collect output/binaries
@@ -1802,9 +1818,7 @@ class Extender {
                 }
             }
             File resourceList = new File(buildState.buildDir, "compiledresources.txt");
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(resourceList))) {
-                writer.write(sb.toString());
-            }
+            JobFiles.writeString(buildState.jobDir, resourceList, sb.toString(), Charset.defaultCharset());
             context.put("resourceListFile", resourceList.getAbsolutePath());
 
             // extra packages
@@ -1909,9 +1923,11 @@ class Extender {
                 File sourcesListFile = new File(tmpDir, "sources.txt");
 
                 // Write source paths to sources.txt
+                StringBuilder sourcesList = new StringBuilder();
                 for (File javaFile : files) {
-                    FileUtils.writeStringToFile(sourcesListFile, javaFile.getAbsolutePath() + "\n", Charset.defaultCharset(), true);
+                    sourcesList.append(javaFile.getAbsolutePath()).append('\n');
                 }
+                JobFiles.writeString(buildState.jobDir, sourcesListFile, sourcesList.toString(), Charset.defaultCharset());
 
                 // Compile sources into class files
                 Map<String, Object> context = createContext(mergedAppContext);
@@ -1984,9 +2000,11 @@ class Extender {
             File outputJar = new File(tmpDir, "output.jar");
 
             // Add all Java file paths to the sources.txt file
+            StringBuilder sourcesList = new StringBuilder();
             for (File javaSrc : javaSrcFiles) {
-                FileUtils.writeStringToFile(sourcesListFile, javaSrc.getAbsolutePath() + "\n", Charset.defaultCharset(), true);
+                sourcesList.append(javaSrc.getAbsolutePath()).append('\n');
             }
+            JobFiles.writeString(buildState.jobDir, sourcesListFile, sourcesList.toString(), Charset.defaultCharset());
 
             // Compile sources into class files
             Map<String, Object> context = createContext(manifestContext);
@@ -2113,7 +2131,11 @@ class Extender {
                 .map(classFile -> String.format("-keep class %s { *; }", classFile.replace("/", ".").replace(".class", "")))
                 .collect(Collectors.toList());
         try {
-            Files.write(mainList.toPath(), keepRules, Charset.defaultCharset());
+            StringBuilder mainListContents = new StringBuilder();
+            for (String rule : keepRules) {
+                mainListContents.append(rule).append(System.lineSeparator());
+            }
+            JobFiles.writeString(buildState.jobDir, mainList, mainListContents.toString(), Charset.defaultCharset());
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to write to " + mainList.getAbsolutePath());
         }
@@ -2421,6 +2443,21 @@ class Extender {
         }
     }
 
+    /**
+     * The directory a copy from {@code source} must stay inside: the shared Gradle cache for the
+     * artifacts Gradle exploded there, the job directory for everything else. Every Gradle resolve
+     * can write to that cache, so it is checked as a root of its own, never trusted as a way out.
+     */
+    private File copyRootFor(File source) {
+        if (gradleCacheDir != null) {
+            Path cache = gradleCacheDir.toPath().toAbsolutePath().normalize();
+            if (source.toPath().toAbsolutePath().normalize().startsWith(cache)) {
+                return gradleCacheDir;
+            }
+        }
+        return buildState.jobDir;
+    }
+
     private List<File> copyAndroidJniFolders() throws ExtenderException {
         List<File> jniFolders = getAndroidJniFolders();
         if (jniFolders.isEmpty()) {
@@ -2430,7 +2467,7 @@ class Extender {
 
         try {
             for (File jni : jniFolders) {
-                FileUtils.copyDirectory(jni, targetDir);
+                JobFiles.copyDirectory(buildState.jobDir, copyRootFor(jni), jni, targetDir, null);
             }
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android JNIs");
@@ -2448,7 +2485,7 @@ class Extender {
 
         try {
             for (File a : assets) {
-                FileUtils.copyDirectory(a, targetDir);
+                JobFiles.copyDirectory(buildState.jobDir, copyRootFor(a), a, targetDir, null);
             }
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android assets");
@@ -2475,13 +2512,18 @@ class Extender {
                 File packageResourceDir = new File(androidResourceFolder);
                 String packageName = packageNames.get(index);
                 File targetDir = new File(packagesDir, packageName + "/res");
-                FileUtils.copyDirectory(packageResourceDir, targetDir);
+                JobFiles.copyDirectory(buildState.jobDir, copyRootFor(packageResourceDir), packageResourceDir, targetDir, null);
 
                 String relativePath = ExtenderUtil.getRelativePath(packagesDir, targetDir);
                 packagesList.add(relativePath);
             }
 
-            Files.write(new File(packagesDir, "packages.txt").toPath(), packagesList, StandardCharsets.UTF_8);
+            StringBuilder packagesTxt = new StringBuilder();
+            for (String line : packagesList) {
+                packagesTxt.append(line).append(System.lineSeparator());
+            }
+            JobFiles.writeString(buildState.jobDir, new File(packagesDir, "packages.txt"), packagesTxt.toString(),
+                    StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to copy android resources");
         }
@@ -2503,7 +2545,7 @@ class Extender {
                     if (ExtenderUtil.isMetaInfEntryValuable(entry)) {
                         // Extract the file
                         LOGGER.info(String.format("Extracting file: %s", entry.getName()));
-                        result.add(ExtenderUtil.extractFile(jarFile, entry, buildState.buildDir));
+                        result.add(ExtenderUtil.extractFile(buildState.jobDir, jarFile, entry, buildState.buildDir));
                     }
                 }
             } catch (IOException exc) {
@@ -2637,7 +2679,7 @@ class Extender {
         if (privacyManifests.size() == 1) {
             File targetFile = new File(buildState.buildDir, "PrivacyInfo.xcprivacy");
             try {
-                FileUtils.copyFile(privacyManifests.get(0), targetFile);
+                JobFiles.copyFile(buildState.jobDir, privacyManifests.get(0), targetFile);
                 outputFiles.add(targetFile);
             } catch (IOException exc) {
                 LOGGER.warn("Can't copy PrivacyInfo.xcprivacy to build folder", exc);
@@ -2719,7 +2761,7 @@ class Extender {
 
             LOGGER.info("Copying manifest");
             try {
-                FileUtils.copyFile(mainManifest, targetManifest);
+                JobFiles.copyFile(buildState.jobDir, mainManifest, targetManifest);
             } catch (IOException e) {
                 throw new ExtenderException(e, String.format("Failed to copy manifest %s to %s", mainManifest.getAbsolutePath(), targetManifest.getAbsolutePath()));
             }
@@ -2747,7 +2789,7 @@ class Extender {
         File logFile = new File(buildState.buildDir, "log.txt");
         try {
             LOGGER.info("Writing log file");
-            processExecutor.writeLog(logFile);
+            processExecutor.writeLog(buildState.jobDir, logFile);
         } catch (IOException e) {
             LOGGER.error(Markers.SERVER_ERROR, "Failed to write log file to {}", logFile.getAbsolutePath());
         }
@@ -2766,6 +2808,14 @@ class Extender {
                             artifact.getFile().getCanonicalFile(),
                             artifact.getResourcePackageName());
                 }
+            }
+            // the exploded artifacts stay in the Gradle cache, where the manifest merge, javac
+            // and the packaging steps read them from inside the toolchain sandbox
+            File gradleHome = gradleService.getGradleHome();
+            if (gradleHome != null) {
+                gradleCacheDir = gradleHome;
+                processExecutor.setPolicy(processExecutor.getPolicy()
+                        .withReadOnlyPaths(List.of(gradleHome.getAbsolutePath())));
             }
         }
         catch (IOException e) {
@@ -2913,6 +2963,10 @@ class Extender {
             ResolvedPackages resolvedPackages = swiftPackageManagerService.resolveDependencies(platformConfig, buildState);
             if (resolvedPackages != null) {
                 resolvedNativeDeps.add(resolvedPackages);
+                // the link step runs in the toolchain sandbox, which only sees the platformsdk
+                // toolchain; the package products auto-link Xcode's Swift runtime archives
+                processExecutor.setPolicy(processExecutor.getPolicy()
+                        .withReadOnlyPaths(resolvedPackages.getSandboxReadOnlyPaths()));
             }
         }
         catch (IOException e) {

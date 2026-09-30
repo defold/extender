@@ -1,0 +1,11 @@
+{
+  "pins" : [
+    {
+      "identity" : "swift-log",
+      "kind" : "registry",
+      "location" : "apple.swift-log",
+      "state" : { "version" : "1.5.0" }
+    }
+  ],
+  "version" : 2
+}

@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import com.defold.extender.process.JobFiles;
 
 /** Applies the server-side policy for untrusted R8/ProGuard-compatible rule files. */
 final class R8RulePolicy {
@@ -171,7 +172,9 @@ final class R8RulePolicy {
             output.write(prefix);
             output.write(contents);
             Files.createDirectories(target.getParentFile().toPath());
-            Files.write(target.toPath(), output.toByteArray());
+            // the empty base is created in <job>/build, so its grandparent is the job directory
+            File jobDir = emptyBase.getAbsoluteFile().getParentFile().getParentFile();
+            JobFiles.write(jobDir, target, output.toByteArray());
         } catch (IOException e) {
             throw new ExtenderException(e, "Failed to write sanitized R8 rules to " + target);
         }
