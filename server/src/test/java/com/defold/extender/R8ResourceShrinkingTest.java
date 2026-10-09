@@ -1,5 +1,6 @@
 package com.defold.extender;
 
+import com.android.aapt.Resources;
 import com.android.tools.r8.R8;
 import com.android.tools.r8.R8Command;
 import com.android.tools.r8.origin.Origin;
@@ -113,7 +114,7 @@ public class R8ResourceShrinkingTest {
                 new R8Configuration(), new TemplateExecutor(), executor);
     }
 
-    // Verifies the real pinned R8 shrinks resources using code/XML reachability and tools:keep, while older SDKs retain their archive.
+    // Verifies real R8 shrinking preserves retained dotted raw files (#13398), removes unused files, and leaves older SDKs unchanged.
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void optimizesResourcesAndPreservesLegacySdkBehavior(boolean shrinkResources, @TempDir Path temporary) throws Exception {
@@ -146,11 +147,35 @@ public class R8ResourceShrinkingTest {
         assertFalse(dexClasses.contains("Lcom/defold/r8resources/DeadCode;"));
         assertEquals(!shrinkResources, dexClasses.contains("Lcom/defold/r8resources/UnusedView;"));
         try (ZipFile archive = new ZipFile(output.compiledResources)) {
-            for (String name : List.of("AndroidManifest.xml", "resources.pb", "res/layout/used_layout.xml", "res/raw/code_kept.bin", "res/raw/dynamic_kept.bin")) {
+            for (String name : List.of("AndroidManifest.xml", "resources.pb", "res/layout/used_layout.xml", "res/raw/code_kept.bin", "res/raw/dynamic_kept.bin",
+                    "res/raw/com.example.keep.example.keep.xml", "res/raw/com.example.data.example.data.bin")) {
                 assertNotNull(archive.getEntry(name), name);
             }
-            for (String name : List.of("res/layout/unused_layout.xml", "res/raw/unused.bin", "res/raw/dead_code.bin")) {
+            for (String name : List.of("res/layout/unused_layout.xml", "res/raw/unused.bin", "res/raw/dead_code.bin",
+                    "res/raw/com.example.unused.example.unused.bin")) {
                 assertEquals(!shrinkResources, archive.getEntry(name) != null, name);
+            }
+            try (ZipFile input = new ZipFile(FIXTURE.resolve("resources.ap_").toFile())) {
+                for (String name : List.of("res/raw/com.example.keep.example.keep.xml", "res/raw/com.example.data.example.data.bin")) {
+                    assertArrayEquals(input.getInputStream(input.getEntry(name)).readAllBytes(),
+                            archive.getInputStream(archive.getEntry(name)).readAllBytes(), name);
+                }
+            }
+            try (var input = archive.getInputStream(archive.getEntry("resources.pb"))) {
+                Resources.ResourceTable table = Resources.ResourceTable.parseFrom(input);
+                for (Resources.Package resourcePackage : table.getPackageList()) {
+                    for (Resources.Type type : resourcePackage.getTypeList()) {
+                        for (Resources.Entry entry : type.getEntryList()) {
+                            for (Resources.ConfigValue config : entry.getConfigValueList()) {
+                                Resources.Item item = config.getValue().getItem();
+                                if (item.hasFile()) {
+                                    String path = item.getFile().getPath();
+                                    assertNotNull(archive.getEntry(path), "Missing file referenced by resources.pb: " + path);
+                                }
+                            }
+                        }
+                    }
+                }
             }
             String table = new String(archive.getInputStream(archive.getEntry("resources.pb")).readAllBytes(), StandardCharsets.ISO_8859_1);
             for (String name : List.of("manifest_kept", "xml_kept", "code_kept")) {
@@ -178,7 +203,7 @@ public class R8ResourceShrinkingTest {
 
     // Verifies failed or malformed resource output cannot silently publish the original unoptimized archive.
     @ParameterizedTest
-    @ValueSource(strings = {"missing", "invalid-zip", "missing-table"})
+    @ValueSource(strings = {"missing", "invalid-zip", "missing-table", "invalid-table"})
     void rejectsMissingOrInvalidResourceOutput(String failure, @TempDir Path temporary) throws Exception {
         R8Builder builder = builder(temporary, configuration(true), temporary.resolve("unused.jar"), (command, context) -> {
             try {
@@ -187,11 +212,16 @@ public class R8ResourceShrinkingTest {
                 Path archive = Path.of((String) context.get("android_resources_out"));
                 if (failure.equals("invalid-zip")) {
                     Files.writeString(archive, "invalid");
-                } else if (failure.equals("missing-table")) {
+                } else if (failure.equals("missing-table") || failure.equals("invalid-table")) {
                     try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive))) {
                         zip.putNextEntry(new ZipEntry("AndroidManifest.xml"));
                         zip.write(1);
                         zip.closeEntry();
+                        if (failure.equals("invalid-table")) {
+                            zip.putNextEntry(new ZipEntry("resources.pb"));
+                            zip.write(255);
+                            zip.closeEntry();
+                        }
                     }
                 }
             } catch (IOException e) {

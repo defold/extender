@@ -57,12 +57,13 @@ repositories {
     exclusiveContent {
         forRepository {
             maven {
-                name = 'GoogleR8'
+                name = 'GoogleAndroidTools'
                 url = uri('https://dl.google.com/dl/android/maven2/')
             }
         }
         filter {
             includeModule('com.android.tools', 'r8')
+            includeModule('com.android.tools.build', 'aapt2-proto')
         }
     }
 }
@@ -84,6 +85,7 @@ dependencies {
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
     implementation('com.google.cloud:google-cloud-compute:1.108.0')
     implementation('com.samskivert:jmustache:1.16')
+    implementation('com.android.tools.build:aapt2-proto:8.13.2-14304508')
     implementation('commons-chain:commons-chain:1.2')
     implementation('tools.jackson.core:jackson-databind')
     implementation('org.apache.commons:commons-fileupload2-jakarta:2.0.0-M1')
