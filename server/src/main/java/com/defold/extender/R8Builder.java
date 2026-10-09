@@ -953,11 +953,7 @@ final class R8Builder {
             throw new ExtenderException("R8 completed without producing optimized compiledresources.apk");
         }
         try {
-            try (ZipFile archive = new ZipFile(optimizedResources)) {
-                if (archive.getEntry("AndroidManifest.xml") == null || archive.getEntry("resources.pb") == null) {
-                    throw new ExtenderException("R8 produced an invalid proto resource archive: expected AndroidManifest.xml and resources.pb");
-                }
-            }
+            R8ResourceArchive.validateAndRestoreRawResources(linkedResources, optimizedResources);
             LOGGER.info("R8 Android resources: {} -> {} bytes", linkedResources.length(), optimizedResources.length());
             return moveR8OutputFile(r8OutputDir, optimizedResources);
         } catch (IOException e) {

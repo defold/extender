@@ -184,6 +184,12 @@ and its AAPT2 link command must omit `--proguard`. R8 receives the linked proto
 archive and returns the optimized archive under the existing `compiledresources.apk`
 name. A missing or invalid optimized archive fails the build.
 
+Extender checks file references in the optimized resource table. As a compatibility
+fix for R8 dropping dotted raw filenames (Defold #13398), it restores missing
+uncompiled dotted raw resources only when both the input and output tables refer
+to the original file. Other missing references fail the build. Resource IDs,
+names, and R8's optimized table remain unchanged.
+
 Older SDKs without the capability retain their code-only R8 path and AAPT-generated
 keep rules. D8 builds keep their original archive. Resource shrinking uses the same
 `_app/app.keep` opt-in as code optimization.
