@@ -83,7 +83,7 @@ dependencies {
 
     implementation('com.google.cloud:spring-cloud-gcp-starter-storage')
     implementation('com.google.cloud:spring-cloud-gcp-starter-logging')
-    implementation('com.google.cloud:google-cloud-compute:1.108.0')
+    implementation('com.google.cloud:google-cloud-compute:1.109.0')
     implementation('com.samskivert:jmustache:1.16')
     implementation('com.android.tools.build:aapt2-proto:8.13.2-14304508')
     implementation('commons-chain:commons-chain:1.2')
