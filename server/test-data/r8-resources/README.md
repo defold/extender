@@ -5,6 +5,12 @@ The Java fixture exercises live code references, removed-code references, and vi
 referenced only by used or unused layouts. `res/raw/keep.xml` protects a resource
 that has no static code reference. The activity is a test root, not an installable app.
 
+`com.example.keep.xml` keeps itself and `com.example.data.bin`, while
+`com.example.unused.bin` remains unused. These exercise R8's dotted-filename lookup
+bug (Defold #13398): AAPT2 produces matching doubled paths in the table and ZIP,
+but R8 removes the retained files. Extender restores only the missing raw files
+still referenced by the optimized table; unused dotted files stay removed.
+
 The checked-in archive and generated `R.java` let the regression test run without
 an Android SDK. Regenerate them with build-tools 36.1.0:
 
