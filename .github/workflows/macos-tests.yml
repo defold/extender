@@ -32,8 +32,9 @@ jobs:
         distribution: 'temurin'
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-    - name: Install xcodegen
-      run: brew install xcodegen
+    # Same tools as server/scripts/standalone/setup-standalone-env.sh
+    - name: Install build tools
+      run: brew install milend/taps/hmap xcodegen
     # Integration tests boot the Linux docker stack, which isn't available on macOS runners.
     # spmE2e runs the real xcodegen + xcodebuild package resolution against a public package.
     - name: Run extender tests
