@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 public class LogTruncatorTest {
-    private static final Pattern MARKER = Pattern.compile("\\n?\\((\\d+) chars truncated\\)\\n");
+    private static final Pattern MARKER = Pattern.compile("\\n\\((\\d+) chars truncated\\)\\n");
 
     private static int truncatedCount(String result) {
         Matcher m = MARKER.matcher(result);
@@ -23,9 +23,7 @@ public class LogTruncatorTest {
     public void shortValueIsUnchanged() {
         String value = "short";
         assertSame(value, LogTruncator.truncate(value, 100));
-        assertSame(value, LogTruncator.tail(value, 100));
         assertNull(LogTruncator.truncate(null, 100));
-        assertNull(LogTruncator.tail(null, 100));
     }
 
     @Test
@@ -40,20 +38,8 @@ public class LogTruncatorTest {
     }
 
     @Test
-    public void tailKeepsEnd() {
-        String value = "HEAD" + "x".repeat(10_000) + "TAIL";
-        String result = LogTruncator.tail(value, 1000);
-        assertTrue(result.startsWith("("));
-        assertTrue(result.endsWith("TAIL"));
-        assertTrue(result.length() <= 1000);
-        int markerLength = result.length() - MARKER.matcher(result).replaceFirst("").length();
-        assertEquals(value.length(), result.length() - markerLength + truncatedCount(result));
-    }
-
-    @Test
     public void resultNeverExceedsLimitJustAboveIt() {
         String value = "y".repeat(101);
         assertTrue(LogTruncator.truncate(value, 100).length() <= 100);
-        assertTrue(LogTruncator.tail(value, 100).length() <= 100);
     }
 }

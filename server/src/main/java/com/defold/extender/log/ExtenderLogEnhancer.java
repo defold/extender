@@ -13,7 +13,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 
 public class ExtenderLogEnhancer implements LoggingEnhancer, LoggingEventEnhancer {
     // Cloud Logging rejects entries above 256 KB; a char may take up to 3 bytes in UTF-8
-    static final int MAX_MESSAGE_LENGTH = 64 * 1024;
+    static final int MAX_MESSAGE_LENGTH = 32 * 1024;
 
     @Override
     public void enhanceLogEntry(Builder builder) {
