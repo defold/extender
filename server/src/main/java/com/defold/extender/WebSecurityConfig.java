@@ -10,6 +10,16 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Configuration
 @EnableWebSecurity
@@ -70,6 +80,14 @@ public class WebSecurityConfig {
         // 	http.authorizeRequests().requestMatchers("/query").hasRole("CACHE").and().httpBasic();
         // 	http.authorizeRequests().requestMatchers("/actuator/prometheus").hasRole("COLLECTOR").and().httpBasic();
         // }
+        if (authenticatedPlatforms.length > 0) {
+            // Write the responses directly: sendError() would forward to /error, which tries to parse the
+            // already discarded multipart body and answers with 400 instead (defold/extender#1092).
+            http.httpBasic(basic -> basic.authenticationEntryPoint(WebSecurityConfig::rejectInvalidCredentials))
+                .exceptionHandling(exceptions -> exceptions
+                    .authenticationEntryPoint(WebSecurityConfig::rejectInvalidCredentials)
+                    .accessDeniedHandler(WebSecurityConfig::rejectPlatformAccess));
+        }
         http.authorizeHttpRequests((authorizeHttpRequest) -> authorizeHttpRequest.anyRequest().permitAll())
             .csrf(csrf -> csrf.disable());
         return http.build();
@@ -78,5 +96,28 @@ public class WebSecurityConfig {
     @Bean
     InMemoryUserDetailsManager userDetailsManagerBean() {
         return userDetailsManager;
+    }
+
+    private static void rejectInvalidCredentials(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException {
+        reject(response, "Missing or invalid credentials. Check the user name and password of the build server.");
+    }
+
+    private static void rejectPlatformAccess(HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception) throws IOException {
+        final String user = request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : "";
+        reject(response, String.format("User '%s' does not have access to platform '%s'.", user, platformOf(request)));
+    }
+
+    // /build_async/{platform}/...
+    private static String platformOf(HttpServletRequest request) {
+        final String[] segments = request.getRequestURI().split("/");
+        return segments.length > 2 ? segments[2] : "";
+    }
+
+    private static void reject(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"Extender\"");
+        response.setContentType(MediaType.TEXT_PLAIN_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getWriter().write(message);
     }
 }
