@@ -1,4 +1,4 @@
-name: MacOS tests
+name: macOS tests
 
 on:
   workflow_dispatch:
@@ -7,16 +7,20 @@ on:
       - 'dev'
     paths:
       - 'server/**'
+      - '**/*.gradle'
+      - 'gradle/**'
       - '.github/workflows/macos-tests.yml'
   pull_request:
     branches:
       - 'dev'
     paths:
       - 'server/**'
+      - '**/*.gradle'
+      - 'gradle/**'
       - '.github/workflows/macos-tests.yml'
 
 jobs:
-  extender:
+  macos-unit-tests:
     runs-on: macos-15
     steps:
     - name: Checkout repo
