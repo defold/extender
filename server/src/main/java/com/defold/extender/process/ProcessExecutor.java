@@ -9,11 +9,15 @@ import java.io.PrintWriter;
 import java.util.*;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.log.LogTruncator;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProcessExecutor {
+    static final int MAX_FAILURE_COMMAND_LENGTH = 4 * 1024;
+    static final int MAX_FAILURE_OUTPUT_LENGTH = 16 * 1024;
+
     private final StringBuffer output = new StringBuffer();
     private final Map<String, String> env = new HashMap<>();
     private File cwd = null;
@@ -54,12 +58,22 @@ public class ProcessExecutor {
 
         byte[] buf = new byte[16 * 1024];
         InputStream is = p.getInputStream();
+        // the shared output may be appended to concurrently, so this command's output is kept separately
+        StringBuilder commandOutput = new StringBuilder();
+        long discardedOutputLength = 0;
 
         int n;
         do {
             n = is.read(buf);
             if (n > 0) {
-                putLog(new String(buf, 0, n));
+                String chunk = new String(buf, 0, n);
+                putLog(chunk);
+                commandOutput.append(chunk);
+                if (commandOutput.length() > 2 * MAX_FAILURE_OUTPUT_LENGTH) {
+                    int excess = commandOutput.length() - MAX_FAILURE_OUTPUT_LENGTH;
+                    commandOutput.delete(0, excess);
+                    discardedOutputLength += excess;
+                }
             }
         }
         while (n > 0);
@@ -86,10 +100,23 @@ public class ProcessExecutor {
         // note: a negative exit value means the process was terminated by a signal,
         // which is a failure just like a positive exit code
         if (exitValue != 0) {
-            throw new IOException(output.toString());
+            throw new IOException(failureMessage(args, exitValue, commandOutput, discardedOutputLength));
         }
 
         return exitValue;
+    }
+
+    private static String failureMessage(List<String> args, int exitValue, StringBuilder commandOutput, long discardedOutputLength) {
+        String command = LogTruncator.truncate(String.join(" ", args), MAX_FAILURE_COMMAND_LENGTH);
+        long truncated = discardedOutputLength + Math.max(0, commandOutput.length() - MAX_FAILURE_OUTPUT_LENGTH);
+        String tail = commandOutput.substring(Math.max(0, commandOutput.length() - MAX_FAILURE_OUTPUT_LENGTH));
+        StringBuilder message = new StringBuilder();
+        message.append(String.format("Command failed with exit code %d: %s\n", exitValue, command));
+        if (truncated > 0) {
+            message.append(String.format("(%d chars of output truncated)\n", truncated));
+        }
+        message.append(tail);
+        return message.toString();
     }
 
     public String getOutput() {
