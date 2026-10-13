@@ -47,10 +47,17 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import org.apache.http.HttpEntity;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import com.defold.extender.BuilderConstants;
 import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
+import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.progress.BuildProgressService;
 import com.defold.extender.services.DataCacheService;
@@ -297,6 +304,42 @@ public class RemoteEngineBuilderTest {
         Path errorResult = resultDir.resolve(BuilderConstants.BUILD_ERROR_FILENAME);
         assertTrue(waitFor(() -> errorResult.toFile().exists(), 15_000));
         assertEquals("no space left on device", Files.readString(errorResult));
+    }
+
+    private List<ILoggingEvent> rejectedBuildLogEvents(int builderStatus, String jobName) throws Exception {
+        builderMock.stubFor(post(urlPathMatching("/build_async/.*"))
+                .willReturn(aResponse().withStatus(builderStatus).withBody("rejected")));
+        Logger logger = (Logger) LoggerFactory.getLogger(RemoteEngineBuilder.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            Path errorResult = submitBuild(createBuilder(1), jobName).resolve(BuilderConstants.BUILD_ERROR_FILENAME);
+            assertTrue(waitFor(() -> errorResult.toFile().exists(), 15_000));
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list.stream().filter(e -> e.getMarkerList() != null && !e.getMarkerList().isEmpty()).toList();
+    }
+
+    @Test
+    @Timeout(60)
+    public void buildRejectedByBuilderAsUserFailureIsABuildError() throws Exception {
+        List<ILoggingEvent> events = rejectedBuildLogEvents(422, "user-failure");
+
+        assertEquals(1, events.size());
+        assertEquals(Level.INFO, events.get(0).getLevel());
+        assertTrue(events.get(0).getMarkerList().contains(Markers.BUILD_ERROR));
+    }
+
+    @Test
+    @Timeout(60)
+    public void buildRejectedByBuilderWithServerErrorIsAServerError() throws Exception {
+        List<ILoggingEvent> events = rejectedBuildLogEvents(500, "server-failure");
+
+        assertEquals(1, events.size());
+        assertEquals(Level.ERROR, events.get(0).getLevel());
+        assertTrue(events.get(0).getMarkerList().contains(Markers.SERVER_ERROR));
     }
 
     // ---------------------------------------------------------------------------------------------

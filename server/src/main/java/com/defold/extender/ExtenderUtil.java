@@ -356,7 +356,7 @@ public class ExtenderUtil
             Object v = config.context.get(name);
             if( v != null ) {
                 if (!ExtenderUtil.isListOfStrings((List<Object>) v)) {
-                    throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
+                    throw new BuildFailedException(String.format("The context variables only support lists of strings. Got %s (type %s)", v.toString(), v.getClass().getCanonicalName()));
                 }
                 items.addAll((List<String>) v);
             }
@@ -423,7 +423,7 @@ public class ExtenderUtil
             try {
                 return Integer.valueOf(((String)o).trim());
             } catch (NumberFormatException e) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Error in app.manifest: '%s' must be an integer, got '%s'.", name, o));
             }
         }
@@ -498,10 +498,10 @@ public class ExtenderUtil
             }
 
             if (v1 != null && v2 != null && !v1.getClass().equals(v2.getClass())) {
-                throw new ExtenderException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
+                throw new BuildFailedException(String.format("Wrong manifest context variable type for %s: Expected %s, got %s: %s", k, v1.getClass().toString(), v2.getClass().toString(), v2.toString()));
             }
             if (v2 != null && v2 instanceof List && !ExtenderUtil.isListOfStrings((List<Object>) v2)) {
-                throw new ExtenderException(String.format("The context variables only support lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
+                throw new BuildFailedException(String.format("The context variables only support lists of strings. Got %s (type %s)", v2.toString(), v2.getClass().getCanonicalName()));
             }
 
             if (v1 != null && v2 != null && v1 instanceof List) {
@@ -618,7 +618,7 @@ public class ExtenderUtil
         if (v instanceof List && isListOfStrings((List<Object>)v)) {
             return (List<String>)v;
         }
-        throw new ExtenderException(String.format("The context variables only support strings or lists of strings. Key %s: %s (type %s)", key, v.toString(), v.getClass().getCanonicalName()));
+        throw new BuildFailedException(String.format("The context variables only support strings or lists of strings. Key %s: %s (type %s)", key, v.toString(), v.getClass().getCanonicalName()));
     }
 
     // Does a regexp match on the filename for each file found in a directory

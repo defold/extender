@@ -204,8 +204,14 @@ public class RemoteEngineBuilder {
             touchInstance(remoteInstanceConfig.getInstanceId());
             try (CloseableHttpResponse response = httpClient.execute(request)) {
                 // copied from ExtenderClient. Think about code deduplication.
-                if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-                    LOGGER.error(Markers.COMPILATION_ERROR,  "Failed to build source.");
+                int buildStatusCode = response.getStatusLine().getStatusCode();
+                if (buildStatusCode != HttpStatus.SC_OK) {
+                    // the builder answers 422 only when the request or project itself is at fault
+                    if (buildStatusCode == HttpStatus.SC_UNPROCESSABLE_ENTITY) {
+                        LOGGER.info(Markers.BUILD_ERROR, "Remote build failed - job: {}, platform: {}, SDK: {}", jobName, platform, sdkVersion);
+                    } else {
+                        LOGGER.error(Markers.SERVER_ERROR, "Remote builder returned HTTP {} for build_async of job {}", buildStatusCode, jobName);
+                    }
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     try (PrintWriter writer = new PrintWriter(errorFile)) {
                         IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
@@ -336,7 +342,7 @@ public class RemoteEngineBuilder {
                     Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
                     LOGGER.info(String.format("Job %s result got.", jobId));
                 } else {
-                    LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
+                    LOGGER.info(Markers.BUILD_ERROR, "Remote build failed - remote job: {}", jobId);
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     try (PrintWriter writer = new PrintWriter(errorFile)) {
                         IOUtils.copy(resultResponse.getEntity().getContent(), writer, Charset.defaultCharset());

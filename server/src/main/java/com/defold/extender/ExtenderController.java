@@ -141,17 +141,25 @@ public class ExtenderController {
         Gauge.builder("extender.versionInfo", staticValue).tags("version", Version.appVersion, "commit_sha", Version.gitVersion).register(meterRegistry);
     }
 
-    @ExceptionHandler({ExtenderException.class})
-    public ResponseEntity<String> handleExtenderException(ExtenderException ex) {
-        LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build extension: " + ex.getOutput());
+    @ExceptionHandler({BuildFailedException.class})
+    public ResponseEntity<String> handleBuildFailedException(BuildFailedException ex) {
+        LOGGER.warn(Markers.CLIENT_ERROR, "Rejected build request: {}", ex.getOutput());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.TEXT_PLAIN);
         return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
+    @ExceptionHandler({ExtenderException.class})
+    public ResponseEntity<String> handleExtenderException(ExtenderException ex) {
+        LOGGER.error(Markers.SERVER_ERROR, "Failed to handle build request", ex);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.TEXT_PLAIN);
+        return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @ExceptionHandler({PlatformNotSupportedException.class, VersionNotSupportedException.class})
     public ResponseEntity<String> handleUsupportedExceptions(Exception exc) {
-        LOGGER.error(Markers.SERVER_ERROR, exc.getMessage(), exc);
+        LOGGER.warn(Markers.CLIENT_ERROR, exc.getMessage());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.TEXT_PLAIN);
         return new ResponseEntity<>(exc.getMessage(), headers, HttpStatus.NOT_IMPLEMENTED);
@@ -179,7 +187,7 @@ public class ExtenderController {
 
         boolean isMultipart = JakartaServletFileUpload.isMultipartContent(_request);
         if (!isMultipart) {
-            throw new ExtenderException("The request must be a multi part request");
+            throw new BuildFailedException("The request must be a multi part request");
         }
 
         MultipartHttpServletRequest request = (MultipartHttpServletRequest)_request;
@@ -249,11 +257,11 @@ public class ExtenderController {
                     buildEnvDescription = ExtenderUtil.getSdksForPlatform(platform, mappings);
                 } catch(ExtenderException exc) {
                     if (instanceType.equals(InstanceType.FRONTEND_ONLY)) {
-                        LOGGER.error("Unsupported engine version '{}'", sdkVersion);
+                        LOGGER.warn(Markers.CLIENT_ERROR, "Unsupported engine version '{}'", sdkVersion);
                         throw new VersionNotSupportedException(sdkVersion);
                     }
                 } catch (NullPointerException exc) {
-                    LOGGER.error("Unsupported build platform '{}'", platform);
+                    LOGGER.warn(Markers.CLIENT_ERROR, "Unsupported build platform '{}'", platform);
                     throw new PlatformNotSupportedException(platform);
                 }
                 // Build engine locally or on remote builder
@@ -267,7 +275,7 @@ public class ExtenderController {
                     asyncBuilder.asyncBuildEngine(metricsWriter, platform, sdkVersion, jobDirectory, uploadDirectory, buildDirectory);
                 } else {
                     // no remote builder was found and current instance can't build
-                    LOGGER.error("Unsupported build platform '{}'", platform);
+                    LOGGER.warn(Markers.CLIENT_ERROR, "Unsupported build platform '{}'", platform);
                     throw new PlatformNotSupportedException(platform);
                 }
             }
@@ -277,14 +285,9 @@ public class ExtenderController {
             metricsWriter.measureSentResponse();
             isBuildStarted = true;
         } catch(EofException e) {
-            throw new ExtenderException(e, "Client closed connection prematurely, build aborted");
+            throw new BuildFailedException(e, "Client closed connection prematurely, build aborted");
         } catch(FileUploadException e) {
-            throw new ExtenderException(e, "Bad request: " + e.getMessage());
-        } catch(VersionNotSupportedException|PlatformNotSupportedException exc) {
-            throw exc;
-        } catch(Exception e) {
-            LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion));
-            throw e;
+            throw new BuildFailedException(e, "Bad request: " + e.getMessage());
         } finally {
             boolean deleteDirectory = true;
             if (DM_DEBUG_KEEP_JOB_FOLDER != null) {
@@ -388,15 +391,15 @@ public class ExtenderController {
     static void validateFilename(String path) throws ExtenderException {
         Matcher m = ExtenderController.FILENAME_RE.matcher(path);
         if (!m.matches() || FILENAME_ARGV_UNSAFE.matcher(path).find()) {
-            throw new ExtenderException(String.format("Filename '%s' is invalid or contains invalid characters", path));
+            throw new BuildFailedException(String.format("Filename '%s' is invalid or contains invalid characters", path));
         }
     }
 
     static void receiveUpload(MultipartHttpServletRequest request, File uploadDirectory) throws IOException, FileUploadException, ExtenderException {
         if (request.getContentLengthLong() > ExtenderController.maxPackageSize ) {
             String msg = String.format("Build request is too large: %d bytes. Max allowed size is %d bytes.", request.getContentLengthLong(), ExtenderController.maxPackageSize);
-            LOGGER.error(msg);
-            throw new ExtenderException(msg);
+            LOGGER.warn(Markers.CLIENT_ERROR, msg);
+            throw new BuildFailedException(msg);
         }
 
         if (DM_DEBUG_JOB_UPLOAD != null) {
@@ -406,7 +409,7 @@ public class ExtenderController {
         Map<String, MultipartFile> files = request.getFileMap();
 
         if (files.size() == 0) {
-            throw new ExtenderException("The build request contained no files!");
+            throw new BuildFailedException("The build request contained no files!");
         }
 
         // Parse the request
@@ -424,14 +427,14 @@ public class ExtenderController {
             File file = new File(uploadDirectory, name);
 
             if (!ExtenderUtil.isChild(uploadDirectory, file)) { // in case the name contains "../"
-                throw new ExtenderException(String.format("Files must be relative to the upload package: '%s'", key));
+                throw new BuildFailedException(String.format("Files must be relative to the upload package: '%s'", key));
             }
             if (file.exists()) {
                 String msg = String.format("Duplicate file in received zip file: '%s'", name);
                 if (DM_DEBUG_JOB_FOLDER == null) {
                     LOGGER.info(msg);
                 } else {
-                    throw new ExtenderException(msg);
+                    throw new BuildFailedException(msg);
                 }
             }
 

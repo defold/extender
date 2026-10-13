@@ -1,6 +1,7 @@
 package com.defold.extender.services;
 
 import com.defold.extender.ExtenderBuildState;
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
@@ -164,7 +165,7 @@ public class RealGradleService implements GradleServiceInterface {
         String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
         for (String keyword : GRADLE_BLOCKLIST) {
             if (content.contains(keyword)) {
-                throw new ExtenderException("build.gradle contains disallowed content: '" + keyword + "' in file: " + file.getName());
+                throw new BuildFailedException("build.gradle contains disallowed content: '" + keyword + "' in file: " + file.getName());
             }
         }
     }
