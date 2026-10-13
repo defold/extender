@@ -58,7 +58,7 @@ public final class SandboxedPath {
                         String.format("Symlink escape detected: '%s' resolves outside root directory", childPath));
                 }
             } catch (IOException e) {
-                throw new BuildFailedException(
+                throw new ExtenderException(e,
                     String.format("Failed to resolve real path for '%s': %s", childPath, e.getMessage()));
             }
         } else {
@@ -82,7 +82,7 @@ public final class SandboxedPath {
                             String.format("Symlink escape detected: ancestor of '%s' resolves outside root directory", childPath));
                     }
                 } catch (IOException e) {
-                    throw new BuildFailedException(
+                    throw new ExtenderException(e,
                         String.format("Failed to resolve real path for ancestor of '%s': %s", childPath, e.getMessage()));
                 }
             }
@@ -117,7 +117,7 @@ public final class SandboxedPath {
                         String.format("Symlink escape detected: '%s' resolves outside '%s'", target.getPath(), root.getPath()));
                 }
             } catch (IOException e) {
-                throw new BuildFailedException(
+                throw new ExtenderException(e,
                     String.format("Failed to resolve real path: %s", e.getMessage()));
             }
         }

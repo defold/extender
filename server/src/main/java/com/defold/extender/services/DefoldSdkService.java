@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
@@ -178,6 +179,8 @@ public class DefoldSdkService {
                 isVerified = true;
             } else  {
                 boolean sdkFound = false;
+                // only a definitive "not found" from every source means the client asked for an unknown sdk
+                boolean sdkMissing = true;
                 String url = null;
                 for (String urlPattern : urlPatterns) {
                     try {
@@ -185,6 +188,9 @@ public class DefoldSdkService {
                         URI sdkURI = URI.create(url);
                         try (ClientHttpResponse response = doRequestWithRedirects(sdkURI, HttpMethod.HEAD, configuration.getMaxRedirectCount())) {
                             if (response.getStatusCode() != HttpStatus.OK) {
+                                if (response.getStatusCode() != HttpStatus.NOT_FOUND && response.getStatusCode() != HttpStatus.FORBIDDEN) {
+                                    sdkMissing = false;
+                                }
                                 LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
                                 continue;
                             } else {
@@ -193,9 +199,11 @@ public class DefoldSdkService {
                                 break;
                             }
                         } catch (IOException exc) {
+                            sdkMissing = false;
                             LOGGER.warn(String.format("HEAD for %s failed", url), exc);
                         }
                     }  catch (Exception exc) {
+                        sdkMissing = false;
                         LOGGER.warn("Can't create HEAD request", exc);
                     }
                 }
@@ -279,6 +287,9 @@ public class DefoldSdkService {
                     }
                 } else {
                     sdk.close();
+                    if (!sdkMissing) {
+                        throw new CompletionException(new IOException("No sdk source is reachable for " + hash));
+                    }
                     return null;
                 }
 
