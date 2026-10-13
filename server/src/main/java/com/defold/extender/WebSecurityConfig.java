@@ -104,11 +104,10 @@ public class WebSecurityConfig {
 
     private static void rejectPlatformAccess(HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception) throws IOException {
         final String user = request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : "";
-        reject(response, String.format("User '%s' does not have access to platform '%s'.", user, platformOf(request)));
+        reject(response, String.format("User '%s' does not have access to platform '%s'.", user, platformFromBuildPath(request)));
     }
 
-    // /build_async/{platform}/...
-    private static String platformOf(HttpServletRequest request) {
+    private static String platformFromBuildPath(HttpServletRequest request) {
         final String[] segments = request.getRequestURI().split("/");
         return segments.length > 2 ? segments[2] : "";
     }

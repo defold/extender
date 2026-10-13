@@ -16,7 +16,7 @@ import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -67,14 +67,9 @@ public class PlatformAuthorizationTest {
     @LocalServerPort
     private int port;
 
-    @Autowired
-    private InMemoryUserDetailsManager userDetailsManager;
-
-    @BeforeEach
-    public void createUsers() {
-        if (!userDetailsManager.userExists("linuxuser")) {
-            userDetailsManager.createUser(User.builder().username("linuxuser").password("{noop}secret").authorities("ROLE_LINUX").build());
-        }
+    @BeforeAll
+    public static void createUsers(@Autowired InMemoryUserDetailsManager userDetailsManager) {
+        userDetailsManager.createUser(User.builder().username("linuxuser").password("{noop}secret").authorities("ROLE_LINUX").build());
     }
 
     @Test
