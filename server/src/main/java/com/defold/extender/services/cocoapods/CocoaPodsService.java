@@ -1,6 +1,7 @@
 package com.defold.extender.services.cocoapods;
 
 import com.defold.extender.ExtenderBuildState;
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
@@ -609,7 +610,7 @@ public class CocoaPodsService {
                     String subspecname = podnameparts[i];
                     PodSpec subspec = podSpec.getSubspec(subspecname);
                     if (subspec == null) {
-                        throw new ExtenderException(String.format("Unable to find subspec '%s' in pod '%s'", subspecname, podName));
+                        throw new BuildFailedException(String.format("Unable to find subspec '%s' in pod '%s'", subspecname, podName));
                     }
                     podSpec = subspec;
                 }

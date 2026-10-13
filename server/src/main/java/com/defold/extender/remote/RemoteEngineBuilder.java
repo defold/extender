@@ -205,7 +205,7 @@ public class RemoteEngineBuilder {
             try (CloseableHttpResponse response = httpClient.execute(request)) {
                 // copied from ExtenderClient. Think about code deduplication.
                 if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-                    LOGGER.error(Markers.COMPILATION_ERROR,  "Failed to build source.");
+                    LOGGER.info(Markers.BUILD_ERROR, "Remote build failed - job: {}, platform: {}, SDK: {}", jobName, platform, sdkVersion);
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     try (PrintWriter writer = new PrintWriter(errorFile)) {
                         IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
@@ -336,7 +336,7 @@ public class RemoteEngineBuilder {
                     Files.move(tmpResult.toPath(), targetResult.toPath(), StandardCopyOption.ATOMIC_MOVE);
                     LOGGER.info(String.format("Job %s result got.", jobId));
                 } else {
-                    LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
+                    LOGGER.info(Markers.BUILD_ERROR, "Remote build failed - remote job: {}", jobId);
                     File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
                     try (PrintWriter writer = new PrintWriter(errorFile)) {
                         IOUtils.copy(resultResponse.getEntity().getContent(), writer, Charset.defaultCharset());

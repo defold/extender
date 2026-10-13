@@ -7,6 +7,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
+import com.defold.extender.BuildFailure;
+
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
@@ -94,5 +96,25 @@ public class MetricsWriterTest {
 
         assertEquals(1, remoteBuildTimer(registry, PLATFORM).count());
         assertEquals(0, registry.timer("extender.job.build", "platform", PLATFORM).count());
+    }
+
+    private static double buildCount(SimpleMeterRegistry registry, String success, String failure) {
+        return registry.counter("extender.build.task",
+                "platform", PLATFORM, "sdk", "abc", "type", "async", "success", success, "failure", failure).count();
+    }
+
+    @Test
+    public void buildCounterSeparatesUserAndServerFailures() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MetricsWriter writer = new MetricsWriter(registry);
+
+        writer.measureCounterBuild(PLATFORM, "abc", "async", BuildFailure.NONE);
+        writer.measureCounterBuild(PLATFORM, "abc", "async", BuildFailure.USER);
+        writer.measureCounterBuild(PLATFORM, "abc", "async", BuildFailure.USER);
+        writer.measureCounterBuild(PLATFORM, "abc", "async", BuildFailure.SERVER);
+
+        assertEquals(1.0, buildCount(registry, "true", "none"));
+        assertEquals(2.0, buildCount(registry, "false", "user"));
+        assertEquals(1.0, buildCount(registry, "false", "server"));
     }
 }

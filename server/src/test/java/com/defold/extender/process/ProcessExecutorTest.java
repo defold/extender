@@ -46,6 +46,41 @@ public class ProcessExecutorTest {
     }
 
     @Test
+    public void toolErrorExitIsReportedAsToolError() {
+        ProcessExecutor pe = new ProcessExecutor();
+        CommandFailedException e = assertThrows(CommandFailedException.class,
+                () -> pe.execute(List.of("sh", "-c", "echo broken; exit 1")));
+        assertEquals(1, e.getExitCode());
+        assertTrue(e.isToolError());
+        assertTrue(e.getMessage().contains("broken"));
+    }
+
+    @Test
+    public void killedProcessIsNotAToolError() {
+        ProcessExecutor pe = new ProcessExecutor();
+        CommandFailedException e = assertThrows(CommandFailedException.class,
+                () -> pe.execute(List.of("sh", "-c", "kill -9 $$")));
+        assertFalse(e.isToolError());
+    }
+
+    @Test
+    public void missingCommandIsNotAToolError() {
+        ProcessExecutor pe = new ProcessExecutor();
+        CommandFailedException e = assertThrows(CommandFailedException.class,
+                () -> pe.execute(List.of("sh", "-c", "no-such-command-extender")));
+        assertEquals(127, e.getExitCode());
+        assertFalse(e.isToolError());
+    }
+
+    @Test
+    public void parallelToolErrorKeepsItsExitCode() {
+        ProcessExecutor pe = new ProcessExecutor();
+        CommandFailedException e = assertThrows(CommandFailedException.class,
+                () -> ProcessExecutor.executeCommands(pe, List.of("echo ok", "false")));
+        assertTrue(e.isToolError());
+    }
+
+    @Test
     public void putEnvMapSkipsNullValues() {
         // XCConfigParser puts System.getenv("XCTOOLCHAIN_PATH") into the map it passes here,
         // which is null whenever that variable is not set. ProcessBuilder.environment()

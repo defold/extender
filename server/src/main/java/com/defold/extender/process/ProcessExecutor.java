@@ -86,7 +86,7 @@ public class ProcessExecutor {
         // note: a negative exit value means the process was terminated by a signal,
         // which is a failure just like a positive exit code
         if (exitValue != 0) {
-            throw new IOException(output.toString());
+            throw new CommandFailedException(exitValue, output.toString());
         }
 
         return exitValue;

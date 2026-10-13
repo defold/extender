@@ -1,5 +1,6 @@
 package com.defold.extender.services;
 
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ZipUtils;
@@ -147,7 +148,7 @@ public class DefoldSdkService {
         CompletableFuture<DefoldSdk> operation = operationCache.computeIfAbsent(cacheId, id -> getRemoteSdk(id, hash, sdkUrls));
         try (DefoldSdk sdk = operation.get()){
             if (sdk == null) {
-                throw new ExtenderException(String.format("The given sdk does not exist: %s", hash));
+                throw new BuildFailedException(String.format("The given sdk does not exist: %s", hash));
             }
             if (!sdk.isValid()) {
                 throw new ExtenderException(String.format("Sdk verification failed: %s", hash));

@@ -1,5 +1,6 @@
 package com.defold.extender.metrics;
 
+import com.defold.extender.BuildFailure;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
@@ -88,8 +89,9 @@ public class MetricsWriter {
         metricsSummary(this.registry, "extender.job.cache.downloadCount", downloadCount);
     }
 
-    public void measureCounterBuild(String platform, String sdk, String buildType, Boolean isSuccessfull) {
-        measureCounterBuild("platform", platform, "sdk", sdk, "type", buildType, "success", isSuccessfull.toString());
+    public void measureCounterBuild(String platform, String sdk, String buildType, BuildFailure failure) {
+        measureCounterBuild("platform", platform, "sdk", sdk, "type", buildType,
+                "success", Boolean.toString(failure == BuildFailure.NONE), "failure", failure.tag());
     }
 
     private void measureCounterBuild(String... tags) {

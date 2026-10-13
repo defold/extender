@@ -48,13 +48,13 @@ class ExtensionManifestValidator {
         Object debugSourcePath = appContext.get(ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH);
         if (debugSourcePath != null) {
             if (!(debugSourcePath instanceof String)) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Error in app.manifest: '%s' must be a string.",
                         ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH));
             }
             String s = (String) debugSourcePath;
             if (!s.isEmpty() && !VALID_INCLUDE_PATH.matcher(s).matches()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Error in app.manifest: invalid '%s' value '%s'. Allowed characters: letters, digits and '._+-/'.",
                         ExtenderBuildState.APPMANIFEST_DEBUG_SOURCE_PATH, s));
             }
@@ -64,7 +64,7 @@ class ExtensionManifestValidator {
         Object minAndroidSdkVersion = appContext.get(ExtenderBuildState.APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD);
         if (minAndroidSdkVersion != null && !(minAndroidSdkVersion instanceof Integer)) {
             if (!(minAndroidSdkVersion instanceof String) || !VALID_API_LEVEL.matcher((String) minAndroidSdkVersion).matches()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Error in app.manifest: '%s' must be an integer, got '%s'.",
                         ExtenderBuildState.APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD, minAndroidSdkVersion));
             }
@@ -101,7 +101,7 @@ class ExtensionManifestValidator {
         List<?> values = value instanceof List ? (List<?>) value : List.of(value);
         for (Object o : values) {
             if (o instanceof String s && isArgvUnsafe(s)) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Error in '%s': invalid '%s' value '%s'. Values must not contain whitespace, backslashes, template syntax or unbalanced quotes, or name a response file.",
                         extensionName, key, s));
             }
@@ -111,7 +111,7 @@ class ExtensionManifestValidator {
     private void validateIncludePaths(String extensionName, File extensionFolder, List<String> includes) throws ExtenderException {
         for (String include : includes) {
             if (include == null || include.isEmpty() || !VALID_INCLUDE_PATH.matcher(include).matches()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Error in '%s': Invalid include path '%s'. Include paths may only contain letters, digits and '._+-/'.",
                         extensionName, include));
             }
@@ -124,7 +124,7 @@ class ExtensionManifestValidator {
 
                 if (!ExtenderUtil.isChild(extensionFolder, f))
                 {
-                    throw new ExtenderException(String.format("Error in '%s': The include '%s' path must be relative subdirectory to the extension folder '%s'", extensionName, include, extensionFolder));
+                    throw new BuildFailedException(String.format("Error in '%s': The include '%s' path must be relative subdirectory to the extension folder '%s'", extensionName, include, extensionFolder));
                 }
 
                 if (!f.exists()) {
@@ -140,7 +140,7 @@ class ExtensionManifestValidator {
             Object v = context.get(k);
 
             if (v instanceof List && !ExtensionManifestValidator.isListOfStrings((List<Object>) v)) {
-                throw new ExtenderException(String.format("Error in '%s': The context variables only support strings or lists of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
+                throw new BuildFailedException(String.format("Error in '%s': The context variables only support strings or lists of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
             }
 
             List<Pattern> patterns;
@@ -172,7 +172,7 @@ class ExtensionManifestValidator {
 
                 case "includes":
                     if (!(v instanceof List)) {
-                        throw new ExtenderException(String.format("Error in '%s': The 'includes' must be a list of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
+                        throw new BuildFailedException(String.format("Error in '%s': The 'includes' must be a list of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
                     }
 
                     validateIncludePaths(extensionName, extensionFolder, (List<String>) v);
@@ -182,7 +182,7 @@ class ExtensionManifestValidator {
                     if (v instanceof List) {
                         for (String sym : (List<String>) v) {
                             if (sym == null || !VALID_SYMBOL_IDENTIFIER.matcher(sym).matches()) {
-                                throw new ExtenderException(String.format(
+                                throw new BuildFailedException(String.format(
                                         "Error in '%s': Invalid symbol '%s'. Symbols must be valid C identifiers.",
                                         extensionName, sym));
                             }
@@ -214,7 +214,7 @@ class ExtensionManifestValidator {
 
                 default:
                     // If the user has added a non supported name
-                    throw new ExtenderException(String.format("Error in '%s': Manifest context variable unsupported: %s", extensionName, k));
+                    throw new BuildFailedException(String.format("Error in '%s': Manifest context variable unsupported: %s", extensionName, k));
             }
 
             if (v instanceof List) {
@@ -224,7 +224,7 @@ class ExtensionManifestValidator {
                     s = strings.stream().filter(ExtensionManifestValidator::namesResponseFile).findFirst().orElse(null);
                 }
                 if (s != null) {
-                    throw new ExtenderException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
+                    throw new BuildFailedException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
                 }
             }
         }

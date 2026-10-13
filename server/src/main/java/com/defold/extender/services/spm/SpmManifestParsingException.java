@@ -1,8 +1,8 @@
 package com.defold.extender.services.spm;
 
-import com.defold.extender.ExtenderException;
+import com.defold.extender.BuildFailedException;
 
-public class SpmManifestParsingException extends ExtenderException {
+public class SpmManifestParsingException extends BuildFailedException {
     public SpmManifestParsingException(String reason) {
         super(reason);
     }

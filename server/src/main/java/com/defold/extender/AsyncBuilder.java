@@ -35,6 +35,7 @@ import org.springframework.util.FileSystemUtils;
 @Service
 public class AsyncBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(AsyncBuilder.class);
+    private static final int MAX_LOGGED_OUTPUT = 2048;
 
     private DefoldSdkService defoldSdkService;
     private GradleService gradleService;
@@ -95,6 +96,33 @@ public class AsyncBuilder {
         }
     }
 
+    // Failures caused by the client are logged without a stack trace so they stay out of error reporting
+    static BuildFailure reportFailure(Exception e, String jobName, String platform, String sdkVersion) {
+        if (e instanceof BuildFailedException buildFailure) {
+            String output = tail(buildFailure.getOutput(), MAX_LOGGED_OUTPUT);
+            LOGGER.atInfo()
+                .addMarker(Markers.BUILD_ERROR)
+                .addKeyValue("job", jobName)
+                .addKeyValue("platform", platform)
+                .addKeyValue("sdk", sdkVersion)
+                .log("Build failed - job: {}, platform: {}, SDK: {}\n{}", jobName, platform, sdkVersion, output);
+            return BuildFailure.USER;
+        }
+        if (e instanceof EofException) {
+            LOGGER.warn(Markers.CLIENT_ERROR, "Client closed connection prematurely, build aborted - job: {}", jobName);
+            return BuildFailure.ABORTED;
+        }
+        LOGGER.error(Markers.SERVER_ERROR, String.format("Exception while building - job: %s, platform: %s, SDK: %s", jobName, platform, sdkVersion), e);
+        return BuildFailure.SERVER;
+    }
+
+    private static String tail(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) {
+            return text;
+        }
+        return "(truncated)\n" + text.substring(text.length() - maxLength);
+    }
+
     @Async(value="extenderTaskExecutor")
     public void asyncBuildEngine(MetricsWriter metricsWriter, String platform, String sdkVersion,
             File jobDirectory, File uploadDirectory, File buildDirectory) throws IOException {
@@ -102,7 +130,7 @@ public class AsyncBuilder {
         Thread.currentThread().setName(String.format("async-build-%s", jobName));
         File resultDir = new File(jobResultLocation, jobName);
         Extender extender = null;
-        Boolean isSuccefull = true;
+        BuildFailure failure = BuildFailure.NONE;
         ProgressReporter progressReporter = buildProgressService.reporterFor(jobName);
         try {
             Files.createDirectories(resultDir.toPath());
@@ -167,18 +195,16 @@ public class AsyncBuilder {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             writeExtenderLogsToFile(extender, errorFile);
             writeExceptionToFile(e, errorFile);
-            LOGGER.error(Markers.SERVER_ERROR, "Client closed connection prematurely, build aborted", e);
-            isSuccefull = false;
+            failure = reportFailure(e, jobName, platform, sdkVersion);
             progressReporter.terminal(false, "Build aborted: client closed connection");
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             writeExtenderLogsToFile(extender, errorFile);
             writeExceptionToFile(e, errorFile);
-            LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion), e);
-            isSuccefull = false;
+            failure = reportFailure(e, jobName, platform, sdkVersion);
             progressReporter.terminal(false, "Build failed: " + e.getMessage());
         } finally {
-            metricsWriter.measureCounterBuild(platform, sdkVersion, "async", isSuccefull);
+            metricsWriter.measureCounterBuild(platform, sdkVersion, "async", failure);
 
             // Delete temporary upload directory
             if (!keepJobDirectory) {

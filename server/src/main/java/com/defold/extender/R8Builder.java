@@ -319,10 +319,10 @@ final class R8Builder {
                     continue;
                 }
                 if (!candidateNames.add(entryName)) {
-                    throw new ExtenderException("Duplicate embedded R8 rule entry " + entryName + " in " + jar);
+                    throw new BuildFailedException("Duplicate embedded R8 rule entry " + entryName + " in " + jar);
                 }
                 if (++candidateCount > r8Configuration.getMaxRuleFiles()) {
-                    throw new ExtenderException(String.format(
+                    throw new BuildFailedException(String.format(
                             "Too many embedded R8 rule files in %s (maximum %d)",
                             jar,
                             r8Configuration.getMaxRuleFiles()));
@@ -348,7 +348,7 @@ final class R8Builder {
 
     static void validateConfiguration(String r8Cmd, String r8Version) throws ExtenderException {
         if (r8Cmd == null || r8Cmd.isBlank() || r8Version == null || r8Version.isBlank()) {
-            throw new ExtenderException("R8 shrinking was requested, but this Defold SDK does not provide r8Cmd and r8Version");
+            throw new BuildFailedException("R8 shrinking was requested, but this Defold SDK does not provide r8Cmd and r8Version");
         }
         try {
             compareVersions(r8Version, r8Version);
@@ -795,7 +795,7 @@ final class R8Builder {
                         continue;
                     }
                     if (++classEntryCount > r8Configuration.getMaxGeneratedExtensionClasses()) {
-                        throw new ExtenderException(String.format(
+                        throw new BuildFailedException(String.format(
                                 "Too many classes need generated R8 keep rules (maximum %d)",
                                 r8Configuration.getMaxGeneratedExtensionClasses()));
                     }
@@ -822,7 +822,7 @@ final class R8Builder {
                     try {
                         className = toR8ClassPattern(internalName);
                     } catch (IOException e) {
-                        throw new ExtenderException(e, String.format(
+                        throw new BuildFailedException(e, String.format(
                                 "Invalid class name in %s from %s: %s",
                                 entryName,
                                 jar,
@@ -832,7 +832,7 @@ final class R8Builder {
                         String rule = String.format("-keep class %s { *; }\n", className);
                         generatedBytes += rule.getBytes(StandardCharsets.UTF_8).length;
                         if (generatedBytes > r8Configuration.getMaxRuleFileBytes()) {
-                            throw new ExtenderException(String.format(
+                            throw new BuildFailedException(String.format(
                                     "Generated R8 keep rules are too large (maximum %d bytes)",
                                     r8Configuration.getMaxRuleFileBytes()));
                         }

@@ -53,20 +53,20 @@ final class R8RulePolicy {
         private void beginFile(String source, long declaredSize) throws ExtenderException {
             ++fileCount;
             if (fileCount > configuration.getMaxRuleFiles()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Too many R8 rule files (maximum %d), while reading %s",
                         configuration.getMaxRuleFiles(),
                         source));
             }
             if (declaredSize > configuration.getMaxRuleFileBytes()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "R8 rule file is too large (maximum %d bytes): %s",
                         configuration.getMaxRuleFileBytes(),
                         source));
             }
             if (declaredSize >= 0
                     && totalBytes + declaredSize > configuration.getMaxTotalRuleBytes()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "R8 rule files are too large in total (maximum %d bytes), while reading %s",
                         configuration.getMaxTotalRuleBytes(),
                         source));
@@ -75,14 +75,14 @@ final class R8RulePolicy {
 
         private void addBytes(String source, long fileBytes, int bytesRead) throws ExtenderException {
             if (fileBytes > configuration.getMaxRuleFileBytes()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "R8 rule file is too large (maximum %d bytes): %s",
                         configuration.getMaxRuleFileBytes(),
                         source));
             }
             totalBytes += bytesRead;
             if (totalBytes > configuration.getMaxTotalRuleBytes()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "R8 rule files are too large in total (maximum %d bytes), while reading %s",
                         configuration.getMaxTotalRuleBytes(),
                         source));
@@ -208,7 +208,7 @@ final class R8RulePolicy {
                     .decode(ByteBuffer.wrap(contents))
                     .toString();
         } catch (CharacterCodingException e) {
-            throw new ExtenderException(e, "R8 rule file is not valid UTF-8: " + source);
+            throw new BuildFailedException(e, "R8 rule file is not valid UTF-8: " + source);
         }
         String rules = decoded.startsWith("\uFEFF") ? decoded.substring(1) : decoded;
         validateRules(rules, source);
