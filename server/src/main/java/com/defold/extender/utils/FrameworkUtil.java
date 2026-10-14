@@ -13,9 +13,10 @@ public class FrameworkUtil {
      * https://github.com/CocoaPods/CocoaPods/blob/master/lib/cocoapods/xcode/linkage_analyzer.rb#L16
      * https://github.com/Homebrew/ruby-macho/
      * @param framework The framework to check
+     * @param cwd The job directory the framework lives in; the sandboxed {@code file} runs there
      * @return true if dynamically linked
      */
-    public static boolean isDynamicallyLinked(File framework) throws ExtenderException {
+    public static boolean isDynamicallyLinked(File framework, File cwd) throws ExtenderException {
         String filename = framework.getName();
         // static library
         if (filename.endsWith(".a")) {
@@ -26,7 +27,7 @@ public class FrameworkUtil {
             File frameworkBinary = new File(framework, frameworkName);
             String output = ProcessUtils.execCommand(List.of(
                 "file",
-                frameworkBinary.getAbsolutePath()), null, null);
+                frameworkBinary.getAbsolutePath()), cwd, null);
             if (output.contains("dynamically linked shared library")) {
                 return true;
             }

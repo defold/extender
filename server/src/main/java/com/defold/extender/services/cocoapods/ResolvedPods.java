@@ -16,6 +16,7 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderConst;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
@@ -28,6 +29,8 @@ public class ResolvedPods implements ResolvedNativeDeps {
     private List<PodBuildSpec> pods = new ArrayList<>();
     private File podsDir;
     private File frameworksDir;
+    // the sandboxed helper tools (file, PlistBuddy) run in the job directory
+    File jobDir;
     private File targetSupportFilesDir;
     private String platformMinVersion;
     private File podFileLock;
@@ -40,11 +43,12 @@ public class ResolvedPods implements ResolvedNativeDeps {
     private List<String> weakFrameworks;
     private boolean useFrameworks = false;
 
-    public ResolvedPods(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodBuildSpec> specs, File podfileLock, MainPodfile mainPodfile) throws IOException {
+    public ResolvedPods(CocoaPodsServiceBuildState cocoapodsBuildState, List<PodBuildSpec> specs, File podfileLock, MainPodfile mainPodfile) throws IOException, ExtenderException {
         this.platformMinVersion = mainPodfile.platformMinVersion;
         this.podsDir = cocoapodsBuildState.getPodsDir();
         this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
         this.frameworksDir = cocoapodsBuildState.getUnpackedFrameworksDir();
+        this.jobDir = cocoapodsBuildState.getJobDir();
         this.podFileLock = podfileLock;
         this.useFrameworks = mainPodfile.useFrameworks;
 
@@ -141,25 +145,29 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return new ArrayList<String>(frameworks);
     }
 
-    List<File> collectAllPodsDynamicFrameworks() throws IOException {
+    List<File> collectAllPodsDynamicFrameworks() throws IOException, ExtenderException {
         Set<File> dynamicFrameworks = new HashSet<>();
         // collect unpacked xcframeworks
         Pattern pattern = Pattern.compile(ExtenderConst.FRAMEWORK_RE);
+        List<File> candidates = new ArrayList<>();
         Files.walk(frameworksDir.toPath())
             .filter(Files::isDirectory)
             .forEach(path -> {
-                Matcher m = pattern.matcher(path.getFileName().toString());
-                if (m.matches()) {
-                    File framework = path.toFile();
-                    try {
-                        if (FrameworkUtil.isDynamicallyLinked(framework)) {
-                            dynamicFrameworks.add(framework);
-                        }
-                    } catch (ExtenderException e) {
-                        LOGGER.warn("Exception when check framework linkage type", e);
-                    }
+                if (pattern.matcher(path.getFileName().toString()).matches()) {
+                    candidates.add(path.toFile());
                 }
         });
+
+        // The probe runs `file` as a subprocess, so it now also fails on a sandbox denial, a
+        // missing launcher or the command timeout. Treating that as "statically linked" drops
+        // the framework from both the link line and the embedded set, which surfaces as
+        // undefined symbols or a crash at launch, so it propagates as ResolvedPackages already
+        // does for the same probe.
+        for (File framework : candidates) {
+            if (FrameworkUtil.isDynamicallyLinked(framework, jobDir)) {
+                dynamicFrameworks.add(framework);
+            }
+        }
 
         return new ArrayList<File>(dynamicFrameworks);
     }
@@ -190,10 +198,13 @@ public class ResolvedPods implements ResolvedNativeDeps {
         return new ArrayList<String>(weakFrameworks);
     }
 
-    public static List<File> createPodResourceBundles(PodBuildSpec spec, File targetDir, String platform) throws IOException, ExtenderException {
+    /**
+     * @param jobDir the job directory: the sandboxed PlistBuddy runs there
+     */
+    public static List<File> createPodResourceBundles(PodBuildSpec spec, File targetDir, String platform, File jobDir) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : spec.resourceBundles.entrySet()) {
-            result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue()));
+            result.add(createResourceBundle(targetDir, platform, spec, entry.getKey(), entry.getValue(), jobDir));
         }
         return result;
     }
@@ -202,18 +213,18 @@ public class ResolvedPods implements ResolvedNativeDeps {
     public List<File> createResourceBundles(File targetDir, String platform) throws IOException, ExtenderException {
         List<File> result = new ArrayList<>();
         for (PodBuildSpec spec : pods) {
-            result.addAll(createPodResourceBundles(spec, targetDir, platform));
+            result.addAll(createPodResourceBundles(spec, targetDir, platform, jobDir));
         }
         return result;
     }
 
-    static File createResourceBundle(File targetDir, String platform, PodBuildSpec pod, String bundleName, List<String> content) throws IOException, ExtenderException {
+    static File createResourceBundle(File targetDir, String platform, PodBuildSpec pod, String bundleName, List<String> content, File jobDir) throws IOException, ExtenderException {
         File resultFolder = new File(targetDir, bundleName + ".bundle");
         resultFolder.mkdirs();
         for (String contentElement : content) {
             // contentElement can be regex so expand it
             for (File f : PodUtils.listFilesGlob(pod.dir, contentElement)) {
-                FileUtils.copyFileToDirectory(f, resultFolder);
+                JobFiles.copyFileToDirectory(jobDir, f, resultFolder);
             }
         }
         File infoPlist = new File(resultFolder, "Info.plist");
@@ -225,11 +236,11 @@ public class ResolvedPods implements ResolvedNativeDeps {
         args.minVersion = pod.platformVersion;
         // TODO: if build several archs we need to merge supported platforms
         args.supportedPlatforms = PodUtils.toPlistPlatforms(new String[] { platform });
-        PlistBuddyWrapper.createBundleInfoPlist(infoPlist, args);
+        PlistBuddyWrapper.createBundleInfoPlist(infoPlist, args, jobDir);
         return resultFolder;
     }
 
-    public void setPodsSpecs(List<PodBuildSpec> specs) throws IOException {
+    public void setPodsSpecs(List<PodBuildSpec> specs) throws IOException, ExtenderException {
         pods.addAll(specs);
         frameworkSearchPaths = collectFrameworkPaths();
         librarySearchPaths = collectFrameworkStaticLibPaths();

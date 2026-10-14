@@ -1,0 +1,12 @@
+Resolve Package Graph
+
+Updating from https://github.com/acme/PkgA.git
+
+Couldn’t fetch updates from remote repositories:
+    fatal: transport 'https' not allowed
+
+Resolved source packages:
+  Package: (null)
+
+2026-09-04 22:33:01.853 xcodebuild[95590:58453955] Writing error result bundle to /var/folders/ym/b9r0ldbx2_7c94bph_0rpw8m0000gn/T/ResultBundle_2026-04-09_22-33-0001.xcresult
+xcodebuild: error: Could not resolve package dependencies:

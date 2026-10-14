@@ -31,6 +31,11 @@ public class CocoaPodsServiceBuildState {
         this.targetSupportFilesDir = new File(this.podsDir, "Target Support Files");
     }
 
+    /** The job directory the working dir lives in; sandboxed helper tools run there. */
+    public File getJobDir() {
+        return workingDir.getParentFile();
+    }
+
     public File getWorkingDir() {
         return workingDir;
     }

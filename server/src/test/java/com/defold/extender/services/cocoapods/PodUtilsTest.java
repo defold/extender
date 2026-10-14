@@ -88,6 +88,7 @@ public class PodUtilsTest {
         assertEquals("x86_64", PodUtils.archFromPlatform("x86_64-ios"));
         assertEquals("arm64", PodUtils.archFromPlatform("arm64-osx"));
         assertEquals("x86_64", PodUtils.archFromPlatform("x86_64-osx"));
+        assertThrows(IllegalArgumentException.class, () -> PodUtils.archFromPlatform("x86_64-linux"));
     }
 
     @Test

@@ -1,8 +1,10 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.8.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.9.0
 
 # Disable all debug messages
 ENV WINEDEBUG="-all"
 ENV WINEPREFIX="/var/extender/.wine"
+# writable for sandboxed wine: the prefix and wineserver's hard-coded /tmp/.wine-<uid>
+ENV EXTENDER_SANDBOX_IMAGEREADWRITEPATHS=${WINEPREFIX},/tmp/.wine-2222
 ENV DISPLAY=":1"
 ENV CLANG_VERSION=20
 ENV CLANG_HOME=/usr/lib/llvm-${CLANG_VERSION}
@@ -49,4 +51,5 @@ RUN wget -nv -O /usr/bin/winetricks https://raw.githubusercontent.com/Winetricks
   set -xe                     && \
   WINEDLLOVERRIDES="mscoree,mshtml=" xvfb-run wine wineboot && \
   xvfb-run wineserver -w && \
-  chown -R extender: $WINEPREFIX
+  chown -R extender: $WINEPREFIX && \
+  install -d -m 700 -o extender -g extender /tmp/.wine-2222

@@ -336,7 +336,7 @@ public class ExtenderUtilTest {
             "/path/path1\\ space/path8/path3\\ space/source3.swift",
             "/path/path4/path2/path/source4\\ space.swift",
             "/path/path6/path7\\ space/path3/source5.swift");
-        File resFile = ExtenderUtil.writeSourceFilesListToTmpFile(tmpDir, sources);
+        File resFile = ExtenderUtil.writeSourceFilesListToTmpFile(tmpDir, tmpDir, sources);
         assertTrue(resFile.exists());
         List<String> writtenLines = FileUtils.readLines(resFile, StandardCharsets.UTF_8);
         assertEquals(expected.size(), writtenLines.size());

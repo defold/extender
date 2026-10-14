@@ -29,6 +29,10 @@ public class GradleService {
         return gradleService.resolveDependencies(buildState, env, outputFiles);
     }
 
+    public File getGradleHome() {
+        return gradleService.getGradleHome();
+    }
+
     public long getCacheSize() {
         try {
             return gradleService.getCacheSize();

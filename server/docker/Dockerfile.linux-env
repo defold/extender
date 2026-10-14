@@ -1,4 +1,4 @@
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.8.0
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:1.9.0
 
 ENV CLANG_VERSION=20
 ENV CLANG_HOME=/usr/lib/llvm-${CLANG_VERSION}
@@ -35,3 +35,8 @@ RUN \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# NuGet packages this image's C# builds need, warmed into the shared read-only cache at
+# startup so a build does not restore them into its own (see extender.csharp in
+# application.yml).
+ENV EXTENDER_CSHARP_WARMRUNTIMEIDENTIFIERS=linux-x64,linux-arm64

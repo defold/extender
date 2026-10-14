@@ -24,5 +24,9 @@ public class MockGradleService implements GradleServiceInterface {
     public long getCacheSize() throws IOException {
         return 0;
     }
-    
+
+    @Override
+    public File getGradleHome() {
+        return null;
+    }
 }

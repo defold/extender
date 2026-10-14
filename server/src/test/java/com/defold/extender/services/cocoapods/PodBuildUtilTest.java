@@ -63,7 +63,7 @@ public class PodBuildUtilTest {
         spec.publicHeaders.add(header);
         spec.headerMapFile = new File(intermediateDir, "SomeSDK.hmap");
 
-        PodBuildUtil.generateHeaderMap(spec);
+        PodBuildUtil.generateHeaderMap(spec, this.workingDir);
 
         File jsonHeaderMap = new File(intermediateDir, "SomeSDK.json");
         assertTrue(jsonHeaderMap.exists(), "header map JSON should have been written");

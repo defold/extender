@@ -33,13 +33,9 @@ x-sdk-cache: &sdk-cache
 services:
   linux-integration-test:
     <<: *sdk-cache
-  android_ndk25-integration-test:
-    <<: *sdk-cache
   android_ndk25_sdk36-integration-test:
     <<: *sdk-cache
   emscripten_406-integration-test:
-    <<: *sdk-cache
-  win_2022-integration-test:
     <<: *sdk-cache
   win_2022_144435207-integration-test:
     <<: *sdk-cache

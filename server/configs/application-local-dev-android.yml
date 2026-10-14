@@ -1,4 +1,6 @@
 extender:
     instance-type: BUILDER_ONLY
+    sandbox:
+        enabled: true
     gradle:
         enabled: true

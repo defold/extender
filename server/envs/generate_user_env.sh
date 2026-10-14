@@ -67,6 +67,9 @@ echo "NUGET_PACKAGES=${NUGET_PACKAGES}" >> $OUTPUT_FILE
 echo "ZIG_PATH=${ZIG_PATH}" >> $OUTPUT_FILE
 echo "ZIG_PATH_0_11=${ZIG_PATH_0_11}" >> $OUTPUT_FILE
 echo "XCTOOLCHAIN_PATH=${PLATFORMSDK_DIR}/XcodeDefault${XCODE_VERSION}.xctoolchain" >> $OUTPUT_FILE
+# Process sandbox launcher (built by scripts/standalone/setup-standalone-env.sh); the
+# standalone-dev profile enables the sandbox and refuses to start without it
+echo "EXTENDER_SANDBOX_LAUNCHERPATH=${ENV_DIR}/../app/extender-sandbox" >> $OUTPUT_FILE
 
 echo "PATH=\"${APPENDED_PATH}\"" >> $OUTPUT_FILE
 

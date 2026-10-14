@@ -6,29 +6,30 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
-import java.io.PrintWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.process.ProcessExecutor;
+import com.defold.extender.process.SandboxPolicy;
+import com.defold.extender.services.NuGetCacheService;
 
 public class CSharpBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSharpBuilder.class);
 
-    private static final String DOTNET_CLI_HOME = System.getenv("DOTNET_CLI_HOME");
+    private static final String DOTNET_ROOT = System.getenv("DOTNET_ROOT");
     private static final String DOTNET_VERSION_FILE = System.getenv("DOTNET_VERSION_FILE");
-    private static final String NUGET_PACKAGES = System.getenv("NUGET_PACKAGES");
 
     private List<String>        engineLibs;
     private File                sourceDir;
@@ -58,8 +59,8 @@ public class CSharpBuilder {
         this.template = ExtenderUtil.readContentFromResource(csProjectResource);
         this.context = context;
 
-        LOGGER.info(String.format("DOTNET_CLI_HOME: %s", DOTNET_CLI_HOME));
-        LOGGER.info(String.format("NUGET_PACKAGES: %s", NUGET_PACKAGES));
+        LOGGER.info(String.format("DOTNET_ROOT: %s", DOTNET_ROOT));
+        LOGGER.info(String.format("shared NuGet cache: %s", sharedNuGetCache()));
     }
 
     public void setSourceDirectory(File sourceDir) {
@@ -102,7 +103,7 @@ public class CSharpBuilder {
 
         File f = new File(this.sourceDir, String.format("%s.csproj", outputName));
 
-        FileUtils.writeStringToFile(f, projectText, Charset.defaultCharset(), true);
+        JobFiles.writeString(jobDir(), f, projectText, Charset.defaultCharset());
 
         if (!f.exists())
             throw new IOException(String.format("Failed to write to %s", f.getAbsolutePath()));
@@ -154,17 +155,33 @@ public class CSharpBuilder {
 
     private File runDotnet(File project, String platform) throws IOException, InterruptedException, ExtenderException {
 
-        if (DOTNET_CLI_HOME == null) {
-            throw new ExtenderException("DOTNET_CLI_HOME is not setup correctly! Cannot build C#.");
+        if (DOTNET_ROOT == null) {
+            throw new ExtenderException("DOTNET_ROOT is not setup correctly! Cannot build C#.");
         }
 
         String csplatform = convertPlatform(this.platform);
-        String cmd = String.format("%s/dotnet publish --nologo -c Release -r %s ", DOTNET_CLI_HOME, csplatform);
+        String cmd = String.format("%s/dotnet publish --nologo -c Release -r %s ", DOTNET_ROOT, csplatform);
         cmd += project.getAbsolutePath();
 
         List<String> commands = new ArrayList<>();
         commands.add(cmd);
-        ProcessExecutor.executeCommands(processExecutor, commands); // in parallel
+
+        // NuGet restore needs the network, and its package cache must be executable because a
+        // NativeAOT publish runs ilc out of the ilcompiler package it restores. That cache is
+        // therefore per job: writable and executable, and gone with the job. The instance-wide
+        // cache is handed over read-only as a NuGet fallback folder, which NuGet reads packages
+        // from and never writes to, so the restore costs nothing when it is warm.
+        File perJobCache = perJobNuGetCache(buildDir());
+        // ProcessSandbox skips a grant whose path does not exist, and the restore has to
+        // be able to write here
+        perJobCache.mkdirs();
+        File sharedCache = sharedNuGetCache();
+        if (sharedCache != null) {
+            // the warm writes the shared cache; reading it half-restored just costs a download
+            NuGetCacheService.current().awaitWarm(csplatform);
+        }
+        SandboxPolicy policy = dotnetPolicy(perJobCache, sharedCache, new File(this.outputDir, ".dotnet"));
+        ProcessExecutor.executeCommands(processExecutor, commands, null, policy); // in parallel
 
         String name = outputName;
         if (name.startsWith("lib"))
@@ -191,10 +208,63 @@ public class CSharpBuilder {
         return out;
     }
 
-    private static Path getNativePath(String platform) throws IOException {
+    /**
+     * The policy for {@code dotnet publish}: network for the restore, the job's own package cache
+     * writable and executable (ilc runs out of it), and the instance-wide cache read-only as a
+     * NuGet fallback folder, which NuGet resolves packages from and never writes to.
+     */
+    static SandboxPolicy dotnetPolicy(File perJobCache, File sharedCache, File cliHome) {
+        Map<String, String> env = new HashMap<>(NuGetCacheService.DOTNET_ENV);
+        // the CLI's own state (first-run sentinel, telemetry) goes here, not to the shared install
+        env.put("DOTNET_CLI_HOME", cliHome.getAbsolutePath());
+        env.put("NUGET_PACKAGES", perJobCache.getAbsolutePath());
+        if (sharedCache != null) {
+            env.put("NUGET_FALLBACK_PACKAGES", sharedCache.getAbsolutePath());
+        }
+        return SandboxPolicy
+                // the .NET runtime's named-mutex state, which NuGet takes on every restore
+                .dependencyResolver(List.of(NuGetCacheService.dotnetRuntimeStateDir().getAbsolutePath()))
+                .withReadWriteExecPaths(List.of(perJobCache.getAbsolutePath()))
+                .withReadOnlyPaths(sharedCache != null ? List.of(sharedCache.getAbsolutePath()) : List.of())
+                .withMachServices(NuGetCacheService.DOTNET_MACH_SERVICES)
+                .withEnv(env);
+    }
+
+    /** The job's own package cache; {@code buildDir} is shared by the extensions of one job. */
+    private static File perJobNuGetCache(File buildDir) {
+        return new File(buildDir, ".nuget");
+    }
+
+    /** The instance-wide read-only cache, or null when there is none to read from. */
+    private static File sharedNuGetCache() {
+        NuGetCacheService service = NuGetCacheService.current();
+        return service != null ? service.fallbackDir() : null;
+    }
+
+    /** The build directory the job shares, i.e. the parent of this extension's output directory. */
+    private File buildDir() {
+        return this.outputDir.getParentFile();
+    }
+
+    private File jobDir() {
+        return buildDir().getParentFile();
+    }
+
+    /**
+     * Where the NativeAOT runtime libraries are looked for. A package restored for this job is in
+     * the job's own cache; one that came from the warm shared cache is in that. Returns the
+     * per-job location when neither exists, which is what the caller puts on the link line.
+     */
+    public static Path getNativePath(String platform, File buildDir) throws IOException {
         String csplatform = convertPlatform(platform);
         String dotnetVersion = readFile(DOTNET_VERSION_FILE).trim();
-        return Paths.get(NUGET_PACKAGES, String.format("microsoft.netcore.app.runtime.nativeaot.%s/%s/runtimes/%s/native", csplatform, dotnetVersion, csplatform));
+        String relative = String.format("microsoft.netcore.app.runtime.nativeaot.%s/%s/runtimes/%s/native",
+                csplatform, dotnetVersion, csplatform);
+        File shared = sharedNuGetCache();
+        if (shared != null && new File(shared, relative).isDirectory()) {
+            return shared.toPath().resolve(relative);
+        }
+        return perJobNuGetCache(buildDir).toPath().resolve(relative);
     }
 
     private static ArrayList<String> makePathsAbsolute(String basePath, ArrayList<String> files) {
@@ -232,16 +302,14 @@ public class CSharpBuilder {
         File parent = exportsFile.getParentFile();
         if (!parent.exists())
             parent.mkdirs();
-        FileOutputStream fos = new FileOutputStream(exportsFile, false);
-        PrintWriter writer = new PrintWriter(fos);
-        writer.write(contents);
-        writer.close();
+        // buildDir is <job>/build
+        JobFiles.writeString(buildDir.getParentFile(), exportsFile, contents, Charset.defaultCharset());
 
         linkFlags.add(String.format(exportsPattern, exportsFile.getAbsolutePath()));
     }
 
     private static void getLinkFlags(String platform, File buildDir, List<String> linkFlags) throws IOException {
-        Path aotBase = getNativePath(platform);
+        Path aotBase = getNativePath(platform, buildDir);
 
         ArrayList<String> paths = new ArrayList<>();
 
@@ -259,6 +327,14 @@ public class CSharpBuilder {
         paths.add(getLibName(platform, "System.IO.Compression.Native" + aotSuffix));
         paths.add(getLibName(platform, "System.Globalization.Native" + aotSuffix));
 
+        // libRuntime.WorkstationGC.a calls do_vxsort_avx2, which lives in its own archive. vxsort
+        // is an AVX2 sort, so the runtime pack ships that archive for the x64 runtime identifiers
+        // and for no others - keying off the identifier rather than the operating system, which
+        // left every non-Windows x64 target with an undefined symbol at link time.
+        if (convertPlatform(platform).endsWith("-x64")) {
+            paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
+        }
+
         if (ExtenderUtil.isMacOSTarget(platform))
         {
             paths.add(getLibName(platform, "System.Native"));
@@ -273,7 +349,6 @@ public class CSharpBuilder {
         }
         else if (ExtenderUtil.isWindowsTarget(platform))
         {
-            paths.add(getLibName(platform, "Runtime.VxsortEnabled"));
             linkFlags.add("-lbcrypt");
             linkFlags.add("-lole32");
             linkFlags.add("-ladvapi32");
@@ -291,7 +366,7 @@ public class CSharpBuilder {
     }
 
     public static void updateContext(String platform, File buildDir, Map<String, Object> context) throws IOException {
-        Path aotBase = getNativePath(platform);
+        Path aotBase = getNativePath(platform, buildDir);
 
         List<String> libPaths = (List<String>)context.getOrDefault("libPaths", new ArrayList<String>());
         libPaths.add(aotBase.toString()); // -L/path/to/aot

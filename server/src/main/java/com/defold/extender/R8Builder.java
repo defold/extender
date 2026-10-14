@@ -28,6 +28,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import com.defold.extender.process.JobFiles;
 
 /** Builds Android dex files and resources with R8 and owns all R8 rule discovery and assembly. */
 final class R8Builder {
@@ -848,7 +849,9 @@ final class R8Builder {
         for (String className : classNames) {
             rules.append("-keep class ").append(className).append(" { *; }\n");
         }
-        Files.writeString(outputFile.toPath(), rules, StandardCharsets.UTF_8);
+        // written into <job>/build
+        File jobDir = outputFile.getAbsoluteFile().getParentFile().getParentFile();
+        JobFiles.writeString(jobDir, outputFile, rules.toString(), StandardCharsets.UTF_8);
         return outputFile;
     }
 
