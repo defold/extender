@@ -168,7 +168,11 @@ environment scrubbing keeps from them, so the server marks itself non-dumpable a
 from a shell in the container cannot attach to the server either.
 
 Known limits of the current design: the tool runs as the same uid as the server, so it can still
-send signals to the server process on kernels older than 6.12 (Landlock ABI 6 scopes signals);
+send signals to the server process on kernels older than 6.12 (Landlock ABI 6 scopes signals),
+and to its own launcher: a command that kills the launcher ends its own wait early and leaves
+its descendants outside the timeout and the process-tree sweep, still confined (Landlock and
+seccomp are inherited and cannot be dropped) but able to keep running until the container
+restarts. Run the builders on a 6.12+ kernel (Ubuntu 24.04: `linux-generic-hwe-24.04`);
 caches that stay writable for a platform (emscripten cache, Gradle and NuGet caches, the wine
 prefix) are shared between builds; the Gradle and dotnet steps keep network access by necessity.
 The NuGet cache is split, because a NativeAOT publish runs `ilc` out of the ilcompiler
