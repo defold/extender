@@ -21,7 +21,10 @@ on:
 
 jobs:
   macos-unit-tests:
-    runs-on: macos-15
+    runs-on: macos-26
+    # the Xcode the production Macs build with; the runner's default moves with image updates
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
     steps:
     - name: Checkout repo
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

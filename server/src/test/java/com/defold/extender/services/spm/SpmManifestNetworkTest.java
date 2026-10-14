@@ -97,7 +97,7 @@ public class SpmManifestNetworkTest {
                 new SpmServiceConfiguration(), new SimpleMeterRegistry());
             service.swiftVersion = "6.0";
             service.wrapperMachOType = "staticlib";
-            service.defaultDeveloperDir = "/Applications/Xcode.app/Contents/Developer";
+            service.defaultDeveloperDir = System.getenv().getOrDefault("DEVELOPER_DIR", "/Applications/Xcode.app/Contents/Developer");
             service.xcodegenPath = new File("/opt/homebrew/bin/xcodegen").exists()
                 ? "/opt/homebrew/bin/xcodegen" : "xcodegen";
             service.mirrorRefreshIntervalMillis = 600_000;
