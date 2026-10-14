@@ -189,13 +189,13 @@ if [ -e "$tmp/heartbeat" ]; then fail "a fork-and-exit chain outlived the comman
 #     image's writable tool-state directory left inside a tree granted read-only)
 mkdir -p "$tmp/sdk/tool-state" "$tmp/unrelated"
 # shellcheck disable=SC2086
-if "$SB" --ro "$tmp/sdk" --rw "$tmp/sdk/tool-state" $DEV --net none --strict -- true 2>/dev/null; then
+if "$SB" $RO --ro "$tmp/sdk" --rw "$tmp/sdk/tool-state" $DEV --net none --strict -- true 2>/dev/null; then
     fail "a writable grant nested under a read-only grant was honoured"
 else
     pass "writable grant nested under a read-only grant refused"
 fi
 # shellcheck disable=SC2086
-if "$SB" --ro "$tmp/sdk" --rw "$tmp/unrelated" $DEV --net none --strict -- true 2>/dev/null; then
+if "$SB" $RO --ro "$tmp/sdk" --rw "$tmp/unrelated" $DEV --net none --strict -- true 2>/dev/null; then
     pass "control: an unrelated writable grant still works"
 else
     fail "control: an unrelated writable grant was refused, the nesting check proves nothing"
