@@ -42,13 +42,12 @@ for request in $REQUESTED; do
             INSTALL="wine nssdk-2143"
             ;;
         android)
-            INSTALL="android android-ndk25 android-ndk25_sdk36"
+            INSTALL="android android-ndk25_sdk36"
             ;;
         android-ndk-*)
             INSTALL="android $request"
             ;;
         windows)
-            # skip building winsdk-2022 because wine image contains newer Clang.
             INSTALL="wine winsdk-2022_144435207 winsdk-2026_145136231"
             ;;
         xbox)

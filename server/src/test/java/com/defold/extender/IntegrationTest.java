@@ -130,14 +130,17 @@ public class IntegrationTest {
         // NOTE: x86_64-android can be added to the released SDKs below once a Defold
         // release ships the platform in its extender/build.yml.
         // // https://github.com/defold/defold/releases/tag/1.12.0
+        // android and windows of 1.12.0 route to the retired ndk25 and winsdk-2022 builders
         new DefoldVersion("3206f699aaff89f357c9d549050b8453e080c5d2", new Version(1, 12, 0),
-            new String[] { "armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web" }),
+            new String[] { "x86_64-linux", "js-web", "wasm-web" }),
         // // https://github.com/defold/defold/releases/tag/1.12.1
+        // windows routes to the retired winsdk-2022 builder
         new DefoldVersion("16c6fd602f32de4814660672c38ce3ccbbc1fb59", new Version(1, 12, 1),
-            new String[] { "armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web" }),
+            new String[] { "armv7-android", "arm64-android", "x86_64-linux", "js-web", "wasm-web" }),
         // // https://github.com/defold/defold/releases/tag/1.12.2
+        // windows routes to the retired winsdk-2022 builder
         new DefoldVersion("e43be333aa7a4fc319ab62adc8d405c8e98bf92f", new Version(1, 12, 2),
-            new String[] { "armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web" }),
+            new String[] { "armv7-android", "arm64-android", "x86_64-linux", "js-web", "wasm-web" }),
         // // https://github.com/defold/defold/releases/tag/1.12.3
         new DefoldVersion("0ad9c86fa0a9f7ac19bc468b1a67ee06bb2578b5", new Version(1, 12, 3),
             new String[] { "armv7-android", "arm64-android", "x86_64-linux", "x86_64-win32", "js-web", "wasm-web" }),
