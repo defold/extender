@@ -14,10 +14,13 @@ public final class R {
   }
   public static final class raw {
     public static int code_kept=0x7f020000;
-    public static int dead_code=0x7f020001;
-    public static int dynamic_kept=0x7f020002;
-    public static int keep=0x7f020003;
-    public static int unused=0x7f020004;
+    public static int com_example_data=0x7f020001;
+    public static int com_example_keep=0x7f020002;
+    public static int com_example_unused=0x7f020003;
+    public static int dead_code=0x7f020004;
+    public static int dynamic_kept=0x7f020005;
+    public static int keep=0x7f020006;
+    public static int unused=0x7f020007;
   }
   public static final class string {
     public static int code_kept=0x7f030000;

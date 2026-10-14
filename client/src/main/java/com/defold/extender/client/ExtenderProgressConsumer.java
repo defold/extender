@@ -43,6 +43,7 @@ class ExtenderProgressConsumer implements Runnable {
     private final ExtenderProgressListener listener;
     private final int maxReconnectAttempts;
 
+    private final Object dispatchLock = new Object();
     private volatile boolean stopped = false;
     private volatile HttpGet currentRequest = null;
     private long lastEventId = -1;
@@ -74,9 +75,15 @@ class ExtenderProgressConsumer implements Runnable {
         }
     }
 
-    /** Stops the consumer and unblocks the stream read. Safe to call more than once. */
+    /**
+     * Stops the consumer and unblocks the stream read. Safe to call more than once.
+     * Waits for a listener callback that is already running, and no callback
+     * starts after this returns.
+     */
     void stop() {
-        stopped = true;
+        synchronized (dispatchLock) {
+            stopped = true;
+        }
         HttpGet request = currentRequest;
         if (request != null) {
             request.abort();
@@ -173,10 +180,15 @@ class ExtenderProgressConsumer implements Runnable {
             Number totalFiles = (Number) json.get("totalFiles");
             Boolean isTerminal = (Boolean) json.get("terminal");
             terminal = isTerminal != null && isTerminal;
-            listener.onProgress(stage, detail,
-                    percent != null ? percent.intValue() : 0,
-                    currentFile != null ? currentFile.intValue() : -1,
-                    totalFiles != null ? totalFiles.intValue() : -1);
+            synchronized (dispatchLock) {
+                if (stopped) {
+                    return true;
+                }
+                listener.onProgress(stage, detail,
+                        percent != null ? percent.intValue() : 0,
+                        currentFile != null ? currentFile.intValue() : -1,
+                        totalFiles != null ? totalFiles.intValue() : -1);
+            }
         } catch (Exception e) {
             // a malformed event or a listener bug must not kill the stream
             logger.log(Level.FINE, "Ignoring bad progress event: " + e.getMessage());

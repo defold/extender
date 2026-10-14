@@ -5,12 +5,14 @@ import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.defold.extender.log.LogTruncator;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.progress.BuildProgressService;
@@ -35,6 +37,7 @@ import org.springframework.util.FileSystemUtils;
 @Service
 public class AsyncBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(AsyncBuilder.class);
+    private static final int MAX_TERMINAL_MESSAGE_LENGTH = 4 * 1024;
 
     private DefoldSdkService defoldSdkService;
     private GradleService gradleService;
@@ -79,6 +82,29 @@ public class AsyncBuilder {
         }
         catch(Exception e) {
             LOGGER.error(Markers.SERVER_ERROR, "Could not write extender logs to error file", e);
+        }
+    }
+
+    // Output of commands run outside the extender's own executor (Gradle, CocoaPods, SPM)
+    // is only carried by the exception, so it has to be written explicitly
+    static void writeExceptionOutputToFile(String extenderLog, Exception exception, File file) {
+        ExtenderException extenderException = null;
+        for (Throwable t = exception; t != null; t = t.getCause()) {
+            if (t instanceof ExtenderException ee) {
+                extenderException = ee;
+                break;
+            }
+        }
+        if (extenderException == null || extenderException.getOutput() == null) return;
+        String output = extenderException.getOutput();
+        if (output.equals(extenderException.getMessage())) return;
+        if (extenderLog != null && extenderLog.startsWith(output)) return;
+        try (FileOutputStream fos = new FileOutputStream(file, true)) {
+            fos.write(output.getBytes(StandardCharsets.UTF_8));
+            fos.write('\n');
+        }
+        catch(Exception e) {
+            LOGGER.error(Markers.SERVER_ERROR, "Could not write exception output to error file", e);
         }
     }
 
@@ -173,10 +199,11 @@ public class AsyncBuilder {
         } catch(Exception e) {
             File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
             writeExtenderLogsToFile(extender, errorFile);
+            writeExceptionOutputToFile(extender != null ? extender.getLog() : null, e, errorFile);
             writeExceptionToFile(e, errorFile);
             LOGGER.error(String.format("Exception while building or sending response - SDK: %s", sdkVersion), e);
             isSuccefull = false;
-            progressReporter.terminal(false, "Build failed: " + e.getMessage());
+            progressReporter.terminal(false, "Build failed: " + LogTruncator.truncate(e.getMessage(), MAX_TERMINAL_MESSAGE_LENGTH));
         } finally {
             metricsWriter.measureCounterBuild(platform, sdkVersion, "async", isSuccefull);
 

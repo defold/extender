@@ -50,6 +50,41 @@ public class ProcessExecutorTest {
     }
 
     @Test
+    public void failureMessageHoldsOnlyFailingCommandNotWholeLog() throws Exception {
+        ProcessExecutor pe = new ProcessExecutor();
+        String earlierOutput = "EARLIER-" + "a".repeat(200_000);
+        pe.putLog(earlierOutput + "\n");
+        pe.execute(List.of("echo", "previous-command-output"));
+
+        IOException e = assertThrows(IOException.class,
+                () -> pe.execute(List.of("sh", "-c", "echo compile-error-line; exit 3")));
+
+        String message = e.getMessage();
+        assertTrue(message.contains("exit code 3"), message);
+        assertTrue(message.contains("sh -c"), message);
+        assertTrue(message.contains("compile-error-line"), message);
+        assertFalse(message.contains("EARLIER-"), message);
+        assertFalse(message.contains("previous-command-output"), message);
+
+        assertTrue(pe.getOutput().contains(earlierOutput));
+        assertTrue(pe.getOutput().contains("previous-command-output"));
+        assertTrue(pe.getOutput().contains("compile-error-line"));
+    }
+
+    @Test
+    public void failureMessageIsBoundedForHugeCommandAndOutput() {
+        ProcessExecutor pe = new ProcessExecutor();
+        String hugeArg = "--lib=" + "b".repeat(100_000);
+        IOException e = assertThrows(IOException.class,
+                () -> pe.execute(List.of("sh", "-c", "head -c 3000000 /dev/zero | tr '\\0' 'c'; echo; echo LAST-LINE; exit 1", hugeArg)));
+
+        String message = e.getMessage();
+        assertTrue(message.length() < 64 * 1024, "message length " + message.length());
+        assertTrue(message.contains("LAST-LINE"), "the tail of the command output must be kept");
+        assertTrue(pe.getOutput().length() > 3_000_000, "the full log must still be kept");
+    }
+
+    @Test
     public void putEnvMapSkipsNullValues() {
         // XCConfigParser puts System.getenv("XCTOOLCHAIN_PATH") into the map it passes here,
         // which is null whenever that variable is not set. ProcessBuilder.environment()

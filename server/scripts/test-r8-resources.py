@@ -10,8 +10,10 @@ import zipfile
 
 
 FIXTURE = Path(__file__).resolve().parents[1] / 'test-data' / 'r8-resources'
-KEPT = ['res/layout/used_layout.xml', 'res/raw/code_kept.bin', 'res/raw/dynamic_kept.bin']
-REMOVED = ['res/layout/unused_layout.xml', 'res/raw/dead_code.bin', 'res/raw/unused.bin']
+KEPT = ['res/layout/used_layout.xml', 'res/raw/code_kept.bin', 'res/raw/dynamic_kept.bin',
+        'res/raw/com.example.keep.example.keep.xml', 'res/raw/com.example.data.example.data.bin']
+REMOVED = ['res/layout/unused_layout.xml', 'res/raw/dead_code.bin', 'res/raw/unused.bin',
+           'res/raw/com.example.unused.example.unused.bin']
 
 
 def run(command, **kwargs):

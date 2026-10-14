@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.util.*;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.log.LogTruncator;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +32,9 @@ public class ProcessExecutor {
         executor.setRemoveOnCancelPolicy(true);
         return executor;
     }
+
+    static final int MAX_FAILURE_COMMAND_LENGTH = 4 * 1024;
+    static final int MAX_FAILURE_OUTPUT_LENGTH = 16 * 1024;
 
     private final StringBuffer output = new StringBuffer();
     private final Map<String, String> env = new HashMap<>();
@@ -133,6 +137,9 @@ public class ProcessExecutor {
             }, timeout, TimeUnit.MILLISECONDS);
         }
 
+        // the shared output may be appended to concurrently, so this command's output is kept separately
+        StringBuilder commandOutput = new StringBuilder();
+        long discardedOutputLength = 0;
         int exitValue;
         try {
             byte[] buf = new byte[16 * 1024];
@@ -142,7 +149,14 @@ public class ProcessExecutor {
             do {
                 n = is.read(buf);
                 if (n > 0) {
-                    putLog(new String(buf, 0, n));
+                    String chunk = new String(buf, 0, n);
+                    putLog(chunk);
+                    commandOutput.append(chunk);
+                    if (commandOutput.length() > 2 * MAX_FAILURE_OUTPUT_LENGTH) {
+                        int excess = commandOutput.length() - MAX_FAILURE_OUTPUT_LENGTH;
+                        commandOutput.delete(0, excess);
+                        discardedOutputLength += excess;
+                    }
                 }
             }
             while (n > 0);
@@ -175,15 +189,16 @@ public class ProcessExecutor {
         // that finished 0 in the same instant the deadline expired succeeded, and reporting it
         // as a timeout would fail the whole job over a race.
         if (timedOut.get() && exitValue != 0) {
-            String message = String.format("Command timed out after %d ms: %s\n", timeout, String.join(" ", args));
-            putLog(message);
-            throw new CommandTimeoutException(output.toString());
+            String header = String.format("Command timed out after %d ms: %s\n", timeout,
+                LogTruncator.truncate(String.join(" ", args), MAX_FAILURE_COMMAND_LENGTH));
+            putLog(header);
+            throw new CommandTimeoutException(boundedMessage(header, commandOutput, discardedOutputLength));
         }
 
         // note: a negative exit value means the process was terminated by a signal,
         // which is a failure just like a positive exit code
         if (exitValue != 0) {
-            throw new IOException(output.toString());
+            throw new IOException(failureMessage(args, exitValue, commandOutput, discardedOutputLength));
         }
 
         return exitValue;
@@ -202,6 +217,24 @@ public class ProcessExecutor {
             descendants.forEach(ProcessHandle::destroyForcibly);
             p.destroyForcibly();
         }, FORCE_KILL_DELAY_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private static String failureMessage(List<String> args, int exitValue, StringBuilder commandOutput, long discardedOutputLength) {
+        String command = LogTruncator.truncate(String.join(" ", args), MAX_FAILURE_COMMAND_LENGTH);
+        return boundedMessage(String.format("Command failed with exit code %d: %s\n", exitValue, command),
+            commandOutput, discardedOutputLength);
+    }
+
+    private static String boundedMessage(String header, StringBuilder commandOutput, long discardedOutputLength) {
+        long truncated = discardedOutputLength + Math.max(0, commandOutput.length() - MAX_FAILURE_OUTPUT_LENGTH);
+        String tail = commandOutput.substring(Math.max(0, commandOutput.length() - MAX_FAILURE_OUTPUT_LENGTH));
+        StringBuilder message = new StringBuilder();
+        message.append(header);
+        if (truncated > 0) {
+            message.append(String.format("(%d chars of output truncated)\n", truncated));
+        }
+        message.append(tail);
+        return message.toString();
     }
 
     public String getOutput() {

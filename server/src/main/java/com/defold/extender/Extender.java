@@ -2785,6 +2785,10 @@ class Extender {
         return out;
     }
 
+    String getLog() {
+        return processExecutor.getOutput();
+    }
+
     File writeLog() {
         File logFile = new File(buildState.buildDir, "log.txt");
         try {

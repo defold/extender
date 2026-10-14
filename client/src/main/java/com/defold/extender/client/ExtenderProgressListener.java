@@ -9,7 +9,8 @@ package com.defold.extender.client;
  * always determined by the build call returning or throwing.
  *
  * Callbacks are invoked on a background thread, never on the thread that
- * called build(...).
+ * called build(...). No callback runs after build(...) returns or throws;
+ * build(...) waits for one that is in progress, so callbacks should be quick.
  */
 public interface ExtenderProgressListener {
     /**
