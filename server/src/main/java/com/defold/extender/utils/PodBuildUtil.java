@@ -23,6 +23,7 @@ import com.defold.extender.process.JobFiles;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.process.ProcessUtils;
 import com.defold.extender.services.cocoapods.PodBuildSpec;
+import com.defold.extender.services.cocoapods.PodUtils;
 
 public class PodBuildUtil {
     private static final Logger LOGGER = LoggerFactory.getLogger(PodBuildUtil.class);
@@ -127,6 +128,10 @@ public class PodBuildUtil {
 
         // 2. Get all dependencies from spec
         for (PodBuildSpec depSpec : spec.dependantSpecs) {
+            // binary-only pods are not compiled, so they never get an overlay
+            if (!PodUtils.hasSourceFiles(depSpec)) {
+                continue;
+            }
             mergeVFSOverlays(jobDir, spec.vfsOverlay, depSpec.vfsOverlay);
         }
 
