@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.text.StringSubstitutor;
 import org.json.simple.JSONArray;
@@ -127,15 +128,23 @@ public class PodBuildUtil {
         JobFiles.writeString(jobDir, spec.vfsOverlay, resultDocument.toJSONString(), StandardCharsets.UTF_8);
 
         // 2. Get all dependencies from spec
-        for (PodBuildSpec depSpec : spec.dependantSpecs) {
-            // binary-only pods are not compiled, so they never get an overlay
-            if (!PodUtils.hasSourceFiles(depSpec)) {
-                continue;
-            }
-            mergeVFSOverlays(jobDir, spec.vfsOverlay, depSpec.vfsOverlay);
-        }
+        mergeDependencyOverlays(jobDir, spec.vfsOverlay, spec.dependantSpecs, new HashSet<>());
 
         return spec.vfsOverlay;
+    }
+
+    private static void mergeDependencyOverlays(File jobDir, File target, Collection<PodBuildSpec> deps, Set<PodBuildSpec> visited) throws IOException {
+        for (PodBuildSpec dep : deps) {
+            if (!visited.add(dep)) {
+                continue;
+            }
+            if (PodUtils.hasSourceFiles(dep)) {
+                mergeVFSOverlays(jobDir, target, dep.vfsOverlay);
+            } else {
+                // binary-only pods are not compiled, so they have no overlay of their own; look through them
+                mergeDependencyOverlays(jobDir, target, dep.dependantSpecs, visited);
+            }
+        }
     }
 
     public static File mergeVFSOverlays(File jobDir, File overlayA, File overlayB) throws IOException {

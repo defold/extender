@@ -56,4 +56,20 @@ public class PodVFSOverlayTest {
         assertTrue(content.contains("MainHeaders"), content);
         assertTrue(content.contains("DepHeaders"), content);
     }
+
+    @Test
+    public void generateVFSOverlayMergesSourceDependencyBehindBinaryOnlyPod(@TempDir Path jobDir) throws IOException {
+        PodBuildSpec sourceLeaf = spec(jobDir, "Leaf", true);
+        PodBuildUtil.generateVFSOverlay(jobDir.toFile(), sourceLeaf, Map.of("LeafHeaders", List.of(jobDir.resolve("leaf.h").toFile())));
+        PodBuildSpec binaryMiddle = spec(jobDir, "Binary", false);
+        binaryMiddle.dependantSpecs.add(sourceLeaf);
+        PodBuildSpec main = spec(jobDir, "Main", true);
+        main.dependantSpecs.add(binaryMiddle);
+
+        File overlay = PodBuildUtil.generateVFSOverlay(jobDir.toFile(), main, Map.of("MainHeaders", List.of(jobDir.resolve("main.h").toFile())));
+
+        String content = Files.readString(overlay.toPath());
+        assertTrue(content.contains("MainHeaders"), content);
+        assertTrue(content.contains("LeafHeaders"), content);
+    }
 }
