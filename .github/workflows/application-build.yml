@@ -196,15 +196,17 @@ jobs:
         mkdir -p ${{ github.workspace }}/gh_release
         cp ${{ github.workspace }}/server/build/libs/extender-${{ steps.version.outputs.tag_version }}.jar \
           ${{ github.workspace }}/gh_release/extender-${{ steps.version.outputs.tag_version }}.jar
+        ./server/scripts/standalone/sandbox/package.sh \
+          ${{ github.workspace }}/gh_release/extender-sandbox-darwin-${{ steps.version.outputs.tag_version }}.tar.gz
     - name: Publish to Github release
       run: |
-        chmod 0444 ${{ github.workspace }}/gh_release/*.jar
+        chmod 0444 ${{ github.workspace }}/gh_release/*
           echo ${{ github.token }} | gh auth login --with-token
           gh release create "${GITHUB_REF_NAME}"  \
             --draft \
             --generate-notes \
             --target ${{ github.sha }} \
-            ${{ github.workspace }}/gh_release/*.jar
+            ${{ github.workspace }}/gh_release/*
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -93,6 +93,11 @@ cc -O2 -Wall -Wextra -o extender-sandbox extender-sandbox-darwin.c
 sh selftest-darwin.sh ./extender-sandbox
 ```
 
+The launcher has to match the server jar it runs under, so every GitHub release carries these
+sources as `extender-sandbox-darwin-<version>.tar.gz` (`extender-sandbox-darwin-snapshot.tar.gz`
+on the `dev-snapshot` pre-release), packed by `package.sh`. A deployment fetches that asset next
+to the jar instead of a checkout; the archive is byte-identical while the sources are unchanged.
+
 The launcher is policy-free: the server renders the profile, so a profile change never needs
 a recompile. `DarwinLauncherTest` compiles and exercises it as part of the unit test suite on
 macOS.

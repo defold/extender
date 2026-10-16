@@ -10,6 +10,7 @@ on:
       - '**/*.gradle'
       - 'gradle/wrapper/**'
       - 'server/src/main/resources/**'
+      - 'server/scripts/standalone/sandbox/**'
       - '.github/workflows/snapshot-release.yml'
 
 concurrency:
@@ -102,7 +103,7 @@ jobs:
 
     # Fixed asset names so the download URLs never change. The build sha and versions live in
     # the release notes, and Version.java bakes them into the server jar itself.
-    - name: Prepare jars for GH release
+    - name: Prepare assets for GH release
       run: |
         mkdir -p ${{ github.workspace }}/gh_release
         cp ${{ github.workspace }}/server/build/libs/extender-${{ steps.version.outputs.extender }}.jar \
@@ -111,7 +112,9 @@ jobs:
           ${{ github.workspace }}/gh_release/manifestmergetool-snapshot.jar
         cp ${{ github.workspace }}/client/build/libs/extender-client-${{ steps.version.outputs.client }}.jar \
           ${{ github.workspace }}/gh_release/extender-client-snapshot.jar
-        chmod 0444 ${{ github.workspace }}/gh_release/*.jar
+        ./server/scripts/standalone/sandbox/package.sh \
+          ${{ github.workspace }}/gh_release/extender-sandbox-darwin-snapshot.tar.gz
+        chmod 0444 ${{ github.workspace }}/gh_release/*
         ls -l ${{ github.workspace }}/gh_release
 
     # The release is edited in place rather than deleted and recreated: recreating it would fire
@@ -152,7 +155,8 @@ jobs:
           printf '| --- | --- | --- |\n'
           printf '| server | `%s` | [extender-snapshot.jar](%s/extender-snapshot.jar) |\n' "${EXTENDER_VERSION}" "${DOWNLOAD_URL}"
           printf '| manifestmergetool | `%s` | [manifestmergetool-snapshot.jar](%s/manifestmergetool-snapshot.jar) |\n' "${MANIFESTMERGETOOL_VERSION}" "${DOWNLOAD_URL}"
-          printf '| client | `%s` | [extender-client-snapshot.jar](%s/extender-client-snapshot.jar) |\n\n' "${CLIENT_VERSION}" "${DOWNLOAD_URL}"
+          printf '| client | `%s` | [extender-client-snapshot.jar](%s/extender-client-snapshot.jar) |\n' "${CLIENT_VERSION}" "${DOWNLOAD_URL}"
+          printf '| macOS sandbox launcher sources | `%s` | [extender-sandbox-darwin-snapshot.tar.gz](%s/extender-sandbox-darwin-snapshot.tar.gz) |\n\n' "${EXTENDER_VERSION}" "${DOWNLOAD_URL}"
           printf '**Commit** [`%s`](%s/%s/commit/%s) - %s\n\n' "${SHORT_SHA}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_SHA}" "$(git log -1 --pretty=%s)"
           printf '**Built** %s from [run #%s](%s/%s/actions/runs/%s)\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "${GITHUB_RUN_NUMBER}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_RUN_ID}"
           if [ -n "${CHANGELOG}" ]; then
@@ -175,7 +179,7 @@ jobs:
           --title "Development snapshot (dev)" \
           --notes-file "${NOTES_FILE}"
 
-        gh release upload "${SNAPSHOT_TAG}" ${{ github.workspace }}/gh_release/*.jar --clobber
+        gh release upload "${SNAPSHOT_TAG}" ${{ github.workspace }}/gh_release/* --clobber
 
         cat "${NOTES_FILE}" >> $GITHUB_STEP_SUMMARY
 
