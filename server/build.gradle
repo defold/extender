@@ -6,14 +6,14 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.1.1'
+        classpath 'org.springframework.boot:spring-boot-gradle-plugin:4.1.2'
     }
 }
 
 plugins {
     id 'java'
     id 'idea'
-    id 'org.springframework.boot' version '4.1.1'
+    id 'org.springframework.boot' version '4.1.2'
     id 'jacoco'
 }
 
@@ -69,7 +69,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:8.2.3"))
+    implementation(platform("com.google.cloud:spring-cloud-gcp-dependencies:8.2.4"))
     implementation(platform("tools.jackson:jackson-bom:${jacksonBomVersion}"))
     testImplementation(platform("org.junit:junit-bom:${junitBomVersion}"))
 
