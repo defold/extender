@@ -218,7 +218,7 @@ public class ExtenderClientTest extends Mockito {
             CountDownLatch terminalSeen = new CountDownLatch(1);
             ExtenderProgressListener listener = (stage, detail, percent, currentFile, totalFiles) -> {
                 events.add(String.format("%s:%d:%d/%d", stage, percent, currentFile, totalFiles));
-                if ("SUCCESS".equals(stage) || "ERROR".equals(stage)) {
+                if (ExtenderBuildStage.SUCCESS.equals(stage) || ExtenderBuildStage.ERROR.equals(stage)) {
                     terminalSeen.countDown();
                 }
             };
