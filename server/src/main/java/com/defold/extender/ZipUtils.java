@@ -22,6 +22,7 @@ import java.util.zip.ZipOutputStream;
 // For reading and preserving attributes
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import com.defold.extender.process.JobFiles;
 
 public class ZipUtils {
     private static int bufferSize = 128 * 1024;
@@ -83,17 +84,23 @@ public class ZipUtils {
         }
     }
 
+    /**
+     * @param baseFolder entries are named relative to it and, when set, every file must resolve
+     *                   inside it: build commands may have left links to files they cannot read
+     */
     public static void zip(OutputStream outputStream, File baseFolder, List<File> filesToZip) throws IOException {
         try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
             for (File file : filesToZip) {
+                Path source = file.toPath();
                 if (baseFolder != null) {
+                    source = JobFiles.requireWithin(baseFolder.toPath(), source);
                     String relative = baseFolder.toURI().relativize(file.toURI()).getPath();
                     zipOutputStream.putNextEntry(new ZipEntry(relative));
                 }
                 else {
                     zipOutputStream.putNextEntry(new ZipEntry(file.getName()));
                 }
-                Files.copy(file.toPath(), zipOutputStream);
+                Files.copy(source, zipOutputStream);
                 zipOutputStream.closeEntry();
             }
 
@@ -110,7 +117,8 @@ public class ZipUtils {
             getFilesFromFolder(file, allFiles);
         }
 
-        try (FileOutputStream fileOutputStream = new FileOutputStream(zipFile)) {
+        // the result lands in the job directory itself, which builds cannot replace
+        try (OutputStream fileOutputStream = JobFiles.newOutputStream(zipFile.getAbsoluteFile().getParentFile(), zipFile)) {
             ZipUtils.zip(fileOutputStream, baseFolder, allFiles);
         }
 

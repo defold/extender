@@ -2,7 +2,8 @@ package com.defold.extender;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.json.simple.JSONObject;
 import org.springframework.core.io.Resource;
+import com.defold.extender.process.JobFiles;
 
 public class ExtenderUtil
 {
@@ -894,7 +896,7 @@ public class ExtenderUtil
         return ((List<String>) mappings.get(platform)).toArray(new String[2]);
     }
 
-    public static File extractFile(ZipFile zipFile, ZipEntry entry, File outputDirectory) throws IOException {
+    public static File extractFile(File jobDir, ZipFile zipFile, ZipEntry entry, File outputDirectory) throws IOException {
         // Create output file with path traversal protection
         File outputFile;
         try {
@@ -907,7 +909,7 @@ public class ExtenderUtil
         }
 
         try (InputStream inputStream = zipFile.getInputStream(entry);
-             FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+             OutputStream outputStream = JobFiles.newOutputStream(jobDir, outputFile)) {
 
             byte[] buffer = new byte[4096];
             int bytesRead;
@@ -953,13 +955,17 @@ public class ExtenderUtil
         return RandomStringUtils.insecure().nextAlphanumeric(30);
     }
 
-    public static File writeSourceFilesListToTmpFile(File targetDir, Set<String> fileList) throws IOException {
+    public static File writeSourceFilesListToTmpFile(File jobDir, File targetDir, Set<String> fileList) throws IOException {
         File resultFile = new File(targetDir, String.format("%s.sourcelist", generateRandomFileName()));
         Set<String> escapedList = new HashSet<>();
         fileList.forEach((elem) -> {
             escapedList.add(StringEscapeUtils.escapeXSI(elem));
         });
-        FileUtils.writeLines(resultFile, escapedList);
+        StringBuilder contents = new StringBuilder();
+        for (String line : escapedList) {
+            contents.append(line).append(System.lineSeparator());
+        }
+        JobFiles.writeString(jobDir, resultFile, contents.toString(), Charset.defaultCharset());
         return resultFile;
     }
 

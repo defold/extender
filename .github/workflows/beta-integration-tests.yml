@@ -45,7 +45,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Java
-      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
       with:
         java-version: '25'
         distribution: 'temurin'
@@ -57,7 +57,7 @@ jobs:
     - name: Build jars
       run: ./gradlew server:bootJar :manifestmergetool:mainJar
     - name: Login to Google Artifact registry (Docker)
-      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
       with:
         registry: ${{ env.GOOGLE_ARTIFACT_REGISTRY }}
         username: _json_key

@@ -10,6 +10,13 @@ source $SCRIPT_DIR/../../envs/.env
 if [[ ! -e ${SCRIPT_DIR}/../../envs/user.env ]]; then
     echo "${SCRIPT_DIR}/../../envs/user.env doesn't exist. Runs ./server/envs/generate_user_env.sh to generate it."
     $SCRIPT_DIR/../../envs/generate_user_env.sh
+elif ! grep -q '^EXTENDER_SANDBOX_LAUNCHERPATH=' ${SCRIPT_DIR}/../../envs/user.env; then
+    # A user.env written before the process sandbox existed has no launcher path; without it the
+    # server falls back to application.yml's Linux default and the standalone-dev profile refuses
+    # to start. Only that line is added, so local edits to the file survive.
+    echo "${SCRIPT_DIR}/../../envs/user.env predates the process sandbox launcher. Adding EXTENDER_SANDBOX_LAUNCHERPATH."
+    ENV_DIR=$(cd "${SCRIPT_DIR}/../../envs" && pwd)
+    echo "EXTENDER_SANDBOX_LAUNCHERPATH=${ENV_DIR}/../app/extender-sandbox" >> ${ENV_DIR}/user.env
 fi
 
 echo "Load user env ..."
@@ -222,3 +229,12 @@ brew install milend/taps/hmap
 
 echo "[setup] Install xcodegen (Swift Package Manager support)"
 brew install xcodegen
+if [[ $(uname) == "Darwin" ]]; then
+    # Every build subprocess runs through this launcher (Seatbelt via sandbox-exec); the
+    # standalone-dev profile refuses to start without it. See scripts/standalone/sandbox/README.md
+    echo "[setup] Building the process sandbox launcher"
+    APP_DIR=$SCRIPT_DIR/../../app
+    mkdir -p $APP_DIR
+    cc -O2 -Wall -Wextra -o $APP_DIR/extender-sandbox $SCRIPT_DIR/sandbox/extender-sandbox-darwin.c
+    sh $SCRIPT_DIR/sandbox/selftest-darwin.sh $APP_DIR/extender-sandbox
+fi

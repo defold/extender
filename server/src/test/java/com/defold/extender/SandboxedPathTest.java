@@ -128,6 +128,32 @@ public class SandboxedPathTest {
             SandboxedPath.assertWithin(tempDir, child));
     }
 
+    @Test
+    public void assertWithinRejectsAMissingChildUnderALinkOutOfRoot() throws IOException {
+        File outsideDir = Files.createTempDirectory("outside").toFile();
+        try {
+            Files.createSymbolicLink(tempDir.toPath().resolve("link"), outsideDir.toPath());
+            assertThrows(ExtenderException.class, () ->
+                SandboxedPath.assertWithin(tempDir, new File(tempDir, "link/a/b.txt")));
+        } finally {
+            FileUtils.deleteQuietly(outsideDir);
+        }
+    }
+
+    @Test
+    public void assertWithinRejectsADanglingLink() throws IOException {
+        Files.createSymbolicLink(tempDir.toPath().resolve("link"), tempDir.toPath().resolveSibling("missing-" + tempDir.getName()));
+        assertThrows(ExtenderException.class, () ->
+            SandboxedPath.assertWithin(tempDir, new File(tempDir, "link/a.txt")));
+    }
+
+    @Test
+    public void assertWithinAcceptsAMissingChildUnderALinkInsideRoot() throws IOException, ExtenderException {
+        Files.createDirectory(tempDir.toPath().resolve("A"));
+        Files.createSymbolicLink(tempDir.toPath().resolve("Current"), Path.of("A"));
+        SandboxedPath.assertWithin(tempDir, new File(tempDir, "Current/Headers/foo.h"));
+    }
+
     // --- validateName() tests ---
 
     @Test

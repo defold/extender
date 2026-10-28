@@ -1,386 +1,360 @@
 name: extender
 
 services:
-  frontend-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
-    extends:
-      file: common-services.yml
-      service: common_builder
-    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app,prometheus${STRUCTURED_LOGGING+,logging}"]
-    environment:
-      - INSTANCE_ID=frontend-local
-    expose:
-      - "9000"
-    ports:
-      - "9000:9000"
-    profiles:
-      - all
-      - android
-      - web
-      - linux
-      - windows
-      - consoles
-      - xbox
-      - nintendo
-      - playstation
-    networks:
-      default:
-        aliases:
-          - frontend
-  linux-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=linux-local
-    profiles:
-      - all
-      - linux
-    platform: linux/amd64
-    networks:
-      default:
-        aliases:
-          - linux
-  linux-arm64-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=linux-arm64-local
-    profiles:
-      - all
-      - linux
-    platform: linux/arm64
-    networks:
-      default:
-        aliases:
-          - linux-arm64
-  android_ndk25-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25-env:latest
-    extends:
-      file: common-services.yml
-      service: common_builder
-    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
-    environment:
-      - INSTANCE_ID=android-ndk25-local
-    profiles:
-      - all
-      - android
-    networks:
-      default:
-        aliases:
-          - android-ndk25
-  android_ndk25_sdk36-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25_sdk36-env:latest
-    extends:
-      file: common-services.yml
-      service: common_builder
-    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}"]
-    environment:
-      - INSTANCE_ID=android-ndk25_sdk36-local
-    profiles:
-      - all
-      - android
-    networks:
-      default:
-        aliases:
-          - android-ndk25_sdk36
-  emscripten_406-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=emsdk-406-local
-    profiles:
-      - all
-      - web
-    networks:
-      default:
-        aliases:
-          - emsdk-406
-  nssdk_2143-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-2143-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=nssdk-2143-local
-    profiles:
-      - all
-      - consoles
-      - nintendo
-    networks:
-      default:
-        aliases:
-          - nssdk-2143
-  ps4_12500-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-12500-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=ps4-12500-local
-    profiles:
-      - all
-      - consoles
-      - playstation
-    networks:
-      default:
-        aliases:
-          - ps4-12500
-  ps5_12000-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-12000-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=ps5-12000-local
-    profiles:
-      - all
-      - consoles
-      - playstation
-    networks:
-      default:
-        aliases:
-          - ps5-12000
-  win_2022-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=winsdk-2022-local
-    profiles:
-      - all
-      - windows
-    networks:
-      default:
-        aliases:
-          - winsdk-2022
-  win_2022_144435207-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=winsdk-2022_144435207-local
-    profiles:
-      - all
-      - windows
-    networks:
-      default:
-        aliases:
-          - winsdk-2022_144435207
-  win_2026_145136231-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2026_145136231-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=win_2026_145136231-local
-    profiles:
-      - all
-      - windows
-    networks:
-      default:
-        aliases:
-          - winsdk-2026_145136231
-  xbox_251002-dev:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-xbox-private-registry/extender-xbox-251002-env:latest
-    extends:
-      file: common-services.yml
-      service: remote_builder
-    environment:
-      - INSTANCE_ID=xbox-251002-local
-    profiles:
-      - all
-      - consoles
-      - xbox
-    networks:
-      default:
-        aliases:
-          - xbox-251002
+    frontend-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
+        extends:
+            file: common-services.yml
+            service: common_builder
+        command:
+            [
+                "--spring.config.additional-location=file:/etc/defold/extender/",
+                "--spring.profiles.active=local-dev-app,prometheus${STRUCTURED_LOGGING+,logging}",
+            ]
+        environment:
+            - INSTANCE_ID=frontend-local
+        expose:
+            - "9000"
+        ports:
+            - "9000:9000"
+        profiles:
+            - all
+            - android
+            - web
+            - linux
+            - windows
+            - consoles
+            - xbox
+            - nintendo
+            - playstation
+        networks:
+            default:
+                aliases:
+                    - frontend
+    linux-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=linux-local
+        profiles:
+            - all
+            - linux
+        platform: linux/amd64
+        networks:
+            default:
+                aliases:
+                    - linux
+    linux-arm64-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=linux-arm64-local
+        profiles:
+            - all
+            - linux
+        platform: linux/arm64
+        networks:
+            default:
+                aliases:
+                    - linux-arm64
+    android_ndk25_sdk36-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25_sdk36-env:latest
+        extends:
+            file: common-services.yml
+            service: common_builder
+        command:
+            [
+                "--spring.config.additional-location=file:/etc/defold/extender/",
+                "--spring.profiles.active=local-dev-android${STRUCTURED_LOGGING+,logging}",
+            ]
+        environment:
+            - INSTANCE_ID=android-ndk25_sdk36-local
+        profiles:
+            - all
+            - android
+        networks:
+            default:
+                aliases:
+                    - android-ndk25_sdk36
+    emscripten_406-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=emsdk-406-local
+        profiles:
+            - all
+            - web
+        networks:
+            default:
+                aliases:
+                    - emsdk-406
+    nssdk_2143-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-nintendo-private-registry/extender-nssdk-2143-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=nssdk-2143-local
+        profiles:
+            - all
+            - consoles
+            - nintendo
+        networks:
+            default:
+                aliases:
+                    - nssdk-2143
+    ps4_12500-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-ps4-private-registry/extender-ps4-12500-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=ps4-12500-local
+        profiles:
+            - all
+            - consoles
+            - playstation
+        networks:
+            default:
+                aliases:
+                    - ps4-12500
+    ps5_12000-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-ps5-private-registry/extender-ps5-12000-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=ps5-12000-local
+        profiles:
+            - all
+            - consoles
+            - playstation
+        networks:
+            default:
+                aliases:
+                    - ps5-12000
+    win_2022_144435207-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=winsdk-2022_144435207-local
+        profiles:
+            - all
+            - windows
+        networks:
+            default:
+                aliases:
+                    - winsdk-2022_144435207
+    win_2026_145136231-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2026_145136231-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=win_2026_145136231-local
+        profiles:
+            - all
+            - windows
+        networks:
+            default:
+                aliases:
+                    - winsdk-2026_145136231
+    xbox_251002-dev:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-xbox-private-registry/extender-xbox-251002-env:latest
+        extends:
+            file: common-services.yml
+            service: remote_builder
+        environment:
+            - INSTANCE_ID=xbox-251002-local
+        profiles:
+            - all
+            - consoles
+            - xbox
+        networks:
+            default:
+                aliases:
+                    - xbox-251002
 
-# services for integration testing
-#
-# "test" starts every builder and is what CI uses. The test-<target> profiles let a local
-# run boot only the builders it needs: IntegrationTest derives them from -PtargetPlatforms.
-# They are purely additive - "test" still selects all of these services.
-#   test-linux   -> x86_64-linux
-#   test-android -> armv7-android, arm64-android, x86_64-android
-#   test-web     -> js-web, wasm-web
-#   test-windows -> x86_64-win32
-# Both android builders, and all three winsdk builders, stay grouped together: which one
-# serves a request is decided by that Defold version's platform.sdks.json, not by the test.
-  frontend-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
-    extends:
-      file: common-services.yml
-      service: test_builder
-    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=test-app"]
-    expose:
-      - "9000"
-    ports:
-      - "9000:9000"
-    profiles:
-      - test
-      - test-linux
-      - test-android
-      - test-web
-      - test-windows
-    networks:
-      default:
-        aliases:
-          - frontend
-  linux-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
-    extends:
-      file: common-services.yml
-      service: test_remote_builder
-    profiles:
-      - test
-      - auth-test
-      - test-linux
-    platform: linux/amd64
-    networks:
-      default:
-        aliases:
-          - linux
-  android_ndk25-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25-env:latest
-    extends:
-      file: common-services.yml
-      service: test_builder
-    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
-    profiles:
-      - test
-      - auth-test
-      - test-android
-    networks:
-      default:
-        aliases:
-          - android-ndk25
-  android_ndk25_sdk36-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25_sdk36-env:latest
-    extends:
-      file: common-services.yml
-      service: test_builder
-    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-android"]
-    profiles:
-      - test
-      - auth-test
-      - test-android
-    networks:
-      default:
-        aliases:
-          - android-ndk25_sdk36
-  emscripten_406-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
-    extends:
-      file: common-services.yml
-      service: test_remote_builder
-    profiles:
-      - test
-      - test-web
-    networks:
-      default:
-        aliases:
-          - emsdk-406
-  win_2022-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022-env:latest
-    extends:
-      file: common-services.yml
-      service: test_remote_builder
-    profiles:
-      - test
-      - test-windows
-    networks:
-      default:
-        aliases:
-          - winsdk-2022
-  win_2022_144435207-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:latest
-    extends:
-      file: common-services.yml
-      service: test_remote_builder
-    profiles:
-      - test
-      - test-windows
-    networks:
-      default:
-        aliases:
-          - winsdk-2022_144435207
-  win_2026_145136231-integration-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2026_145136231-env:latest
-    extends:
-      file: common-services.yml
-      service: test_remote_builder
-    profiles:
-      - test
-      - test-windows
-    networks:
-      default:
-        aliases:
-          - winsdk-2026_145136231
+    # services for integration testing
+    #
+    # "test" starts every builder and is what CI uses. The test-<target> profiles let a local
+    # run boot only the builders it needs: IntegrationTest derives them from -PtargetPlatforms.
+    # They are purely additive - "test" still selects all of these services.
+    #   test-linux   -> x86_64-linux
+    #   test-android -> armv7-android, arm64-android, x86_64-android
+    #   test-web     -> js-web, wasm-web
+    #   test-windows -> x86_64-win32
+    # Both android builders, and all three winsdk builders, stay grouped together: which one
+    # serves a request is decided by that Defold version's platform.sdks.json, not by the test.
+    frontend-integration-test:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
+        extends:
+            file: common-services.yml
+            service: test_builder
+        command:
+            [
+                "--spring.config.additional-location=file:/etc/defold/extender/",
+                "--spring.profiles.active=test-app",
+            ]
+        expose:
+            - "9000"
+        ports:
+            - "9000:9000"
+        profiles:
+            - test
+            - test-linux
+            - test-android
+            - test-web
+            - test-windows
+        networks:
+            default:
+                aliases:
+                    - frontend
+    linux-integration-test:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-linux-env:latest
+        extends:
+            file: common-services.yml
+            service: test_remote_builder
+        profiles:
+            - test
+            - auth-test
+            - test-linux
+        platform: linux/amd64
+        networks:
+            default:
+                aliases:
+                    - linux
+    android_ndk25_sdk36-integration-test:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-android-ndk25_sdk36-env:latest
+        extends:
+            file: common-services.yml
+            service: test_builder
+        command:
+            [
+                "--spring.config.additional-location=file:/etc/defold/extender/",
+                "--spring.profiles.active=local-dev-android",
+            ]
+        profiles:
+            - test
+            - auth-test
+            - test-android
+        networks:
+            default:
+                aliases:
+                    - android-ndk25_sdk36
+    emscripten_406-integration-test:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-emsdk-406-env:latest
+        extends:
+            file: common-services.yml
+            service: test_remote_builder
+        profiles:
+            - test
+            - test-web
+        networks:
+            default:
+                aliases:
+                    - emsdk-406
+    win_2022_144435207-integration-test:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2022_144435207-env:latest
+        extends:
+            file: common-services.yml
+            service: test_remote_builder
+        profiles:
+            - test
+            - test-windows
+        networks:
+            default:
+                aliases:
+                    - winsdk-2022_144435207
+    win_2026_145136231-integration-test:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-winsdk-2026_145136231-env:latest
+        extends:
+            file: common-services.yml
+            service: test_remote_builder
+        profiles:
+            - test
+            - test-windows
+        networks:
+            default:
+                aliases:
+                    - winsdk-2026_145136231
 
-# linux service for auth testing
-  frontend-auth-test:
-    image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
-    extends:
-      file: common-services.yml
-      service: test_builder
-    command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev-app", "--extender.authentication.platforms=linux", "--extender.authentication.users=file:/etc/defold/users/testusers.txt", "--server.port=9001"]
-    volumes:
-      - ./../users:/etc/defold/users:ro
-    expose:
-      - "9001"
-    ports:
-      - "9001:9001"
-    profiles:
-      - auth-test
-    networks:
-      default:
-        aliases:
-          - frontend
-    # redefine helathcheck because of another port
-    # see the same configuration in common-services.yml
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9001 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q UP"]
-      interval: 10s
-      timeout: 2s
-      retries: 10
-      start_period: 5s
-# metrics
-  grafana:
-    image: grafana/grafana
-    ports:
-      - 3000:3000/tcp
-    expose:
-      - 3000
-    volumes:
-      - ./grafana-data:/var/lib/grafana
-    profiles:
-      - metrics
-    networks:
-      default:
-        aliases:
-          - grafana
+    # linux service for auth testing
+    frontend-auth-test:
+        image: europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-base-env:latest
+        extends:
+            file: common-services.yml
+            service: test_builder
+        command:
+            [
+                "--spring.config.additional-location=file:/etc/defold/extender/",
+                "--spring.profiles.active=local-dev-app",
+                "--extender.authentication.platforms=linux",
+                "--extender.authentication.users=file:/etc/defold/users/testusers.txt",
+                "--server.port=9001",
+            ]
+        volumes:
+            - ./../users:/etc/defold/users:ro
+        expose:
+            - "9001"
+        ports:
+            - "9001:9001"
+        profiles:
+            - auth-test
+        networks:
+            default:
+                aliases:
+                    - frontend
+        # redefine helathcheck because of another port
+        # see the same configuration in common-services.yml
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "bash",
+                    "-c",
+                    "exec 3<>/dev/tcp/localhost/9001 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q UP",
+                ]
+            interval: 10s
+            timeout: 2s
+            retries: 10
+            start_period: 5s
+    # metrics
+    grafana:
+        image: grafana/grafana
+        ports:
+            - 3000:3000/tcp
+        expose:
+            - 3000
+        volumes:
+            - ./grafana-data:/var/lib/grafana
+        profiles:
+            - metrics
+        networks:
+            default:
+                aliases:
+                    - grafana
 
-  victoriametrics:
-    image: victoriametrics/victoria-metrics
-    ports:
-      - 8428:8428
-    volumes:
-      - ./victoria-metrics-data:/victoria-metrics-data
-      - ./prometheus-scrape.yml:/etc/prometheus/prometheus.yml:ro
-    command:
-      - -promscrape.config=/etc/prometheus/prometheus.yml
-    profiles:
-      - metrics
-    networks:
-      default:
-        aliases:
-          - victoriametrics
+    victoriametrics:
+        image: victoriametrics/victoria-metrics
+        ports:
+            - 8428:8428
+        volumes:
+            - ./victoria-metrics-data:/victoria-metrics-data
+            - ./prometheus-scrape.yml:/etc/prometheus/prometheus.yml:ro
+        command:
+            - -promscrape.config=/etc/prometheus/prometheus.yml
+        profiles:
+            - metrics
+        networks:
+            default:
+                aliases:
+                    - victoriametrics

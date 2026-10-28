@@ -109,11 +109,19 @@ public class PodUtils {
 
     // Apple's architecture name for the target. The simulator encodes itself in the Defold
     // architecture token (arm64_sim-ios) but is a plain arm64 build to clang, ld and xcodebuild.
+    // Fixed literals: the value reaches ARCHS and xcodebuild arguments, never the request string.
     public static String archFromPlatform(String extenderTargetPlatform) {
-        if (extenderTargetPlatform.equals("arm64_sim-ios")) {
-            return "arm64";
+        switch (extenderTargetPlatform) {
+            case "arm64-ios":
+            case "arm64_sim-ios":
+            case "arm64-osx":
+            case "arm64-macos": return "arm64";
+            case "x86_64-ios":
+            case "x86_64-osx":
+            case "x86_64-macos": return "x86_64";
+            default:
+                throw new IllegalArgumentException("Not an Apple platform: " + extenderTargetPlatform);
         }
-        return extenderTargetPlatform.split("-")[0];
     }
 
     public static String swiftModuleNameFromPlatform(String extenderTargetPlatform) throws ExtenderException {

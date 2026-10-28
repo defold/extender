@@ -9,6 +9,11 @@ services:
     user: extender
     environment:
       - EXAMPLE_VAR=1
+      # sandbox overrides for hosts whose kernel lacks Landlock (e.g. some Docker Desktop VMs)
+      - EXTENDER_SANDBOX_ENABLED
+      - EXTENDER_SANDBOX_STRICT
+      # decoy secret: the sandbox integration fixtures assert it never reaches a subprocess
+      - EXTENDER_TEST_DECOY_TOKEN=decoy
     healthcheck:
       # Extender's port is hardcoded here.
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && timeout 2 cat <&3 | grep -q UP"]
@@ -32,6 +37,11 @@ services:
       - DM_DEBUG_JOB_FOLDER
       - DM_DEBUG_KEEP_JOB_FOLDER
       - DM_DEBUG_JOB_UPLOAD
+      # sandbox overrides for hosts whose kernel lacks Landlock (e.g. some Docker Desktop VMs)
+      - EXTENDER_SANDBOX_ENABLED
+      - EXTENDER_SANDBOX_STRICT
+      # decoy secret: the sandbox integration fixtures assert it never reaches a subprocess
+      - EXTENDER_TEST_DECOY_TOKEN=decoy
   remote_builder:
     extends: common_builder
     command: ["--spring.config.additional-location=file:/etc/defold/extender/", "--spring.profiles.active=local-dev,prometheus${STRUCTURED_LOGGING+,logging}"]

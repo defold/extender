@@ -13,4 +13,7 @@ public interface GradleServiceInterface {
     public List<GradleArtifact> resolveDependencies(ExtenderBuildState buildState, Map<String, Object> env, List<File> outputFiles) throws IOException, ExtenderException;
     
     public long getCacheSize() throws IOException;
+
+    /** The Gradle user home holding the resolved artifacts, which later build steps read. */
+    public File getGradleHome();
 }

@@ -8,6 +8,10 @@ import org.apache.commons.text.StringEscapeUtils;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.process.ProcessUtils;
 
+/**
+ * PlistBuddy runs inside the process sandbox, which needs a working directory that contains the
+ * plist being edited: callers pass the job directory.
+ */
 public class PlistBuddyWrapper {
 
     public static class PlistKeys {
@@ -29,31 +33,31 @@ public class PlistBuddyWrapper {
 
     static String PLIST_BUDDY_EXEC = "/usr/libexec/PlistBuddy";
 
-    static public void createEmptyPlist(File targetFile) throws ExtenderException {
+    static public void createEmptyPlist(File targetFile, File cwd) throws ExtenderException {
         ProcessUtils.execCommand(List.of(
             PLIST_BUDDY_EXEC,
             "-c",
             "Clear",
             targetFile.getAbsolutePath()
-        ), null, null);
+        ), cwd, null);
     }
 
-    static public void addStringProperty(File targetFile, String propertyName, String propertyValue) throws ExtenderException {
+    static public void addStringProperty(File targetFile, String propertyName, String propertyValue, File cwd) throws ExtenderException {
         ProcessUtils.execCommand(List.of(
             PLIST_BUDDY_EXEC,
             "-c",
             String.format("Add :%s string %s", StringEscapeUtils.escapeXSI(propertyName), StringEscapeUtils.escapeXSI(propertyValue)),
             targetFile.getAbsolutePath()
-        ), null, null);
+        ), cwd, null);
     }
 
-    static public void addStringArrayProperty(File targetFile, String propertyName, String[] values) throws ExtenderException {
+    static public void addStringArrayProperty(File targetFile, String propertyName, String[] values, File cwd) throws ExtenderException {
         ProcessUtils.execCommand(List.of(
             PLIST_BUDDY_EXEC,
             "-c",
             String.format("Add :%s array", StringEscapeUtils.escapeXSI(propertyName)),
             targetFile.getAbsolutePath()
-        ), null, null);
+        ), cwd, null);
 
         for (int idx = 0; idx < values.length; ++idx) {
             ProcessUtils.execCommand(List.of(
@@ -61,17 +65,17 @@ public class PlistBuddyWrapper {
                 "-c",
                 String.format("Add :%s:%d string %s", StringEscapeUtils.escapeXSI(propertyName), idx, StringEscapeUtils.escapeXSI(values[idx])),
                 targetFile.getAbsolutePath()
-            ), null, null);
+            ), cwd, null);
         }
     }
 
-    static public void addIntegerArrayProperty(File targetFile, String propertyName, int[] values) throws ExtenderException {
+    static public void addIntegerArrayProperty(File targetFile, String propertyName, int[] values, File cwd) throws ExtenderException {
         ProcessUtils.execCommand(List.of(
             PLIST_BUDDY_EXEC,
             "-c",
             String.format("Add :%s array", StringEscapeUtils.escapeXSI(propertyName)),
             targetFile.getAbsolutePath()
-        ), null, null);
+        ), cwd, null);
 
         for (int idx = 0; idx < values.length; ++idx) {
             ProcessUtils.execCommand(List.of(
@@ -79,7 +83,7 @@ public class PlistBuddyWrapper {
                 "-c",
                 String.format("Add :%s:%d integer %s", StringEscapeUtils.escapeXSI(propertyName), idx, values[idx]),
                 targetFile.getAbsolutePath()
-            ), null, null);
+            ), cwd, null);
         }
     }
 
@@ -92,17 +96,17 @@ public class PlistBuddyWrapper {
         public String[] supportedPlatforms;
     }
 
-    static public void createBundleInfoPlist(File targetFile, CreateBundlePlistArgs args) throws ExtenderException {
-        createEmptyPlist(targetFile);
-        addStringProperty(targetFile, PlistKeys.BUNDLE_NAME, args.bundleName);
-        addStringProperty(targetFile, PlistKeys.BUNDLE_IDENTIFIER, args.bundleId);
-        addStringProperty(targetFile, PlistKeys.BUNDLE_PACKAGE_TYPE, PlistValueConstants.TYPE_BUNDLE);
-        addStringProperty(targetFile, PlistKeys.BUNDLE_VERSION, args.version);
-        addStringProperty(targetFile, PlistKeys.BUNDLE_SHORT_VERSION, args.shortVersion);
-        addStringProperty(targetFile, PlistKeys.BUNDLE_INFO_DICTIONARY_VERSION, PlistValueConstants.PLIST_VERSION);
-        addStringProperty(targetFile, PlistKeys.MINIMUM_OS_VERSION, args.minVersion);
-        addStringArrayProperty(targetFile, PlistKeys.SUPPORTED_PLATFORMS, args.supportedPlatforms);
-        addIntegerArrayProperty(targetFile, PlistKeys.DEVICE_FAMILY, new int[] { 1, 2 });  // by default add both device type: tablet and phone
+    static public void createBundleInfoPlist(File targetFile, CreateBundlePlistArgs args, File cwd) throws ExtenderException {
+        createEmptyPlist(targetFile, cwd);
+        addStringProperty(targetFile, PlistKeys.BUNDLE_NAME, args.bundleName, cwd);
+        addStringProperty(targetFile, PlistKeys.BUNDLE_IDENTIFIER, args.bundleId, cwd);
+        addStringProperty(targetFile, PlistKeys.BUNDLE_PACKAGE_TYPE, PlistValueConstants.TYPE_BUNDLE, cwd);
+        addStringProperty(targetFile, PlistKeys.BUNDLE_VERSION, args.version, cwd);
+        addStringProperty(targetFile, PlistKeys.BUNDLE_SHORT_VERSION, args.shortVersion, cwd);
+        addStringProperty(targetFile, PlistKeys.BUNDLE_INFO_DICTIONARY_VERSION, PlistValueConstants.PLIST_VERSION, cwd);
+        addStringProperty(targetFile, PlistKeys.MINIMUM_OS_VERSION, args.minVersion, cwd);
+        addStringArrayProperty(targetFile, PlistKeys.SUPPORTED_PLATFORMS, args.supportedPlatforms, cwd);
+        addIntegerArrayProperty(targetFile, PlistKeys.DEVICE_FAMILY, new int[] { 1, 2 }, cwd);  // by default add both device type: tablet and phone
     }
 
 

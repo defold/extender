@@ -3,6 +3,7 @@ package com.defold.extender;
 import com.defold.extender.remote.RemoteEngineBuilder;
 import com.defold.extender.remote.RemoteHostConfiguration;
 import com.defold.extender.remote.RemoteInstanceConfig;
+import com.defold.extender.log.LogTruncator;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.progress.BuildProgressService;
@@ -59,6 +60,7 @@ public class ExtenderController {
     };
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtenderController.class);
+    private static final int MAX_LOGGED_OUTPUT_LENGTH = 32 * 1024;
 
     private static final String LATEST = "latest";
 
@@ -143,7 +145,7 @@ public class ExtenderController {
 
     @ExceptionHandler({BuildFailedException.class})
     public ResponseEntity<String> handleBuildFailedException(BuildFailedException ex) {
-        LOGGER.warn(Markers.CLIENT_ERROR, "Rejected build request: {}", ex.getOutput());
+        LOGGER.warn(Markers.CLIENT_ERROR, "Rejected build request: {}", LogTruncator.truncate(ex.getOutput(), MAX_LOGGED_OUTPUT_LENGTH));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.TEXT_PLAIN);
         return new ResponseEntity<>(ex.getOutput(), headers, HttpStatus.UNPROCESSABLE_ENTITY);

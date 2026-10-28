@@ -1,10 +1,12 @@
 package com.defold.extender.services.spm;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.defold.extender.ExtenderBuildState;
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.services.cocoapods.PodUtils;
 
 /**
@@ -35,23 +37,31 @@ public class SpmServiceBuildState {
 
     SpmServiceBuildState() { }
 
-    SpmServiceBuildState(ExtenderBuildState extenderBuildState) {
-        this.workingDir = new File(extenderBuildState.getJobDir(), "SwiftPackageManagerService");
+    SpmServiceBuildState(ExtenderBuildState extenderBuildState) throws IOException {
+        File jobDir = extenderBuildState.getJobDir();
+        this.workingDir = new File(jobDir, "SwiftPackageManagerService");
         this.packageDir = new File(workingDir, "Package");
         this.wrapperDir = new File(workingDir, "Wrapper");
         this.derivedDataDir = new File(workingDir, "DerivedData");
         this.moduleCacheDir = new File(workingDir, "ModuleCache");
         this.clonedSourcePackagesDir = new File(workingDir, "clonedSourcePackages");
         this.buildLogFile = new File(workingDir, "build.log");
-        new File(packageDir, "Sources/" + AGGREGATOR_NAME).mkdirs();
-        new File(wrapperDir, "Sources").mkdirs();
-        this.derivedDataDir.mkdirs();
-        this.moduleCacheDir.mkdirs();
-        this.clonedSourcePackagesDir.mkdirs();
+        // an earlier step of this job may have left a link somewhere on the way to workingDir;
+        // plain mkdirs() would create the missing tail through it instead of refusing
+        JobFiles.createDirectories(jobDir, new File(packageDir, "Sources/" + AGGREGATOR_NAME));
+        JobFiles.createDirectories(jobDir, new File(wrapperDir, "Sources"));
+        JobFiles.createDirectories(jobDir, this.derivedDataDir);
+        JobFiles.createDirectories(jobDir, this.moduleCacheDir);
+        JobFiles.createDirectories(jobDir, this.clonedSourcePackagesDir);
 
         String platform = extenderBuildState.getBuildPlatform();
         this.buildArch = PodUtils.archFromPlatform(platform);
         this.selectedPlatform = PodUtils.Platform.fromExtenderPlatform(platform);
+    }
+
+    /** The job directory the working dir lives in; sandboxed helper tools run there. */
+    public File getJobDir() {
+        return workingDir.getParentFile();
     }
 
     public File getWorkingDir() {

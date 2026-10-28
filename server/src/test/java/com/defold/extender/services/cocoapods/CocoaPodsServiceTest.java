@@ -10,7 +10,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.naming.InvalidNameException;
 
@@ -19,6 +21,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
 import com.defold.extender.ExtenderException;
+import com.defold.extender.process.ProcessSandbox;
+import com.defold.extender.process.SandboxConfiguration;
 
 public class CocoaPodsServiceTest {
 
@@ -162,5 +166,34 @@ public class CocoaPodsServiceTest {
         assertFalse(CocoaPodsService.hasVendoredXCFramework(plainFramework));
 
         assertFalse(CocoaPodsService.hasVendoredXCFramework(new PodBuildSpec()));
+    }
+
+    // ------------------------------------------------------------------
+    // withoutSandboxEnvVariables
+    // ------------------------------------------------------------------
+
+    @Test
+    public void sandboxEnvVariablesAreStrippedFromAPodsXCConfig() {
+        SandboxConfiguration configuration = new SandboxConfiguration();
+        configuration.setReadOnlyEnvVariables(List.of("DEVELOPER_DIR", "JAVA_HOME"));
+        ProcessSandbox.install(new ProcessSandbox(configuration));
+        try {
+            // a pod_target_xcconfig entry parsed with no key allowlist could otherwise set
+            // DEVELOPER_DIR and widen this command's own sandbox read grant
+            Map<String, String> xcconfig = new HashMap<>(Map.of(
+                "ARCHS", "arm64",
+                "PLATFORM_NAME", "iphoneos",
+                "DEVELOPER_DIR", "/tmp/attacker-chosen-path"));
+
+            Map<String, String> filtered = CocoaPodsService.withoutSandboxEnvVariables(xcconfig);
+
+            assertEquals("arm64", filtered.get("ARCHS"));
+            assertEquals("iphoneos", filtered.get("PLATFORM_NAME"));
+            assertFalse(filtered.containsKey("DEVELOPER_DIR"));
+            // the source map is untouched: only the caller's copy is filtered
+            assertTrue(xcconfig.containsKey("DEVELOPER_DIR"));
+        } finally {
+            ProcessSandbox.install(ProcessSandbox.disabled());
+        }
     }
 }

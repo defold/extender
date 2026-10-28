@@ -24,7 +24,7 @@ public class PlistBuddyWrapperTest {
 		tmpDir.deleteOnExit();
 		File targetPlist = new File(tmpDir, "Info.plist");
 		assertFalse(targetPlist.exists());
-		PlistBuddyWrapper.createEmptyPlist(targetPlist);
+		PlistBuddyWrapper.createEmptyPlist(targetPlist, targetPlist.getParentFile());
 		assertTrue(targetPlist.exists());
 	}
 
@@ -33,10 +33,10 @@ public class PlistBuddyWrapperTest {
 		File tmpDir = Files.createTempDirectory("plist-keys").toFile();
 		tmpDir.deleteOnExit();
 		File targetPlist = new File(tmpDir, "Info.plist");
-		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringProperty(targetPlist, "RegularProperty", "1"));
-		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringProperty(targetPlist, "Spaced property", "2"));
-		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringArrayProperty(targetPlist, "spaced string array", new String[]{}));
-		assertDoesNotThrow(() -> PlistBuddyWrapper.addIntegerArrayProperty(targetPlist, "spaced integer array", new int[]{}));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringProperty(targetPlist, "RegularProperty", "1", targetPlist.getParentFile()));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringProperty(targetPlist, "Spaced property", "2", targetPlist.getParentFile()));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringArrayProperty(targetPlist, "spaced string array", new String[]{}, targetPlist.getParentFile()));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.addIntegerArrayProperty(targetPlist, "spaced integer array", new int[]{}, targetPlist.getParentFile()));
 
 		String expected = """
 <?xml version="1.0" encoding="UTF-8"?>
@@ -63,7 +63,7 @@ public class PlistBuddyWrapperTest {
 		tmpDir.deleteOnExit();
 		File targetPlist = new File(tmpDir, "Info.plist");
 
-		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringProperty(targetPlist, "StringPropertTest", "Test value with '\\ "));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringProperty(targetPlist, "StringPropertTest", "Test value with '\\ ", targetPlist.getParentFile()));
 		String expected = """
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -82,7 +82,7 @@ public class PlistBuddyWrapperTest {
 		File tmpDir = Files.createTempDirectory("string-array-prop").toFile();
 		tmpDir.deleteOnExit();
 		File targetPlist = new File(tmpDir, "Info.plist");
-		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringArrayProperty(targetPlist, "TestStringArrayProp", new String[] { "string1", "222", "content43", "string with spaces", "string with \\ " }));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.addStringArrayProperty(targetPlist, "TestStringArrayProp", new String[] { "string1", "222", "content43", "string with spaces", "string with \\ " }, targetPlist.getParentFile()));
 
 		String expected = """
 <?xml version="1.0" encoding="UTF-8"?>
@@ -108,7 +108,7 @@ public class PlistBuddyWrapperTest {
 		File tmpDir = Files.createTempDirectory("int-array-prop").toFile();
 		tmpDir.deleteOnExit();
 		File targetPlist = new File(tmpDir, "Info.plist");
-		assertDoesNotThrow(() -> PlistBuddyWrapper.addIntegerArrayProperty(targetPlist, "TestIntegerArrayProp", new int[] { 0, -10, 231 }));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.addIntegerArrayProperty(targetPlist, "TestIntegerArrayProp", new int[] { 0, -10, 231 }, targetPlist.getParentFile()));
 		String expected = """
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -138,7 +138,7 @@ public class PlistBuddyWrapperTest {
 		args.shortVersion = "4.3.1";
 		args.minVersion = "13.0";
 		args.supportedPlatforms = new String[] { "iPhoneOS", "iPhoneSimulator" };
-		assertDoesNotThrow(() -> PlistBuddyWrapper.createBundleInfoPlist(targetPlist, args));
+		assertDoesNotThrow(() -> PlistBuddyWrapper.createBundleInfoPlist(targetPlist, args, targetPlist.getParentFile()));
 
 		String expected = """
 <?xml version="1.0" encoding="UTF-8"?>
