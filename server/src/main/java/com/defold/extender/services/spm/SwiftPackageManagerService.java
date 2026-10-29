@@ -359,9 +359,10 @@ public class SwiftPackageManagerService {
                 // sandbox puts under the wrapper dir, inside this tree) and runs it; plugins and
                 // macros are built and run from the working dir as well
                 .withReadWriteExecPaths(List.of(buildState.getWorkingDir().getAbsolutePath()))
-                // the Xcode build service (swbuild.tmp.*) and the tools it resets TMPDIR for use
-                // the darwin user temp dir, and CFNetwork downloads binary targets there; only
-                // the entries they create are granted, never the directory (which holds every job)
+                // what xcodebuild may still put in the shared darwin user temp dir next to the
+                // entry linkUserDirs gives the build (an error result bundle does), and CFNetwork
+                // downloads binary targets there; only these entries are granted, never the
+                // directory (which holds every job)
                 .withReadWritePatterns(List.of(DarwinSandboxPaths.userTempPattern(
                         "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)")))
                 .withMachServices(XCODEBUILD_MACH_SERVICES)
@@ -1012,8 +1013,11 @@ public class SwiftPackageManagerService {
         processExecutor.putEnv("GIT_CONFIG_GLOBAL", gitConfig.getAbsolutePath());
         processExecutor.putEnv("GIT_ALLOW_PROTOCOL", "file");
         processExecutor.setPolicy(xcodebuildPolicy(buildState, packageCacheDir, mirrorsDir));
+        String userDirSuffix = USER_DIR_LINK_PREFIX + UUID.randomUUID();
+        List<Path> userDirLinks = linkUserDirs(DarwinSandboxPaths.userTempDir().getParent(), userDirSuffix,
+                buildState.getJobDir(), new File(buildState.getWrapperDir(), "tmp"));
         try {
-            processExecutor.execute(args);
+            processExecutor.execute(withUserDirSuffix(args, userDirSuffix));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             writeBuildLog(buildState, processExecutor);
@@ -1029,9 +1033,63 @@ public class SwiftPackageManagerService {
         } catch (IOException e) {
             writeBuildLog(buildState, processExecutor);
             return processExecutor.getOutput();
+        } finally {
+            deleteLinks(userDirLinks);
         }
         writeBuildLog(buildState, processExecutor);
         return null;
+    }
+
+    static final String USER_DIR_SUFFIX_ENV = "DIRHELPER_USER_DIR_SUFFIX";
+    static final String USER_DIR_LINK_PREFIX = "extender-spm-";
+
+    /**
+     * actool, the ibtoold daemon it starts and Foundation in general keep their scratch files in
+     * confstr(_CS_DARWIN_USER_TEMP_DIR), which ignores TMPDIR and is shared by every job.
+     * libSystem appends {@link #USER_DIR_SUFFIX_ENV} (a single name) to it, so the build gets an
+     * entry of its own there: a link to {@code tmpDir} inside the job, which the sandbox grants
+     * already, while the shared directory gets no new grant. The suffix moves the per-user dir
+     * (0) and cache dir (C) too; their links point back at the directories themselves, so the
+     * caches the build shares stay where they are.
+     */
+    static List<Path> linkUserDirs(Path userDirsRoot, String suffix, File jobDir, File tmpDir) throws IOException {
+        JobFiles.createDirectories(jobDir, tmpDir);
+        Map<Path, Path> targets = new LinkedHashMap<>();
+        targets.put(userDirsRoot.resolve("T"), tmpDir.toPath().toRealPath());
+        for (String name : List.of("C", "0")) {
+            Path dir = userDirsRoot.resolve(name);
+            if (Files.isDirectory(dir)) {
+                targets.put(dir, dir.toRealPath());
+            }
+        }
+        List<Path> links = new ArrayList<>();
+        try {
+            for (Map.Entry<Path, Path> entry : targets.entrySet()) {
+                links.add(Files.createSymbolicLink(entry.getKey().resolve(suffix), entry.getValue()));
+            }
+        } catch (IOException e) {
+            deleteLinks(links);
+            throw e;
+        }
+        return links;
+    }
+
+    private static void deleteLinks(List<Path> links) {
+        for (Path link : links) {
+            try {
+                Files.deleteIfExists(link);
+            } catch (IOException e) {
+                LOGGER.warn("Could not remove {}: {}", link, e.getMessage());
+            }
+        }
+    }
+
+    // through env(1) rather than the process environment: the sandbox launcher resolves the
+    // same directory for its own bookkeeping and must keep seeing the shared one
+    static List<String> withUserDirSuffix(List<String> args, String suffix) {
+        List<String> wrapped = new ArrayList<>(List.of("/usr/bin/env", USER_DIR_SUFFIX_ENV + "=" + suffix));
+        wrapped.addAll(args);
+        return wrapped;
     }
 
     /** Adds the reason a resolution can fail under the offline build, when the log points at one. */

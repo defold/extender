@@ -9,7 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -356,6 +359,39 @@ public class SwiftPackageManagerServiceTest {
         SandboxPolicy prefetch = SwiftPackageManagerService.gitPrefetchPolicy(mirrors);
         assertEquals(SandboxPolicy.Network.ALL, prefetch.network());
         assertTrue(prefetch.readWritePaths().contains(mirrors.getAbsolutePath()));
+    }
+
+    @Test
+    public void testUserDirLinksSendTempIntoTheJobAndLeaveTheCacheWhereItIs(@TempDir File root) throws IOException {
+        File userDirs = new File(root, "folders");
+        for (String name : List.of("T", "C", "0")) {
+            new File(userDirs, name).mkdirs();
+        }
+        File jobDir = new File(root, "job");
+        File tmpDir = new File(jobDir, "SwiftPackageManagerService/Wrapper/tmp");
+        jobDir.mkdirs();
+
+        List<Path> links = SwiftPackageManagerService.linkUserDirs(userDirs.toPath(), "extender-spm-x", jobDir, tmpDir);
+
+        assertEquals(List.of(userDirs.toPath().resolve("T/extender-spm-x"), userDirs.toPath().resolve("C/extender-spm-x"),
+            userDirs.toPath().resolve("0/extender-spm-x")), links);
+        assertEquals(tmpDir.toPath().toRealPath(), links.get(0).toRealPath());
+        assertEquals(new File(userDirs, "C").toPath().toRealPath(), links.get(1).toRealPath());
+        assertEquals(new File(userDirs, "0").toPath().toRealPath(), links.get(2).toRealPath());
+
+        // a name taken already fails the build rather than sharing another job's entry
+        // and leaves none of its own links behind
+        Files.delete(links.get(0));
+        Files.delete(links.get(2));
+        assertThrows(FileAlreadyExistsException.class,
+            () -> SwiftPackageManagerService.linkUserDirs(userDirs.toPath(), "extender-spm-x", jobDir, tmpDir));
+        assertFalse(Files.exists(links.get(0), LinkOption.NOFOLLOW_LINKS));
+    }
+
+    @Test
+    public void testUserDirSuffixIsSetForTheCommandOnly() {
+        assertEquals(List.of("/usr/bin/env", "DIRHELPER_USER_DIR_SUFFIX=extender-spm-x", "xcodebuild", "build"),
+            SwiftPackageManagerService.withUserDirSuffix(List.of("xcodebuild", "build"), "extender-spm-x"));
     }
 
     @Test
