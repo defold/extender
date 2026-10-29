@@ -362,9 +362,14 @@ public class SwiftPackageManagerService {
                 // what xcodebuild may still put in the shared darwin user temp dir next to the
                 // entry linkUserDirs gives the build (an error result bundle does), and CFNetwork
                 // downloads binary targets there; only these entries are granted, never the
-                // directory (which holds every job)
+                // directory (which holds every job). The asset catalog agent ibtoold starts gets
+                // an environment of its own, so the suffix never reaches it: it keeps a <UUID>/
+                // directory and an Untitled-XXXXXXXX.uicatalog store there, both random names in
+                // a directory the build cannot list
                 .withReadWritePatterns(List.of(DarwinSandboxPaths.userTempPattern(
-                        "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)")))
+                        "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)"),
+                        DarwinSandboxPaths.userTempPattern(UPPER_UUID_REGEX + "(/|$)"),
+                        DarwinSandboxPaths.userTempPattern("Untitled-" + "[A-Za-z0-9]".repeat(8) + "\\.uicatalog(-journal)?$")))
                 .withMachServices(XCODEBUILD_MACH_SERVICES)
                 .withPreferenceDomains(XCODEBUILD_PREFERENCE_DOMAINS)
                 // Xcode's build service maps a sparse file larger than the default 8 GiB
@@ -1039,6 +1044,10 @@ public class SwiftPackageManagerService {
         writeBuildLog(buildState, processExecutor);
         return null;
     }
+
+    // Seatbelt regexes have no {n} quantifier
+    private static final String UPPER_UUID_REGEX = String.join("-", "[0-9A-F]".repeat(8), "[0-9A-F]".repeat(4),
+            "[0-9A-F]".repeat(4), "[0-9A-F]".repeat(4), "[0-9A-F]".repeat(12));
 
     static final String USER_DIR_SUFFIX_ENV = "DIRHELPER_USER_DIR_SUFFIX";
     static final String USER_DIR_LINK_PREFIX = "extender-spm-";

@@ -24,7 +24,6 @@ import java.util.zip.CRC32;
 import java.util.zip.Deflater;
 
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.condition.EnabledOnOs;
@@ -44,7 +43,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
  * A package with an asset catalog, built for iOS under the process sandbox. actool and the
  * ibtoold daemon behind it write their scratch files into the darwin user temp dir whatever
  * TMPDIR says, and the sandbox grants no entry there they could use: the build only gets
- * through when the service hands them an entry of the job's own.
+ * through when the service hands them an entry of the job's own, and grants the asset catalog
+ * agent, which that entry never reaches, its randomly named entries.
  *
  * Installs the process sandbox, which every {@link com.defold.extender.process.ProcessExecutor}
  * in the JVM picks up, so the class runs on its own.
@@ -73,9 +73,6 @@ public class SpmAssetCatalogSandboxTest {
         assumeTrue(description.contains("seatbelt=yes"), "Seatbelt unavailable: " + description);
     }
 
-    // AssetCatalogAgent-AssetRuntime, which ibtoold starts with an environment of its own,
-    // still creates <UUID>/ and Untitled-*.uicatalog in the shared directory
-    @Disabled("the asset catalog agent ignores the per-build user temp dir")
     @Test
     public void assetCatalogsCompileWithScratchFilesInTheJob(@TempDir File rootDir) throws Exception {
         SandboxConfiguration configuration = new SandboxConfiguration();

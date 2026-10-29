@@ -18,7 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
+import com.defold.extender.process.DarwinSandboxPaths;
 import com.defold.extender.process.SandboxPolicy;
 
 import org.junit.jupiter.api.Test;
@@ -386,6 +389,30 @@ public class SwiftPackageManagerServiceTest {
         assertThrows(FileAlreadyExistsException.class,
             () -> SwiftPackageManagerService.linkUserDirs(userDirs.toPath(), "extender-spm-x", jobDir, tmpDir));
         assertFalse(Files.exists(links.get(0), LinkOption.NOFOLLOW_LINKS));
+    }
+
+    @Test
+    public void testXcodebuildMayWriteOnlyTheAssetCatalogAgentsRandomEntriesInTheSharedTempDir(@TempDir File dir)
+            throws IOException {
+        SpmServiceBuildState buildState = new SpmServiceBuildState();
+        buildState.workingDir = new File(dir, "SwiftPackageManagerService");
+        List<Pattern> patterns = SwiftPackageManagerService.xcodebuildPolicy(buildState,
+                new File(dir, "packageCache"), new File(dir, "mirrors"))
+            .readWritePatterns().stream().map(Pattern::compile).toList();
+        String temp = DarwinSandboxPaths.userTempDir().toString();
+        Predicate<String> granted = name -> patterns.stream().anyMatch(p -> p.matcher(temp + "/" + name).find());
+
+        assertTrue(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5"));
+        assertTrue(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5/assets.uicatalog"));
+        assertTrue(granted.test("Untitled-irHAJgJW.uicatalog"));
+        assertTrue(granted.test("Untitled-irHAJgJW.uicatalog-journal"));
+
+        assertFalse(granted.test(""));
+        assertFalse(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5.link"));
+        assertFalse(granted.test("74fb7d02-961f-44c7-88e0-385a503026d5"));
+        assertFalse(granted.test("Untitled-1.uicatalog"));
+        assertFalse(granted.test("Untitled-irHAJgJW.uicatalog/x"));
+        assertFalse(granted.test("extender-spm-x"));
     }
 
     @Test
