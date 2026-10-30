@@ -45,7 +45,8 @@ final class SpmWrapperArchive {
     private static final byte[] MAGIC = "!<arch>\n".getBytes(StandardCharsets.US_ASCII);
     private static final int HEADER_SIZE = 60;
     private static final String LONG_NAME_PREFIX = "#1/";
-    private static final String SYMBOL_TABLE_PREFIX = "__.SYMDEF";
+    private static final Set<String> SYMBOL_TABLE_NAMES =
+        Set.of("__.SYMDEF", "__.SYMDEF SORTED", "__.SYMDEF_64", "__.SYMDEF_64 SORTED");
 
     record Member(String name, long contentOffset, long contentSize, String digest) {}
 
@@ -133,7 +134,7 @@ final class SpmWrapperArchive {
             }
             long contentOffset = dataOffset + nameLength;
             long contentSize = size - nameLength;
-            if (!name.startsWith(SYMBOL_TABLE_PREFIX)) {
+            if (!SYMBOL_TABLE_NAMES.contains(name)) {
                 members.add(new Member(name, contentOffset, contentSize, digest(channel, contentOffset, contentSize, sha256)));
             }
             offset = dataOffset + size + (size % 2);

@@ -39,6 +39,7 @@ public class SpmWrapperArchiveTest {
         compile("a.c", "int a(void) { return 1; }");
         compile("b.c", "int b(void) { return 2; }");
         compile("other/a.c", "int other_a(void) { return 3; }");
+        compile("__.SYMDEF_extra.c", "int extra(void) { return 4; }");
         run("libtool", "-static", "-o", "libx.a", "a.o");
     }
 
@@ -46,15 +47,17 @@ public class SpmWrapperArchiveTest {
     public void testRemovesRepeatedLibraryMembersOnly() throws Exception {
         // the wrapper link of a graph where two packages reference the same binary target:
         // libx twice, plus a different member that happens to share a name with libx's
+        // and one whose name only starts like a symbol table's
         File wrapper = new File(sources, "SpmWrapper");
-        run("libtool", "-static", "-o", wrapper.getName(), "b.o", "libx.a", "libx.a", "other/a.o");
-        assertEquals(List.of("b.o", "a.o", "a.o", "a.o"), names(wrapper));
+        run("libtool", "-static", "-o", wrapper.getName(), "b.o", "libx.a", "libx.a", "other/a.o", "__.SYMDEF_extra.o");
+        assertEquals(List.of("b.o", "a.o", "a.o", "a.o", "__.SYMDEF_extra.o"), names(wrapper));
         assertTrue(link(wrapper).contains("duplicate symbol"));
 
         assertEquals(1, removeDuplicateMembers(wrapper));
 
         List<SpmWrapperArchive.Member> members = members(wrapper);
-        assertEquals(List.of("b.o", "a.o", "a.o"), members.stream().map(SpmWrapperArchive.Member::name).toList());
+        assertEquals(List.of("b.o", "a.o", "a.o", "__.SYMDEF_extra.o"),
+            members.stream().map(SpmWrapperArchive.Member::name).toList());
         assertNotEquals(members.get(1).digest(), members.get(2).digest());
         assertEquals("", link(wrapper));
         assertEquals(List.of(), List.of(workDir.list()));
@@ -117,7 +120,8 @@ public class SpmWrapperArchiveTest {
     /** Loads every member, as an -ObjC or -force_load engine link may: repeats are duplicate symbols. */
     private String link(File archive) throws Exception {
         Files.writeString(new File(sources, "main.c").toPath(),
-            "int a(void); int b(void); int other_a(void);\nint main(void) { return a() + b() + other_a(); }\n");
+            "int a(void); int b(void); int other_a(void); int extra(void);\n"
+            + "int main(void) { return a() + b() + other_a() + extra(); }\n");
         ProcessBuilder builder = new ProcessBuilder("/usr/bin/xcrun", "clang", "-arch", "arm64", "-o", "main", "main.c",
             "-Wl,-force_load," + archive.getAbsolutePath()).directory(sources).redirectErrorStream(true);
         builder.environment().put("DEVELOPER_DIR", DEVELOPER_DIR);
