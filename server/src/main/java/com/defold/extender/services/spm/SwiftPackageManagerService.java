@@ -268,8 +268,18 @@ public class SwiftPackageManagerService {
             File clonedSourcesDir = spmBuildState.getClonedSourcePackagesDir();
 
             generateXcodeProject(spmBuildState, processEnv);
-            resolveAndBuild(spmBuildState, manifest, userLockFile, clonedSourcesDir, packageCacheDir,
-                mirrorsDir, processEnv);
+            try {
+                resolveAndBuild(spmBuildState, manifest, userLockFile, clonedSourcesDir, packageCacheDir,
+                    mirrorsDir, processEnv);
+            } catch (ExtenderException e) {
+                if (isIOS) {
+                    rejectAssetCatalogsBeforeXcode27(spmBuildState, developerDir);
+                }
+                throw e;
+            }
+            if (isIOS) {
+                rejectAssetCatalogsBeforeXcode27(spmBuildState, developerDir);
+            }
         } finally {
             cacheLock.readLock().unlock();
         }
@@ -357,11 +367,17 @@ public class SwiftPackageManagerService {
                 // sandbox puts under the wrapper dir, inside this tree) and runs it; plugins and
                 // macros are built and run from the working dir as well
                 .withReadWriteExecPaths(List.of(buildState.getWorkingDir().getAbsolutePath()))
-                // the Xcode build service (swbuild.tmp.*) and the tools it resets TMPDIR for use
-                // the darwin user temp dir, and CFNetwork downloads binary targets there; only
-                // the entries they create are granted, never the directory (which holds every job)
+                // what xcodebuild may still put in the shared darwin user temp dir next to the
+                // entry linkUserDirs gives the build (an error result bundle does), and CFNetwork
+                // downloads binary targets there; only these entries are granted, never the
+                // directory (which holds every job). The asset catalog agent ibtoold starts gets
+                // an environment of its own, so the suffix never reaches it: it keeps a <UUID>/
+                // directory and an Untitled-XXXXXXXX.uicatalog store there, both random names in
+                // a directory the build cannot list
                 .withReadWritePatterns(List.of(DarwinSandboxPaths.userTempPattern(
-                        "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)")))
+                        "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)"),
+                        DarwinSandboxPaths.userTempPattern(UPPER_UUID_REGEX + "(/|$)"),
+                        DarwinSandboxPaths.userTempPattern("Untitled-" + "[A-Za-z0-9]".repeat(8) + "\\.uicatalog(-journal)?$")))
                 .withMachServices(XCODEBUILD_MACH_SERVICES)
                 .withPreferenceDomains(XCODEBUILD_PREFERENCE_DOMAINS)
                 // Xcode's build service maps a sparse file larger than the default 8 GiB
@@ -1063,8 +1079,11 @@ public class SwiftPackageManagerService {
         processExecutor.putEnv("GIT_CONFIG_GLOBAL", gitConfig.getAbsolutePath());
         processExecutor.putEnv("GIT_ALLOW_PROTOCOL", "file");
         processExecutor.setPolicy(xcodebuildPolicy(buildState, packageCacheDir, mirrorsDir));
+        String userDirSuffix = USER_DIR_LINK_PREFIX + UUID.randomUUID();
+        List<Path> userDirLinks = linkUserDirs(DarwinSandboxPaths.userTempDir().getParent(), userDirSuffix,
+                buildState.getJobDir(), new File(buildState.getWrapperDir(), "tmp"));
         try {
-            processExecutor.execute(args);
+            processExecutor.execute(withUserDirSuffix(args, userDirSuffix));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             writeBuildLog(buildState, processExecutor);
@@ -1081,9 +1100,67 @@ public class SwiftPackageManagerService {
         } catch (IOException e) {
             writeBuildLog(buildState, processExecutor);
             return processExecutor.getOutput();
+        } finally {
+            deleteLinks(userDirLinks);
         }
         writeBuildLog(buildState, processExecutor);
         return null;
+    }
+
+    // Seatbelt regexes have no {n} quantifier
+    private static final String UPPER_UUID_REGEX = String.join("-", "[0-9A-F]".repeat(8), "[0-9A-F]".repeat(4),
+            "[0-9A-F]".repeat(4), "[0-9A-F]".repeat(4), "[0-9A-F]".repeat(12));
+
+    static final String USER_DIR_SUFFIX_ENV = "DIRHELPER_USER_DIR_SUFFIX";
+    static final String USER_DIR_LINK_PREFIX = "extender-spm-";
+
+    /**
+     * actool, the ibtoold daemon it starts and Foundation in general keep their scratch files in
+     * confstr(_CS_DARWIN_USER_TEMP_DIR), which ignores TMPDIR and is shared by every job.
+     * libSystem appends {@link #USER_DIR_SUFFIX_ENV} (a single name) to it, so the build gets an
+     * entry of its own there: a link to {@code tmpDir} inside the job, which the sandbox grants
+     * already, while the shared directory gets no new grant. The suffix moves the per-user dir
+     * (0) and cache dir (C) too; their links point back at the directories themselves, so the
+     * caches the build shares stay where they are.
+     */
+    static List<Path> linkUserDirs(Path userDirsRoot, String suffix, File jobDir, File tmpDir) throws IOException {
+        JobFiles.createDirectories(jobDir, tmpDir);
+        Map<Path, Path> targets = new LinkedHashMap<>();
+        targets.put(userDirsRoot.resolve("T"), tmpDir.toPath().toRealPath());
+        for (String name : List.of("C", "0")) {
+            Path dir = userDirsRoot.resolve(name);
+            if (Files.isDirectory(dir)) {
+                targets.put(dir, dir.toRealPath());
+            }
+        }
+        List<Path> links = new ArrayList<>();
+        try {
+            for (Map.Entry<Path, Path> entry : targets.entrySet()) {
+                links.add(Files.createSymbolicLink(entry.getKey().resolve(suffix), entry.getValue()));
+            }
+        } catch (IOException e) {
+            deleteLinks(links);
+            throw e;
+        }
+        return links;
+    }
+
+    private static void deleteLinks(List<Path> links) {
+        for (Path link : links) {
+            try {
+                Files.deleteIfExists(link);
+            } catch (IOException e) {
+                LOGGER.warn("Could not remove {}: {}", link, e.getMessage());
+            }
+        }
+    }
+
+    // through env(1) rather than the process environment: the sandbox launcher resolves the
+    // same directory for its own bookkeeping and must keep seeing the shared one
+    static List<String> withUserDirSuffix(List<String> args, String suffix) {
+        List<String> wrapped = new ArrayList<>(List.of("/usr/bin/env", USER_DIR_SUFFIX_ENV + "=" + suffix));
+        wrapped.addAll(args);
+        return wrapped;
     }
 
     /** Adds the reason a resolution can fail under the offline build, when the log points at one. */
@@ -1108,6 +1185,79 @@ public class SwiftPackageManagerService {
                 + "even after fetching it again; the publisher replaced the archive or the manifest is wrong.";
         }
         return "";
+    }
+
+    static final int MIN_IOS_ASSET_CATALOG_XCODE_MAJOR = 27;
+    private static final Pattern ASSET_CATALOG_STEP = Pattern.compile(
+        "^CompileAssetCatalog\\S* .*\\(in target '[^']+' from project '([^']+)'\\)", Pattern.MULTILINE);
+    private static final Pattern BUNDLE_SHORT_VERSION = Pattern.compile(
+        "<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>");
+
+    /**
+     * Before Xcode 27, actool compiles iOS asset catalogs against an iOS simulator runtime it
+     * finds through CoreSimulator. The xcodebuild sandbox cannot let it: with CoreSimulator, code
+     * from the package graph could boot a simulator and run commands outside the sandbox. Xcode
+     * 27 ships the runtime actool needs inside the platform and keeps it in the sandbox.
+     */
+    private void rejectAssetCatalogsBeforeXcode27(SpmServiceBuildState buildState, String developerDir)
+            throws IOException, ExtenderException {
+        File buildLog = buildState.getBuildLogFile();
+        if (buildLog == null || !buildLog.isFile()) {
+            return;
+        }
+        String failure = assetCatalogXcodeFailure(xcodeVersion(developerDir),
+            Files.readString(buildLog.toPath(), StandardCharsets.UTF_8));
+        if (failure != null) {
+            throw new ExtenderException(failure);
+        }
+    }
+
+    /** The client-facing reason an iOS build with asset catalogs cannot use this Xcode, or null. */
+    static String assetCatalogXcodeFailure(String xcodeVersion, String buildLog) {
+        Integer major = majorVersion(xcodeVersion);
+        if (major == null || major >= MIN_IOS_ASSET_CATALOG_XCODE_MAJOR || buildLog == null) {
+            return null;
+        }
+        Set<String> packages = new LinkedHashSet<>();
+        Matcher m = ASSET_CATALOG_STEP.matcher(buildLog);
+        while (m.find()) {
+            packages.add(m.group(1));
+        }
+        if (packages.isEmpty()) {
+            return null;
+        }
+        return String.format("Swift packages with asset catalogs (%s) need Xcode %d or later to build for iOS; "
+            + "this build uses Xcode %s, which compiles asset catalogs through the iOS Simulator, and Swift "
+            + "package builds have no access to it.",
+            String.join(", ", packages), MIN_IOS_ASSET_CATALOG_XCODE_MAJOR, xcodeVersion);
+    }
+
+    /** The Xcode version (e.g. 26.5) a developer dir belongs to, or null when it cannot be read. */
+    static String xcodeVersion(String developerDir) {
+        File contentsDir = new File(developerDir).getParentFile();
+        File versionPlist = contentsDir != null ? new File(contentsDir, "version.plist") : null;
+        if (versionPlist == null || !versionPlist.isFile()) {
+            LOGGER.warn("No Xcode version.plist next to {}", developerDir);
+            return null;
+        }
+        try {
+            Matcher m = BUNDLE_SHORT_VERSION.matcher(Files.readString(versionPlist.toPath(), StandardCharsets.UTF_8));
+            return m.find() ? m.group(1).strip() : null;
+        } catch (IOException e) {
+            LOGGER.warn("Could not read {}: {}", versionPlist, e.getMessage());
+            return null;
+        }
+    }
+
+    private static Integer majorVersion(String version) {
+        if (version == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(version.split("\\.", 2)[0]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void writeBuildLog(SpmServiceBuildState buildState, ProcessExecutor processExecutor) {

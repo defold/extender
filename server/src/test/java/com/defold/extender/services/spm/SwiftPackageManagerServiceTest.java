@@ -9,13 +9,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
+import com.defold.extender.process.DarwinSandboxPaths;
 import com.defold.extender.process.SandboxPolicy;
 
 import org.junit.jupiter.api.Test;
@@ -356,6 +362,94 @@ public class SwiftPackageManagerServiceTest {
         SandboxPolicy prefetch = SwiftPackageManagerService.gitPrefetchPolicy(mirrors);
         assertEquals(SandboxPolicy.Network.ALL, prefetch.network());
         assertTrue(prefetch.readWritePaths().contains(mirrors.getAbsolutePath()));
+    }
+
+    @Test
+    public void testUserDirLinksSendTempIntoTheJobAndLeaveTheCacheWhereItIs(@TempDir File root) throws IOException {
+        File userDirs = new File(root, "folders");
+        for (String name : List.of("T", "C", "0")) {
+            new File(userDirs, name).mkdirs();
+        }
+        File jobDir = new File(root, "job");
+        File tmpDir = new File(jobDir, "SwiftPackageManagerService/Wrapper/tmp");
+        jobDir.mkdirs();
+
+        List<Path> links = SwiftPackageManagerService.linkUserDirs(userDirs.toPath(), "extender-spm-x", jobDir, tmpDir);
+
+        assertEquals(List.of(userDirs.toPath().resolve("T/extender-spm-x"), userDirs.toPath().resolve("C/extender-spm-x"),
+            userDirs.toPath().resolve("0/extender-spm-x")), links);
+        assertEquals(tmpDir.toPath().toRealPath(), links.get(0).toRealPath());
+        assertEquals(new File(userDirs, "C").toPath().toRealPath(), links.get(1).toRealPath());
+        assertEquals(new File(userDirs, "0").toPath().toRealPath(), links.get(2).toRealPath());
+
+        // a name taken already fails the build rather than sharing another job's entry
+        // and leaves none of its own links behind
+        Files.delete(links.get(0));
+        Files.delete(links.get(2));
+        assertThrows(FileAlreadyExistsException.class,
+            () -> SwiftPackageManagerService.linkUserDirs(userDirs.toPath(), "extender-spm-x", jobDir, tmpDir));
+        assertFalse(Files.exists(links.get(0), LinkOption.NOFOLLOW_LINKS));
+    }
+
+    @Test
+    public void testXcodebuildMayWriteOnlyTheAssetCatalogAgentsRandomEntriesInTheSharedTempDir(@TempDir File dir)
+            throws IOException {
+        SpmServiceBuildState buildState = new SpmServiceBuildState();
+        buildState.workingDir = new File(dir, "SwiftPackageManagerService");
+        List<Pattern> patterns = SwiftPackageManagerService.xcodebuildPolicy(buildState,
+                new File(dir, "packageCache"), new File(dir, "mirrors"))
+            .readWritePatterns().stream().map(Pattern::compile).toList();
+        String temp = DarwinSandboxPaths.userTempDir().toString();
+        Predicate<String> granted = name -> patterns.stream().anyMatch(p -> p.matcher(temp + "/" + name).find());
+
+        assertTrue(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5"));
+        assertTrue(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5/assets.uicatalog"));
+        assertTrue(granted.test("Untitled-irHAJgJW.uicatalog"));
+        assertTrue(granted.test("Untitled-irHAJgJW.uicatalog-journal"));
+
+        assertFalse(granted.test(""));
+        assertFalse(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5.link"));
+        assertFalse(granted.test("74fb7d02-961f-44c7-88e0-385a503026d5"));
+        assertFalse(granted.test("Untitled-1.uicatalog"));
+        assertFalse(granted.test("Untitled-irHAJgJW.uicatalog/x"));
+        assertFalse(granted.test("extender-spm-x"));
+    }
+
+    @Test
+    public void testIOSAssetCatalogsAreRefusedBeforeXcode27() {
+        String log = "CompileAssetCatalogVariant thinned /dd/Build/Products/Release-iphoneos/Yandex_Wrapper.bundle "
+            + "/src/Media.xcassets (in target 'Yandex_Wrapper' from project 'YandexMobileAdsPackage')\n"
+            + "GenerateAssetSymbols /src/Media.xcassets (in target 'Yandex' from project 'YandexMobileAdsPackage')\n"
+            + "CompileAssetCatalog /dd/Build/Products/Release-iphoneos/Other.bundle /src/A.xcassets "
+            + "(in target 'Other' from project 'OtherPackage')\n";
+
+        assertEquals("Swift packages with asset catalogs (YandexMobileAdsPackage, OtherPackage) need Xcode 27 or later "
+            + "to build for iOS; this build uses Xcode 26.5, which compiles asset catalogs through the iOS Simulator, "
+            + "and Swift package builds have no access to it.",
+            SwiftPackageManagerService.assetCatalogXcodeFailure("26.5", log));
+        assertNull(SwiftPackageManagerService.assetCatalogXcodeFailure("27.1", log));
+        assertNull(SwiftPackageManagerService.assetCatalogXcodeFailure("26.5", "CompileSwift normal arm64 /src/a.swift\n"));
+        // an unknown Xcode is not refused: the build reports whatever actool says
+        assertNull(SwiftPackageManagerService.assetCatalogXcodeFailure(null, log));
+    }
+
+    @Test
+    public void testXcodeVersionIsReadNextToTheDeveloperDir(@TempDir File dir) throws IOException {
+        File developerDir = new File(dir, "Xcode_26.5.app/Contents/Developer");
+        developerDir.mkdirs();
+        Files.writeString(new File(developerDir.getParentFile(), "version.plist").toPath(),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n"
+            + "\t<key>BuildVersion</key>\n\t<string>2</string>\n"
+            + "\t<key>CFBundleShortVersionString</key>\n\t<string>26.5</string>\n</dict>\n</plist>\n");
+
+        assertEquals("26.5", SwiftPackageManagerService.xcodeVersion(developerDir.getAbsolutePath()));
+        assertNull(SwiftPackageManagerService.xcodeVersion(new File(dir, "CommandLineTools").getAbsolutePath()));
+    }
+
+    @Test
+    public void testUserDirSuffixIsSetForTheCommandOnly() {
+        assertEquals(List.of("/usr/bin/env", "DIRHELPER_USER_DIR_SUFFIX=extender-spm-x", "xcodebuild", "build"),
+            SwiftPackageManagerService.withUserDirSuffix(List.of("xcodebuild", "build"), "extender-spm-x"));
     }
 
     @Test
