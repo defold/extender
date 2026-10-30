@@ -2,6 +2,7 @@ package com.defold.extender.services.spm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.core.io.FileSystemResource;
 
+import com.defold.extender.ExtenderException;
 import com.defold.extender.process.DarwinSandboxPaths;
 import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.SandboxConfiguration;
@@ -44,7 +46,9 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
  * ibtoold daemon behind it write their scratch files into the darwin user temp dir whatever
  * TMPDIR says, and the sandbox grants no entry there they could use: the build only gets
  * through when the service hands them an entry of the job's own, and grants the asset catalog
- * agent, which that entry never reaches, its randomly named entries.
+ * agent, which that entry never reaches, its randomly named entries. Before Xcode 27 actool
+ * needs the iOS Simulator for it, which the sandbox does not grant, and the build is refused
+ * with a message naming the package.
  *
  * Installs the process sandbox, which every {@link com.defold.extender.process.ProcessExecutor}
  * in the JVM picks up, so the class runs on its own.
@@ -139,14 +143,23 @@ public class SpmAssetCatalogSandboxTest {
             buildState.moduleCacheDir.mkdirs();
             buildState.clonedSourcePackagesDir.mkdirs();
 
-            ResolvedPackages resolved = service.resolveDependencies(
-                List.of(manifest), buildState, Map.of("env.IOS_VERSION_MIN", "15.0"), true);
+            String xcodeVersion = SwiftPackageManagerService.xcodeVersion(service.defaultDeveloperDir);
+            assertNotNull(xcodeVersion, "no Xcode version for " + service.defaultDeveloperDir);
+            if (Integer.parseInt(xcodeVersion.split("\\.")[0]) < SwiftPackageManagerService.MIN_IOS_ASSET_CATALOG_XCODE_MAJOR) {
+                ExtenderException e = assertThrows(ExtenderException.class, () -> service.resolveDependencies(
+                    List.of(manifest), buildState, Map.of("env.IOS_VERSION_MIN", "15.0"), true));
+                assertTrue(e.getMessage().startsWith("Swift packages with asset catalogs (" + name + ") need Xcode 27"),
+                    e.getMessage());
+            } else {
+                ResolvedPackages resolved = service.resolveDependencies(
+                    List.of(manifest), buildState, Map.of("env.IOS_VERSION_MIN", "15.0"), true);
 
-            assertNotNull(resolved);
-            File bundle = new File(buildState.getProductsDir(), name + "_" + name + ".bundle");
-            assertTrue(new File(bundle, "Assets.car").isFile(), "no compiled asset catalog in " + bundle);
-            try (Stream<Path> entries = Files.list(new File(buildState.getWrapperDir(), "tmp").toPath())) {
-                assertTrue(entries.findAny().isPresent(), "nothing was written to the job's temp dir");
+                assertNotNull(resolved);
+                File bundle = new File(buildState.getProductsDir(), name + "_" + name + ".bundle");
+                assertTrue(new File(bundle, "Assets.car").isFile(), "no compiled asset catalog in " + bundle);
+                try (Stream<Path> entries = Files.list(new File(buildState.getWrapperDir(), "tmp").toPath())) {
+                    assertTrue(entries.findAny().isPresent(), "nothing was written to the job's temp dir");
+                }
             }
         } finally {
             ProcessSandbox.install(ProcessSandbox.disabled());

@@ -270,8 +270,18 @@ public class SwiftPackageManagerService {
             File clonedSourcesDir = spmBuildState.getClonedSourcePackagesDir();
 
             generateXcodeProject(spmBuildState, processEnv);
-            resolveAndBuild(spmBuildState, manifest, userLockFile, clonedSourcesDir, packageCacheDir,
-                mirrorsDir, processEnv);
+            try {
+                resolveAndBuild(spmBuildState, manifest, userLockFile, clonedSourcesDir, packageCacheDir,
+                    mirrorsDir, processEnv);
+            } catch (ExtenderException e) {
+                if (isIOS) {
+                    rejectAssetCatalogsBeforeXcode27(spmBuildState, developerDir);
+                }
+                throw e;
+            }
+            if (isIOS) {
+                rejectAssetCatalogsBeforeXcode27(spmBuildState, developerDir);
+            }
         } finally {
             cacheLock.readLock().unlock();
         }
@@ -1123,6 +1133,79 @@ public class SwiftPackageManagerService {
                 + "even after fetching it again; the publisher replaced the archive or the manifest is wrong.";
         }
         return "";
+    }
+
+    static final int MIN_IOS_ASSET_CATALOG_XCODE_MAJOR = 27;
+    private static final Pattern ASSET_CATALOG_STEP = Pattern.compile(
+        "^CompileAssetCatalog\\S* .*\\(in target '[^']+' from project '([^']+)'\\)", Pattern.MULTILINE);
+    private static final Pattern BUNDLE_SHORT_VERSION = Pattern.compile(
+        "<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>");
+
+    /**
+     * Before Xcode 27, actool compiles iOS asset catalogs against an iOS simulator runtime it
+     * finds through CoreSimulator. The xcodebuild sandbox cannot let it: with CoreSimulator, code
+     * from the package graph could boot a simulator and run commands outside the sandbox. Xcode
+     * 27 ships the runtime actool needs inside the platform and keeps it in the sandbox.
+     */
+    private void rejectAssetCatalogsBeforeXcode27(SpmServiceBuildState buildState, String developerDir)
+            throws IOException, ExtenderException {
+        File buildLog = buildState.getBuildLogFile();
+        if (buildLog == null || !buildLog.isFile()) {
+            return;
+        }
+        String failure = assetCatalogXcodeFailure(xcodeVersion(developerDir),
+            Files.readString(buildLog.toPath(), StandardCharsets.UTF_8));
+        if (failure != null) {
+            throw new ExtenderException(failure);
+        }
+    }
+
+    /** The client-facing reason an iOS build with asset catalogs cannot use this Xcode, or null. */
+    static String assetCatalogXcodeFailure(String xcodeVersion, String buildLog) {
+        Integer major = majorVersion(xcodeVersion);
+        if (major == null || major >= MIN_IOS_ASSET_CATALOG_XCODE_MAJOR || buildLog == null) {
+            return null;
+        }
+        Set<String> packages = new LinkedHashSet<>();
+        Matcher m = ASSET_CATALOG_STEP.matcher(buildLog);
+        while (m.find()) {
+            packages.add(m.group(1));
+        }
+        if (packages.isEmpty()) {
+            return null;
+        }
+        return String.format("Swift packages with asset catalogs (%s) need Xcode %d or later to build for iOS; "
+            + "this build uses Xcode %s, which compiles asset catalogs through the iOS Simulator, and Swift "
+            + "package builds have no access to it.",
+            String.join(", ", packages), MIN_IOS_ASSET_CATALOG_XCODE_MAJOR, xcodeVersion);
+    }
+
+    /** The Xcode version (e.g. 26.5) a developer dir belongs to, or null when it cannot be read. */
+    static String xcodeVersion(String developerDir) {
+        File contentsDir = new File(developerDir).getParentFile();
+        File versionPlist = contentsDir != null ? new File(contentsDir, "version.plist") : null;
+        if (versionPlist == null || !versionPlist.isFile()) {
+            LOGGER.warn("No Xcode version.plist next to {}", developerDir);
+            return null;
+        }
+        try {
+            Matcher m = BUNDLE_SHORT_VERSION.matcher(Files.readString(versionPlist.toPath(), StandardCharsets.UTF_8));
+            return m.find() ? m.group(1).strip() : null;
+        } catch (IOException e) {
+            LOGGER.warn("Could not read {}: {}", versionPlist, e.getMessage());
+            return null;
+        }
+    }
+
+    private static Integer majorVersion(String version) {
+        if (version == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(version.split("\\.", 2)[0]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void writeBuildLog(SpmServiceBuildState buildState, ProcessExecutor processExecutor) {
