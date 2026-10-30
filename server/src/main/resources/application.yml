@@ -217,6 +217,9 @@ extender:
         # reads them before trying the network; one download's time limit and size cap
         artifact-download-timeout: 600000
         max-artifact-size: 1073741824
+        # a graph without an uploaded Package.resolved is discovered about one repository per
+        # mirror-and-build round; no new round is started after this many ms (0 = off)
+        resolve-time-budget: 900000
         cache-dir-rotate-cron: "0 20 2 * * *" # once per day
         old-cache-clean-cron: "0 20 6 * * *" # once per day after directory rotation
     # refer to README_SECURITY.md for information on securing your server

@@ -100,11 +100,9 @@ public class SwiftPackageManagerService {
     static final String GIT_CONFIG_FILENAME = "gitconfig";
     // marker next to a mirror, touched after every successful clone or fetch
     static final String FETCH_MARKER_SUFFIX = ".fetched";
-    // one round per level of the dependency graph, plus the round that finds it closed and
-    // one forced mirror refresh; deeper than this is a runaway, not a package graph
-    static final int MAX_RESOLVE_ROUNDS = 12;
     // transitive manifests pick these URLs, so the number of repositories git is asked to
-    // clone is attacker-controlled
+    // clone is attacker-controlled. Together with MAX_BINARY_ARTIFACTS it also bounds the
+    // number of resolution rounds (see ResolveRounds)
     static final int MAX_MIRRORED_PACKAGES = 256;
     // xcodebuild's own line above whatever SwiftPM reported, present for every failure of the
     // resolution and for none of the compilation
@@ -652,72 +650,50 @@ public class SwiftPackageManagerService {
     }
 
     /**
-     * Mirrors, resolves and builds, repeating until the package graph closes. Transitive
-     * dependencies are only known once the manifests declaring them have run, and those must
-     * not run with network access, so discovery happens the other way round: a round that
-     * cannot reach a repository names it, the repository is mirrored by plain git (which
-     * evaluates nothing), and the round is repeated. The round that finds the graph closed is
-     * the build itself, so a resolved graph costs no extra xcodebuild invocation.
+     * Decides after every failed round whether resolution is still making progress. SwiftPM
+     * gives up at the first repository it cannot clone, so a round typically names one new
+     * repository and a graph takes about as many rounds as it has repositories, however
+     * shallow it is. A round is repeated only when it named a repository or archive not known
+     * yet, or for the one-time checksum refetch and mirror refresh, so the caps on both bound
+     * the number of rounds; the time budget bounds what they cost.
      */
-    private void resolveAndBuild(SpmServiceBuildState buildState, SpmManifestParser.ParseResult manifest,
-            File userLockFile, File clonedSourcesDir, File packageCacheDir, File mirrorsDir,
-            Map<String, String> processEnv) throws IOException, ExtenderException {
-        Map<String, PackageRepo> repos = new LinkedHashMap<>();
-        for (PackageRef declared : manifest.packages.values()) {
-            addRepo(repos, declared.url);
-        }
-        if (userLockFile != null) {
-            // the pins name the whole graph, so a current lock file closes it in one round
-            for (SpmLockFile.Pin pin : SpmLockFile.parse(userLockFile).values()) {
-                addRepo(repos, pin.location);
-            }
-            copyLockFile(userLockFile, buildState);
+    static final class ResolveRounds {
+        enum Next { DISCOVERED, REFETCH_ARTIFACTS, REFRESH_MIRRORS, FAIL }
+
+        interface ArtifactUrlLookup {
+            String urlFor(String targetName) throws IOException;
         }
 
+        final Map<String, PackageRepo> repos = new LinkedHashMap<>();
         // archives of binary targets, named by the round that could not download them
-        Map<String, BinaryArtifact> artifacts = new LinkedHashMap<>();
-        File artifactsDir = new File(packageCacheDir, ARTIFACTS_SUBDIR);
-        boolean forceRefresh = false;
-        boolean refreshRetried = false;
+        final Map<String, BinaryArtifact> artifacts = new LinkedHashMap<>();
         // archives the last round rejected by checksum, to be fetched again
-        Set<String> evictArtifacts = new HashSet<>();
-        boolean artifactsRetried = false;
-        String lastFailure = null;
-        for (int round = 1; round <= MAX_RESOLVE_ROUNDS; round++) {
-            Map<String, File> mirrors;
-            try {
-                mirrors = prefetchMirrors(repos.values(), mirrorsDir, buildState, processEnv, forceRefresh);
-            } catch (ExtenderException e) {
-                if (!forceRefresh) {
-                    throw e;
+        final Set<String> evictArtifacts = new HashSet<>();
+        private final long timeBudgetMillis;
+        private boolean artifactsRetried = false;
+        private boolean refreshRetried = false;
+        int newRepos;
+        int newArtifacts;
+
+        ResolveRounds(long timeBudgetMillis) {
+            this.timeBudgetMillis = timeBudgetMillis;
+        }
+
+        Next afterFailure(String failure, ArtifactUrlLookup artifactUrls) throws IOException, ExtenderException {
+            newRepos = 0;
+            newArtifacts = 0;
+            for (String url : harvestPackageUrls(failure)) {
+                if (addRepo(repos, url)) {
+                    newRepos++;
                 }
-                // the refresh was a guess; a mirror that cannot be updated must not replace
-                // the failure that actually stopped the build
-                LOGGER.info("Refreshing the Swift package mirrors failed: {}", e.getMessage());
-                throw buildFailure(lastFailure);
-            }
-            forceRefresh = false;
-            prefetchArtifacts(artifacts.values(), artifactsDir, buildState, processEnv, evictArtifacts);
-            evictArtifacts.clear();
-            File gitConfig = writeGitConfig(buildState, repos.values(), mirrors);
-            LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored, {} artifacts cached)",
-                round, repos.size(), artifacts.size());
-            String failure = buildWrapperProject(buildState, clonedSourcesDir, packageCacheDir, mirrorsDir,
-                gitConfig, processEnv);
-            if (failure == null) {
-                return;
-            }
-            lastFailure = failure;
-            boolean discovered = false;
-            List<String> harvested = harvestPackageUrls(failure);
-            for (String url : harvested) {
-                discovered |= addRepo(repos, url);
             }
             for (BinaryArtifact artifact : harvestBinaryArtifacts(failure)) {
-                discovered |= addArtifact(artifacts, artifact);
+                if (addArtifact(artifacts, artifact)) {
+                    newArtifacts++;
+                }
             }
-            if (discovered) {
-                continue;
+            if (newRepos + newArtifacts > 0) {
+                return Next.DISCOVERED;
             }
             if (!artifactsRetried && failure.contains(CHECKSUM_MISMATCH_MARKER)) {
                 // the archive behind a URL changed since it was cached (or a build tampered
@@ -725,7 +701,7 @@ public class SwiftPackageManagerService {
                 // was never named to this job, so its URL comes from the declaring manifest
                 artifactsRetried = true;
                 for (String targetName : harvestMismatchedTargets(failure)) {
-                    String url = findArtifactUrlInCheckouts(clonedSourcesDir, targetName);
+                    String url = artifactUrls.urlFor(targetName);
                     if (url == null) {
                         // the cache is shared with every concurrent build of this Xcode
                         // version, so nothing wider than the one archive may be evicted
@@ -737,7 +713,7 @@ public class SwiftPackageManagerService {
                     evictArtifacts.add(url);
                 }
                 LOGGER.info("A cached Swift package archive does not match its manifest checksum, fetching again");
-                continue;
+                return Next.REFETCH_ARTIFACTS;
             }
             // only a resolution failure can be about a mirror; a compile error must not cost
             // the job a second full build
@@ -746,14 +722,89 @@ public class SwiftPackageManagerService {
                 // the mirrors were last fetched: refresh every one of them and try once more
                 LOGGER.info("Refreshing every Swift package mirror and retrying");
                 refreshRetried = true;
-                forceRefresh = true;
-                continue;
+                return Next.REFRESH_MIRRORS;
             }
-            throw buildFailure(failure);
+            return Next.FAIL;
         }
-        throw new ExtenderException(String.format(
-            "The Swift package graph did not resolve in %d rounds; it is either too deep or keeps changing",
-            MAX_RESOLVE_ROUNDS));
+
+        /** Checked between rounds: a round already running is bounded by the command timeout. */
+        void requireWithinBudget(long elapsedMillis, int roundsRun) throws ExtenderException {
+            if (timeBudgetMillis <= 0 || elapsedMillis < timeBudgetMillis) {
+                return;
+            }
+            String budget = timeBudgetMillis % 60_000 == 0
+                ? (timeBudgetMillis / 60_000) + " minute" : (timeBudgetMillis / 1000) + " second";
+            throw new ExtenderException(String.format("The Swift package graph did not resolve within the %s time budget "
+                + "(extender.spm.resolve-time-budget): after %d rounds it had grown to %d repositories and %d binary "
+                + "target archives. SwiftPM stops at the first repository it cannot reach, so a round discovers about one; "
+                + "uploading the graph's %s next to %s resolves it in a single round.",
+                budget, roundsRun, repos.size(), artifacts.size(), LOCK_FILENAME, MANIFEST_FILENAME));
+        }
+    }
+
+    /**
+     * Mirrors, resolves and builds, repeating until the package graph closes. Transitive
+     * dependencies are only known once the manifests declaring them have run, and those must
+     * not run with network access, so discovery happens the other way round: a round that
+     * cannot reach a repository names it, the repository is mirrored by plain git (which
+     * evaluates nothing), and the round is repeated. The round that finds the graph closed is
+     * the build itself, so a resolved graph costs no extra xcodebuild invocation.
+     */
+    private void resolveAndBuild(SpmServiceBuildState buildState, SpmManifestParser.ParseResult manifest,
+            File userLockFile, File clonedSourcesDir, File packageCacheDir, File mirrorsDir,
+            Map<String, String> processEnv) throws IOException, ExtenderException {
+        ResolveRounds rounds = new ResolveRounds(spmConfiguration.getResolveTimeBudget());
+        for (PackageRef declared : manifest.packages.values()) {
+            addRepo(rounds.repos, declared.url);
+        }
+        if (userLockFile != null) {
+            // the pins name the whole graph, so a current lock file closes it in one round
+            for (SpmLockFile.Pin pin : SpmLockFile.parse(userLockFile).values()) {
+                addRepo(rounds.repos, pin.location);
+            }
+            copyLockFile(userLockFile, buildState);
+        }
+
+        File artifactsDir = new File(packageCacheDir, ARTIFACTS_SUBDIR);
+        long start = System.currentTimeMillis();
+        boolean forceRefresh = false;
+        String lastFailure = null;
+        for (int round = 1;; round++) {
+            if (round > 1) {
+                rounds.requireWithinBudget(System.currentTimeMillis() - start, round - 1);
+            }
+            Map<String, File> mirrors;
+            try {
+                mirrors = prefetchMirrors(rounds.repos.values(), mirrorsDir, buildState, processEnv, forceRefresh);
+            } catch (ExtenderException e) {
+                if (!forceRefresh) {
+                    throw e;
+                }
+                // the refresh was a guess; a mirror that cannot be updated must not replace
+                // the failure that actually stopped the build
+                LOGGER.info("Refreshing the Swift package mirrors failed: {}", e.getMessage());
+                throw buildFailure(lastFailure);
+            }
+            prefetchArtifacts(rounds.artifacts.values(), artifactsDir, buildState, processEnv, rounds.evictArtifacts);
+            rounds.evictArtifacts.clear();
+            File gitConfig = writeGitConfig(buildState, rounds.repos.values(), mirrors);
+            LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored, {} artifacts cached)",
+                round, rounds.repos.size(), rounds.artifacts.size());
+            String failure = buildWrapperProject(buildState, clonedSourcesDir, packageCacheDir, mirrorsDir,
+                gitConfig, processEnv);
+            if (failure == null) {
+                return;
+            }
+            lastFailure = failure;
+            ResolveRounds.Next next = rounds.afterFailure(failure,
+                targetName -> findArtifactUrlInCheckouts(clonedSourcesDir, targetName));
+            LOGGER.info("Swift package round {} named {} new repositories and {} new binary artifacts ({} s elapsed): {}",
+                round, rounds.newRepos, rounds.newArtifacts, (System.currentTimeMillis() - start) / 1000, next);
+            if (next == ResolveRounds.Next.FAIL) {
+                throw buildFailure(failure);
+            }
+            forceRefresh = next == ResolveRounds.Next.REFRESH_MIRRORS;
+        }
     }
 
     // the message is what the client gets; the cause-carrying constructor would report the
@@ -1023,7 +1074,8 @@ public class SwiftPackageManagerService {
             throw e;
         } catch (CommandTimeoutException e) {
             // the log is a partial one: its "Fetching from ..." lines would look like newly
-            // discovered packages and start another full-timeout round, up to MAX_RESOLVE_ROUNDS
+            // discovered packages and start another round that runs into the timeout as well,
+            // past the time budget, which is only checked between rounds
             writeBuildLog(buildState, processExecutor);
             throw e;
         } catch (IOException e) {
