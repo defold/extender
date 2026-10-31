@@ -141,6 +141,10 @@ public class SpmServiceBuildState {
         return new File(derivedDataDir, "Build/Products/" + getProductsDirName());
     }
 
+    public File getWrapperBinary() {
+        return new File(getProductsDir(), WRAPPER_NAME + ".framework/" + WRAPPER_NAME);
+    }
+
     /** The directory holding the generated <Module>.modulemap and <Module>-Swift.h files. */
     public File getGeneratedModuleMapsDir() {
         File intermediates = new File(derivedDataDir, "Build/Intermediates.noindex");

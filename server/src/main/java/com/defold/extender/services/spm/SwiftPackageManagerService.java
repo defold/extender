@@ -284,6 +284,8 @@ public class SwiftPackageManagerService {
             cacheLock.readLock().unlock();
         }
 
+        SpmWrapperArchive.removeDuplicateMembers(spmBuildState.getJobDir(), spmBuildState.getWrapperBinary(),
+            spmBuildState.getWorkingDir(), developerDir, spmBuildState.buildArch, processEnv);
         LinkInfo linkInfo = parseLinkInfo(spmBuildState);
         File swiftRuntimeLibDir = new File(developerDir, "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/"
             + spmBuildState.getSelectedPlatform().toString().toLowerCase());
