@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 public class AuthenticationTest implements AfterEachCallback {
 
     private static final int EXTENDER_PORT = 9001;
-    private static final String SDK_VERSION = "d6882f432beca85d460ec42497888157c356d058"; // 1.9.0
+    private static final String SDK_VERSION = "574678c7d44be490d874fbed2d0ae6211feec4d9"; // 1.13.1
     private static final String PLATFORM_ARMV7_ANDROID = "armv7-android";
     private static final String PLATFORM_LINUX = "x86_64-linux";
 
