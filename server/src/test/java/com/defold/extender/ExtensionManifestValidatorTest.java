@@ -481,13 +481,23 @@ public class ExtensionManifestValidatorTest {
         File folder = new File("ext-folder");
         validateSwiftFlags(validator, folder, "-sdk", "/tmp");
         validateSwiftContext(validator, folder, "additionalSwiftIncludePaths", "../other");
-        validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "/usr/lib");
+    }
+
+    // Verifies that the framework search paths are not tied to Swift, as they also apply to the
+    // C++ compile and the link, so they are checked on every SDK.
+    @Test
+    public void testFrameworkSearchPathsValidatedWithoutSwiftSupport() throws ExtenderException {
+        ExtensionManifestValidator validator = swiftValidator(null);
+        File folder = new File("ext-folder");
+        validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "lib/osx");
+        assertThrows(ExtenderException.class, () -> validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "/usr/lib"));
+        assertThrows(ExtenderException.class, () -> validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "../other"));
     }
 
     // Verifies that the paths are rewritten relative to the job directory, the base the build
     // commands run in, and that the other keys and the input context are left untouched.
     @Test
-    public void testResolveSwiftPaths() throws ExtenderException {
+    public void testResolveManifestPaths() throws ExtenderException {
         ExtensionManifestValidator validator = swiftValidator(ALLOWED_SWIFT_FLAGS);
         File jobDir = new File("job");
         File folder = new File(jobDir, "upload/ext");
@@ -498,14 +508,16 @@ public class ExtensionManifestValidatorTest {
         context.put("additionalFrameworkSearchPaths", new ArrayList<>(Arrays.asList("lib/osx")));
         context.put("defines", new ArrayList<>(List.of("FOO")));
 
-        Map<String, Object> resolved = validator.resolveSwiftPaths(context, folder, jobDir);
+        Map<String, Object> resolved = validator.resolveManifestPaths(context, folder, jobDir);
         assertEquals(Arrays.asList("upload/ext/include/swift", "upload/ext/vendor"), resolved.get("additionalSwiftIncludePaths"));
         assertEquals(Arrays.asList("upload/ext/lib/osx"), resolved.get("additionalFrameworkSearchPaths"));
         assertEquals(Arrays.asList("-Osize"), resolved.get("swiftFlags"));
         assertEquals(List.of("FOO"), resolved.get("defines"));
         assertEquals(Arrays.asList("include/swift", "vendor"), context.get("additionalSwiftIncludePaths"));
 
-        assertEquals(context, swiftValidator(null).resolveSwiftPaths(context, folder, jobDir));
+        Map<String, Object> withoutSwift = swiftValidator(null).resolveManifestPaths(context, folder, jobDir);
+        assertEquals(Arrays.asList("upload/ext/lib/osx"), withoutSwift.get("additionalFrameworkSearchPaths"));
+        assertEquals(Arrays.asList("include/swift", "vendor"), withoutSwift.get("additionalSwiftIncludePaths"));
     }
 
     @Test

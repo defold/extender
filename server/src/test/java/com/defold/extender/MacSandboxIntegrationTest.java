@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -186,7 +187,14 @@ public class MacSandboxIntegrationTest {
         assertTrue(log.contains("-strict-concurrency=minimal"), "swiftFlags did not reach the Swift compile");
         // the bridging header only finds ExtraDecl.h through additionalSwiftIncludePaths
         assertTrue(log.contains("-Iupload/swiftext/vendor/"), "additionalSwiftIncludePaths did not reach the Swift compile");
-        assertTrue(log.contains("-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the Swift compile");
+        // the framework search path is shared by the Swift compile, the .mm compile and the link
+        assertTrue(commandWith(log, "swiftc", "-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the Swift compile");
+        assertTrue(commandWith(log, "clang++ -c", "swiftext.mm", "-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the .mm compile");
+        assertTrue(commandWith(log, "clang++ -o build/dmengine", "-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the link");
+    }
+
+    private static boolean commandWith(String log, String... parts) {
+        return log.lines().anyMatch(line -> Arrays.stream(parts).allMatch(line::contains));
     }
 
     // Verifies that Swift sources outside of src/ are refused, since the editor plugin build that

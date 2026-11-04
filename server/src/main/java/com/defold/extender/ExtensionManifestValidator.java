@@ -27,7 +27,7 @@ class ExtensionManifestValidator {
     private static final Pattern VALID_SYMBOL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final Pattern VALID_API_LEVEL = Pattern.compile("^[0-9]+$");
     static final String SWIFT_INCLUDE_PATHS = "additionalSwiftIncludePaths";
-    static final String SWIFT_FRAMEWORK_PATHS = "additionalFrameworkSearchPaths";
+    static final String FRAMEWORK_SEARCH_PATHS = "additionalFrameworkSearchPaths";
 
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSymbols) {
         this(whitelistConfig, allowedFlags, null, allowedSymbols);
@@ -181,7 +181,7 @@ class ExtensionManifestValidator {
 
     // The paths must stay inside the extension folder, and nothing can escape it through absolute
     // paths, "..", or characters the compiler could take as part of an option.
-    private static void validateSwiftPaths(String extensionName, File extensionFolder, String key, Object value) throws ExtenderException {
+    private static void validateExtensionPaths(String extensionName, File extensionFolder, String key, Object value) throws ExtenderException {
         if (!(value instanceof List)) {
             throw new ExtenderException(String.format("Error in '%s': The '%s' must be a list of strings. Got %s", extensionName, key, value));
         }
@@ -200,15 +200,13 @@ class ExtensionManifestValidator {
         }
     }
 
-    // Rewrites the Swift include and framework search paths from relative to the folder they were
+    // Rewrites the include and framework search paths from relative to the folder they were
     // written in to relative to the job directory, the base the build commands run in.
     // Call after validate().
-    Map<String, Object> resolveSwiftPaths(Map<String, Object> context, File baseFolder, File jobDir) throws ExtenderException {
-        if (allowedSwiftFlags == null) {
-            return context;
-        }
+    Map<String, Object> resolveManifestPaths(Map<String, Object> context, File baseFolder, File jobDir) throws ExtenderException {
+        List<String> keys = allowedSwiftFlags == null ? List.of(FRAMEWORK_SEARCH_PATHS) : List.of(SWIFT_INCLUDE_PATHS, FRAMEWORK_SEARCH_PATHS);
         Map<String, Object> result = new HashMap<>(context);
-        for (String key : List.of(SWIFT_INCLUDE_PATHS, SWIFT_FRAMEWORK_PATHS)) {
+        for (String key : keys) {
             if (context.get(key) instanceof List) {
                 List<String> resolved = new ArrayList<>();
                 for (String path : (List<String>) context.get(key)) {
@@ -263,10 +261,13 @@ class ExtensionManifestValidator {
                     continue;
 
                 case SWIFT_INCLUDE_PATHS:
-                case SWIFT_FRAMEWORK_PATHS:
                     if (allowedSwiftFlags != null) {
-                        validateSwiftPaths(extensionName, extensionFolder, k, v);
+                        validateExtensionPaths(extensionName, extensionFolder, k, v);
                     }
+                    continue;
+
+                case FRAMEWORK_SEARCH_PATHS:
+                    validateExtensionPaths(extensionName, extensionFolder, k, v);
                     continue;
 
                 case "includes":

@@ -338,7 +338,7 @@ class Extender {
 
         // Make sure the user hasn't input anything invalid in the manifest
         manifestValidator.validate(this.appManifestPath, buildState.uploadDir, this.platformAppConfig.context);
-        this.platformAppConfig.context = manifestValidator.resolveSwiftPaths(this.platformAppConfig.context, buildState.uploadDir, buildState.jobDir);
+        this.platformAppConfig.context = manifestValidator.resolveManifestPaths(this.platformAppConfig.context, buildState.uploadDir, buildState.jobDir);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -682,7 +682,7 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(extDir));
-        List<String> frameworkPaths = new ArrayList<>();
+        List<String> frameworkPaths = new ArrayList<>(ExtenderUtil.getStringList(manifestContext, ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS));
         frameworkPaths.addAll(getFrameworkPaths(extDir));
         frameworks.addAll(collectDepFrameworks());
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
@@ -884,7 +884,7 @@ class Extender {
         List<String> includes = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.SWIFT_INCLUDE_PATHS, new ArrayList<String>()));
         includes.addAll(getIncludeDirs(extDir));
         includes.addAll(collectDepAdditionalIncludePaths());
-        List<String> frameworkPaths = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.SWIFT_FRAMEWORK_PATHS, new ArrayList<String>()));
+        List<String> frameworkPaths = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS, new ArrayList<String>()));
         frameworkPaths.addAll(getFrameworkPaths(extDir));
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
@@ -940,6 +940,7 @@ class Extender {
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
+        trimmedContext.remove(ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS);
 
         // create contexts per supported language
         // add pod flags and defines
@@ -1547,6 +1548,7 @@ class Extender {
         extFrameworks.addAll(collectDepFrameworks());
         extFrameworks.addAll(collectDepBuiltFrameworks());
         extFrameworkPaths.addAll(collectDepFrameworkSearchPaths());
+        extFrameworkPaths.addAll(ExtenderUtil.getStringList(mainContext, ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS));
         extLibs.addAll(collectDepStaticLibraries());
         extLibPaths.addAll(collectDepLibrarySearchPaths());
 
@@ -2316,7 +2318,7 @@ class Extender {
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
                 validator.validate(relativePath, manifest.getParentFile(), ctx);
-                ctx = validator.resolveSwiftPaths(ctx, manifest.getParentFile(), buildState.jobDir);
+                ctx = validator.resolveManifestPaths(ctx, manifest.getParentFile(), buildState.jobDir);
 
                 manifestContext = ExtenderUtil.mergeContexts(manifestContext, ctx);
             }
@@ -2341,6 +2343,7 @@ class Extender {
             ManifestConfiguration manifestConfig = _manifestConfigs.get(extensionSymbol);
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
+                ctx = validator.resolveManifestPaths(ctx, manifestFiles.get(extensionSymbol).getParentFile(), buildState.jobDir);
                 mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, ctx);
             }
         }
