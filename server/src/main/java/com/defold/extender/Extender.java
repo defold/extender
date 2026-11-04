@@ -53,6 +53,7 @@ import com.defold.extender.services.cocoapods.ResolvedPods;
 import com.defold.extender.utils.PodBuildUtil;
 import com.defold.extender.utils.VersionUtil;
 import com.defold.extender.builders.CSharpBuilder;
+import com.defold.extender.log.LogSanitizer;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessExecutor;
@@ -1622,7 +1623,8 @@ class Extender {
 
         SwiftRuntimeLibraries support = SwiftRuntimeLibraries.fromSdkSettings(new File(sdkSettings), target);
         if (support == null) {
-            LOGGER.warn("Not checking the Swift runtime libraries: {} has no Swift support information for {}", sdkSettings, target);
+            LOGGER.warn("Not checking the Swift runtime libraries: {} has no Swift support information for {}",
+                    LogSanitizer.sanitize(sdkSettings), LogSanitizer.sanitize(target));
             return;
         }
         support.checkMinOsVersion(minOsVersion);
