@@ -16,6 +16,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -67,6 +68,7 @@ public class MacSandboxIntegrationTest {
     private static final Path SERVER_DIR = Path.of("").toAbsolutePath();
 
     private static String sdk;
+    private static String minOs;
     private static int port;
     private static Process server;
     private static Path stdout;
@@ -101,6 +103,10 @@ public class MacSandboxIntegrationTest {
         env.put("CURL_CA_BUNDLE", certificate.toString());
         // echoes every launcher argv into the server log
         env.put("DM_DEBUG_COMMANDS", "1");
+        minOs = System.getProperty("extender.test.macSandboxMinOs");
+        if (minOs != null) {
+            env.put("MACOS_VERSION_MIN", minOs);
+        }
 
         sdk = System.getProperty("extender.test.macSandboxSdk", DEFAULT_SDK);
         stdout = workDir.resolve("server.log");
@@ -191,6 +197,50 @@ public class MacSandboxIntegrationTest {
         assertTrue(commandWith(log, "swiftc", "-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the Swift compile");
         assertTrue(commandWith(log, "clang++ -c", "swiftext.mm", "-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the .mm compile");
         assertTrue(commandWith(log, "clang++ -o build/dmengine", "-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the link");
+        // the Swift runtime libraries the minimum OS lacks are found by scanning the engine, which also runs sandboxed;
+        // this code needs none, and the engine finds libswiftCore in the OS through the rpath
+        assertTrue(commandWith(log, "swift-stdlib-tool --print --scan-executable build/dmengine"), "the engine was not scanned for Swift libraries");
+        try (ZipFile zip = new ZipFile(destination)) {
+            assertTrue(entryNames(zip).stream().noneMatch(name -> name.startsWith("libswift")),
+                "an engine without back-deployed code got Swift libraries: " + entryNames(zip));
+            assertTrue(run("otool", "-l", extractEngine(zip).toString()).contains("path /usr/lib/swift "), "no rpath to the Swift runtime of the OS");
+        }
+    }
+
+    // Verifies that an engine whose Swift code needs the concurrency runtime, which macOS has only from 12.0,
+    // gets the back-deployment library in the archive and resolves it through the rpath. Opt in with
+    // -PmacSandboxMinOs=11.0 (a lower minimum than the platform default); the Swift package tests need the
+    // default, so run it on its own.
+    @Test
+    public void buildsSwiftConcurrencyWithItsRuntimeLibrary() throws Exception {
+        assumeTrue(minOs != null && Integer.parseInt(minOs.split("\\.")[0]) < 12,
+            "needs -PmacSandboxMinOs below 12.0");
+        try (ZipFile zip = new ZipFile(build(swiftAsyncExtension()))) {
+            assertNotNull(zip.getEntry("libswift_Concurrency.dylib"), "the concurrency runtime is not in the archive: " + entryNames(zip));
+            assertTrue(entryNames(zip).stream().noneMatch(name -> name.equals("libswiftCore.dylib")),
+                "libswiftCore comes from the OS: " + entryNames(zip));
+            String libraries = run("otool", "-L", extractEngine(zip).toString());
+            assertTrue(libraries.contains("@rpath/libswift_Concurrency.dylib"), libraries);
+        }
+    }
+
+    private static Path extractEngine(ZipFile zip) throws IOException {
+        Path engine = Files.createTempFile(workDir, "extracted-dmengine", "");
+        try (InputStream in = zip.getInputStream(zip.getEntry("dmengine"))) {
+            Files.copy(in, engine, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return engine;
+    }
+
+    private static List<String> entryNames(ZipFile zip) {
+        return zip.stream().map(entry -> entry.getName()).toList();
+    }
+
+    private static String run(String... command) throws Exception {
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor() == 0, String.join(" ", command) + " failed:\n" + output);
+        return output;
     }
 
     private static boolean commandWith(String log, String... parts) {
@@ -315,6 +365,13 @@ public class MacSandboxIntegrationTest {
             new FileExtenderResource("test-data/ext_swift/src/Greeter.swift", "swiftext/src/Greeter.swift"),
             new FileExtenderResource("test-data/ext_swift/src/Helper.swift", "swiftext/src/Helper.swift"),
             new FileExtenderResource("test-data/ext_swift/src/swiftext.mm", "swiftext/src/swiftext.mm")));
+    }
+
+    private static List<ExtenderResource> swiftAsyncExtension() {
+        return new ArrayList<>(List.of(
+            new FileExtenderResource("test-data/ext_swift_async/ext.manifest", "swiftasync/ext.manifest"),
+            new FileExtenderResource("test-data/ext_swift_async/src/Worker.swift", "swiftasync/src/Worker.swift"),
+            new FileExtenderResource("test-data/ext_swift_async/src/swiftasync.mm", "swiftasync/src/swiftasync.mm")));
     }
 
     private static String buildError(List<ExtenderResource> sources) throws Exception {

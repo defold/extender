@@ -95,6 +95,7 @@ class Extender {
     // every resolved dependency manager (CocoaPods, SPM); consumed uniformly
     private final List<ResolvedNativeDeps> resolvedNativeDeps = new ArrayList<>();
     private int nameCounter = 0;
+    private boolean hasExtensionSwiftCode = false;
 
 
     static final String FOLDER_ENGINE_SRC = "src";      // source for the engine library
@@ -858,6 +859,7 @@ class Extender {
         if (swiftFiles.isEmpty()) {
             return objs;
         }
+        hasExtensionSwiftCode = true;
 
         final String extensionName = (String)manifestContext.get("extension_name");
         String moduleName = ExtenderUtil.toSwiftModuleName(extensionName);
@@ -1605,6 +1607,37 @@ class Extender {
         }
     }
 
+    // Copies the Swift runtime libraries that the OS of the minimum version does not have, and that the
+    // linked engine refers to, next to the engine. The bundler puts them into the application.
+    private void copySwiftRuntimeLibraries(Map<String, Object> linkContext, File exe) throws IOException, ExtenderException {
+        Map<String, Object> context = createContext(linkContext);
+        String target = (String)context.get("swiftSdkTarget");
+        String sdkSettings = (String)context.get("swiftSdkSettings");
+        String toolchain = (String)context.get("swiftToolchain");
+        String minOsVersion = (String)context.get("osMinVersion");
+        if (target == null || sdkSettings == null || toolchain == null || minOsVersion == null) {
+            LOGGER.warn("Not checking the Swift runtime libraries: the platform does not describe its Swift SDK");
+            return;
+        }
+
+        SwiftRuntimeLibraries support = SwiftRuntimeLibraries.fromSdkSettings(new File(sdkSettings), target);
+        if (support == null) {
+            LOGGER.warn("Not checking the Swift runtime libraries: {} has no Swift support information for {}", sdkSettings, target);
+            return;
+        }
+        support.checkMinOsVersion(minOsVersion);
+
+        context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, exe));
+        int logLength = processExecutor.getOutput().length();
+        executeCommand(platformConfig.listSwiftRuntimeLibsCmd, context);
+        String output = processExecutor.getOutput().substring(logLength);
+
+        for (File library : support.select(SwiftRuntimeLibraries.parseToolOutput(output), minOsVersion)) {
+            LOGGER.info("Adding Swift runtime library {} for the minimum OS version {}", library.getName(), minOsVersion);
+            JobFiles.copyFileToDirectory(buildState.jobDir, new File(toolchain), library, buildState.buildDir);
+        }
+    }
+
     private List<File> linkEngine(List<String> symbols, Map<String, Object> linkContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("Linking engine");
 
@@ -1687,6 +1720,10 @@ class Extender {
         }
         else {
             LOGGER.info("Skipping extraction of symbols");
+        }
+
+        if (hasExtensionSwiftCode && platformConfig.listSwiftRuntimeLibsCmd != null) {
+            copySwiftRuntimeLibraries(linkContext, exe);
         }
 
         // collect dynamic libraries and copy to result folder

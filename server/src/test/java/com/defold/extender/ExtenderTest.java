@@ -780,6 +780,37 @@ public class ExtenderTest {
         assertTrue(iosRendered.contains("-emit-objc-header-path build/MyExt/MyExt-Swift.h -o build/MyExt/MyExt_0.o"));
     }
 
+    // The engine is linked with the rpaths the Swift runtime libraries of the OS and of the bundle
+    // are found through, and the linked binary is scanned for the libraries it refers to
+    @Test
+    public void testSwiftRuntimeLibrariesCommandAndRpathsForApplePlatforms() throws IOException, ExtenderException {
+        File root = new File("test-data");
+        Configuration config = Extender.loadYaml(root, new File(root, "sdk/a/defoldsdk/extender/build.yml"), Configuration.class);
+
+        Map<String, String> sdkTargets = Map.of("arm64-osx", "macosx", "x86_64-osx", "macosx", "arm64-ios", "iphoneos", "x86_64-ios", "iphonesimulator");
+        for (Map.Entry<String, String> entry : sdkTargets.entrySet()) {
+            String platform = entry.getKey();
+            PlatformConfig platformConfig = mergePlatformConfig(config, platform);
+            Map<String, Object> context = platformConfig.context;
+            assertEquals(entry.getValue(), context.get("swiftSdkTarget"), platform);
+            assertEquals("{{env.SYSROOT}}/SDKSettings.json", context.get("swiftSdkSettings"), platform);
+            assertEquals("{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain", context.get("swiftToolchain"), platform);
+
+            List<String> linkFlags = (List<String>)context.get("linkFlags");
+            assertTrue(linkFlags.contains("-Wl,-rpath,/usr/lib/swift"), platform);
+            assertEquals(platform.endsWith("-ios"), linkFlags.contains("-Wl,-rpath,@executable_path/Frameworks"), platform);
+
+            Map<String, Object> commandContext = new HashMap<>();
+            commandContext.put("swiftToolchain", "/opt/platformsdk/XcodeDefault26.xctoolchain");
+            commandContext.put("swiftSdkTarget", entry.getValue());
+            commandContext.put("src", "build/dmengine");
+            assertEquals("/opt/platformsdk/XcodeDefault26.xctoolchain/usr/bin/swift-stdlib-tool --print --scan-executable build/dmengine --platform " + entry.getValue(),
+                    new TemplateExecutor().execute(platformConfig.listSwiftRuntimeLibsCmd, commandContext), platform);
+        }
+
+        assertNull(mergePlatformConfig(config, "armv7-android").listSwiftRuntimeLibsCmd);
+    }
+
     @Test
     public void testGetAppmanifest() throws IOException, ExtenderException {
         File root = new File("test-data");
