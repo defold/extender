@@ -180,6 +180,7 @@ public class MacSandboxIntegrationTest {
     // extension templates, see -PmacSandboxSdk.
     @Test
     public void buildsSwiftExtensionUnderTheSandbox() throws Exception {
+        assumeSwiftSdk();
         File destination = build(swiftExtension());
         try (ZipFile zip = new ZipFile(destination)) {
             assertNotNull(zip.getEntry("dmengine"), "no dmengine in the archive");
@@ -213,6 +214,7 @@ public class MacSandboxIntegrationTest {
     // default, so run it on its own.
     @Test
     public void buildsSwiftConcurrencyWithItsRuntimeLibrary() throws Exception {
+        assumeSwiftSdk();
         assumeTrue(minOs != null && Integer.parseInt(minOs.split("\\.")[0]) < 12,
             "needs -PmacSandboxMinOs below 12.0");
         try (ZipFile zip = new ZipFile(build(swiftAsyncExtension()))) {
@@ -222,6 +224,11 @@ public class MacSandboxIntegrationTest {
             String libraries = run("otool", "-L", extractEngine(zip).toString());
             assertTrue(libraries.contains("@rpath/libswift_Concurrency.dylib"), libraries);
         }
+    }
+
+    // DEFAULT_SDK predates the Swift extension templates
+    private static void assumeSwiftSdk() {
+        assumeTrue(!DEFAULT_SDK.equals(sdk), "needs -PmacSandboxSdk with the Swift extension templates");
     }
 
     private static Path extractEngine(ZipFile zip) throws IOException {
@@ -251,6 +258,7 @@ public class MacSandboxIntegrationTest {
     // also reads commonsrc/ and pluginsrc/ can't compile them.
     @Test
     public void swiftSourcesOutsideSrcAreRefused() throws Exception {
+        assumeSwiftSdk();
         List<ExtenderResource> sources = swiftExtension();
         Path misplaced = Files.writeString(Files.createTempFile(workDir, "Misplaced", ".swift"), "import Foundation\n");
         sources.add(new FileExtenderResource(misplaced.toString(), "swiftext/commonsrc/Misplaced.swift"));
@@ -263,6 +271,7 @@ public class MacSandboxIntegrationTest {
     // allowedSwiftFlags of an SDK with the Swift extension templates, otherwise the flags are ignored.
     @Test
     public void disallowedSwiftFlagsAreRefused() throws Exception {
+        assumeSwiftSdk();
         List<ExtenderResource> sources = swiftExtension();
         sources.removeIf(r -> r.getPath().equals("swiftext/ext.manifest"));
         Path manifest = Files.writeString(Files.createTempFile(workDir, "ext", ".manifest"),
@@ -276,8 +285,9 @@ public class MacSandboxIntegrationTest {
     // Verifies that the Swift code of an extension can import a module of a Swift package declared in SwiftPackages.json.
     @Test
     public void swiftExtensionCanImportASwiftPackage() throws Exception {
+        assumeSwiftSdk();
         String pkg = "SpmSwift" + UUID.randomUUID().toString().substring(0, 8);
-        publishPackage(pkg, Map.of("Sources/" + pkg + "/Lib.swift", "public func libValue() -> Int { 40 + 2 }\n"));
+        publishPackage(pkg, "", Map.of("Sources/" + pkg + "/Lib.swift", "public func libValue() -> Int { 40 + 2 }\n"));
 
         buildSwiftExtensionWithPackage("SpmUser", pkg, "spm-swift-marker-",
             "import " + pkg + "\n@objc(SpmUserGreeter)\npublic class Greeter: NSObject {\n"
@@ -285,11 +295,29 @@ public class MacSandboxIntegrationTest {
             null);
     }
 
+    // Verifies that the Swift code can import a package that declares a higher minimum version than the
+    // engine: the module is built for that version, so the Swift code must target it as well.
+    @Test
+    public void swiftExtensionCanImportAPackageWithAHigherMinimumVersion() throws Exception {
+        assumeSwiftSdk();
+        String pkg = "SpmMin" + UUID.randomUUID().toString().substring(0, 8);
+        publishPackage(pkg, "    platforms: [.macOS(.v14)],\n",
+            Map.of("Sources/" + pkg + "/Lib.swift", "public func libValue() -> Int { 40 + 2 }\n"));
+
+        buildSwiftExtensionWithPackage("SpmMinUser", pkg, "spm-min-version-marker-",
+            "import " + pkg + "\n@objc(SpmMinUserGreeter)\npublic class Greeter: NSObject {\n"
+            + "    @objc public func message() -> String { \"spm-min-version-marker-\\(libValue())\" }\n}\n",
+            null);
+        assertTrue(commandWith(Files.readString(stdout), "swiftc", "SpmMinUser", "-target arm64-apple-macosx14."),
+            "the Swift compile did not target the minimum version of the package");
+    }
+
     // Verifies that the bridging header of an extension can import an Objective-C header of a Swift package.
     @Test
     public void swiftBridgingHeaderCanImportAnObjcHeaderOfASwiftPackage() throws Exception {
+        assumeSwiftSdk();
         String pkg = "SpmObjc" + UUID.randomUUID().toString().substring(0, 8);
-        publishPackage(pkg, Map.of(
+        publishPackage(pkg, "", Map.of(
             "Sources/" + pkg + "/include/" + pkg + ".h", "#import <Foundation/Foundation.h>\nNSInteger " + pkg + "_value(void);\n",
             "Sources/" + pkg + "/" + pkg + ".m", "#import \"" + pkg + ".h\"\nNSInteger " + pkg + "_value(void) { return 42; }\n"));
 
@@ -299,13 +327,17 @@ public class MacSandboxIntegrationTest {
             "#import <" + pkg + "/" + pkg + ".h>\n");
     }
 
-    /** Commits a package with the given files (a Package.swift is generated) to the local git server. */
-    private static void publishPackage(String name, Map<String, String> files) throws Exception {
+    /**
+     * Commits a package with the given files to the local git server. A Package.swift is generated,
+     * {@code manifestArguments} are extra Package arguments in it.
+     */
+    private static void publishPackage(String name, String manifestArguments, Map<String, String> files) throws Exception {
         Path source = Files.createDirectories(workDir.resolve("repos/" + name));
         Files.writeString(source.resolve("Package.swift"),
             "// swift-tools-version:5.9\n"
             + "import PackageDescription\n"
             + "let package = Package(name: \"" + name + "\",\n"
+            + manifestArguments
             + "    products: [.library(name: \"" + name + "\", targets: [\"" + name + "\"])],\n"
             + "    targets: [.target(name: \"" + name + "\")])\n");
         for (Map.Entry<String, String> file : files.entrySet()) {

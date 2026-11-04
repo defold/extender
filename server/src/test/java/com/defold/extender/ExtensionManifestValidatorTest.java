@@ -483,6 +483,22 @@ public class ExtensionManifestValidatorTest {
         validateSwiftContext(validator, folder, "additionalSwiftIncludePaths", "../other");
     }
 
+    // Verifies that ignored Swift keys still can't carry template syntax, as they stay in the context.
+    @Test
+    public void testSwiftKeysWithoutSwiftSupportRejectTemplateSyntax() {
+        ExtensionManifestValidator validator = swiftValidator(null);
+        File folder = new File("ext-folder");
+        String template = "{{tgt}}";
+
+        for (String key : List.of("swiftFlags", "additionalSwiftIncludePaths")) {
+            assertThrows(ExtenderException.class, () -> validateSwiftContext(validator, folder, key, template), key);
+
+            Map<String, Object> scalar = new HashMap<>();
+            scalar.put(key, template);
+            assertThrows(ExtenderException.class, () -> validator.validate("testExtension", folder, scalar), key);
+        }
+    }
+
     // Verifies that the framework search paths are not tied to Swift, as they also apply to the
     // C++ compile and the link, so they are checked on every SDK.
     @Test

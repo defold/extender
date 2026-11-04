@@ -94,7 +94,7 @@ class Extender {
     private List<File> outputFiles;
     private ResolvedPods resolvedPods;
     // every resolved dependency manager (CocoaPods, SPM); consumed uniformly
-    private final List<ResolvedNativeDeps> resolvedNativeDeps = new ArrayList<>();
+    final List<ResolvedNativeDeps> resolvedNativeDeps = new ArrayList<>();
     private int nameCounter = 0;
     private boolean hasExtensionSwiftCode = false;
 
@@ -831,31 +831,36 @@ class Extender {
 
     private static final String DEFAULT_SWIFT_SOURCE_RE = "(?i).*\\.swift";
 
-    private List<File> collectSwiftSourceFiles(File manifest, File extDir, List<File> srcDirs) throws ExtenderException {
+    List<File> collectSwiftSourceFiles(File manifest, File extDir, List<File> srcDirs) throws ExtenderException {
         File engineSrc = new File(extDir, FOLDER_ENGINE_SRC);
         if (!ExtenderUtil.isAppleTarget(buildState.fullPlatform) || !srcDirs.contains(engineSrc)) {
             return new ArrayList<>();
         }
 
         String swiftSourceRe = platformConfig.swiftSourceRe != null ? platformConfig.swiftSourceRe : DEFAULT_SWIFT_SOURCE_RE;
+        List<File> swiftFiles = ExtenderUtil.listFiles(engineSrc, swiftSourceRe);
         File[] otherSrcDirs = { new File(extDir, FOLDER_COMMON_SRC), new File(extDir, FOLDER_PLUGIN_SRC) };
         List<File> misplaced = ExtenderUtil.listFiles(otherSrcDirs, swiftSourceRe);
+
+        if (platformConfig.swiftSourceRe == null || platformConfig.compileSwiftModuleCmd == null) {
+            if (!swiftFiles.isEmpty() || !misplaced.isEmpty()) {
+                File first = !swiftFiles.isEmpty() ? swiftFiles.get(0) : misplaced.get(0);
+                throw new ExtenderException(String.format("%s:1: error: Swift sources are not supported by this Defold SDK version, use a newer Defold version",
+                    ExtenderUtil.getRelativePath(buildState.uploadDir, first)));
+            }
+            return swiftFiles;
+        }
+
         if (!misplaced.isEmpty()) {
             throw new ExtenderException(String.format("%s:1: error: Swift sources are only supported in the '%s' folder: %s",
                 ExtenderUtil.getRelativePath(buildState.uploadDir, manifest), FOLDER_ENGINE_SRC, ExtenderUtil.getRelativePath(buildState.uploadDir, misplaced.get(0))));
-        }
-
-        List<File> swiftFiles = ExtenderUtil.listFiles(engineSrc, swiftSourceRe);
-        if (!swiftFiles.isEmpty() && (platformConfig.swiftSourceRe == null || platformConfig.compileSwiftModuleCmd == null)) {
-            throw new ExtenderException(String.format("%s:1: error: Swift sources are not supported by this Defold SDK version, use a newer Defold version",
-                ExtenderUtil.getRelativePath(buildState.uploadDir, swiftFiles.get(0))));
         }
         return swiftFiles;
     }
 
     // Compiles all Swift sources of an extension as one module into a header, a module and an object file.
     // Runs before the C/ObjC sources, which import the generated <Module>-Swift.h.
-    private List<String> compileExtensionSwiftFiles(File extDir, Map<String, Object> manifestContext, List<File> swiftFiles) throws IOException, InterruptedException, ExtenderException {
+    List<String> compileExtensionSwiftFiles(File extDir, Map<String, Object> manifestContext, List<File> swiftFiles) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         if (swiftFiles.isEmpty()) {
             return objs;
@@ -882,7 +887,10 @@ class Extender {
             bridgingHeaders.add(ExtenderUtil.getRelativePath(buildState.jobDir, bridgingHeader));
         }
 
-        Map<String, Object> context = createContext(manifestContext);
+        // The module of a package can't be imported below the minimum OS version of the package
+        Map<String, Object> minVersionContext = new HashMap<>(manifestContext);
+        putDepMinVersion(minVersionContext);
+        Map<String, Object> context = createContext(minVersionContext);
 
         List<String> includes = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.SWIFT_INCLUDE_PATHS, new ArrayList<String>()));
         includes.addAll(getIncludeDirs(extDir));
@@ -1610,7 +1618,7 @@ class Extender {
 
     // Copies the Swift runtime libraries that the OS of the minimum version does not have, and that the
     // linked engine refers to, next to the engine. The bundler puts them into the application.
-    private void copySwiftRuntimeLibraries(Map<String, Object> linkContext, File exe) throws IOException, ExtenderException {
+    void copySwiftRuntimeLibraries(Map<String, Object> linkContext, File exe) throws IOException, ExtenderException {
         Map<String, Object> context = createContext(linkContext);
         String target = (String)context.get("swiftSdkTarget");
         String sdkSettings = (String)context.get("swiftSdkSettings");
@@ -2513,13 +2521,10 @@ class Extender {
                 nativeDepsContext.put("weakFrameworks", collectDepWeakFrameworks());
                 nativeDepsContext.put("libs", collectDepStaticLibraries());
                 nativeDepsContext.put("linkFlags", collectDepLinkFlags());
-                String minVersion = maxDepMinVersion(null);
-                if (minVersion != null) {
-                    nativeDepsContext.put("osMinVersion", minVersion);
-                    nativeDepsContext.put("env.IOS_VERSION_MIN", minVersion);
-                }
+                putDepMinVersion(nativeDepsContext);
             }
             Map<String, Object> mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, nativeDepsContext);
+            mergedAppContextWithPods.put("linkFlags", ExtenderUtil.removeDuplicateRpaths(ExtenderUtil.getStringList(mergedAppContextWithPods, "linkFlags")));
 
             progressReporter.stage(BuildStage.LINKING, "Linking engine");
             outputFiles.addAll(linkEngine(symbols, mergedAppContextWithPods, resourceFile));
@@ -3053,6 +3058,14 @@ class Extender {
             result.addAll(deps.getPrivacyManifests());
         }
         return result;
+    }
+
+    private void putDepMinVersion(Map<String, Object> context) throws ExtenderException {
+        String minVersion = maxDepMinVersion(null);
+        if (minVersion != null) {
+            context.put("osMinVersion", minVersion);
+            context.put("env.IOS_VERSION_MIN", minVersion);
+        }
     }
 
     private String maxDepMinVersion(String fallback) throws ExtenderException {

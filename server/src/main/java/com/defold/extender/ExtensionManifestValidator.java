@@ -257,12 +257,16 @@ class ExtensionManifestValidator {
                 case "swiftFlags":
                     if (allowedSwiftFlags != null) {
                         validateSwiftFlags(extensionName, v);
+                    } else {
+                        validateArgvSafe(extensionName, k, v);
                     }
                     continue;
 
                 case SWIFT_INCLUDE_PATHS:
                     if (allowedSwiftFlags != null) {
                         validateExtensionPaths(extensionName, extensionFolder, k, v);
+                    } else {
+                        validateArgvSafe(extensionName, k, v);
                     }
                     continue;
 

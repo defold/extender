@@ -448,6 +448,18 @@ public class ExtenderUtil
         return items;
     }
 
+    // Keeps the first occurrence of each rpath, as the linker warns about the others
+    static public List<String> removeDuplicateRpaths(List<String> linkFlags) {
+        Set<String> rpaths = new HashSet<>();
+        List<String> result = new ArrayList<>();
+        for (String flag : linkFlags) {
+            if (!flag.startsWith("-Wl,-rpath,") || rpaths.add(flag)) {
+                result.add(flag);
+            }
+        }
+        return result;
+    }
+
     private static final String MERGE_KEY_REPLACE = "_replace";
 
     // Returns true by default for e.g. "myvar"

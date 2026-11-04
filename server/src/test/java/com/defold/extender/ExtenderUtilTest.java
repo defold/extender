@@ -50,6 +50,15 @@ public class ExtenderUtilTest {
         assertEquals("_1ext", ExtenderUtil.toSwiftModuleName("1ext"));
     }
 
+    // Verifies that only rpaths are deduplicated, as other flags can legitimately repeat, such as the
+    // first half of "-framework A -framework B", and that the first rpath keeps its place in the search order.
+    @Test
+    public void testRemoveDuplicateRpaths() {
+        assertEquals(List.of("-Wl,-rpath,/usr/lib/swift", "-framework", "A", "-Wl,-rpath,@executable_path/Frameworks", "-framework", "B"),
+            ExtenderUtil.removeDuplicateRpaths(List.of("-Wl,-rpath,/usr/lib/swift", "-framework", "A", "-Wl,-rpath,@executable_path/Frameworks",
+                "-framework", "B", "-Wl,-rpath,/usr/lib/swift", "-Wl,-rpath,@executable_path/Frameworks")));
+    }
+
     // Verifies that defines reach Swift as bare names, since a value only makes swiftc warn,
     // and that duplicates are dropped while the order is kept.
     @Test

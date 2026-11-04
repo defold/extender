@@ -727,7 +727,7 @@ public class ExtenderTest {
         File root = new File("test-data");
         Configuration config = Extender.loadYaml(root, new File(root, "sdk/a/defoldsdk/extender/build.yml"), Configuration.class);
 
-        for (String platform : List.of("arm64-osx", "x86_64-osx", "arm64-ios", "x86_64-ios")) {
+        for (String platform : List.of("arm64-osx", "x86_64-osx", "arm64-ios", "arm64_sim-ios", "x86_64-ios")) {
             PlatformConfig platformConfig = mergePlatformConfig(config, platform);
             assertEquals("(?i).*\\.swift", platformConfig.swiftSourceRe, platform);
             assertEquals(
@@ -787,7 +787,7 @@ public class ExtenderTest {
         File root = new File("test-data");
         Configuration config = Extender.loadYaml(root, new File(root, "sdk/a/defoldsdk/extender/build.yml"), Configuration.class);
 
-        Map<String, String> sdkTargets = Map.of("arm64-osx", "macosx", "x86_64-osx", "macosx", "arm64-ios", "iphoneos", "x86_64-ios", "iphonesimulator");
+        Map<String, String> sdkTargets = Map.of("arm64-osx", "macosx", "x86_64-osx", "macosx", "arm64-ios", "iphoneos", "arm64_sim-ios", "iphonesimulator", "x86_64-ios", "iphonesimulator");
         for (Map.Entry<String, String> entry : sdkTargets.entrySet()) {
             String platform = entry.getKey();
             PlatformConfig platformConfig = mergePlatformConfig(config, platform);
