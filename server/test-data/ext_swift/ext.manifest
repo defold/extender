@@ -3,4 +3,6 @@ name: SwiftExt
 platforms:
     osx:
         context:
-            swiftFlags: ["-strict-concurrency=minimal", "-I", "include"]
+            swiftFlags: ["-strict-concurrency=minimal"]
+            additionalSwiftIncludePaths: ["vendor"]
+            additionalFrameworkSearchPaths: ["vendor"]

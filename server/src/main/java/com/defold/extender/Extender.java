@@ -338,7 +338,7 @@ class Extender {
 
         // Make sure the user hasn't input anything invalid in the manifest
         manifestValidator.validate(this.appManifestPath, buildState.uploadDir, this.platformAppConfig.context);
-        this.platformAppConfig.context = manifestValidator.resolveSwiftFlagPaths(this.platformAppConfig.context, buildState.uploadDir, buildState.jobDir);
+        this.platformAppConfig.context = manifestValidator.resolveSwiftPaths(this.platformAppConfig.context, buildState.uploadDir, buildState.jobDir);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -879,12 +879,15 @@ class Extender {
             bridgingHeaders.add(ExtenderUtil.getRelativePath(buildState.jobDir, bridgingHeader));
         }
 
-        List<String> includes = getIncludeDirs(extDir);
+        Map<String, Object> context = createContext(manifestContext);
+
+        List<String> includes = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.SWIFT_INCLUDE_PATHS, new ArrayList<String>()));
+        includes.addAll(getIncludeDirs(extDir));
         includes.addAll(collectDepAdditionalIncludePaths());
-        List<String> frameworkPaths = new ArrayList<>(getFrameworkPaths(extDir));
+        List<String> frameworkPaths = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.SWIFT_FRAMEWORK_PATHS, new ArrayList<String>()));
+        frameworkPaths.addAll(getFrameworkPaths(extDir));
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
-        Map<String, Object> context = createContext(manifestContext);
         context.put("moduleName", moduleName);
         context.put("swiftSourceFiles", sources);
         context.put("swiftBridgingHeaders", bridgingHeaders);
@@ -2313,7 +2316,7 @@ class Extender {
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
                 validator.validate(relativePath, manifest.getParentFile(), ctx);
-                ctx = validator.resolveSwiftFlagPaths(ctx, manifest.getParentFile(), buildState.jobDir);
+                ctx = validator.resolveSwiftPaths(ctx, manifest.getParentFile(), buildState.jobDir);
 
                 manifestContext = ExtenderUtil.mergeContexts(manifestContext, ctx);
             }

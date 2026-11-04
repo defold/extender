@@ -183,7 +183,10 @@ public class MacSandboxIntegrationTest {
         }
         String log = Files.readString(stdout);
         assertTrue(Pattern.compile("-- \\S+/swiftc -wmo ").matcher(log).find(), "the Swift module compile did not go through the launcher");
-        assertTrue(log.contains("-strict-concurrency=minimal -I upload/swiftext/include"), "swiftFlags did not reach the Swift compile");
+        assertTrue(log.contains("-strict-concurrency=minimal"), "swiftFlags did not reach the Swift compile");
+        // the bridging header only finds ExtraDecl.h through additionalSwiftIncludePaths
+        assertTrue(log.contains("-Iupload/swiftext/vendor/"), "additionalSwiftIncludePaths did not reach the Swift compile");
+        assertTrue(log.contains("-Fupload/swiftext/vendor/"), "additionalFrameworkSearchPaths did not reach the Swift compile");
     }
 
     // Verifies that Swift sources outside of src/ are refused, since the editor plugin build that
@@ -298,6 +301,7 @@ public class MacSandboxIntegrationTest {
         return new ArrayList<>(List.of(
             new FileExtenderResource("test-data/ext_swift/ext.manifest", "swiftext/ext.manifest"),
             new FileExtenderResource("test-data/ext_swift/include/ObjCBridge.h", "swiftext/include/ObjCBridge.h"),
+            new FileExtenderResource("test-data/ext_swift/vendor/ExtraDecl.h", "swiftext/vendor/ExtraDecl.h"),
             new FileExtenderResource("test-data/ext_swift/src/ObjCBridge.m", "swiftext/src/ObjCBridge.m"),
             new FileExtenderResource("test-data/ext_swift/src/SwiftExt-Bridging-Header.h", "swiftext/src/SwiftExt-Bridging-Header.h"),
             new FileExtenderResource("test-data/ext_swift/src/Greeter.swift", "swiftext/src/Greeter.swift"),

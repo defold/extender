@@ -20,13 +20,14 @@ class ExtensionManifestValidator {
     private final List<Pattern> allowedFlags = new ArrayList<>();
     private final List<Pattern> allowedDefines = new ArrayList<>();
     private final List<Pattern> allowedSymbols = new ArrayList<>();
-    // Null when the platform or SDK has no Swift support: `swiftFlags` is then ignored
+    // Null when the platform or SDK has no Swift support: the Swift keys are then ignored
     private final List<Pattern> allowedSwiftFlags;
 
     private static final Pattern VALID_INCLUDE_PATH = Pattern.compile("^[A-Za-z0-9._+\\-/]+$");
     private static final Pattern VALID_SYMBOL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final Pattern VALID_API_LEVEL = Pattern.compile("^[0-9]+$");
-    private static final Set<String> SWIFT_PATH_FLAGS = Set.of("-I", "-F");
+    static final String SWIFT_INCLUDE_PATHS = "additionalSwiftIncludePaths";
+    static final String SWIFT_FRAMEWORK_PATHS = "additionalFrameworkSearchPaths";
 
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSymbols) {
         this(whitelistConfig, allowedFlags, null, allowedSymbols);
@@ -158,9 +159,8 @@ class ExtensionManifestValidator {
     }
 
     // Flags are matched one at a time, or as "flag value" when the allowed pattern spans both,
-    // so a bare value can't stand in as a positional argument. -I and -F take a path that must
-    // stay inside the extension folder.
-    private void validateSwiftFlags(String extensionName, File extensionFolder, Object value) throws ExtenderException {
+    // so a bare value can't stand in as a positional argument.
+    private void validateSwiftFlags(String extensionName, Object value) throws ExtenderException {
         if (!(value instanceof List)) {
             throw new ExtenderException(String.format("Error in '%s': The 'swiftFlags' must be a list of strings. Got %s", extensionName, value));
         }
@@ -169,12 +169,7 @@ class ExtensionManifestValidator {
 
         for (int i = 0; i < flags.size(); ++i) {
             String flag = flags.get(i);
-            if (SWIFT_PATH_FLAGS.contains(flag)) {
-                if (i + 1 >= flags.size()) {
-                    throw new ExtenderException(String.format("Error in '%s': The swift flag '%s' needs a path", extensionName, flag));
-                }
-                validateSwiftPath(extensionName, extensionFolder, flag, flags.get(++i));
-            } else if (!matchesAny(allowedSwiftFlags, flag)) {
+            if (!matchesAny(allowedSwiftFlags, flag)) {
                 if (i + 1 < flags.size() && matchesAny(allowedSwiftFlags, flag + " " + flags.get(i + 1))) {
                     ++i;
                 } else {
@@ -184,40 +179,44 @@ class ExtensionManifestValidator {
         }
     }
 
-    private static void validateSwiftPath(String extensionName, File extensionFolder, String flag, String path) throws ExtenderException {
-        if (path.startsWith("-") || !VALID_INCLUDE_PATH.matcher(path).matches()) {
-            throw new ExtenderException(String.format(
-                    "Error in '%s': Invalid path '%s' for the swift flag '%s'. Paths may only contain letters, digits and '._+-/', and may not start with '-'.",
-                    extensionName, path, flag));
+    // The paths must stay inside the extension folder, and nothing can escape it through absolute
+    // paths, "..", or characters the compiler could take as part of an option.
+    private static void validateSwiftPaths(String extensionName, File extensionFolder, String key, Object value) throws ExtenderException {
+        if (!(value instanceof List)) {
+            throw new ExtenderException(String.format("Error in '%s': The '%s' must be a list of strings. Got %s", extensionName, key, value));
         }
-        try {
-            SandboxedPath.resolve(extensionFolder, path);
-        } catch (ExtenderException e) {
-            throw new ExtenderException(String.format("Error in '%s': The path '%s' for the swift flag '%s' must be inside the extension folder: %s",
-                    extensionName, path, flag, e.getMessage()));
+        for (String path : (List<String>) value) {
+            if (path == null || path.startsWith("-") || !VALID_INCLUDE_PATH.matcher(path).matches()) {
+                throw new ExtenderException(String.format(
+                        "Error in '%s': Invalid path '%s' in '%s'. Paths may only contain letters, digits and '._+-/', and may not start with '-'.",
+                        extensionName, path, key));
+            }
+            try {
+                SandboxedPath.resolve(extensionFolder, path);
+            } catch (ExtenderException e) {
+                throw new ExtenderException(String.format("Error in '%s': The path '%s' in '%s' must be inside the extension folder: %s",
+                        extensionName, path, key, e.getMessage()));
+            }
         }
     }
 
-    // Rewrites the paths following -I and -F in `swiftFlags` from relative to the folder they were
+    // Rewrites the Swift include and framework search paths from relative to the folder they were
     // written in to relative to the job directory, the base the build commands run in.
     // Call after validate().
-    Map<String, Object> resolveSwiftFlagPaths(Map<String, Object> context, File baseFolder, File jobDir) throws ExtenderException {
-        Object value = context.get("swiftFlags");
-        if (allowedSwiftFlags == null || !(value instanceof List)) {
+    Map<String, Object> resolveSwiftPaths(Map<String, Object> context, File baseFolder, File jobDir) throws ExtenderException {
+        if (allowedSwiftFlags == null) {
             return context;
         }
-        List<String> flags = (List<String>) value;
-        List<String> resolved = new ArrayList<>();
-        for (int i = 0; i < flags.size(); ++i) {
-            String flag = flags.get(i);
-            resolved.add(flag);
-            if (SWIFT_PATH_FLAGS.contains(flag) && i + 1 < flags.size()) {
-                File path = SandboxedPath.resolve(baseFolder, flags.get(++i));
-                resolved.add(ExtenderUtil.getRelativePath(jobDir, path));
+        Map<String, Object> result = new HashMap<>(context);
+        for (String key : List.of(SWIFT_INCLUDE_PATHS, SWIFT_FRAMEWORK_PATHS)) {
+            if (context.get(key) instanceof List) {
+                List<String> resolved = new ArrayList<>();
+                for (String path : (List<String>) context.get(key)) {
+                    resolved.add(ExtenderUtil.getRelativePath(jobDir, SandboxedPath.resolve(baseFolder, path)));
+                }
+                result.put(key, resolved);
             }
         }
-        Map<String, Object> result = new HashMap<>(context);
-        result.put("swiftFlags", resolved);
         return result;
     }
 
@@ -259,7 +258,14 @@ class ExtensionManifestValidator {
 
                 case "swiftFlags":
                     if (allowedSwiftFlags != null) {
-                        validateSwiftFlags(extensionName, extensionFolder, v);
+                        validateSwiftFlags(extensionName, v);
+                    }
+                    continue;
+
+                case SWIFT_INCLUDE_PATHS:
+                case SWIFT_FRAMEWORK_PATHS:
+                    if (allowedSwiftFlags != null) {
+                        validateSwiftPaths(extensionName, extensionFolder, k, v);
                     }
                     continue;
 
