@@ -1,0 +1,6 @@
+name: SwiftExt
+
+platforms:
+    osx:
+        context:
+            swiftFlags: ["-strict-concurrency=minimal", "-I", "include"]

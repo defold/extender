@@ -42,6 +42,23 @@ public class ExtenderUtilTest {
         buildDir.mkdirs();
     }
 
+    // Verifies that extension names, which may contain '-', become valid Swift module identifiers.
+    @Test
+    public void testToSwiftModuleName() {
+        assertEquals("MyExt", ExtenderUtil.toSwiftModuleName("MyExt"));
+        assertEquals("My_Ext_2", ExtenderUtil.toSwiftModuleName("My-Ext_2"));
+        assertEquals("_1ext", ExtenderUtil.toSwiftModuleName("1ext"));
+    }
+
+    // Verifies that defines reach Swift as bare names, since a value only makes swiftc warn,
+    // and that duplicates are dropped while the order is kept.
+    @Test
+    public void testToSwiftDefines() {
+        assertEquals(List.of("DM_DEBUG", "FOO", "DLIB_LOG_DOMAIN"),
+            ExtenderUtil.toSwiftDefines(List.of("DM_DEBUG", "FOO=1", "DLIB_LOG_DOMAIN=\"X\"", "FOO")));
+        assertEquals(List.of(), ExtenderUtil.toSwiftDefines(List.of()));
+    }
+
     @AfterEach
     public void tearDown() throws IOException {
         if (jobDir != null) {

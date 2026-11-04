@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.zip.ZipFile;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -105,7 +107,7 @@ public class MacSandboxIntegrationTest {
             port = socket.getLocalPort();
         }
         String java = env.getOrDefault("JAVA_HOME", System.getProperty("java.home")) + "/bin/java";
-        List<String> command = List.of(java, "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-jar", jar.toString(),
+        List<String> command = new ArrayList<>(List.of(java, "-Xmx4g", "-XX:MaxDirectMemorySize=2g", "-jar", jar.toString(),
             "--server.port=" + port,
             "--spring.profiles.active=standalone-dev",
             "--spring.config.additional-location=file:" + SERVER_DIR.resolve("configs") + "/",
@@ -113,7 +115,16 @@ public class MacSandboxIntegrationTest {
             "--extender.sandbox.launcher-path=" + launcher,
             // caches of the live standalone instance stay untouched
             "--extender.spm.home-dir-prefix=" + workDir.resolve(".swiftpm"),
-            "--extender.cocoapods.home-dir-prefix=" + workDir.resolve(".cocoapods"));
+            "--extender.cocoapods.home-dir-prefix=" + workDir.resolve(".cocoapods")));
+        // Swift packages must be built by the Xcode that matches the toolchain of the platform SDK,
+        // otherwise the extension's own Swift code cannot import their modules
+        for (String name : List.of("XCODE_VERSION", "XCODE_26_VERSION")) {
+            String version = env.get(name);
+            Path developerDir = Path.of("/Applications/Xcode_" + version + ".app/Contents/Developer");
+            if (version != null && Files.isDirectory(developerDir)) {
+                command.add("--extender.spm.xcode-developer-dirs[" + version + "]=" + developerDir);
+            }
+        }
         ProcessBuilder pb = new ProcessBuilder(command)
             .directory(SERVER_DIR.resolve("app").toFile())
             .redirectErrorStream(true)
@@ -154,6 +165,151 @@ public class MacSandboxIntegrationTest {
         }
         assertTrue(Files.readString(stdout).contains("Sandboxed: " + SERVER_DIR.resolve("app/extender-sandbox")),
             "no build command went through the launcher");
+    }
+
+    // Verifies that an extension with Swift sources (also using a bridging header into its own ObjC
+    // code) builds under the sandbox and that the Swift code, which an .mm shim reaches through the
+    // generated -Swift.h, ends up in the engine binary. Needs a Defold SDK that has the Swift
+    // extension templates, see -PmacSandboxSdk.
+    @Test
+    public void buildsSwiftExtensionUnderTheSandbox() throws Exception {
+        File destination = build(swiftExtension());
+        try (ZipFile zip = new ZipFile(destination)) {
+            assertNotNull(zip.getEntry("dmengine"), "no dmengine in the archive");
+            try (InputStream engine = zip.getInputStream(zip.getEntry("dmengine"))) {
+                assertTrue(new String(engine.readAllBytes(), StandardCharsets.ISO_8859_1).contains("swift-ext-marker-"),
+                    "the Swift code is not in the engine");
+            }
+        }
+        String log = Files.readString(stdout);
+        assertTrue(Pattern.compile("-- \\S+/swiftc -wmo ").matcher(log).find(), "the Swift module compile did not go through the launcher");
+        assertTrue(log.contains("-strict-concurrency=minimal -I upload/swiftext/include"), "swiftFlags did not reach the Swift compile");
+    }
+
+    // Verifies that Swift sources outside of src/ are refused, since the editor plugin build that
+    // also reads commonsrc/ and pluginsrc/ can't compile them.
+    @Test
+    public void swiftSourcesOutsideSrcAreRefused() throws Exception {
+        List<ExtenderResource> sources = swiftExtension();
+        Path misplaced = Files.writeString(Files.createTempFile(workDir, "Misplaced", ".swift"), "import Foundation\n");
+        sources.add(new FileExtenderResource(misplaced.toString(), "swiftext/commonsrc/Misplaced.swift"));
+
+        String error = buildError(sources);
+        assertTrue(error.contains("Swift sources are only supported in the 'src' folder"), error);
+    }
+
+    // Verifies that swiftFlags outside of the allowed list, such as -sdk, are refused. Needs the
+    // allowedSwiftFlags of an SDK with the Swift extension templates, otherwise the flags are ignored.
+    @Test
+    public void disallowedSwiftFlagsAreRefused() throws Exception {
+        List<ExtenderResource> sources = swiftExtension();
+        sources.removeIf(r -> r.getPath().equals("swiftext/ext.manifest"));
+        Path manifest = Files.writeString(Files.createTempFile(workDir, "ext", ".manifest"),
+            "name: SwiftExt\nplatforms:\n    osx:\n        context:\n            swiftFlags: [\"-sdk\", \"include\"]\n");
+        sources.add(new FileExtenderResource(manifest.toString(), "swiftext/ext.manifest"));
+
+        String error = buildError(sources);
+        assertTrue(error.contains("Invalid flag - 'swiftFlags': '-sdk'"), error);
+    }
+
+    // Verifies that the Swift code of an extension can import a module of a Swift package declared in SwiftPackages.json.
+    @Test
+    public void swiftExtensionCanImportASwiftPackage() throws Exception {
+        String pkg = "SpmSwift" + UUID.randomUUID().toString().substring(0, 8);
+        publishPackage(pkg, Map.of("Sources/" + pkg + "/Lib.swift", "public func libValue() -> Int { 40 + 2 }\n"));
+
+        buildSwiftExtensionWithPackage("SpmUser", pkg, "spm-swift-marker-",
+            "import " + pkg + "\n@objc(SpmUserGreeter)\npublic class Greeter: NSObject {\n"
+            + "    @objc public func message() -> String { \"spm-swift-marker-\\(libValue())\" }\n}\n",
+            null);
+    }
+
+    // Verifies that the bridging header of an extension can import an Objective-C header of a Swift package.
+    @Test
+    public void swiftBridgingHeaderCanImportAnObjcHeaderOfASwiftPackage() throws Exception {
+        String pkg = "SpmObjc" + UUID.randomUUID().toString().substring(0, 8);
+        publishPackage(pkg, Map.of(
+            "Sources/" + pkg + "/include/" + pkg + ".h", "#import <Foundation/Foundation.h>\nNSInteger " + pkg + "_value(void);\n",
+            "Sources/" + pkg + "/" + pkg + ".m", "#import \"" + pkg + ".h\"\nNSInteger " + pkg + "_value(void) { return 42; }\n"));
+
+        buildSwiftExtensionWithPackage("SpmBridge", pkg, "spm-bridge-marker-",
+            "@objc(SpmBridgeGreeter)\npublic class Greeter: NSObject {\n"
+            + "    @objc public func message() -> String { \"spm-bridge-marker-\\(" + pkg + "_value())\" }\n}\n",
+            "#import <" + pkg + "/" + pkg + ".h>\n");
+    }
+
+    /** Commits a package with the given files (a Package.swift is generated) to the local git server. */
+    private static void publishPackage(String name, Map<String, String> files) throws Exception {
+        Path source = Files.createDirectories(workDir.resolve("repos/" + name));
+        Files.writeString(source.resolve("Package.swift"),
+            "// swift-tools-version:5.9\n"
+            + "import PackageDescription\n"
+            + "let package = Package(name: \"" + name + "\",\n"
+            + "    products: [.library(name: \"" + name + "\", targets: [\"" + name + "\"])],\n"
+            + "    targets: [.target(name: \"" + name + "\")])\n");
+        for (Map.Entry<String, String> file : files.entrySet()) {
+            Path target = source.resolve(file.getKey());
+            Files.createDirectories(target.getParent());
+            Files.writeString(target, file.getValue());
+        }
+        publish(source, name, "1.0.0");
+    }
+
+    /**
+     * Builds an extension whose Swift code (one class returning marker + the value from the package) is
+     * reached from an .mm shim, and checks that the marker made it into the engine.
+     */
+    private static void buildSwiftExtensionWithPackage(String extension, String pkg, String marker, String swiftBody,
+            String bridgingHeader) throws Exception {
+        Path upload = Files.createDirectories(workDir.resolve("upload-" + extension + "-" + pkg));
+        Files.createDirectories(upload.resolve("src"));
+        Files.createDirectories(upload.resolve("osx"));
+        Files.writeString(upload.resolve("ext.manifest"), "name: " + extension + "\n");
+        Files.writeString(upload.resolve("src/Greeter.swift"), "import Foundation\n" + swiftBody);
+        Files.writeString(upload.resolve("src/shim.mm"),
+            "#include <dmsdk/sdk.h>\n#import <Foundation/Foundation.h>\n#import \"" + extension + "-Swift.h\"\n"
+            + "static dmExtension::Result Init(dmExtension::Params*) {\n"
+            + "    dmLogInfo(\"%s\", [[[[" + extension + "Greeter alloc] init] message] UTF8String]);\n"
+            + "    return dmExtension::RESULT_OK;\n}\n"
+            + "DM_DECLARE_EXTENSION(" + extension + ", \"" + extension + "\", 0, 0, Init, 0, 0, 0)\n");
+        Files.writeString(upload.resolve("osx/SwiftPackages.json"),
+            "{ \"platform\": \"osx\", \"minVersion\": \"14.0\", \"packages\": ["
+            + "  { \"url\": \"https://localhost/" + pkg + ".git\", \"from\": \"1.0.0\", \"products\": [\"" + pkg + "\"] } ] }");
+        List<ExtenderResource> sources = new ArrayList<>(List.of(
+            new FileExtenderResource(upload.resolve("ext.manifest").toString(), extension + "/ext.manifest"),
+            new FileExtenderResource(upload.resolve("src/Greeter.swift").toString(), extension + "/src/Greeter.swift"),
+            new FileExtenderResource(upload.resolve("src/shim.mm").toString(), extension + "/src/shim.mm"),
+            new FileExtenderResource(upload.resolve("osx/SwiftPackages.json").toString(), extension + "/osx/SwiftPackages.json")));
+        if (bridgingHeader != null) {
+            Files.writeString(upload.resolve("src/" + extension + "-Bridging-Header.h"), bridgingHeader);
+            sources.add(new FileExtenderResource(upload.resolve("src/" + extension + "-Bridging-Header.h").toString(),
+                extension + "/src/" + extension + "-Bridging-Header.h"));
+        }
+
+        try (ZipFile zip = new ZipFile(build(sources))) {
+            try (InputStream engine = zip.getInputStream(zip.getEntry("dmengine"))) {
+                assertTrue(new String(engine.readAllBytes(), StandardCharsets.ISO_8859_1).contains(marker),
+                    "the Swift code is not in the engine");
+            }
+        }
+    }
+
+    private static List<ExtenderResource> swiftExtension() {
+        return new ArrayList<>(List.of(
+            new FileExtenderResource("test-data/ext_swift/ext.manifest", "swiftext/ext.manifest"),
+            new FileExtenderResource("test-data/ext_swift/include/ObjCBridge.h", "swiftext/include/ObjCBridge.h"),
+            new FileExtenderResource("test-data/ext_swift/src/ObjCBridge.m", "swiftext/src/ObjCBridge.m"),
+            new FileExtenderResource("test-data/ext_swift/src/SwiftExt-Bridging-Header.h", "swiftext/src/SwiftExt-Bridging-Header.h"),
+            new FileExtenderResource("test-data/ext_swift/src/Greeter.swift", "swiftext/src/Greeter.swift"),
+            new FileExtenderResource("test-data/ext_swift/src/Helper.swift", "swiftext/src/Helper.swift"),
+            new FileExtenderResource("test-data/ext_swift/src/swiftext.mm", "swiftext/src/swiftext.mm")));
+    }
+
+    private static String buildError(List<ExtenderResource> sources) throws Exception {
+        File destination = Files.createTempFile(workDir, "dmengine", ".zip").toFile();
+        File log = Files.createTempFile(workDir, "dmengine", ".log").toFile();
+        assertThrows(ExtenderClientException.class, () -> client().build(PLATFORM, sdk, sources, destination, log));
+        return Files.readString(log.toPath());
     }
 
     @Test

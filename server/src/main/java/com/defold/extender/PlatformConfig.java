@@ -66,6 +66,10 @@ public class PlatformConfig {
     public String emitSwiftHeaderCmd;
     public String emitSwiftModuleCmd;
     public String compileSwiftCmd;
+    // The extension's own Swift sources (Apple platforms), compiled as one module
+    public String swiftSourceRe;
+    public String compileSwiftModuleCmd;
+    public List<String> allowedSwiftFlags;
 
     // C#
     public String csSourceRe;

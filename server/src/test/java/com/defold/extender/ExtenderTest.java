@@ -721,6 +721,65 @@ public class ExtenderTest {
         assertTrue(x86_64SwiftFlags.contains("x86_64-apple-macosx{{osMinVersion}}"));
     }
 
+    // Verifies that the SDK fixture declares the extension Swift module command for Apple platforms only and that it renders as one swiftc call.
+    @Test
+    public void testSwiftModuleCommandRendersForApplePlatforms() throws IOException, ExtenderException {
+        File root = new File("test-data");
+        Configuration config = Extender.loadYaml(root, new File(root, "sdk/a/defoldsdk/extender/build.yml"), Configuration.class);
+
+        for (String platform : List.of("arm64-osx", "x86_64-osx", "arm64-ios", "x86_64-ios")) {
+            PlatformConfig platformConfig = mergePlatformConfig(config, platform);
+            assertEquals("(?i).*\\.swift", platformConfig.swiftSourceRe, platform);
+            assertEquals(
+                    List.of(new File("src/A.swift")),
+                    ExtenderUtil.filterFiles(List.of(new File("src/A.swift"), new File("src/A.mm")), platformConfig.swiftSourceRe),
+                    platform);
+            assertTrue(platformConfig.allowedSwiftFlags.contains("-O"), platform);
+        }
+
+        PlatformConfig android = mergePlatformConfig(config, "armv7-android");
+        assertNull(android.swiftSourceRe);
+        assertNull(android.compileSwiftModuleCmd);
+        assertNull(android.allowedSwiftFlags);
+
+        Map<String, String> env = new HashMap<>();
+        env.put("PLATFORMSDK_DIR", "/opt/platformsdk");
+        env.put("XCODE_VERSION", "26");
+
+        Map<String, Object> ext = new HashMap<>();
+        ext.put("includes", List.of("upload/MyExt/include"));
+        ext.put("frameworkPaths", List.of("upload/MyExt/lib"));
+
+        Map<String, Object> context = new HashMap<>();
+        context.put("env", env);
+        context.put("ext", ext);
+        context.put("includes", List.of("dynamo_home/sdk/include"));
+        context.put("swiftFlags", List.of("-swift-version", "5", "-target", "arm64-apple-macosx12.0", "-strict-concurrency=minimal"));
+        context.put("moduleName", "MyExt");
+        context.put("swiftSourceFiles", List.of("upload/MyExt/src/A.swift", "upload/MyExt/src/B.swift"));
+        context.put("swiftBridgingHeaders", List.of("upload/MyExt/src/MyExt-Bridging-Header.h"));
+        context.put("swiftDefines", List.of("FOO", "BAR"));
+        context.put("swiftHeaderPath", "build/MyExt/MyExt-Swift.h");
+        context.put("swiftModulePath", "build/MyExt/MyExt.swiftmodule");
+        context.put("tgt", "build/MyExt/MyExt_0.o");
+
+        PlatformConfig osx = mergePlatformConfig(config, "arm64-osx");
+        assertEquals("/opt/platformsdk/XcodeDefault26.xctoolchain/usr/bin/swiftc -wmo -parse-as-library -c -O -g "
+                + "-swift-version 5 -target arm64-apple-macosx12.0 -strict-concurrency=minimal "
+                + "-module-name MyExt upload/MyExt/src/A.swift upload/MyExt/src/B.swift "
+                + "-import-objc-header upload/MyExt/src/MyExt-Bridging-Header.h "
+                + "-Iupload/MyExt/include -Idynamo_home/sdk/include -Fupload/MyExt/lib -DFOO -DBAR "
+                + "-emit-module -emit-module-path build/MyExt/MyExt.swiftmodule "
+                + "-emit-objc-header -emit-objc-header-path build/MyExt/MyExt-Swift.h "
+                + "-o build/MyExt/MyExt_0.o",
+                new TemplateExecutor().execute(osx.compileSwiftModuleCmd, context));
+
+        context.put("swiftBridgingHeaders", List.of());
+        String iosRendered = new TemplateExecutor().execute(mergePlatformConfig(config, "arm64-ios").compileSwiftModuleCmd, context);
+        assertFalse(iosRendered.contains("-import-objc-header"));
+        assertTrue(iosRendered.contains("-emit-objc-header-path build/MyExt/MyExt-Swift.h -o build/MyExt/MyExt_0.o"));
+    }
+
     @Test
     public void testGetAppmanifest() throws IOException, ExtenderException {
         File root = new File("test-data");
