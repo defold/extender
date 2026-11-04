@@ -281,6 +281,46 @@ public class ExtensionManifestValidatorTest {
         }
     }
 
+    // Verifies that a single string is checked like a list, as it reaches the same templates.
+    @Test
+    public void testScalarContextValuesAreChecked() {
+        List<String> allowedFlags = Arrays.asList("-Wall");
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), allowedFlags, empty);
+        File extensionFolder = new File(".");
+        String template = "{{tgt}}";
+
+        Map<String, Object> accepted = new HashMap<>();
+        accepted.put("weakFrameworks", "Foundation");
+        accepted.put("cxxShFlags", "-Wall");
+        accepted.put("symbols", "MyExtension");
+        accepted.put("stackSize", 1024);
+        accepted.put("flags", null);
+        assertDoesNotThrow(() -> validator.validate("ext", extensionFolder, accepted));
+
+        for (String[] rejected : new String[][] {
+                {"weakFrameworks", template}, {"cxxShFlags", template}, {"defines", template}, {"symbols", template},
+                {"cxxShFlags", "-evil"}, {"cxxShFlags", "-Wall -evil"}}) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put(rejected[0], rejected[1]);
+            assertThrows(ExtenderException.class, () -> validator.validate("ext", extensionFolder, ctx), Arrays.toString(rejected));
+        }
+    }
+
+    // Verifies that a map is refused for any key, as its printed form would reach the templates unchecked.
+    @Test
+    public void testMapContextValuesAreRejected() {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+        File extensionFolder = new File(".");
+
+        for (String key : List.of("cxxShFlags", "weakFrameworks", "symbols", "emscriptenLinkFlags")) {
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put(key, Map.of("key", "value -evil"));
+            assertThrows(ExtenderException.class, () -> validator.validate("ext", extensionFolder, ctx), key);
+        }
+    }
+
     @Test
     public void testValidateAppManifestContextDebugSourcePath() throws ExtenderException {
         List<String> empty = new ArrayList<>();

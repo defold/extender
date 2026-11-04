@@ -1,6 +1,7 @@
 package com.defold.extender.process;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -8,6 +9,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -111,6 +113,48 @@ public class DarwinLauncherTest {
         ProcessExecutor stillDenied = executor(jobDir);
         assertThrows(IOException.class, () -> stillDenied.execute(List.of(inJobDir.toString()),
                 SandboxPolicy.toolchain().withReadWriteExecPaths(List.of(plugins.toString()))));
+    }
+
+    private static void compile(Path source, Path output, String... flags) throws Exception {
+        List<String> command = new ArrayList<>(List.of("/usr/bin/cc", "-o", output.toString(), source.toString()));
+        command.addAll(List.of(flags));
+        Process cc = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String out = new String(cc.getInputStream().readAllBytes());
+        assertTrue(cc.waitFor(2, TimeUnit.MINUTES) && cc.exitValue() == 0, "cc failed: " + out);
+    }
+
+    /**
+     * Loading a library runs its code just as running a binary does, so the writable job directory
+     * must not allow that either: a tool of the toolchain can be led to a library of the build
+     * through its input files. The path granted read-write-exec keeps the right, for the same
+     * reason it can run what it builds.
+     */
+    @Test
+    public void writableJobDirCannotLoadALibraryButANestedExecGrantCan(@TempDir Path jobDir) throws Exception {
+        Path plugins = Files.createDirectory(jobDir.resolve("plugins"));
+        Path loaderSource = Files.writeString(jobDir.resolve("loader.c"),
+                "#include <dlfcn.h>\n#include <stdio.h>\n"
+                + "int main(int argc, char** argv) {\n"
+                + "  (void)argc;\n"
+                + "  if (!dlopen(argv[1], RTLD_NOW)) { puts(dlerror()); return 1; }\n"
+                + "  puts(\"library-loaded\");\n  return 0;\n}\n");
+        Path librarySource = Files.writeString(jobDir.resolve("library.c"), "int library_value(void) { return 42; }\n");
+        Path loader = plugins.resolve("loader");
+        compile(loaderSource, loader);
+        Path inJobDir = jobDir.resolve("libinjobdir.dylib");
+        Path inPlugins = plugins.resolve("libinplugins.dylib");
+        compile(librarySource, inJobDir, "-dynamiclib");
+        compile(librarySource, inPlugins, "-dynamiclib");
+        SandboxPolicy policy = SandboxPolicy.toolchain().withReadWriteExecPaths(List.of(plugins.toString()));
+
+        ProcessExecutor denied = executor(jobDir);
+        IOException e = assertThrows(IOException.class, () -> denied.execute(List.of(loader.toString(), inJobDir.toString()), policy));
+        assertTrue(e.getMessage().contains("dlopen"), e.getMessage());
+        assertFalse(denied.getOutput().contains("library-loaded"), denied.getOutput());
+
+        ProcessExecutor allowed = executor(jobDir);
+        allowed.execute(List.of(loader.toString(), inPlugins.toString()), policy);
+        assertTrue(allowed.getOutput().contains("library-loaded"), allowed.getOutput());
     }
 
     @Test

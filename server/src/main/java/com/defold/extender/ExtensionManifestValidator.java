@@ -139,7 +139,7 @@ class ExtensionManifestValidator {
         for (String k : keys) {
             Object v = context.get(k);
 
-            if (v instanceof List && !ExtensionManifestValidator.isListOfStrings((List<Object>) v)) {
+            if (v instanceof Map || (v instanceof List && !ExtensionManifestValidator.isListOfStrings((List<Object>) v))) {
                 throw new ExtenderException(String.format("Error in '%s': The context variables only support strings or lists of strings. Got %s: %s (type %s)", extensionName, k, v.toString(), v.getClass().getCanonicalName()));
             }
 
@@ -179,13 +179,11 @@ class ExtensionManifestValidator {
                     continue;
 
                 case "symbols":
-                    if (v instanceof List) {
-                        for (String sym : (List<String>) v) {
-                            if (sym == null || !VALID_SYMBOL_IDENTIFIER.matcher(sym).matches()) {
-                                throw new ExtenderException(String.format(
-                                        "Error in '%s': Invalid symbol '%s'. Symbols must be valid C identifiers.",
-                                        extensionName, sym));
-                            }
+                    for (String sym : asStringList(v)) {
+                        if (sym == null || !VALID_SYMBOL_IDENTIFIER.matcher(sym).matches()) {
+                            throw new ExtenderException(String.format(
+                                    "Error in '%s': Invalid symbol '%s'. Symbols must be valid C identifiers.",
+                                    extensionName, sym));
                         }
                     }
                     continue;
@@ -217,17 +215,23 @@ class ExtensionManifestValidator {
                     throw new ExtenderException(String.format("Error in '%s': Manifest context variable unsupported: %s", extensionName, k));
             }
 
-            if (v instanceof List) {
-                List<String> strings = (List<String>) v;
-                String s = ExtensionManifestValidator.whitelistCheck(patterns, strings);
-                if (s == null) {
-                    s = strings.stream().filter(ExtensionManifestValidator::namesResponseFile).findFirst().orElse(null);
-                }
-                if (s != null) {
-                    throw new ExtenderException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
-                }
+            List<String> strings = asStringList(v);
+            String s = ExtensionManifestValidator.whitelistCheck(patterns, strings);
+            if (s == null) {
+                s = strings.stream().filter(ExtensionManifestValidator::namesResponseFile).findFirst().orElse(null);
+            }
+            if (s != null) {
+                throw new ExtenderException(String.format("Error in '%s': Invalid %s - '%s': '%s'", extensionName, type, k, s));
             }
         }
+    }
+
+    // A single string reaches the same templates as a list, and is expanded on the server as well
+    private static List<String> asStringList(Object value) {
+        if (value instanceof String) {
+            return List.of((String) value);
+        }
+        return value instanceof List ? (List<String>) value : List.of();
     }
 
     public static void expandPatterns(TemplateExecutor executor, Map<String, Object> context, List<String> vars, List<Pattern> out) {
