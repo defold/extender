@@ -2273,6 +2273,18 @@ class Extender {
         mergedAppContext.put("host_platform", buildState.getHostPlatform());
 
         mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, debugContext);
+
+        // When the client requests symbols (e.g. bob --with-symbols), append the platform's
+        // withSymbolsLinkFlags from build.yml to the link flags (e.g. -gseparate-dwarf and
+        // -gsource-map for wasm platforms, producing debug info sidecars returned via symbolsPattern).
+        if (buildState.isNeedSymbols()) {
+            List<String> withSymbolsLinkFlags = ExtenderUtil.getStringList(this.platformConfig.context, "withSymbolsLinkFlags");
+            if (!withSymbolsLinkFlags.isEmpty()) {
+                Map<String, Object> symbolsContext = new HashMap<>();
+                symbolsContext.put("linkFlags", new ArrayList<>(withSymbolsLinkFlags));
+                mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, symbolsContext);
+            }
+        }
     }
 
     public Map<String, Object> getPlatformContext() {

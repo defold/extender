@@ -774,6 +774,11 @@ public class ExtenderTest {
 
     static File setupJobFolder(String variant) throws IOException
     {
+        return setupJobFolder(variant, new HashMap<>());
+    }
+
+    static File setupJobFolder(String variant, Map<String, Object> extraContext) throws IOException
+    {
         File jobDir = Files.createTempDirectory(variant).toFile();
         jobDir.deleteOnExit();
         File uploadDir = new File(jobDir, "upload");
@@ -790,6 +795,7 @@ public class ExtenderTest {
         map.put("context", context);
         map.put("platforms", platforms);
         context.put(ExtenderBuildState.APPMANIFEST_BASE_VARIANT_KEYWORD, variant);
+        context.putAll(extraContext);
 
         writeYaml(new File(appDir, Extender.APPMANIFEST_FILENAME), map);
         return jobDir;
@@ -879,5 +885,58 @@ public class ExtenderTest {
 
         FileUtils.deleteQuietly(jobDir);
         assertTrue(true);
+    }
+
+    private static List<String> getMergedLinkFlags(File jobDir, String platform) throws IOException, InterruptedException, ExtenderException {
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+        Map<String, String> env = createEnv();
+        // The web platform env block in build.yml references the emscripten toolchain
+        // env variables, which are only defined in the emsdk docker image
+        for (String suffix : new String[] {"CACHE", "CONFIG", "PYTHON", "PATH", "HOME", "BIN"}) {
+            env.put("EMSCRIPTEN_" + suffix + "_3_1_65", "/opt/emsdk");
+        }
+        Extender extender = new Extender.Builder()
+                            .setPlatform(platform)
+                            .setSdk(sdk)
+                            .setJobDirectory(jobDir)
+                            .setUploadDirectory(new File(jobDir, "upload"))
+                            .setBuildDirectory(new File(jobDir, "build"))
+                            .setEnv(env)
+                            .build();
+        return (List<String>)extender.getMergedAppContext().getOrDefault("linkFlags", new ArrayList<String>());
+    }
+
+    @Test
+    public void testWithSymbolsLinkFlags() throws IOException, InterruptedException, ExtenderException {
+        // withSymbols requested (bob --with-symbols): the platform's withSymbolsLinkFlags
+        // from build.yml are appended to the link flags
+        {
+            File jobDir = setupJobFolder("debug", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, true));
+            List<String> linkFlags = getMergedLinkFlags(jobDir, "wasm-web");
+            assertTrue(linkFlags.contains("-gseparate-dwarf"));
+            assertTrue(linkFlags.contains("-gsource-map"));
+            assertTrue(linkFlags.contains("-Wl,--build-id"));
+            // appended after the base flags so they end up after -O{{optLevel}} in the link command
+            assertTrue(linkFlags.indexOf("-gseparate-dwarf") > linkFlags.indexOf("-O{{optLevel}}"));
+            FileUtils.deleteQuietly(jobDir);
+        }
+
+        // withSymbols explicitly disabled: no extra link flags
+        {
+            File jobDir = setupJobFolder("debug", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, false));
+            List<String> linkFlags = getMergedLinkFlags(jobDir, "wasm-web");
+            assertFalse(linkFlags.contains("-gseparate-dwarf"));
+            assertFalse(linkFlags.contains("-gsource-map"));
+            FileUtils.deleteQuietly(jobDir);
+        }
+
+        // platforms without withSymbolsLinkFlags in build.yml are unaffected
+        {
+            File jobDir = setupJobFolder("debug", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, true));
+            List<String> linkFlags = getMergedLinkFlags(jobDir, "x86_64-linux");
+            assertFalse(linkFlags.contains("-gseparate-dwarf"));
+            assertFalse(linkFlags.contains("-gsource-map"));
+            FileUtils.deleteQuietly(jobDir);
+        }
     }
 }
