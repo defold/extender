@@ -435,6 +435,28 @@ public class RemoteEngineBuilderTest {
         assertFalse(resultDir.resolve(BuilderConstants.BUILD_RESULT_FILENAME).toFile().exists());
     }
 
+    // error.txt makes /job_status report ERROR and /job_result serve it, so it must not be visible
+    // before its content is written. The compiler output arrives slowly here: the file used to be
+    // created empty when the download started, and a reader that saw it got a partial diagnostic.
+    @Test
+    @Timeout(60)
+    public void errorFileIsNotVisibleBeforeItsContentIsComplete() throws Exception {
+        String compilerOutput = "main.cpp:12: error: expected ';'";
+        builderMock.stubFor(post(urlPathMatching("/build_async/.*"))
+                .willReturn(aResponse().withStatus(200).withBody("slow-error-job")));
+        builderMock.stubFor(get(urlPathEqualTo("/job_status"))
+                .willReturn(aResponse().withStatus(200)
+                        .withBody(String.valueOf(BuilderConstants.JobStatus.ERROR.ordinal()))));
+        builderMock.stubFor(get(urlPathEqualTo("/job_result"))
+                .willReturn(aResponse().withStatus(200).withBody(compilerOutput)
+                        .withChunkedDribbleDelay(4, 1_500)));
+
+        Path resultDir = submitBuild(createBuilder(1), "slow-error");
+
+        assertTrue(errorFileAppears(resultDir));
+        assertEquals(compilerOutput, readError(resultDir));
+    }
+
     // Keeping a suspendable instance awake is best-effort: a failing touchInstance is swallowed so
     // it never fails an otherwise successful build.
     @Test

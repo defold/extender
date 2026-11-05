@@ -206,10 +206,7 @@ public class RemoteEngineBuilder {
                 // copied from ExtenderClient. Think about code deduplication.
                 if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                     LOGGER.error(Markers.COMPILATION_ERROR,  "Failed to build source.");
-                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                    try (PrintWriter writer = new PrintWriter(errorFile)) {
-                        IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset());
-                    }
+                    writeErrorFile(resultDir, writer -> IOUtils.copy(response.getEntity().getContent(), writer, Charset.defaultCharset()));
                     return;
                 }
 
@@ -233,10 +230,8 @@ public class RemoteEngineBuilder {
                         int statusCode = statusResponse.getStatusLine().getStatusCode();
                         if (statusCode != HttpStatus.SC_OK) {
                             LOGGER.error(Markers.SERVER_ERROR, "Remote builder returned HTTP {} for job_status of job {}", statusCode, jobId);
-                            File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                            try (PrintWriter writer = new PrintWriter(errorFile)) {
-                                writer.write(String.format("Remote builder returned HTTP %d for job_status of job %s", statusCode, jobId));
-                            }
+                            writeErrorFile(resultDir, writer ->
+                                writer.write(String.format("Remote builder returned HTTP %d for job_status of job %s", statusCode, jobId)));
                             return;
                         }
                         String jobStatusBody = EntityUtils.toString(statusResponse.getEntity());
@@ -244,10 +239,8 @@ public class RemoteEngineBuilder {
                             jobStatus = Integer.valueOf(jobStatusBody.trim());
                         } catch (NumberFormatException exc) {
                             LOGGER.error(Markers.SERVER_ERROR, "Remote builder returned malformed job_status '{}' for job {}", truncate(jobStatusBody), jobId);
-                            File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                            try (PrintWriter writer = new PrintWriter(errorFile)) {
-                                writer.write(String.format("Remote builder returned malformed job_status '%s' for job %s", truncate(jobStatusBody), jobId));
-                            }
+                            writeErrorFile(resultDir, writer ->
+                                writer.write(String.format("Remote builder returned malformed job_status '%s' for job %s", truncate(jobStatusBody), jobId)));
                             return;
                         }
                     }
@@ -264,21 +257,18 @@ public class RemoteEngineBuilder {
                     Thread.sleep(buildSleepTimeout);
                 }
                 if (jobStatus == 0) {
-                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                    PrintWriter writer = new PrintWriter(errorFile);
-                    writer.write(String.format("Job %s result cannot be defined during %d", jobId, buildResultWaitTimeout));
-                    writer.close();
+                    writeErrorFile(resultDir, writer ->
+                        writer.write(String.format("Job %s result cannot be defined during %d", jobId, buildResultWaitTimeout)));
                     progressReporter.terminal(false, "Remote build timed out");
                     return;
                 }
                 downloadResult(remoteInstanceConfig, jobId, jobStatus, resultDir);
             }
         } catch (Exception e) {
-            File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-            PrintWriter writer = new PrintWriter(errorFile);
-            writer.write("Failed to communicate with Extender service.");
-            e.printStackTrace(writer);
-            writer.close();
+            writeErrorFile(resultDir, writer -> {
+                writer.write("Failed to communicate with Extender service.");
+                e.printStackTrace(writer);
+            });
             progressReporter.terminal(false, "Failed to communicate with remote builder");
         } finally {
             if (relay != null) {
@@ -306,6 +296,22 @@ public class RemoteEngineBuilder {
         }
     }
 
+    @FunctionalInterface
+    private interface ErrorBody {
+        void write(PrintWriter writer) throws IOException;
+    }
+
+    // error.txt makes /job_status report ERROR and /job_result serve its content, so it must not be
+    // visible before it is complete. Same temporary file and atomic move as build.zip.
+    private static void writeErrorFile(File resultDir, ErrorBody body) throws IOException {
+        File tmpError = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME + ".tmp");
+        try (PrintWriter writer = new PrintWriter(tmpError)) {
+            body.write(writer);
+        }
+        File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
+        Files.move(tmpError.toPath(), errorFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
+    }
+
     // The job result stays on the builder for extender.job-result.lifetime, so a download
     // interrupted by a network error can be retried instead of failing the finished build.
     private void downloadResult(final RemoteInstanceConfig remoteInstanceConfig, String jobId, int jobStatus, File resultDir)
@@ -320,10 +326,8 @@ public class RemoteEngineBuilder {
                     // A completed HTTP error (not a mid-download IOException) is a definitive builder
                     // fault, so don't retry it and never copy its body into build.zip.
                     LOGGER.error(Markers.SERVER_ERROR, "Remote builder returned HTTP {} for job_result of job {}", resultStatusCode, jobId);
-                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                    try (PrintWriter writer = new PrintWriter(errorFile)) {
-                        writer.write(String.format("Remote builder returned HTTP %d for job_result of job %s", resultStatusCode, jobId));
-                    }
+                    writeErrorFile(resultDir, writer ->
+                        writer.write(String.format("Remote builder returned HTTP %d for job_result of job %s", resultStatusCode, jobId)));
                     return;
                 }
                 if (jobStatus == BuilderConstants.JobStatus.SUCCESS.ordinal()) {
@@ -337,10 +341,7 @@ public class RemoteEngineBuilder {
                     LOGGER.info(String.format("Job %s result got.", jobId));
                 } else {
                     LOGGER.error(Markers.COMPILATION_ERROR, "Failed to build source.");
-                    File errorFile = new File(resultDir, BuilderConstants.BUILD_ERROR_FILENAME);
-                    try (PrintWriter writer = new PrintWriter(errorFile)) {
-                        IOUtils.copy(resultResponse.getEntity().getContent(), writer, Charset.defaultCharset());
-                    }
+                    writeErrorFile(resultDir, writer -> IOUtils.copy(resultResponse.getEntity().getContent(), writer, Charset.defaultCharset()));
                 }
                 return;
             } catch (IOException e) {
