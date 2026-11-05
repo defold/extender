@@ -76,6 +76,9 @@ public class SeatbeltProfileTest {
         assertTrue(execDeny.contains(SeatbeltProfile.quote(rw.toString())), profile);
         assertTrue(profile.indexOf(execDeny) > profile.indexOf(execLines.get(0)), profile);
         assertTrue(profile.indexOf(execLines.get(1)) > profile.indexOf(execDeny), profile);
+        // loading a library runs code as well, and follows the same split
+        assertTrue(execDeny.startsWith("(deny process-exec file-map-executable"), profile);
+        assertTrue(execLines.get(1).startsWith("(allow process-exec file-map-executable"), profile);
 
         List<String> writes = profile.lines().filter(l -> l.startsWith("(allow file-read* file-write*")).toList();
         assertEquals(2, writes.size(), profile);
