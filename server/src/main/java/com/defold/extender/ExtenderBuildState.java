@@ -5,6 +5,7 @@ import java.io.File;
 public class ExtenderBuildState {
     static final String APPMANIFEST_BASE_VARIANT_KEYWORD = "baseVariant";
     static final String APPMANIFEST_WITH_SYMBOLS_KEYWORD = "withSymbols";
+    static final String APPMANIFEST_RELEASE_DEBUG_INFO_KEYWORD = "releaseDebugInfo";
     static final String APPMANIFEST_BUILD_ARTIFACTS_KEYWORD = "buildArtifacts";
     static final String APPMANIFEST_JETIFIER_KEYWORD = "jetifier";
     static final String APPMANIFEST_DEBUG_SOURCE_PATH = "debugSourcePath";
@@ -21,6 +22,7 @@ public class ExtenderBuildState {
     String hostPlatform;
     private final String buildArtifacts;
     private final String debugSourcePath;
+    private final boolean releaseDebugInfo;
     private final int minAndroidSdkVersion;
 
     private final Boolean withSymbols;
@@ -39,6 +41,7 @@ public class ExtenderBuildState {
         this.withSymbols = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_WITH_SYMBOLS_KEYWORD, true);
         this.buildArtifacts = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_BUILD_ARTIFACTS_KEYWORD, "");
         this.debugSourcePath = ExtenderUtil.getAppManifestContextString(appManifest, APPMANIFEST_DEBUG_SOURCE_PATH, null);
+        this.releaseDebugInfo = ExtenderUtil.getAppManifestContextBoolean(appManifest, APPMANIFEST_RELEASE_DEBUG_INFO_KEYWORD, false);
         this.minAndroidSdkVersion = ExtenderUtil.getAppManifestContextInteger(appManifest, APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD, DEFAULT_MIN_ANDROID_SDK_VERSION);
         // assign configuration names started with upper letter because it used for cocoapods
         if (baseVariant != null && (baseVariant.equals("release") || baseVariant.equals("headless"))) {
@@ -98,6 +101,14 @@ public class ExtenderBuildState {
 
     public String getDebugSourcePath() {
         return debugSourcePath;
+    }
+
+    public boolean isDebugBuild() {
+        return "Debug".equals(buildConfiguration);
+    }
+
+    public boolean isReleaseDebugInfo() {
+        return releaseDebugInfo;
     }
 
     public int getMinAndroidSdkVersion() {

@@ -2277,7 +2277,9 @@ class Extender {
         // When the client requests symbols (e.g. bob --with-symbols), append the platform's
         // withSymbolsLinkFlags from build.yml to the link flags (e.g. -gseparate-dwarf and
         // -gsource-map for wasm platforms, producing debug info sidecars returned via symbolsPattern).
-        if (buildState.isNeedSymbols()) {
+        // These flags also disable JS minification and parts of the wasm optimization, and clients
+        // request symbols by default, so release builds only get them when the app manifest asks.
+        if (buildState.isNeedSymbols() && (buildState.isDebugBuild() || buildState.isReleaseDebugInfo())) {
             List<String> withSymbolsLinkFlags = ExtenderUtil.getStringList(this.platformConfig.context, "withSymbolsLinkFlags");
             if (!withSymbolsLinkFlags.isEmpty()) {
                 Map<String, Object> symbolsContext = new HashMap<>();
