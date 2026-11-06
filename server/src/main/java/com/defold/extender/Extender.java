@@ -96,7 +96,6 @@ class Extender {
     // every resolved dependency manager (CocoaPods, SPM); consumed uniformly
     final List<ResolvedNativeDeps> resolvedNativeDeps = new ArrayList<>();
     private int nameCounter = 0;
-    private boolean hasExtensionSwiftCode = false;
 
 
     static final String FOLDER_ENGINE_SRC = "src";      // source for the engine library
@@ -865,7 +864,6 @@ class Extender {
         if (swiftFiles.isEmpty()) {
             return objs;
         }
-        hasExtensionSwiftCode = true;
 
         final String extensionName = (String)manifestContext.get("extension_name");
         String moduleName = ExtenderUtil.toSwiftModuleName(extensionName);
@@ -1639,13 +1637,6 @@ class Extender {
             return;
         }
 
-        SwiftRuntimeLibraries support = SwiftRuntimeLibraries.fromSdkSettings(new File(sdkSettings), target);
-        if (support == null) {
-            LOGGER.warn("Not checking the Swift runtime libraries: {} has no Swift support information for {}",
-                    LogSanitizer.sanitize(sdkSettings), LogSanitizer.sanitize(target));
-            return;
-        }
-
         List<File> binaries = new ArrayList<>();
         binaries.add(exe);
         for (String dynamicLib : dynamicLibs) {
@@ -1662,9 +1653,19 @@ class Extender {
             context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, binary));
             executeCommand(platformConfig.listSwiftRuntimeLibsCmd, context);
         }
-        String output = processExecutor.getOutput().substring(logLength);
+        List<File> referenced = SwiftRuntimeLibraries.parseToolOutput(processExecutor.getOutput().substring(logLength));
+        if (referenced.isEmpty()) {
+            return;
+        }
 
-        for (File library : support.select(SwiftRuntimeLibraries.parseToolOutput(output), minOsVersion)) {
+        SwiftRuntimeLibraries support = SwiftRuntimeLibraries.fromSdkSettings(new File(sdkSettings), target);
+        if (support == null) {
+            LOGGER.warn("Not checking the Swift runtime libraries: {} has no Swift support information for {}",
+                    LogSanitizer.sanitize(sdkSettings), LogSanitizer.sanitize(target));
+            return;
+        }
+
+        for (File library : support.select(referenced, minOsVersion)) {
             LOGGER.info("Adding Swift runtime library {} for the minimum OS version {}", library.getName(), minOsVersion);
             JobFiles.copyFileToDirectory(buildState.jobDir, new File(toolchain), library, buildState.buildDir);
         }
@@ -1772,7 +1773,8 @@ class Extender {
             JobFiles.copyFileToDirectory(buildState.jobDir, new File(filepath), buildState.buildDir);
         }
 
-        if (hasExtensionSwiftCode && platformConfig.listSwiftRuntimeLibsCmd != null) {
+        // Also without Swift sources in the extensions: a package, a pod or a prebuilt library can have Swift code
+        if (platformConfig.listSwiftRuntimeLibsCmd != null) {
             copySwiftRuntimeLibraries(linkContext, exe, dynamicLibsPathes);
         }
 
