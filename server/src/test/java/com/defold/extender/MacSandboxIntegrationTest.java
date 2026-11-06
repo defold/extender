@@ -1,5 +1,6 @@
 package com.defold.extender;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,10 +66,10 @@ public class MacSandboxIntegrationTest {
 
     private static final String DEFAULT_SDK = "574678c7d44be490d874fbed2d0ae6211feec4d9"; // 1.13.1
     private static final String PLATFORM = "arm64-osx";
+    private static final String SPAN_LIBRARY = "libswiftCompatibilitySpan.dylib";
     private static final Path SERVER_DIR = Path.of("").toAbsolutePath();
 
     private static String sdk;
-    private static String minOs;
     private static int port;
     private static Process server;
     private static Path stdout;
@@ -103,10 +104,6 @@ public class MacSandboxIntegrationTest {
         env.put("CURL_CA_BUNDLE", certificate.toString());
         // echoes every launcher argv into the server log
         env.put("DM_DEBUG_COMMANDS", "1");
-        minOs = System.getProperty("extender.test.macSandboxMinOs");
-        if (minOs != null) {
-            env.put("MACOS_VERSION_MIN", minOs);
-        }
 
         sdk = System.getProperty("extender.test.macSandboxSdk", DEFAULT_SDK);
         stdout = workDir.resolve("server.log");
@@ -208,21 +205,17 @@ public class MacSandboxIntegrationTest {
         }
     }
 
-    // Verifies that an engine whose Swift code needs the concurrency runtime, which macOS has only from 12.0,
-    // gets the back-deployment library in the archive and resolves it through the rpath. Opt in with
-    // -PmacSandboxMinOs=11.0 (a lower minimum than the platform default); the Swift package tests need the
-    // default, so run it on its own.
+    // Verifies that an engine whose Swift code needs the Span compatibility library, which macOS has only
+    // from 26.0, gets the back-deployment library in the archive and resolves it through the rpath.
     @Test
-    public void buildsSwiftConcurrencyWithItsRuntimeLibrary() throws Exception {
+    public void buildsSwiftSpanWithItsRuntimeLibrary() throws Exception {
         assumeSwiftSdk();
-        assumeTrue(minOs != null && Integer.parseInt(minOs.split("\\.")[0]) < 12,
-            "needs -PmacSandboxMinOs below 12.0");
-        try (ZipFile zip = new ZipFile(build(swiftAsyncExtension()))) {
-            assertNotNull(zip.getEntry("libswift_Concurrency.dylib"), "the concurrency runtime is not in the archive: " + entryNames(zip));
+        try (ZipFile zip = new ZipFile(build(swiftSpanExtension()))) {
+            assertNotNull(zip.getEntry(SPAN_LIBRARY), "the Span library is not in the archive: " + entryNames(zip));
             assertTrue(entryNames(zip).stream().noneMatch(name -> name.equals("libswiftCore.dylib")),
                 "libswiftCore comes from the OS: " + entryNames(zip));
             String libraries = run("otool", "-L", extractEngine(zip).toString());
-            assertTrue(libraries.contains("@rpath/libswift_Concurrency.dylib"), libraries);
+            assertTrue(libraries.contains("@rpath/" + SPAN_LIBRARY), libraries);
         }
     }
 
@@ -327,19 +320,89 @@ public class MacSandboxIntegrationTest {
             "#import <" + pkg + "/" + pkg + ".h>\n");
     }
 
+    // Verifies that the Swift code can import an Objective-C target of a Swift package directly.
+    @Test
+    public void swiftExtensionCanImportAnObjcTargetOfASwiftPackage() throws Exception {
+        assumeSwiftSdk();
+        String pkg = "SpmObjcImport" + UUID.randomUUID().toString().substring(0, 8);
+        publishPackage(pkg, "", Map.of(
+            "Sources/" + pkg + "/include/" + pkg + ".h", "#import <Foundation/Foundation.h>\nNSInteger " + pkg + "_value(void);\n",
+            "Sources/" + pkg + "/" + pkg + ".m", "#import \"" + pkg + ".h\"\nNSInteger " + pkg + "_value(void) { return 42; }\n"));
+
+        buildSwiftExtensionWithPackage("SpmObjcImportUser", pkg, "spm-objc-import-marker-",
+            "import " + pkg + "\n@objc(SpmObjcImportUserGreeter)\npublic class Greeter: NSObject {\n"
+            + "    @objc public func message() -> String { \"spm-objc-import-marker-\\(" + pkg + "_value())\" }\n}\n",
+            null);
+    }
+
+    // Verifies that the Swift code can import a Swift target of a package that depends on a C target:
+    // the imported module needs the C module too, although the extension does not import it itself.
+    @Test
+    public void swiftExtensionCanImportASwiftTargetThatDependsOnACTarget() throws Exception {
+        assumeSwiftSdk();
+        String pkg = "SpmMixed" + UUID.randomUUID().toString().substring(0, 8);
+        String cTarget = pkg + "C";
+        publishPackage(pkg, "",
+            "    products: [.library(name: \"" + pkg + "\", targets: [\"" + pkg + "\"])],\n"
+            + "    targets: [.target(name: \"" + cTarget + "\"), .target(name: \"" + pkg + "\", dependencies: [\"" + cTarget + "\"])])\n",
+            Map.of(
+                "Sources/" + cTarget + "/include/" + cTarget + ".h", "int " + cTarget + "_value(void);\n",
+                "Sources/" + cTarget + "/value.c", "#include \"" + cTarget + ".h\"\nint " + cTarget + "_value(void) { return 42; }\n",
+                "Sources/" + pkg + "/Lib.swift", "import " + cTarget + "\npublic func libValue() -> Int32 { " + cTarget + "_value() }\n"));
+
+        buildSwiftExtensionWithPackage("SpmMixedUser", pkg, "spm-mixed-marker-",
+            "import " + pkg + "\n@objc(SpmMixedUserGreeter)\npublic class Greeter: NSObject {\n"
+            + "    @objc public func message() -> String { \"spm-mixed-marker-\\(libValue())\" }\n}\n",
+            null);
+    }
+
+    // Verifies that a Swift runtime library is added to the archive when only an embedded dynamic
+    // framework refers to it, and the engine itself does not.
+    @Test
+    public void swiftRuntimeLibraryOfAnEmbeddedFrameworkIsInTheArchive() throws Exception {
+        assumeSwiftSdk();
+        String pkg = "SpmDynamic" + UUID.randomUUID().toString().substring(0, 8);
+        publishPackage(pkg, "",
+            "    products: [.library(name: \"" + pkg + "\", type: .dynamic, targets: [\"" + pkg + "\"])],\n"
+            + "    targets: [.target(name: \"" + pkg + "\")])\n",
+            Map.of("Sources/" + pkg + "/Lib.swift",
+                "public protocol NamedSpan: ~Copyable, ~Escapable { static var name: String { get } }\n"
+                + "extension MutableRawSpan: NamedSpan { public static var name: String { \"raw\" } }\n"
+                + "public func libValue() -> Int { 40 + 2 }\n"));
+
+        File destination = buildSwiftExtensionWithPackage("SpmDynamicUser", pkg, "spm-dynamic-marker-",
+            "import " + pkg + "\n@objc(SpmDynamicUserGreeter)\npublic class Greeter: NSObject {\n"
+            + "    @objc public func message() -> String { \"spm-dynamic-marker-\\(libValue())\" }\n}\n",
+            null);
+        try (ZipFile zip = new ZipFile(destination)) {
+            assertNotNull(zip.getEntry(SPAN_LIBRARY), "the Span library is not in the archive: " + entryNames(zip));
+            String libraries = run("otool", "-L", extractEngine(zip).toString());
+            assertFalse(libraries.contains(SPAN_LIBRARY), "the engine itself refers to the Span library:\n" + libraries);
+        }
+    }
+
     /**
-     * Commits a package with the given files to the local git server. A Package.swift is generated,
-     * {@code manifestArguments} are extra Package arguments in it.
+     * Commits a package with one target and one product of the given name to the local git server.
      */
     private static void publishPackage(String name, String manifestArguments, Map<String, String> files) throws Exception {
+        publishPackage(name, manifestArguments,
+            "    products: [.library(name: \"" + name + "\", targets: [\"" + name + "\"])],\n"
+            + "    targets: [.target(name: \"" + name + "\")])\n",
+            files);
+    }
+
+    /**
+     * Commits a package with the given files to the local git server. A Package.swift is generated,
+     * {@code manifestArguments} are extra Package arguments in it and {@code productsAndTargets} ends it.
+     */
+    private static void publishPackage(String name, String manifestArguments, String productsAndTargets, Map<String, String> files) throws Exception {
         Path source = Files.createDirectories(workDir.resolve("repos/" + name));
         Files.writeString(source.resolve("Package.swift"),
             "// swift-tools-version:5.9\n"
             + "import PackageDescription\n"
             + "let package = Package(name: \"" + name + "\",\n"
             + manifestArguments
-            + "    products: [.library(name: \"" + name + "\", targets: [\"" + name + "\"])],\n"
-            + "    targets: [.target(name: \"" + name + "\")])\n");
+            + productsAndTargets);
         for (Map.Entry<String, String> file : files.entrySet()) {
             Path target = source.resolve(file.getKey());
             Files.createDirectories(target.getParent());
@@ -352,7 +415,7 @@ public class MacSandboxIntegrationTest {
      * Builds an extension whose Swift code (one class returning marker + the value from the package) is
      * reached from an .mm shim, and checks that the marker made it into the engine.
      */
-    private static void buildSwiftExtensionWithPackage(String extension, String pkg, String marker, String swiftBody,
+    private static File buildSwiftExtensionWithPackage(String extension, String pkg, String marker, String swiftBody,
             String bridgingHeader) throws Exception {
         Path upload = Files.createDirectories(workDir.resolve("upload-" + extension + "-" + pkg));
         Files.createDirectories(upload.resolve("src"));
@@ -379,12 +442,14 @@ public class MacSandboxIntegrationTest {
                 extension + "/src/" + extension + "-Bridging-Header.h"));
         }
 
-        try (ZipFile zip = new ZipFile(build(sources))) {
+        File destination = build(sources);
+        try (ZipFile zip = new ZipFile(destination)) {
             try (InputStream engine = zip.getInputStream(zip.getEntry("dmengine"))) {
                 assertTrue(new String(engine.readAllBytes(), StandardCharsets.ISO_8859_1).contains(marker),
                     "the Swift code is not in the engine");
             }
         }
+        return destination;
     }
 
     private static List<ExtenderResource> swiftExtension() {
@@ -399,11 +464,11 @@ public class MacSandboxIntegrationTest {
             new FileExtenderResource("test-data/ext_swift/src/swiftext.mm", "swiftext/src/swiftext.mm")));
     }
 
-    private static List<ExtenderResource> swiftAsyncExtension() {
+    private static List<ExtenderResource> swiftSpanExtension() {
         return new ArrayList<>(List.of(
-            new FileExtenderResource("test-data/ext_swift_async/ext.manifest", "swiftasync/ext.manifest"),
-            new FileExtenderResource("test-data/ext_swift_async/src/Worker.swift", "swiftasync/src/Worker.swift"),
-            new FileExtenderResource("test-data/ext_swift_async/src/swiftasync.mm", "swiftasync/src/swiftasync.mm")));
+            new FileExtenderResource("test-data/ext_swift_span/ext.manifest", "swiftspan/ext.manifest"),
+            new FileExtenderResource("test-data/ext_swift_span/src/Worker.swift", "swiftspan/src/Worker.swift"),
+            new FileExtenderResource("test-data/ext_swift_span/src/swiftspan.mm", "swiftspan/src/swiftspan.mm")));
     }
 
     private static String buildError(List<ExtenderResource> sources) throws Exception {

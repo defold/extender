@@ -899,6 +899,15 @@ class Extender {
         frameworkPaths.addAll(getFrameworkPaths(extDir));
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
 
+        // -I does not find a <Module>.modulemap, and importing a package needs the C and Objective-C
+        // modules of the package, also the ones that an imported Swift module only depends on
+        List<String> swiftFlags = new ArrayList<>(ExtenderUtil.getStringList(context, "swiftFlags"));
+        for (String moduleMap : collectDepSwiftModuleMaps()) {
+            swiftFlags.add("-Xcc");
+            swiftFlags.add("-fmodule-map-file=" + moduleMap);
+        }
+
+        context.put("swiftFlags", swiftFlags);
         context.put("moduleName", moduleName);
         context.put("swiftSourceFiles", sources);
         context.put("swiftBridgingHeaders", bridgingHeaders);
@@ -1617,8 +1626,9 @@ class Extender {
     }
 
     // Copies the Swift runtime libraries that the OS of the minimum version does not have, and that the
-    // linked engine refers to, next to the engine. The bundler puts them into the application.
-    void copySwiftRuntimeLibraries(Map<String, Object> linkContext, File exe) throws IOException, ExtenderException {
+    // linked engine or a dynamic library embedded next to it refers to, next to the engine. The bundler
+    // puts them into the application.
+    void copySwiftRuntimeLibraries(Map<String, Object> linkContext, File exe, List<String> dynamicLibs) throws IOException, ExtenderException {
         Map<String, Object> context = createContext(linkContext);
         String target = (String)context.get("swiftSdkTarget");
         String sdkSettings = (String)context.get("swiftSdkSettings");
@@ -1635,11 +1645,23 @@ class Extender {
                     LogSanitizer.sanitize(sdkSettings), LogSanitizer.sanitize(target));
             return;
         }
-        support.checkMinOsVersion(minOsVersion);
 
-        context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, exe));
+        List<File> binaries = new ArrayList<>();
+        binaries.add(exe);
+        for (String dynamicLib : dynamicLibs) {
+            binaries.add(new File(dynamicLib));
+        }
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            for (File framework : deps.getDynamicFrameworks()) {
+                binaries.add(new File(framework, framework.getName().replace(".framework", "")));
+            }
+        }
+
         int logLength = processExecutor.getOutput().length();
-        executeCommand(platformConfig.listSwiftRuntimeLibsCmd, context);
+        for (File binary : binaries) {
+            context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, binary));
+            executeCommand(platformConfig.listSwiftRuntimeLibsCmd, context);
+        }
         String output = processExecutor.getOutput().substring(logLength);
 
         for (File library : support.select(SwiftRuntimeLibraries.parseToolOutput(output), minOsVersion)) {
@@ -1732,10 +1754,6 @@ class Extender {
             LOGGER.info("Skipping extraction of symbols");
         }
 
-        if (hasExtensionSwiftCode && platformConfig.listSwiftRuntimeLibsCmd != null) {
-            copySwiftRuntimeLibraries(linkContext, exe);
-        }
-
         // collect dynamic libraries and copy to result folder
         List<String> dynamicLibsPathes = new ArrayList<>();
         for (File extDir : this.extDirs) {
@@ -1752,6 +1770,10 @@ class Extender {
 
         for (String filepath : dynamicLibsPathes) {
             JobFiles.copyFileToDirectory(buildState.jobDir, new File(filepath), buildState.buildDir);
+        }
+
+        if (hasExtensionSwiftCode && platformConfig.listSwiftRuntimeLibsCmd != null) {
+            copySwiftRuntimeLibraries(linkContext, exe, dynamicLibsPathes);
         }
 
         // Collect output/binaries
@@ -3048,6 +3070,14 @@ class Extender {
         List<String> result = new ArrayList<>();
         for (ResolvedNativeDeps deps : resolvedNativeDeps) {
             result.addAll(deps.getAdditionalIncludePaths());
+        }
+        return result;
+    }
+
+    private List<String> collectDepSwiftModuleMaps() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getSwiftModuleMaps());
         }
         return result;
     }

@@ -18,11 +18,9 @@ import tools.jackson.databind.ObjectMapper;
 final class SwiftRuntimeLibraries {
     private static final Pattern LIBRARY_NAME = Pattern.compile("libswift[A-Za-z0-9_]*\\.dylib");
 
-    private final String osRuntimeMinVersion;
     private final Map<String, String> compatibilityLibraries;
 
-    SwiftRuntimeLibraries(String osRuntimeMinVersion, Map<String, String> compatibilityLibraries) {
-        this.osRuntimeMinVersion = osRuntimeMinVersion;
+    SwiftRuntimeLibraries(Map<String, String> compatibilityLibraries) {
         this.compatibilityLibraries = compatibilityLibraries;
     }
 
@@ -43,9 +41,8 @@ final class SwiftRuntimeLibraries {
         }
         Map<String, Object> targetSettings = (Map<String, Object>) ((Map<String, Object>) supportedTargets).get(target);
 
-        Object runtimeMinVersion = targetSettings.get("SwiftOSRuntimeMinimumDeploymentTarget");
         Object libraries = targetSettings.get("SwiftCompatibilityLibraryNotNeededStartingIn");
-        if (!(runtimeMinVersion instanceof String) || !(libraries instanceof Map)) {
+        if (!(libraries instanceof Map)) {
             return null;
         }
 
@@ -55,7 +52,7 @@ final class SwiftRuntimeLibraries {
                 compatibilityLibraries.put(entry.getKey(), (String) entry.getValue());
             }
         }
-        return new SwiftRuntimeLibraries((String) runtimeMinVersion, compatibilityLibraries);
+        return new SwiftRuntimeLibraries(compatibilityLibraries);
     }
 
     // The libraries listed in the output of swift-stdlib-tool --print, one path per line. The
@@ -69,15 +66,6 @@ final class SwiftRuntimeLibraries {
             }
         }
         return libraries;
-    }
-
-    // Below this version the OS has no Swift runtime at all, which would have to be bundled whole.
-    void checkMinOsVersion(String minOsVersion) throws ExtenderException {
-        if (VersionUtil.compareVersions(minOsVersion, osRuntimeMinVersion) < 0) {
-            throw new ExtenderException(String.format(
-                    "Swift code needs the Swift runtime of the OS, which is available from version %s, but this build targets version %s. Swift sources are not supported for this minimum OS version.",
-                    osRuntimeMinVersion, minOsVersion));
-        }
     }
 
     // The libraries that have to be bundled for the minimum OS version, out of the ones a binary refers to

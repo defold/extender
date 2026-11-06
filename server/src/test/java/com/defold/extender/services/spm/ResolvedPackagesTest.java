@@ -230,5 +230,24 @@ public class ResolvedPackagesTest {
         assertNull(resolved.getLockFile());
         // no GeneratedModuleMaps dir was created; only the products dir remains
         assertEquals(List.of(productsDir.getAbsolutePath()), resolved.getAdditionalIncludePaths());
+        assertTrue(resolved.getSwiftModuleMaps().isEmpty());
+    }
+
+    @Test
+    public void testHarvestCollectsTheGeneratedModuleMaps(@TempDir File rootDir) throws IOException, ExtenderException {
+        SpmServiceBuildState buildState = createBuildState(rootDir);
+        File productsDir = buildState.getProductsDir();
+        productsDir.mkdirs();
+        createFramework(productsDir, "SpmWrapper", false);
+        File moduleMapsDir = new File(buildState.getDerivedDataDir(), "Build/Intermediates.noindex/GeneratedModuleMaps-iphoneos");
+        moduleMapsDir.mkdirs();
+        Files.writeString(new File(moduleMapsDir, "Foo.modulemap").toPath(), "module Foo {\nheader \"Foo-Swift.h\"\n}\n");
+        Files.writeString(new File(moduleMapsDir, "CFoo.modulemap").toPath(), "module CFoo {\n}\n");
+        Files.writeString(new File(moduleMapsDir, "Foo-Swift.h").toPath(), "");
+
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null);
+
+        assertEquals(List.of(new File(moduleMapsDir, "CFoo.modulemap").getAbsolutePath(), new File(moduleMapsDir, "Foo.modulemap").getAbsolutePath()),
+            resolved.getSwiftModuleMaps());
     }
 }

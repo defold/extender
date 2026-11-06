@@ -22,7 +22,7 @@ public class SwiftRuntimeLibrariesTest {
     private static final File SPAN = new File(TOOLCHAIN + "/swift-6.2/iphoneos/libswiftCompatibilitySpan.dylib");
 
     private static SwiftRuntimeLibraries iphoneos() {
-        return new SwiftRuntimeLibraries("12.2", Map.of(
+        return new SwiftRuntimeLibraries(Map.of(
                 "libswift_Concurrency.dylib", "15.0",
                 "libswiftCompatibilitySpan.dylib", "26.0"));
     }
@@ -61,18 +61,6 @@ public class SwiftRuntimeLibrariesTest {
         assertEquals(List.of(CONCURRENCY), iphoneos().select(List.of(CONCURRENCY, CONCURRENCY), "13.0"));
     }
 
-    // Without the Swift runtime in the OS everything would have to be bundled, which is not supported
-    @Test
-    public void testMinimumOsVersionNeedsTheSwiftRuntimeOfTheOs() throws ExtenderException {
-        iphoneos().checkMinOsVersion("12.2");
-        iphoneos().checkMinOsVersion("15.0");
-        ExtenderException e = assertThrows(ExtenderException.class, () -> iphoneos().checkMinOsVersion("12.1"));
-        assertTrue(e.getMessage().contains("12.2"), e.getMessage());
-        assertTrue(e.getMessage().contains("12.1"), e.getMessage());
-        assertThrows(ExtenderException.class, () -> iphoneos().checkMinOsVersion("11.0"));
-        assertThrows(ExtenderException.class, () -> new SwiftRuntimeLibraries("10.14.4", Map.of()).checkMinOsVersion("10.14"));
-    }
-
     @Test
     public void testFromSdkSettings(@TempDir Path dir) throws IOException, ExtenderException {
         File settings = dir.resolve("SDKSettings.json").toFile();
@@ -80,7 +68,6 @@ public class SwiftRuntimeLibrariesTest {
                 {"SupportedTargets": {
                     "iphoneos": {
                         "MinimumDeploymentTarget": "15.0",
-                        "SwiftOSRuntimeMinimumDeploymentTarget": "12.2",
                         "SwiftCompatibilityLibraryNotNeededStartingIn": {
                             "libswiftCompatibilitySpan.dylib": "26.0",
                             "libswift_Concurrency.dylib": "15.0"}},
@@ -89,7 +76,6 @@ public class SwiftRuntimeLibrariesTest {
 
         SwiftRuntimeLibraries iphoneos = SwiftRuntimeLibraries.fromSdkSettings(settings, "iphoneos");
         assertEquals(List.of(CONCURRENCY, SPAN), iphoneos.select(List.of(CORE, CONCURRENCY, SPAN), "14.0"));
-        assertThrows(ExtenderException.class, () -> iphoneos.checkMinOsVersion("12.0"));
 
         // a target the SDK does not describe, or describes without Swift support
         assertNull(SwiftRuntimeLibraries.fromSdkSettings(settings, "iphonesimulator"));

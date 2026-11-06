@@ -1,7 +1,6 @@
 package com.defold.extender;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -111,7 +110,7 @@ public class ExtenderSwiftTest {
         return sdk;
     }
 
-    private static ResolvedNativeDeps depsWithMinVersion(String minVersion) {
+    private static ResolvedNativeDeps deps(String minVersion, List<String> swiftModuleMaps, List<File> dynamicFrameworks) {
         return new ResolvedNativeDeps() {
             @Override
             public List<String> getFrameworks() {
@@ -127,7 +126,21 @@ public class ExtenderSwiftTest {
             public String getPlatformMinVersion() {
                 return minVersion;
             }
+
+            @Override
+            public List<String> getSwiftModuleMaps() {
+                return swiftModuleMaps;
+            }
+
+            @Override
+            public List<File> getDynamicFrameworks() {
+                return dynamicFrameworks;
+            }
         };
+    }
+
+    private static ResolvedNativeDeps depsWithMinVersion(String minVersion) {
+        return deps(minVersion, List.of(), List.of());
     }
 
     private String compileSwiftModule(Extender extender) throws Exception {
@@ -228,48 +241,75 @@ public class ExtenderSwiftTest {
         }
     }
 
-    /** The two libraries the fake stdlib tool reports, and the SDK table that only knows the concurrency one. */
+    // Verifies that the Swift compile gets every module map of the native dependencies next to the
+    // flags of the platform, as Swift only finds the C and Objective-C modules of a package through them.
+    @Test
+    public void swiftModuleCompileGetsTheModuleMapsOfTheDependencies() throws Exception {
+        fakeTool("swiftc");
+        Extender extender = extender("arm64-osx");
+        extender.resolvedNativeDeps.add(deps(null, List.of("/maps/A.modulemap", "/maps/B.modulemap"), List.of()));
+
+        String arguments = compileSwiftModule(extender);
+
+        assertTrue(arguments.contains("-Xcc -fmodule-map-file=/maps/A.modulemap -Xcc -fmodule-map-file=/maps/B.modulemap "), arguments);
+        assertTrue(arguments.contains("-target arm64-apple-macosx"), arguments);
+    }
+
+    private File spanLibrary() {
+        return new File(toolchain, "usr/lib/swift-6.2/macosx/libswiftCompatibilitySpan.dylib");
+    }
+
+    /** The two libraries the fake stdlib tool reports, and the SDK table that only knows the Span one. */
     private File fakeRuntimeLibraries(File exe) throws IOException {
         File core = new File(toolchain, "usr/lib/swift/macosx/libswiftCore.dylib");
-        File concurrency = new File(toolchain, "usr/lib/swift-5.5/macosx/libswift_Concurrency.dylib");
         write(core, "");
-        write(concurrency, "");
-        fakeTool("swift-stdlib-tool", core.getPath(), concurrency.getPath());
+        write(spanLibrary(), "");
+        fakeTool("swift-stdlib-tool", core.getPath(), spanLibrary().getPath());
         write(new File(platformSdk, "MacOSX" + env.get("MACOS_VERSION") + ".sdk/SDKSettings.json"),
                 "{\"SupportedTargets\": {\"macosx\": {"
-                + "\"SwiftOSRuntimeMinimumDeploymentTarget\": \"10.14.4\","
-                + "\"SwiftCompatibilityLibraryNotNeededStartingIn\": {\"libswift_Concurrency.dylib\": \"12.0\"}}}}");
+                + "\"SwiftCompatibilityLibraryNotNeededStartingIn\": {\"libswiftCompatibilitySpan.dylib\": \"26.0\"}}}}");
         write(exe, "");
         return exe;
+    }
+
+    /** A stdlib tool that reports the Span library only for one scanned binary. */
+    private void fakeStdlibToolReportingOnlyFor(String binary) throws IOException {
+        File tool = new File(toolchain, "usr/bin/swift-stdlib-tool");
+        write(tool, "#!/bin/sh\ncase \"$*\" in *'--scan-executable " + binary + " '*) echo '" + spanLibrary().getPath() + "';; esac\n");
+        assertTrue(tool.setExecutable(true));
     }
 
     private File[] copiedSwiftLibraries() {
         return new File(jobDir, "build").listFiles((dir, name) -> name.startsWith("libswift"));
     }
 
+    private void assertOnlySpanLibraryIsCopied() {
+        File[] libraries = copiedSwiftLibraries();
+        assertEquals(1, libraries.length);
+        assertEquals("libswiftCompatibilitySpan.dylib", libraries[0].getName());
+    }
+
     // Verifies that the engine gets the libraries that the OS of the minimum version lacks, and not the core runtime.
     @Test
     public void runtimeLibrariesTheMinimumOsLacksAreCopiedNextToTheEngine() throws Exception {
-        env.put("MACOS_VERSION_MIN", "11.0");
+        env.put("MACOS_VERSION_MIN", "12.0");
         File exe = fakeRuntimeLibraries(new File(jobDir, "build/dmengine"));
 
         Extender extender = extender("arm64-osx");
-        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe);
+        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe, List.of());
 
         assertTrue(recordedToolArguments().contains("--print --scan-executable build/dmengine --platform macosx"), recordedToolArguments());
-        File[] libraries = copiedSwiftLibraries();
-        assertEquals(1, libraries.length);
-        assertEquals("libswift_Concurrency.dylib", libraries[0].getName());
+        assertOnlySpanLibraryIsCopied();
     }
 
     // Verifies that a minimum OS version that has the library needs no copy.
     @Test
     public void runtimeLibrariesTheMinimumOsHasAreNotCopied() throws Exception {
-        env.put("MACOS_VERSION_MIN", "12.0");
+        env.put("MACOS_VERSION_MIN", "26.0");
         File exe = fakeRuntimeLibraries(new File(jobDir, "build/dmengine"));
 
         Extender extender = extender("arm64-osx");
-        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe);
+        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe, List.of());
 
         assertEquals(0, copiedSwiftLibraries().length);
     }
@@ -277,26 +317,42 @@ public class ExtenderSwiftTest {
     // Verifies that the libraries follow the minimum version the native dependencies raise it to, as the link does.
     @Test
     public void runtimeLibrariesFollowTheLinkedMinimumVersion() throws Exception {
-        env.put("MACOS_VERSION_MIN", "11.0");
+        env.put("MACOS_VERSION_MIN", "12.0");
         File exe = fakeRuntimeLibraries(new File(jobDir, "build/dmengine"));
 
         Extender extender = extender("arm64-osx");
         Map<String, Object> linkContext = new HashMap<>(extender.getMergedAppContext());
-        linkContext.put("osMinVersion", "14.0");
-        extender.copySwiftRuntimeLibraries(linkContext, exe);
+        linkContext.put("osMinVersion", "26.0");
+        extender.copySwiftRuntimeLibraries(linkContext, exe, List.of());
 
         assertEquals(0, copiedSwiftLibraries().length);
     }
 
-    // Verifies that a minimum OS version without the Swift runtime fails the build.
+    // Verifies that a library is found when only an embedded dynamic framework refers to it.
     @Test
-    public void minimumOsVersionWithoutTheSwiftRuntimeIsRefused() throws Exception {
-        env.put("MACOS_VERSION_MIN", "10.13");
+    public void runtimeLibrariesOfAnEmbeddedFrameworkAreCopied() throws Exception {
+        env.put("MACOS_VERSION_MIN", "12.0");
         File exe = fakeRuntimeLibraries(new File(jobDir, "build/dmengine"));
+        fakeStdlibToolReportingOnlyFor("spm/Dep.framework/Dep");
 
         Extender extender = extender("arm64-osx");
-        ExtenderException e = assertThrows(ExtenderException.class, () -> extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe));
-        assertTrue(e.getMessage().contains("Swift sources are not supported for this minimum OS version"), e.getMessage());
-        assertFalse(toolArguments.exists());
+        extender.resolvedNativeDeps.add(deps(null, List.of(), List.of(new File(jobDir, "spm/Dep.framework"))));
+        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe, List.of());
+
+        assertOnlySpanLibraryIsCopied();
+    }
+
+    // Verifies that a library is found when only a dynamic library of an extension refers to it.
+    @Test
+    public void runtimeLibrariesOfAnExtensionDynamicLibraryAreCopied() throws Exception {
+        env.put("MACOS_VERSION_MIN", "12.0");
+        File exe = fakeRuntimeLibraries(new File(jobDir, "build/dmengine"));
+        fakeStdlibToolReportingOnlyFor("upload/myext/lib/osx/libDep.dylib");
+
+        Extender extender = extender("arm64-osx");
+        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe,
+                List.of(new File(extDir, "lib/osx/libDep.dylib").getPath()));
+
+        assertOnlySpanLibraryIsCopied();
     }
 }

@@ -27,6 +27,7 @@ public class ResolvedPackages implements ResolvedNativeDeps {
     private final List<String> staticLibraries = new ArrayList<>();
     private final List<String> librarySearchPaths = new ArrayList<>();
     private final List<String> additionalIncludePaths = new ArrayList<>();
+    private final List<String> swiftModuleMaps = new ArrayList<>();
     private final List<String> linkFlags = new ArrayList<>();
     private final List<File> resources = new ArrayList<>();
     private final List<File> dynamicFrameworks = new ArrayList<>();
@@ -140,6 +141,14 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         collectModuleMapIncludePaths(generatedModuleMapsDir, new File(buildState.getWorkingDir(), "include"), includePaths);
         resolved.additionalIncludePaths.addAll(includePaths);
 
+        File[] moduleMaps = generatedModuleMapsDir.listFiles((dir, name) -> name.endsWith(".modulemap"));
+        if (moduleMaps != null) {
+            Arrays.sort(moduleMaps);
+            for (File moduleMap : moduleMaps) {
+                resolved.swiftModuleMaps.add(moduleMap.getAbsolutePath());
+            }
+        }
+
         // an embedded framework resolves the Swift runtime and its own location at run time
         if (!resolved.dynamicFrameworks.isEmpty()) {
             resolved.linkFlags.add("-Wl,-rpath,/usr/lib/swift");
@@ -233,6 +242,11 @@ public class ResolvedPackages implements ResolvedNativeDeps {
     @Override
     public List<String> getAdditionalIncludePaths() {
         return additionalIncludePaths;
+    }
+
+    @Override
+    public List<String> getSwiftModuleMaps() {
+        return swiftModuleMaps;
     }
 
     /** Directories outside the job the engine link reads (the building Xcode's Swift runtime libs). */

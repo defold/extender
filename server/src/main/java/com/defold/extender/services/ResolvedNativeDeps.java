@@ -29,6 +29,9 @@ public interface ResolvedNativeDeps {
     /** Include paths added when compiling the user's extension sources. */
     default List<String> getAdditionalIncludePaths() { return List.of(); }
 
+    /** Clang module maps that the Swift code of an extension needs to import the resolved modules. */
+    default List<String> getSwiftModuleMaps() { return List.of(); }
+
     /** Raw additional flags for the final engine link. */
     default List<String> getLinkFlags() { return List.of(); }
 

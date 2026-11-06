@@ -272,9 +272,7 @@ test {
     //   -PmacSandboxE2e=true                    boot the standalone server from server/app on a Mac
     //                                           and build arm64-osx under the Seatbelt sandbox
     //   -PmacSandboxSdk=<sha1>                  Defold SDK for that run (default: the latest release)
-    //   -PmacSandboxMinOs=11.0                  minimum macOS version of that run, for the test of the Swift
-    //                                           runtime libraries that macOS before 12.0 lacks
-    ["targetPlatforms", "defoldVersions", "reuseStack", "spmE2e", "macSandboxE2e", "macSandboxSdk", "macSandboxMinOs"].each { name ->
+    ["targetPlatforms", "defoldVersions", "reuseStack", "spmE2e", "macSandboxE2e", "macSandboxSdk"].each { name ->
         if (project.hasProperty(name)) {
             systemProperty "extender.test.${name}", project.getProperty(name)
         }
