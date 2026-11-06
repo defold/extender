@@ -67,6 +67,9 @@ public class MacSandboxIntegrationTest {
     private static final String DEFAULT_SDK = "574678c7d44be490d874fbed2d0ae6211feec4d9"; // 1.13.1
     private static final String PLATFORM = "arm64-osx";
     private static final String SPAN_LIBRARY = "libswiftCompatibilitySpan.dylib";
+    private static final String SPAN_CONFORMANCE =
+        "public protocol NamedSpan: ~Copyable, ~Escapable { static var name: String { get } }\n"
+        + "extension MutableRawSpan: NamedSpan { public static var name: String { \"raw\" } }\n";
     private static final Path SERVER_DIR = Path.of("").toAbsolutePath();
 
     private static String sdk;
@@ -166,6 +169,8 @@ public class MacSandboxIntegrationTest {
         File destination = build(sources);
         try (ZipFile zip = new ZipFile(destination)) {
             assertNotNull(zip.getEntry("dmengine"), "no dmengine in the archive");
+            assertTrue(entryNames(zip).stream().noneMatch(name -> name.startsWith("libswift")),
+                "an engine without Swift code got Swift libraries: " + entryNames(zip));
         }
         assertTrue(Files.readString(stdout).contains("Sandboxed: " + SERVER_DIR.resolve("app/extender-sandbox")),
             "no build command went through the launcher");
@@ -365,10 +370,7 @@ public class MacSandboxIntegrationTest {
         publishPackage(pkg, "",
             "    products: [.library(name: \"" + pkg + "\", type: .dynamic, targets: [\"" + pkg + "\"])],\n"
             + "    targets: [.target(name: \"" + pkg + "\")])\n",
-            Map.of("Sources/" + pkg + "/Lib.swift",
-                "public protocol NamedSpan: ~Copyable, ~Escapable { static var name: String { get } }\n"
-                + "extension MutableRawSpan: NamedSpan { public static var name: String { \"raw\" } }\n"
-                + "public func libValue() -> Int { 40 + 2 }\n"));
+            Map.of("Sources/" + pkg + "/Lib.swift", SPAN_CONFORMANCE + "public func libValue() -> Int { 40 + 2 }\n"));
 
         File destination = buildSwiftExtensionWithPackage("SpmDynamicUser", pkg, "spm-dynamic-marker-",
             "import " + pkg + "\n@objc(SpmDynamicUserGreeter)\npublic class Greeter: NSObject {\n"
@@ -378,6 +380,24 @@ public class MacSandboxIntegrationTest {
             assertNotNull(zip.getEntry(SPAN_LIBRARY), "the Span library is not in the archive: " + entryNames(zip));
             String libraries = run("otool", "-L", extractEngine(zip).toString());
             assertFalse(libraries.contains(SPAN_LIBRARY), "the engine itself refers to the Span library:\n" + libraries);
+        }
+    }
+
+    // Verifies that a Swift runtime library is added to the archive when the Swift code is only in a
+    // package, and the extension itself has no Swift sources.
+    @Test
+    public void swiftRuntimeLibraryOfAPackageIsInTheArchiveWithoutSwiftSources() throws Exception {
+        assumeSwiftSdk();
+        String pkg = "SpmOnly" + UUID.randomUUID().toString().substring(0, 8);
+        publishPackage(pkg, "", Map.of("Sources/" + pkg + "/Lib.swift",
+            SPAN_CONFORMANCE + "@_cdecl(\"" + pkg + "_value\") public func libValue() -> Int32 { 40 + 2 }\n"));
+
+        File destination = build(spmExtension(pkg, "https://localhost/" + pkg + ".git", "1.0.0", pkg,
+            "extern \"C\" int " + pkg + "_value();\nstatic volatile int g_" + pkg + " = " + pkg + "_value();\n"));
+        try (ZipFile zip = new ZipFile(destination)) {
+            assertNotNull(zip.getEntry(SPAN_LIBRARY), "the Span library is not in the archive: " + entryNames(zip));
+            String libraries = run("otool", "-L", extractEngine(zip).toString());
+            assertTrue(libraries.contains("@rpath/" + SPAN_LIBRARY), libraries);
         }
     }
 

@@ -328,6 +328,20 @@ public class ExtenderSwiftTest {
         assertEquals(0, copiedSwiftLibraries().length);
     }
 
+    // Verifies that a build without Swift code does not depend on the Swift settings of the SDK.
+    @Test
+    public void binariesWithoutSwiftLibrariesDoNotNeedTheSdkSettings() throws Exception {
+        File exe = new File(jobDir, "build/dmengine");
+        write(exe, "");
+        fakeTool("swift-stdlib-tool");
+
+        Extender extender = extender("arm64-osx");
+        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe, List.of());
+
+        assertTrue(recordedToolArguments().contains("--scan-executable build/dmengine"), recordedToolArguments());
+        assertEquals(0, copiedSwiftLibraries().length);
+    }
+
     // Verifies that a library is found when only an embedded dynamic framework refers to it.
     @Test
     public void runtimeLibrariesOfAnEmbeddedFrameworkAreCopied() throws Exception {
