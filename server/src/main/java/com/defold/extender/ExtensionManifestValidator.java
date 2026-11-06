@@ -3,6 +3,7 @@ package com.defold.extender;
 import java.io.File;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,18 +20,32 @@ class ExtensionManifestValidator {
     private final List<Pattern> allowedFlags = new ArrayList<>();
     private final List<Pattern> allowedDefines = new ArrayList<>();
     private final List<Pattern> allowedSymbols = new ArrayList<>();
+    // Null when the platform or SDK has no Swift support: the Swift keys are then ignored
+    private final List<Pattern> allowedSwiftFlags;
 
     private static final Pattern VALID_INCLUDE_PATH = Pattern.compile("^[A-Za-z0-9._+\\-/]+$");
     private static final Pattern VALID_SYMBOL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final Pattern VALID_API_LEVEL = Pattern.compile("^[0-9]+$");
+    static final String SWIFT_INCLUDE_PATHS = "additionalSwiftIncludePaths";
+    static final String FRAMEWORK_SEARCH_PATHS = "additionalFrameworkSearchPaths";
 
     ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSymbols) {
+        this(whitelistConfig, allowedFlags, null, allowedSymbols);
+    }
+
+    ExtensionManifestValidator(WhitelistConfig whitelistConfig, List<String> allowedFlags, List<String> allowedSwiftFlags, List<String> allowedSymbols) {
         this.allowedDefines.add(WhitelistConfig.compile(whitelistConfig.defineRe));
         this.allowedLibs.add(WhitelistConfig.compile(whitelistConfig.libraryRe));
 
         TemplateExecutor templateExecutor = new TemplateExecutor();
         ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedFlags, this.allowedFlags);
         ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedSymbols, this.allowedSymbols);
+        if (allowedSwiftFlags == null) {
+            this.allowedSwiftFlags = null;
+        } else {
+            this.allowedSwiftFlags = new ArrayList<>();
+            ExtensionManifestValidator.expandPatterns(templateExecutor, whitelistConfig.context, allowedSwiftFlags, this.allowedSwiftFlags);
+        }
     }
 
     private static boolean isListOfStrings(List<Object> list) {
@@ -134,6 +149,75 @@ class ExtensionManifestValidator {
         }
     }
 
+    private static boolean matchesAny(List<Pattern> patterns, String s) {
+        for (Pattern p : patterns) {
+            if (p.matcher(s).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Flags are matched one at a time, or as "flag value" when the allowed pattern spans both,
+    // so a bare value can't stand in as a positional argument.
+    private void validateSwiftFlags(String extensionName, Object value) throws ExtenderException {
+        if (!(value instanceof List)) {
+            throw new ExtenderException(String.format("Error in '%s': The 'swiftFlags' must be a list of strings. Got %s", extensionName, value));
+        }
+        List<String> flags = (List<String>) value;
+        validateArgvSafe(extensionName, "swiftFlags", flags);
+
+        for (int i = 0; i < flags.size(); ++i) {
+            String flag = flags.get(i);
+            if (!matchesAny(allowedSwiftFlags, flag)) {
+                if (i + 1 < flags.size() && matchesAny(allowedSwiftFlags, flag + " " + flags.get(i + 1))) {
+                    ++i;
+                } else {
+                    throw new ExtenderException(String.format("Error in '%s': Invalid flag - 'swiftFlags': '%s'", extensionName, flag));
+                }
+            }
+        }
+    }
+
+    // The paths must stay inside the extension folder, and nothing can escape it through absolute
+    // paths, "..", or characters the compiler could take as part of an option.
+    private static void validateExtensionPaths(String extensionName, File extensionFolder, String key, Object value) throws ExtenderException {
+        if (!(value instanceof List)) {
+            throw new ExtenderException(String.format("Error in '%s': The '%s' must be a list of strings. Got %s", extensionName, key, value));
+        }
+        for (String path : (List<String>) value) {
+            if (path == null || path.startsWith("-") || !VALID_INCLUDE_PATH.matcher(path).matches()) {
+                throw new ExtenderException(String.format(
+                        "Error in '%s': Invalid path '%s' in '%s'. Paths may only contain letters, digits and '._+-/', and may not start with '-'.",
+                        extensionName, path, key));
+            }
+            try {
+                SandboxedPath.resolve(extensionFolder, path);
+            } catch (ExtenderException e) {
+                throw new ExtenderException(String.format("Error in '%s': The path '%s' in '%s' must be inside the extension folder: %s",
+                        extensionName, path, key, e.getMessage()));
+            }
+        }
+    }
+
+    // Rewrites the include and framework search paths from relative to the folder they were
+    // written in to relative to the job directory, the base the build commands run in.
+    // Call after validate().
+    Map<String, Object> resolveManifestPaths(Map<String, Object> context, File baseFolder, File jobDir) throws ExtenderException {
+        List<String> keys = allowedSwiftFlags == null ? List.of(FRAMEWORK_SEARCH_PATHS) : List.of(SWIFT_INCLUDE_PATHS, FRAMEWORK_SEARCH_PATHS);
+        Map<String, Object> result = new HashMap<>(context);
+        for (String key : keys) {
+            if (context.get(key) instanceof List) {
+                List<String> resolved = new ArrayList<>();
+                for (String path : (List<String>) context.get(key)) {
+                    resolved.add(ExtenderUtil.getRelativePath(jobDir, SandboxedPath.resolve(baseFolder, path)));
+                }
+                result.put(key, resolved);
+            }
+        }
+        return result;
+    }
+
     void validate(String extensionName, File extensionFolder, Map<String, Object> context) throws ExtenderException {
         Set<String> keys = context.keySet();
         for (String k : keys) {
@@ -169,6 +253,26 @@ class ExtensionManifestValidator {
                     patterns = allowedFlags;
                     type = "flag";
                     break;
+
+                case "swiftFlags":
+                    if (allowedSwiftFlags != null) {
+                        validateSwiftFlags(extensionName, v);
+                    } else {
+                        validateArgvSafe(extensionName, k, v);
+                    }
+                    continue;
+
+                case SWIFT_INCLUDE_PATHS:
+                    if (allowedSwiftFlags != null) {
+                        validateExtensionPaths(extensionName, extensionFolder, k, v);
+                    } else {
+                        validateArgvSafe(extensionName, k, v);
+                    }
+                    continue;
+
+                case FRAMEWORK_SEARCH_PATHS:
+                    validateExtensionPaths(extensionName, extensionFolder, k, v);
+                    continue;
 
                 case "includes":
                     if (!(v instanceof List)) {

@@ -104,7 +104,16 @@ public final class JobFiles {
      * of it on the way to {@code target}.
      */
     public static void copyFile(File jobDir, File source, File target) throws IOException {
-        Path real = requireWithin(jobDir.toPath(), source.toPath());
+        copyFile(jobDir, jobDir, source, target);
+    }
+
+    /**
+     * As {@link #copyFile(File, File, File)}, for a source that lives in {@code sourceRoot}
+     * rather than in the job: the source must resolve inside {@code sourceRoot}, the destination
+     * inside {@code jobDir}.
+     */
+    public static void copyFile(File jobDir, File sourceRoot, File source, File target) throws IOException {
+        Path real = requireWithin(sourceRoot.toPath(), source.toPath());
         if (!Files.isRegularFile(real)) {
             throw new IOException(source + " is not a regular file");
         }
@@ -115,6 +124,10 @@ public final class JobFiles {
 
     public static void copyFileToDirectory(File jobDir, File source, File directory) throws IOException {
         copyFile(jobDir, source, new File(directory, source.getName()));
+    }
+
+    public static void copyFileToDirectory(File jobDir, File sourceRoot, File source, File directory) throws IOException {
+        copyFile(jobDir, sourceRoot, source, new File(directory, source.getName()));
     }
 
     /** {@link FileUtils#copyDirectory(File, File, FileFilter)} refusing every entry that resolves outside {@code jobDir}. */

@@ -452,6 +452,130 @@ public class ExtensionManifestValidatorTest {
         }
     }
 
+    private static final List<String> ALLOWED_SWIFT_FLAGS = List.of(
+        "-enable-upcoming-feature [A-Za-z0-9_]+",
+        "-strict-concurrency=(minimal|targeted|complete)",
+        "-O", "-Osize", "-Onone", "-suppress-warnings");
+
+    private static ExtensionManifestValidator swiftValidator(List<String> allowedSwiftFlags) {
+        return new ExtensionManifestValidator(new WhitelistConfig(), new ArrayList<>(), allowedSwiftFlags, new ArrayList<>());
+    }
+
+    private static void validateSwiftContext(ExtensionManifestValidator validator, File folder, String key, String... values) throws ExtenderException {
+        Map<String, Object> context = new HashMap<>();
+        context.put(key, new ArrayList<>(Arrays.asList(values)));
+        validator.validate("testExtension", folder, context);
+    }
+
+    private static void validateSwiftFlags(ExtensionManifestValidator validator, File folder, String... flags) throws ExtenderException {
+        validateSwiftContext(validator, folder, "swiftFlags", flags);
+    }
+
+    // Verifies that swiftFlags accepts the allowed single flags and "flag value" pairs, and rejects
+    // anything else, including a bare value that is only valid as the second half of a pair and
+    // the path flags, which have their own manifest fields.
+    @Test
+    public void testSwiftFlagsAllowlist() throws ExtenderException {
+        ExtensionManifestValidator validator = swiftValidator(ALLOWED_SWIFT_FLAGS);
+        File folder = new File("ext-folder");
+
+        validateSwiftFlags(validator, folder, "-Osize", "-strict-concurrency=complete", "-enable-upcoming-feature", "ExistentialAny");
+
+        for (String[] bad : new String[][] {
+                {"-sdk", "/tmp"}, {"-Xfrontend", "-load-plugin-library"}, {"-load-plugin-executable"},
+                {"-swift-version", "6"}, {"ExistentialAny"}, {"-enable-upcoming-feature"}, {"-enable-upcoming-feature", "Bad;Name"},
+                {"-O -Onone"}, {"-Osize\\"}, {"@response.txt"}, {"-I", "include"}, {"-F", "lib/osx"}}) {
+            assertThrows(ExtenderException.class, () -> validateSwiftFlags(validator, folder, bad), Arrays.toString(bad));
+        }
+
+        Map<String, Object> notAList = new HashMap<>();
+        notAList.put("swiftFlags", "-Osize");
+        assertThrows(ExtenderException.class, () -> validator.validate("testExtension", folder, notAList));
+    }
+
+    // Verifies that the include and framework search paths stay inside the extension folder and that
+    // nothing can escape it through absolute paths, "..", or unexpected characters.
+    @Test
+    public void testSwiftPaths() throws ExtenderException {
+        ExtensionManifestValidator validator = swiftValidator(ALLOWED_SWIFT_FLAGS);
+        File folder = new File("ext-folder");
+
+        validateSwiftContext(validator, folder, "additionalSwiftIncludePaths", "include/swift", "vendor/modules");
+        validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "lib/osx");
+
+        for (String key : List.of("additionalSwiftIncludePaths", "additionalFrameworkSearchPaths")) {
+            for (String bad : new String[] {"/usr/include", "../other", "lib/../../other", "-sdk", "my dir", "a;b", ""}) {
+                assertThrows(ExtenderException.class, () -> validateSwiftContext(validator, folder, key, bad), key + ": " + bad);
+            }
+            Map<String, Object> notAList = new HashMap<>();
+            notAList.put(key, "include");
+            assertThrows(ExtenderException.class, () -> validator.validate("testExtension", folder, notAList), key);
+        }
+    }
+
+    // Verifies that the Swift keys are ignored when the platform or SDK has no Swift support, so a
+    // manifest written for Apple platforms in a shared context section still builds elsewhere.
+    @Test
+    public void testSwiftKeysIgnoredWithoutSwiftSupport() throws ExtenderException {
+        ExtensionManifestValidator validator = swiftValidator(null);
+        File folder = new File("ext-folder");
+        validateSwiftFlags(validator, folder, "-sdk", "/tmp");
+        validateSwiftContext(validator, folder, "additionalSwiftIncludePaths", "../other");
+    }
+
+    // Verifies that ignored Swift keys still can't carry template syntax, as they stay in the context.
+    @Test
+    public void testSwiftKeysWithoutSwiftSupportRejectTemplateSyntax() {
+        ExtensionManifestValidator validator = swiftValidator(null);
+        File folder = new File("ext-folder");
+        String template = "{{tgt}}";
+
+        for (String key : List.of("swiftFlags", "additionalSwiftIncludePaths")) {
+            assertThrows(ExtenderException.class, () -> validateSwiftContext(validator, folder, key, template), key);
+
+            Map<String, Object> scalar = new HashMap<>();
+            scalar.put(key, template);
+            assertThrows(ExtenderException.class, () -> validator.validate("testExtension", folder, scalar), key);
+        }
+    }
+
+    // Verifies that the framework search paths are not tied to Swift, as they also apply to the
+    // C++ compile and the link, so they are checked on every SDK.
+    @Test
+    public void testFrameworkSearchPathsValidatedWithoutSwiftSupport() throws ExtenderException {
+        ExtensionManifestValidator validator = swiftValidator(null);
+        File folder = new File("ext-folder");
+        validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "lib/osx");
+        assertThrows(ExtenderException.class, () -> validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "/usr/lib"));
+        assertThrows(ExtenderException.class, () -> validateSwiftContext(validator, folder, "additionalFrameworkSearchPaths", "../other"));
+    }
+
+    // Verifies that the paths are rewritten relative to the job directory, the base the build
+    // commands run in, and that the other keys and the input context are left untouched.
+    @Test
+    public void testResolveManifestPaths() throws ExtenderException {
+        ExtensionManifestValidator validator = swiftValidator(ALLOWED_SWIFT_FLAGS);
+        File jobDir = new File("job");
+        File folder = new File(jobDir, "upload/ext");
+
+        Map<String, Object> context = new HashMap<>();
+        context.put("swiftFlags", new ArrayList<>(Arrays.asList("-Osize")));
+        context.put("additionalSwiftIncludePaths", new ArrayList<>(Arrays.asList("include/swift", "vendor")));
+        context.put("additionalFrameworkSearchPaths", new ArrayList<>(Arrays.asList("lib/osx")));
+        context.put("defines", new ArrayList<>(List.of("FOO")));
+
+        Map<String, Object> resolved = validator.resolveManifestPaths(context, folder, jobDir);
+        assertEquals(Arrays.asList("upload/ext/include/swift", "upload/ext/vendor"), resolved.get("additionalSwiftIncludePaths"));
+        assertEquals(Arrays.asList("upload/ext/lib/osx"), resolved.get("additionalFrameworkSearchPaths"));
+        assertEquals(Arrays.asList("-Osize"), resolved.get("swiftFlags"));
+        assertEquals(List.of("FOO"), resolved.get("defines"));
+        assertEquals(Arrays.asList("include/swift", "vendor"), context.get("additionalSwiftIncludePaths"));
+
+        Map<String, Object> withoutSwift = swiftValidator(null).resolveManifestPaths(context, folder, jobDir);
+        assertEquals(Arrays.asList("upload/ext/lib/osx"), withoutSwift.get("additionalFrameworkSearchPaths"));
+        assertEquals(Arrays.asList("include/swift", "vendor"), withoutSwift.get("additionalSwiftIncludePaths"));
+    }
+
     @Test
     public void testAllowedLibs() throws ExtenderException {
         Map<String, Object> context = new HashMap<>();

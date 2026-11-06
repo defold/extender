@@ -53,6 +53,7 @@ import com.defold.extender.services.cocoapods.ResolvedPods;
 import com.defold.extender.utils.PodBuildUtil;
 import com.defold.extender.utils.VersionUtil;
 import com.defold.extender.builders.CSharpBuilder;
+import com.defold.extender.log.LogSanitizer;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.process.ProcessExecutor;
@@ -93,8 +94,9 @@ class Extender {
     private List<File> outputFiles;
     private ResolvedPods resolvedPods;
     // every resolved dependency manager (CocoaPods, SPM); consumed uniformly
-    private final List<ResolvedNativeDeps> resolvedNativeDeps = new ArrayList<>();
+    final List<ResolvedNativeDeps> resolvedNativeDeps = new ArrayList<>();
     private int nameCounter = 0;
+    private boolean hasExtensionSwiftCode = false;
 
 
     static final String FOLDER_ENGINE_SRC = "src";      // source for the engine library
@@ -328,7 +330,7 @@ class Extender {
         List<String> allowedSymbols = ExtenderUtil.mergeLists(platformConfig.allowedSymbols, (List<String>) this.config.context.getOrDefault("allowedSymbols", new ArrayList<String>()) );
 
         // The user input (ext.manifest + _app/app.manifest) will be checked against this validator
-        ExtensionManifestValidator manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, allowedSymbols);
+        ExtensionManifestValidator manifestValidator = new ExtensionManifestValidator(new WhitelistConfig(), this.platformConfig.allowedFlags, this.platformConfig.allowedSwiftFlags, allowedSymbols);
 
         // Validate the top-level app.manifest context (e.g. debugSourcePath) before
         // ExtenderBuildState reads any field from it.
@@ -338,6 +340,7 @@ class Extender {
 
         // Make sure the user hasn't input anything invalid in the manifest
         manifestValidator.validate(this.appManifestPath, buildState.uploadDir, this.platformAppConfig.context);
+        this.platformAppConfig.context = manifestValidator.resolveManifestPaths(this.platformAppConfig.context, buildState.uploadDir, buildState.jobDir);
 
         // Collect extension directories (used by both buildEngine and buildClassesDex)
         this.manifests = allFiles.stream().filter(f -> f.getName().equals("ext.manifest")).collect(Collectors.toList());
@@ -681,7 +684,7 @@ class Extender {
 
         List<String> frameworks = new ArrayList<>();
         frameworks.addAll(getFrameworks(extDir));
-        List<String> frameworkPaths = new ArrayList<>();
+        List<String> frameworkPaths = new ArrayList<>(ExtenderUtil.getStringList(manifestContext, ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS));
         frameworkPaths.addAll(getFrameworkPaths(extDir));
         frameworks.addAll(collectDepFrameworks());
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
@@ -826,6 +829,104 @@ class Extender {
         return generated;
     }
 
+    private static final String DEFAULT_SWIFT_SOURCE_RE = "(?i).*\\.swift";
+
+    List<File> collectSwiftSourceFiles(File manifest, File extDir, List<File> srcDirs) throws ExtenderException {
+        File engineSrc = new File(extDir, FOLDER_ENGINE_SRC);
+        if (!ExtenderUtil.isAppleTarget(buildState.fullPlatform) || !srcDirs.contains(engineSrc)) {
+            return new ArrayList<>();
+        }
+
+        String swiftSourceRe = platformConfig.swiftSourceRe != null ? platformConfig.swiftSourceRe : DEFAULT_SWIFT_SOURCE_RE;
+        List<File> swiftFiles = ExtenderUtil.listFiles(engineSrc, swiftSourceRe);
+        File[] otherSrcDirs = { new File(extDir, FOLDER_COMMON_SRC), new File(extDir, FOLDER_PLUGIN_SRC) };
+        List<File> misplaced = ExtenderUtil.listFiles(otherSrcDirs, swiftSourceRe);
+
+        if (platformConfig.swiftSourceRe == null || platformConfig.compileSwiftModuleCmd == null) {
+            if (!swiftFiles.isEmpty() || !misplaced.isEmpty()) {
+                File first = !swiftFiles.isEmpty() ? swiftFiles.get(0) : misplaced.get(0);
+                throw new ExtenderException(String.format("%s:1: error: Swift sources are not supported by this Defold SDK version, use a newer Defold version",
+                    ExtenderUtil.getRelativePath(buildState.uploadDir, first)));
+            }
+            return swiftFiles;
+        }
+
+        if (!misplaced.isEmpty()) {
+            throw new ExtenderException(String.format("%s:1: error: Swift sources are only supported in the '%s' folder: %s",
+                ExtenderUtil.getRelativePath(buildState.uploadDir, manifest), FOLDER_ENGINE_SRC, ExtenderUtil.getRelativePath(buildState.uploadDir, misplaced.get(0))));
+        }
+        return swiftFiles;
+    }
+
+    // Compiles all Swift sources of an extension as one module into a header, a module and an object file.
+    // Runs before the C/ObjC sources, which import the generated <Module>-Swift.h.
+    List<String> compileExtensionSwiftFiles(File extDir, Map<String, Object> manifestContext, List<File> swiftFiles) throws IOException, InterruptedException, ExtenderException {
+        List<String> objs = new ArrayList<>();
+        if (swiftFiles.isEmpty()) {
+            return objs;
+        }
+        hasExtensionSwiftCode = true;
+
+        final String extensionName = (String)manifestContext.get("extension_name");
+        String moduleName = ExtenderUtil.toSwiftModuleName(extensionName);
+
+        File moduleDir = new File(buildState.buildDir, extDir.getName());
+        Files.createDirectories(moduleDir.toPath());
+        File header = new File(moduleDir, moduleName + "-Swift.h");
+        File module = new File(moduleDir, moduleName + ".swiftmodule");
+        File o = new File(buildState.buildDir, String.format("%s_%d.o", moduleName, getAndIncreaseNameCount()));
+
+        List<String> sources = new ArrayList<>();
+        for (File swiftFile : swiftFiles) {
+            sources.add(ExtenderUtil.getRelativePath(buildState.jobDir, swiftFile));
+        }
+
+        List<String> bridgingHeaders = new ArrayList<>();
+        File bridgingHeader = new File(new File(extDir, FOLDER_ENGINE_SRC), moduleName + "-Bridging-Header.h");
+        if (bridgingHeader.isFile()) {
+            bridgingHeaders.add(ExtenderUtil.getRelativePath(buildState.jobDir, bridgingHeader));
+        }
+
+        // The module of a package can't be imported below the minimum OS version of the package
+        Map<String, Object> minVersionContext = new HashMap<>(manifestContext);
+        putDepMinVersion(minVersionContext);
+        Map<String, Object> context = createContext(minVersionContext);
+
+        List<String> includes = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.SWIFT_INCLUDE_PATHS, new ArrayList<String>()));
+        includes.addAll(getIncludeDirs(extDir));
+        includes.addAll(collectDepAdditionalIncludePaths());
+        List<String> frameworkPaths = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS, new ArrayList<String>()));
+        frameworkPaths.addAll(getFrameworkPaths(extDir));
+        frameworkPaths.addAll(collectDepFrameworkSearchPaths());
+
+        // -I does not find a <Module>.modulemap, and importing a package needs the C and Objective-C
+        // modules of the package, also the ones that an imported Swift module only depends on
+        List<String> swiftFlags = new ArrayList<>(ExtenderUtil.getStringList(context, "swiftFlags"));
+        for (String moduleMap : collectDepSwiftModuleMaps()) {
+            swiftFlags.add("-Xcc");
+            swiftFlags.add("-fmodule-map-file=" + moduleMap);
+        }
+
+        context.put("swiftFlags", swiftFlags);
+        context.put("moduleName", moduleName);
+        context.put("swiftSourceFiles", sources);
+        context.put("swiftBridgingHeaders", bridgingHeaders);
+        context.put("swiftDefines", ExtenderUtil.toSwiftDefines((List<String>)context.getOrDefault("defines", new ArrayList<String>())));
+        context.put("swiftHeaderPath", ExtenderUtil.getRelativePath(buildState.jobDir, header));
+        context.put("swiftModulePath", ExtenderUtil.getRelativePath(buildState.jobDir, module));
+        context.put("tgt", ExtenderUtil.getRelativePath(buildState.jobDir, o));
+        context.put("ext", ImmutableMap.of("includes", includes, "frameworkPaths", frameworkPaths));
+
+        progressReporter.compileBatchBegin(extensionName, swiftFiles.size());
+        executeCommandLine(templateExecutor.execute(platformConfig.compileSwiftModuleCmd, context));
+        for (int i = 0; i < swiftFiles.size(); ++i) {
+            progressReporter.fileCompiled(extensionName);
+        }
+
+        objs.add(ExtenderUtil.getRelativePath(buildState.jobDir, o));
+        return objs;
+    }
+
     private List<String> compileExtensionSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
@@ -859,6 +960,7 @@ class Extender {
         // clean up flags from context
         Map<String, Object> trimmedContext = ExtenderUtil.mergeContexts(manifestContext, new HashMap<>());
         trimmedContext.put("flags", new ArrayList<String>());
+        trimmedContext.remove(ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS);
 
         // create contexts per supported language
         // add pod flags and defines
@@ -1194,13 +1296,14 @@ class Extender {
         return createBuildFile(String.format(platformConfig.writeLibPattern, manifestContext.get("extension_name") + "_" + getNameUUID()));
     }
 
-    private List<File> buildExtensionInternal_Cpp(File manifest, Map<String, Object> manifestContext, List<File> srcFiles, File libraryOut) throws IOException, InterruptedException, ExtenderException {
+    private List<File> buildExtensionInternal_Cpp(File manifest, Map<String, Object> manifestContext, List<File> srcFiles, List<File> swiftFiles, File libraryOut) throws IOException, InterruptedException, ExtenderException {
         LOGGER.info("buildExtensionInternal_Cpp");
 
         File extDir = manifest.getParentFile();
 
         // Compile extension source files
         List<String> objs = new ArrayList<>();
+        objs.addAll(compileExtensionSwiftFiles(extDir, manifestContext, swiftFiles));
         objs.addAll(compileExtensionSourceFiles(extDir, manifestContext, srcFiles));
 
         // Create c++ library
@@ -1298,13 +1401,15 @@ class Extender {
             srcCSFiles.addAll(ExtenderUtil.listFiles(srcDirs, platformConfig.csSourceRe));
         }
 
-        if (srcFiles.isEmpty() && srcCSFiles.isEmpty()) {
+        List<File> swiftFiles = collectSwiftSourceFiles(manifest, extDir, srcDirs);
+
+        if (srcFiles.isEmpty() && srcCSFiles.isEmpty() && swiftFiles.isEmpty()) {
             throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(buildState.uploadDir, manifest) ));
         }
 
         List<File> outputFiles = new ArrayList<>();
-        if (!srcFiles.isEmpty())
-            outputFiles.addAll(buildExtensionInternal_Cpp(manifest, manifestContext, srcFiles, libraryOut));
+        if (!srcFiles.isEmpty() || !swiftFiles.isEmpty())
+            outputFiles.addAll(buildExtensionInternal_Cpp(manifest, manifestContext, srcFiles, swiftFiles, libraryOut));
         if (!srcCSFiles.isEmpty())
         {
             this.needsCSLibraries = true; // If we need to link, we need the static libraries
@@ -1463,6 +1568,7 @@ class Extender {
         extFrameworks.addAll(collectDepFrameworks());
         extFrameworks.addAll(collectDepBuiltFrameworks());
         extFrameworkPaths.addAll(collectDepFrameworkSearchPaths());
+        extFrameworkPaths.addAll(ExtenderUtil.getStringList(mainContext, ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS));
         extLibs.addAll(collectDepStaticLibraries());
         extLibPaths.addAll(collectDepLibrarySearchPaths());
 
@@ -1516,6 +1622,51 @@ class Extender {
 
         if (ExtenderUtil.isWebTarget(buildState.fullPlatform)) {
             env.put("jsLibs", extJsLibs);
+        }
+    }
+
+    // Copies the Swift runtime libraries that the OS of the minimum version does not have, and that the
+    // linked engine or a dynamic library embedded next to it refers to, next to the engine. The bundler
+    // puts them into the application.
+    void copySwiftRuntimeLibraries(Map<String, Object> linkContext, File exe, List<String> dynamicLibs) throws IOException, ExtenderException {
+        Map<String, Object> context = createContext(linkContext);
+        String target = (String)context.get("swiftSdkTarget");
+        String sdkSettings = (String)context.get("swiftSdkSettings");
+        String toolchain = (String)context.get("swiftToolchain");
+        String minOsVersion = (String)context.get("osMinVersion");
+        if (target == null || sdkSettings == null || toolchain == null || minOsVersion == null) {
+            LOGGER.warn("Not checking the Swift runtime libraries: the platform does not describe its Swift SDK");
+            return;
+        }
+
+        SwiftRuntimeLibraries support = SwiftRuntimeLibraries.fromSdkSettings(new File(sdkSettings), target);
+        if (support == null) {
+            LOGGER.warn("Not checking the Swift runtime libraries: {} has no Swift support information for {}",
+                    LogSanitizer.sanitize(sdkSettings), LogSanitizer.sanitize(target));
+            return;
+        }
+
+        List<File> binaries = new ArrayList<>();
+        binaries.add(exe);
+        for (String dynamicLib : dynamicLibs) {
+            binaries.add(new File(dynamicLib));
+        }
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            for (File framework : deps.getDynamicFrameworks()) {
+                binaries.add(new File(framework, framework.getName().replace(".framework", "")));
+            }
+        }
+
+        int logLength = processExecutor.getOutput().length();
+        for (File binary : binaries) {
+            context.put("src", ExtenderUtil.getRelativePath(buildState.jobDir, binary));
+            executeCommand(platformConfig.listSwiftRuntimeLibsCmd, context);
+        }
+        String output = processExecutor.getOutput().substring(logLength);
+
+        for (File library : support.select(SwiftRuntimeLibraries.parseToolOutput(output), minOsVersion)) {
+            LOGGER.info("Adding Swift runtime library {} for the minimum OS version {}", library.getName(), minOsVersion);
+            JobFiles.copyFileToDirectory(buildState.jobDir, new File(toolchain), library, buildState.buildDir);
         }
     }
 
@@ -1619,6 +1770,10 @@ class Extender {
 
         for (String filepath : dynamicLibsPathes) {
             JobFiles.copyFileToDirectory(buildState.jobDir, new File(filepath), buildState.buildDir);
+        }
+
+        if (hasExtensionSwiftCode && platformConfig.listSwiftRuntimeLibsCmd != null) {
+            copySwiftRuntimeLibraries(linkContext, exe, dynamicLibsPathes);
         }
 
         // Collect output/binaries
@@ -2232,6 +2387,7 @@ class Extender {
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
                 validator.validate(relativePath, manifest.getParentFile(), ctx);
+                ctx = validator.resolveManifestPaths(ctx, manifest.getParentFile(), buildState.jobDir);
 
                 manifestContext = ExtenderUtil.mergeContexts(manifestContext, ctx);
             }
@@ -2256,6 +2412,7 @@ class Extender {
             ManifestConfiguration manifestConfig = _manifestConfigs.get(extensionSymbol);
             for (String platformAlternative : ExtenderUtil.getPlatformAlternatives(buildState.fullPlatform)) {
                 Map<String, Object> ctx = getManifestContext(platformAlternative, manifestConfig);
+                ctx = validator.resolveManifestPaths(ctx, manifestFiles.get(extensionSymbol).getParentFile(), buildState.jobDir);
                 mergedAppContext = ExtenderUtil.mergeContexts(mergedAppContext, ctx);
             }
         }
@@ -2386,13 +2543,10 @@ class Extender {
                 nativeDepsContext.put("weakFrameworks", collectDepWeakFrameworks());
                 nativeDepsContext.put("libs", collectDepStaticLibraries());
                 nativeDepsContext.put("linkFlags", collectDepLinkFlags());
-                String minVersion = maxDepMinVersion(null);
-                if (minVersion != null) {
-                    nativeDepsContext.put("osMinVersion", minVersion);
-                    nativeDepsContext.put("env.IOS_VERSION_MIN", minVersion);
-                }
+                putDepMinVersion(nativeDepsContext);
             }
             Map<String, Object> mergedAppContextWithPods = ExtenderUtil.mergeContexts(mergedAppContext, nativeDepsContext);
+            mergedAppContextWithPods.put("linkFlags", ExtenderUtil.removeDuplicateRpaths(ExtenderUtil.getStringList(mergedAppContextWithPods, "linkFlags")));
 
             progressReporter.stage(BuildStage.LINKING, "Linking engine");
             outputFiles.addAll(linkEngine(symbols, mergedAppContextWithPods, resourceFile));
@@ -2920,12 +3074,28 @@ class Extender {
         return result;
     }
 
+    private List<String> collectDepSwiftModuleMaps() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getSwiftModuleMaps());
+        }
+        return result;
+    }
+
     private List<File> collectDepPrivacyManifests() {
         List<File> result = new ArrayList<>();
         for (ResolvedNativeDeps deps : resolvedNativeDeps) {
             result.addAll(deps.getPrivacyManifests());
         }
         return result;
+    }
+
+    private void putDepMinVersion(Map<String, Object> context) throws ExtenderException {
+        String minVersion = maxDepMinVersion(null);
+        if (minVersion != null) {
+            context.put("osMinVersion", minVersion);
+            context.put("env.IOS_VERSION_MIN", minVersion);
+        }
     }
 
     private String maxDepMinVersion(String fallback) throws ExtenderException {
