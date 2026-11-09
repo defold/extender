@@ -75,6 +75,13 @@ class ExtensionManifestValidator {
             }
         }
 
+        Object releaseDebugInfo = appContext.get(ExtenderBuildState.APPMANIFEST_RELEASE_DEBUG_INFO_KEYWORD);
+        if (releaseDebugInfo != null && !(releaseDebugInfo instanceof Boolean)) {
+            throw new ExtenderException(String.format(
+                    "Error in app.manifest: '%s' must be a boolean, got '%s'.",
+                    ExtenderBuildState.APPMANIFEST_RELEASE_DEBUG_INFO_KEYWORD, releaseDebugInfo));
+        }
+
         // Reaches the command line as the argument of d8 --min-api, so it must be a bare number.
         Object minAndroidSdkVersion = appContext.get(ExtenderBuildState.APPMANIFEST_MIN_ANDROID_SDK_VERSION_KEYWORD);
         if (minAndroidSdkVersion != null && !(minAndroidSdkVersion instanceof Integer)) {
