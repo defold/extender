@@ -342,6 +342,20 @@ public class ExtenderSwiftTest {
         assertOnlySpanLibraryIsCopied();
     }
 
+    // Verifies that a library is found when only a framework that an extension supplies refers to it.
+    @Test
+    public void runtimeLibrariesOfAnExtensionFrameworkAreCopied() throws Exception {
+        env.put("MACOS_VERSION_MIN", "12.0");
+        File exe = fakeRuntimeLibraries(new File(jobDir, "build/dmengine"));
+        write(new File(extDir, "lib/osx/Dep.framework/Dep"), "");
+        fakeStdlibToolReportingOnlyFor("upload/myext/lib/osx/Dep.framework/Dep");
+
+        Extender extender = extender("arm64-osx");
+        extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe, List.of());
+
+        assertOnlySpanLibraryIsCopied();
+    }
+
     // Verifies that a library is found when only a dynamic library of an extension refers to it.
     @Test
     public void runtimeLibrariesOfAnExtensionDynamicLibraryAreCopied() throws Exception {

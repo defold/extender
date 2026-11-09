@@ -1653,7 +1653,19 @@ class Extender {
         }
         for (ResolvedNativeDeps deps : resolvedNativeDeps) {
             for (File framework : deps.getDynamicFrameworks()) {
-                binaries.add(new File(framework, framework.getName().replace(".framework", "")));
+                binaries.add(frameworkBinary(framework));
+            }
+        }
+        // The frameworks an extension supplies are linked as they are, and a dynamic one is
+        // the only binary that refers to the libraries its own Swift code needs.
+        for (File extDir : this.extDirs) {
+            for (String libDir : getFrameworkPaths(extDir)) {
+                for (String name : ExtenderUtil.collectDirsByName(new File(libDir), ExtenderConst.FRAMEWORK_RE)) {
+                    File binary = frameworkBinary(new File(libDir, name + ".framework"));
+                    if (binary.isFile()) {
+                        binaries.add(binary);
+                    }
+                }
             }
         }
 
@@ -1668,6 +1680,10 @@ class Extender {
             LOGGER.info("Adding Swift runtime library {} for the minimum OS version {}", library.getName(), minOsVersion);
             JobFiles.copyFileToDirectory(buildState.jobDir, new File(toolchain), library, buildState.buildDir);
         }
+    }
+
+    private static File frameworkBinary(File framework) {
+        return new File(framework, framework.getName().replace(".framework", ""));
     }
 
     private List<File> linkEngine(List<String> symbols, Map<String, Object> linkContext, File resourceFile) throws IOException, InterruptedException, ExtenderException {
