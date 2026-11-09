@@ -110,7 +110,8 @@ public class ExtenderSwiftTest {
         return sdk;
     }
 
-    private static ResolvedNativeDeps deps(String minVersion, List<String> swiftModuleMaps, List<File> dynamicFrameworks) {
+    private static ResolvedNativeDeps deps(String minVersion, List<String> swiftModuleMaps, List<String> swiftIncludePaths,
+            List<File> dynamicFrameworks) {
         return new ResolvedNativeDeps() {
             @Override
             public List<String> getFrameworks() {
@@ -133,6 +134,11 @@ public class ExtenderSwiftTest {
             }
 
             @Override
+            public List<String> getSwiftIncludePaths() {
+                return swiftIncludePaths;
+            }
+
+            @Override
             public List<File> getDynamicFrameworks() {
                 return dynamicFrameworks;
             }
@@ -140,7 +146,7 @@ public class ExtenderSwiftTest {
     }
 
     private static ResolvedNativeDeps depsWithMinVersion(String minVersion) {
-        return deps(minVersion, List.of(), List.of());
+        return deps(minVersion, List.of(), List.of(), List.of());
     }
 
     private String compileSwiftModule(Extender extender) throws Exception {
@@ -241,17 +247,18 @@ public class ExtenderSwiftTest {
         }
     }
 
-    // Verifies that the Swift compile gets every module map of the native dependencies next to the
-    // flags of the platform, as Swift only finds the C and Objective-C modules of a package through them.
+    // Verifies that the Swift compile gets every module map and Swift include path of the native dependencies
+    // next to the flags of the platform, as Swift only finds the C and Objective-C modules of a package through them.
     @Test
     public void swiftModuleCompileGetsTheModuleMapsOfTheDependencies() throws Exception {
         fakeTool("swiftc");
         Extender extender = extender("arm64-osx");
-        extender.resolvedNativeDeps.add(deps(null, List.of("/maps/A.modulemap", "/maps/B.modulemap"), List.of()));
+        extender.resolvedNativeDeps.add(deps(null, List.of("/maps/A.modulemap", "/maps/B.modulemap"), List.of("/checkout/B/include"), List.of()));
 
         String arguments = compileSwiftModule(extender);
 
         assertTrue(arguments.contains("-Xcc -fmodule-map-file=/maps/A.modulemap -Xcc -fmodule-map-file=/maps/B.modulemap "), arguments);
+        assertTrue(arguments.contains("-I/checkout/B/include "), arguments);
         assertTrue(arguments.contains("-target arm64-apple-macosx"), arguments);
     }
 
@@ -350,7 +357,7 @@ public class ExtenderSwiftTest {
         fakeStdlibToolReportingOnlyFor("spm/Dep.framework/Dep");
 
         Extender extender = extender("arm64-osx");
-        extender.resolvedNativeDeps.add(deps(null, List.of(), List.of(new File(jobDir, "spm/Dep.framework"))));
+        extender.resolvedNativeDeps.add(deps(null, List.of(), List.of(), List.of(new File(jobDir, "spm/Dep.framework"))));
         extender.copySwiftRuntimeLibraries(extender.getMergedAppContext(), exe, List.of());
 
         assertOnlySpanLibraryIsCopied();

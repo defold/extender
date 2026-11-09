@@ -151,6 +151,44 @@ public class SpmBuildOutputParserTest {
     }
 
     @Test
+    public void testFindWrapperSwiftModuleMaps() throws IOException {
+        // Xcode 27.1 writes the flag as -fmodule-map-file\=<path>; a target with its own
+        // module.modulemap gets no generated map, its map is in the checkout
+        List<String> moduleMaps = SpmBuildOutputParser.findWrapperSwiftModuleMaps(
+            new File("test-data/spm-buildlogs/swift-wrapper-osx.log"), "SpmWrapper");
+        assertEquals(List.of(
+            "/tmp/job123/SwiftPackageManagerService/clonedSourcePackages/checkouts/Foo/Sources/CBar/include/module.modulemap",
+            DERIVED_DATA + "/Build/Intermediates.noindex/GeneratedModuleMaps/CFoo.modulemap"),
+            moduleMaps);
+    }
+
+    @Test
+    public void testFindWrapperSwiftModuleMapsTakesTheFirstWrapperCompile(@TempDir File tmpDir) throws IOException {
+        Files.writeString(new File(tmpDir, "args.resp").toPath(), "-Xcc -fmodule-map-file=/x/c.modulemap\n");
+        File log = new File(tmpDir, "build.log");
+        Files.writeString(log.toPath(),
+            "SwiftDriver SpmWrapper normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SpmWrapper' from project 'SpmWrapper')\n"
+            + "    /x/clang -fmodule-map-file=/x/clang.modulemap -o /x/SpmWrapper.o\n"
+            + "    builtin-SwiftDriver -- /x/swiftc -module-name Foo -Xcc -fmodule-map-file=/x/foo.modulemap -o /x/SpmWrapper.o\n"
+            + "    builtin-SwiftDriver -- /x/swiftc -module-name SpmWrapper -fmodule-map-file=/x/swift.modulemap "
+            + "-Xcc -fmodule-map-file\\=/x/a\\ b.modulemap -Xcc '-fmodule-map-file=/x/b.modulemap' @" + tmpDir + "/args.resp\n"
+            + "    builtin-Swift-Compilation -- /x/swiftc -module-name SpmWrapper -Xcc -fmodule-map-file=/x/later.modulemap\n");
+
+        // only -Xcc values reach clang, and a response file named on the line is not read
+        assertEquals(List.of("/x/a b.modulemap", "/x/b.modulemap"),
+            SpmBuildOutputParser.findWrapperSwiftModuleMaps(log, "SpmWrapper"));
+    }
+
+    @Test
+    public void testFindWrapperSwiftModuleMapsWithoutTheWrapperCompile(@TempDir File tmpDir) throws IOException {
+        File log = new File(tmpDir, "build.log");
+        Files.writeString(log.toPath(),
+            "    builtin-SwiftDriver -- /x/swiftc -module-name Foo -Xcc -fmodule-map-file=/x/foo.modulemap -o /x/SpmWrapper.o\n"
+            + "    /x/swift-frontend -module-name SpmWrapper -Xcc -fmodule-map-file=/x/frontend.modulemap\n");
+        assertNull(SpmBuildOutputParser.findWrapperSwiftModuleMaps(log, "SpmWrapper"));
+    }
+
+    @Test
     public void testFindWrapperLibtoolLine() throws IOException {
         // real log of a MACH_O_TYPE=staticlib build: package targets are archived with
         // libtool too (-o <Target>.o), only the wrapper's line may match

@@ -18,8 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Extracts the wrapper's final link line and the generated module maps from the captured
- * xcodebuild log. A dynamic wrapper links via clang -dynamiclib, a static one archives via
+ * Extracts the wrapper's final link line and the module maps of its Swift compile from the
+ * captured xcodebuild log. A dynamic wrapper links via clang -dynamiclib, a static one archives via
  * libtool -static; package targets are prelinked with clang -r into loose <Target>.o files
  * whose Ld lines must not be mistaken for the wrapper link.
  */
@@ -199,6 +199,54 @@ public class SpmBuildOutputParser {
             new ArrayList<>(librarySearchPaths),
             new ArrayList<>(rpaths),
             new ArrayList<>(forceLoad));
+    }
+
+    /**
+     * The clang module maps that the Swift compile of the wrapper got, or null when the log has
+     * no such compile. The wrapper depends on every product, so these are the maps a Swift client
+     * of the products needs: the ones Xcode generates and the ones targets bring themselves.
+     * Response files on the line are not read; Xcode writes these flags on the line itself.
+     */
+    public static List<String> findWrapperSwiftModuleMaps(File logFile, String wrapperName) throws IOException {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(logFile), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.contains("swiftc") || !line.contains(wrapperName)) {
+                    continue;
+                }
+                List<String> tokens = tokenize(line);
+                if (isSwiftCompileOf(tokens, wrapperName)) {
+                    return swiftModuleMaps(tokens);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isSwiftCompileOf(List<String> tokens, String moduleName) {
+        boolean swiftc = false;
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            if (token.equals("swiftc") || token.endsWith("/swiftc")) {
+                swiftc = true;
+            }
+            else if (swiftc && token.equals("-module-name") && i + 1 < tokens.size()) {
+                return tokens.get(i + 1).equals(moduleName);
+            }
+        }
+        return false;
+    }
+
+    private static List<String> swiftModuleMaps(List<String> tokens) {
+        Set<String> moduleMaps = new LinkedHashSet<>();
+        for (int i = 1; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            if (tokens.get(i - 1).equals("-Xcc") && token.startsWith("-fmodule-map-file=")) {
+                moduleMaps.add(token.substring("-fmodule-map-file=".length()));
+            }
+        }
+        return new ArrayList<>(moduleMaps);
     }
 
     /** All -fmodule-map-file= values in the log, deduplicated, quotes stripped. */

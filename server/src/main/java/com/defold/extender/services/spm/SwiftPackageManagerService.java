@@ -289,7 +289,8 @@ public class SwiftPackageManagerService {
         LinkInfo linkInfo = parseLinkInfo(spmBuildState);
         File swiftRuntimeLibDir = new File(developerDir, "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/"
             + spmBuildState.getSelectedPlatform().toString().toLowerCase());
-        ResolvedPackages resolvedPackages = ResolvedPackages.harvest(spmBuildState, manifest.minVersion, linkInfo, swiftRuntimeLibDir);
+        ResolvedPackages resolvedPackages = ResolvedPackages.harvest(spmBuildState, manifest.minVersion, linkInfo, swiftRuntimeLibDir,
+            parseWrapperSwiftModuleMaps(spmBuildState));
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.spm.get", System.currentTimeMillis() - methodStart);
         LOGGER.info("Resolved Swift package dependencies");
@@ -1285,6 +1286,16 @@ public class SwiftPackageManagerService {
         // line resolve against it
         return SpmBuildOutputParser.parseLinkLine(linkLine, buildState.getDerivedDataDir().getAbsolutePath(),
             buildState.getWrapperDir());
+    }
+
+    private List<String> parseWrapperSwiftModuleMaps(SpmServiceBuildState buildState) throws IOException {
+        List<String> moduleMaps = SpmBuildOutputParser.findWrapperSwiftModuleMaps(buildState.getBuildLogFile(),
+            SpmServiceBuildState.WRAPPER_NAME);
+        if (moduleMaps == null) {
+            LOGGER.warn("No Swift compile of the wrapper found in the SPM build log; Swift code gets only the generated module maps");
+            return List.of();
+        }
+        return moduleMaps;
     }
 
     // Shared cache layout: <home-dir-prefix>/<uuid>/<xcode-version>/packageCache, keyed by

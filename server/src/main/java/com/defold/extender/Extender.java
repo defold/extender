@@ -893,6 +893,7 @@ class Extender {
         List<String> includes = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.SWIFT_INCLUDE_PATHS, new ArrayList<String>()));
         includes.addAll(getIncludeDirs(extDir));
         includes.addAll(collectDepAdditionalIncludePaths());
+        includes.addAll(collectDepSwiftIncludePaths());
         List<String> frameworkPaths = new ArrayList<>((List<String>)context.getOrDefault(ExtensionManifestValidator.FRAMEWORK_SEARCH_PATHS, new ArrayList<String>()));
         frameworkPaths.addAll(getFrameworkPaths(extDir));
         frameworkPaths.addAll(collectDepFrameworkSearchPaths());
@@ -3096,6 +3097,14 @@ class Extender {
         List<String> result = new ArrayList<>();
         for (ResolvedNativeDeps deps : resolvedNativeDeps) {
             result.addAll(deps.getSwiftModuleMaps());
+        }
+        return result;
+    }
+
+    private List<String> collectDepSwiftIncludePaths() {
+        List<String> result = new ArrayList<>();
+        for (ResolvedNativeDeps deps : resolvedNativeDeps) {
+            result.addAll(deps.getSwiftIncludePaths());
         }
         return result;
     }

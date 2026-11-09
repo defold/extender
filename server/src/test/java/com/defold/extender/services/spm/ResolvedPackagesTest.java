@@ -1,6 +1,7 @@
 package com.defold.extender.services.spm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -108,7 +109,7 @@ public class ResolvedPackagesTest {
         File swiftLibDir = new File(rootDir, "swift-runtime/iphoneos");
         swiftLibDir.mkdirs();
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", linkInfo(), swiftLibDir);
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", linkInfo(), swiftLibDir, List.of());
 
         // products-dir frameworks first (sorted), then link-line names deduplicated
         assertEquals(List.of("FirebaseAnalytics", "Sentry", "SpmWrapper", "UIKit", "Security"), resolved.getFrameworks());
@@ -144,7 +145,7 @@ public class ResolvedPackagesTest {
         createCommonProducts(buildState);
         createFramework(buildState.getProductsDir(), "SpmWrapper", false);
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", linkInfo(), null);
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", linkInfo(), null, List.of());
 
         // static wrapper is linked, not embedded; only the dylib dependency gets embedded
         assertTrue(resolved.getFrameworks().contains("SpmWrapper"));
@@ -198,7 +199,7 @@ public class ResolvedPackagesTest {
         // a name that also exists at the products root is classified once, root wins
         createFramework(packageFrameworksDir, "Sentry", true);
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null);
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of());
 
         assertEquals(List.of("FirebaseAnalytics", "Sentry", "SpmWrapper", "SentryDynamic"), resolved.getFrameworks());
         assertEquals(List.of(
@@ -220,7 +221,7 @@ public class ResolvedPackagesTest {
         productsDir.mkdirs();
         createFramework(productsDir, "SpmWrapper", false);
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null);
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of());
 
         assertEquals(List.of("SpmWrapper"), resolved.getFrameworks());
         assertTrue(resolved.getStaticLibraries().isEmpty());
@@ -245,9 +246,66 @@ public class ResolvedPackagesTest {
         Files.writeString(new File(moduleMapsDir, "CFoo.modulemap").toPath(), "module CFoo {\n}\n");
         Files.writeString(new File(moduleMapsDir, "Foo-Swift.h").toPath(), "");
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null);
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of());
 
         assertEquals(List.of(new File(moduleMapsDir, "CFoo.modulemap").getAbsolutePath(), new File(moduleMapsDir, "Foo.modulemap").getAbsolutePath()),
             resolved.getSwiftModuleMaps());
+    }
+
+    @Test
+    public void testHarvestAddsTheModuleMapsOfTheWrapperSwiftCompile(@TempDir File rootDir, @TempDir File outsideDir)
+            throws IOException, ExtenderException {
+        // @TempDir is under /var, which resolves to /private/var: the server knows the build folder by
+        // its real path, and Xcode writes the /var one into the log
+        SpmServiceBuildState buildState = createBuildState(rootDir.getCanonicalFile());
+        File productsDir = buildState.getProductsDir();
+        productsDir.mkdirs();
+        createFramework(productsDir, "SpmWrapper", false);
+        File moduleMapsDir = new File(rootDir, "DerivedData/Build/Intermediates.noindex/GeneratedModuleMaps-iphoneos");
+        moduleMapsDir.mkdirs();
+        File generated = new File(moduleMapsDir, "CFoo.modulemap");
+        Files.writeString(generated.toPath(), "module CFoo {\n}\n");
+
+        File includeDir = new File(rootDir, "clonedSourcePackages/checkouts/foo/Sources/CBar/include");
+        includeDir.mkdirs();
+        File own = new File(includeDir, "module.modulemap");
+        Files.writeString(own.toPath(), "module CBar {\n    header \"api.h\"\n}\n");
+        File header = new File(includeDir, "api.h");
+        Files.writeString(header.toPath(), "");
+
+        File outside = new File(outsideDir, "module.modulemap");
+        Files.writeString(outside.toPath(), "module Outside {\n}\n");
+        File checkout = new File(rootDir, "clonedSourcePackages/checkouts/foo/Sources");
+        File linked = new File(checkout, "CLinked/include/module.modulemap");
+        linked.getParentFile().mkdirs();
+        Files.createSymbolicLink(linked.toPath(), outside.toPath());
+        File linkedHeader = new File(checkout, "CHeader/include/module.modulemap");
+        linkedHeader.getParentFile().mkdirs();
+        Files.createSymbolicLink(linkedHeader.toPath(), header.toPath());
+        File folder = new File(checkout, "CFolder/include/module.modulemap");
+        folder.mkdirs();
+        File spaced = new File(checkout, "C Spaced/include/module.modulemap");
+        spaced.getParentFile().mkdirs();
+        Files.writeString(spaced.toPath(), "module CSpaced {\n}\n");
+
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of(
+            own.getAbsolutePath(),
+            generated.getAbsolutePath(),
+            outside.getAbsolutePath(),
+            linked.getAbsolutePath(),
+            linkedHeader.getAbsolutePath(),
+            folder.getAbsolutePath(),
+            spaced.getAbsolutePath(),
+            header.getAbsolutePath(),
+            new File(includeDir, "missing.modulemap").getAbsolutePath(),
+            "clonedSourcePackages/checkouts/foo/Sources/CBar/include/module.modulemap"));
+
+        // the generated map is passed once, and only a module map file inside the build gets in,
+        // spelled as the log has it
+        assertEquals(List.of(generated.getCanonicalPath(), own.getAbsolutePath()), resolved.getSwiftModuleMaps());
+        assertEquals(List.of(includeDir.getAbsolutePath()), resolved.getSwiftIncludePaths());
+        // the C and C++ compile of the extension is unchanged
+        assertFalse(resolved.getAdditionalIncludePaths().stream().anyMatch(path -> path.contains("CBar")),
+            resolved.getAdditionalIncludePaths().toString());
     }
 }

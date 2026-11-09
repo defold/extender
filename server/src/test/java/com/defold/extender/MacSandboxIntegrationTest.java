@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.zip.ZipFile;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -361,6 +362,39 @@ public class MacSandboxIntegrationTest {
             null);
     }
 
+    // Verifies that the Swift code can import a C target with its own module map, which gets no generated map,
+    // directly and through the Swift target of another package. Its header includes a sibling with angle brackets.
+    @Test
+    public void swiftExtensionCanImportACTargetWithItsOwnModuleMap() throws Exception {
+        assumeSwiftSdk();
+        String pkg = "SpmOwnMap" + UUID.randomUUID().toString().substring(0, 8);
+        String cPkg = pkg + "C";
+        publishPackage(cPkg, "", Map.of(
+            "Sources/" + cPkg + "/include/module.modulemap", "module " + cPkg + " {\n    header \"api.h\"\n    export *\n}\n",
+            "Sources/" + cPkg + "/include/api.h", "#include <" + cPkg + "/types.h>\n" + cPkg + "_int " + cPkg + "_value(void);\n",
+            "Sources/" + cPkg + "/include/" + cPkg + "/types.h", "typedef int " + cPkg + "_int;\n",
+            "Sources/" + cPkg + "/value.c", "#include \"api.h\"\n" + cPkg + "_int " + cPkg + "_value(void) { return 21; }\n"));
+        publishPackage(pkg, "",
+            "    products: [.library(name: \"" + pkg + "\", targets: [\"" + pkg + "\"])],\n"
+            + "    dependencies: [.package(url: \"https://localhost/" + cPkg + ".git\", from: \"1.0.0\")],\n"
+            + "    targets: [.target(name: \"" + pkg + "\", dependencies: [.product(name: \"" + cPkg + "\", package: \"" + cPkg + "\")])])\n",
+            Map.of("Sources/" + pkg + "/Lib.swift", "import " + cPkg + "\npublic func libValue() -> Int32 { " + cPkg + "_value() * 2 }\n"));
+
+        buildSwiftExtensionWithPackages("SpmOwnMapUser", List.of(pkg, cPkg), "spm-own-map-marker-",
+            "import " + pkg + "\nimport " + cPkg + "\n@objc(SpmOwnMapUserGreeter)\npublic class Greeter: NSObject {\n"
+            + "    @objc public func message() -> String { \"spm-own-map-marker-\\(libValue())-\\(" + cPkg + "_value())\" }\n}\n",
+            null);
+        String log = Files.readString(stdout);
+        String includeDir = "/Sources/" + cPkg + "/include";
+        assertTrue(commandWith(log, "swiftc", "SpmOwnMapUser", "-fmodule-map-file=", includeDir + "/module.modulemap"),
+            "the module map of the C target did not reach the Swift compile");
+        Pattern include = Pattern.compile("-I\\S*" + includeDir + "\\s");
+        assertTrue(log.lines().anyMatch(line -> line.contains("swiftc") && line.contains("SpmOwnMapUser") && include.matcher(line).find()),
+            "the folder of the module map is not on the include path of the Swift compile");
+        assertFalse(log.lines().anyMatch(line -> line.contains("clang++ -c") && line.contains("SpmOwnMapUser/src/shim.mm") && line.contains(includeDir)),
+            "the folder of the module map reached the Objective-C++ compile");
+    }
+
     // Verifies that a Swift runtime library is added to the archive when only an embedded dynamic
     // framework refers to it, and the engine itself does not.
     @Test
@@ -437,7 +471,12 @@ public class MacSandboxIntegrationTest {
      */
     private static File buildSwiftExtensionWithPackage(String extension, String pkg, String marker, String swiftBody,
             String bridgingHeader) throws Exception {
-        Path upload = Files.createDirectories(workDir.resolve("upload-" + extension + "-" + pkg));
+        return buildSwiftExtensionWithPackages(extension, List.of(pkg), marker, swiftBody, bridgingHeader);
+    }
+
+    private static File buildSwiftExtensionWithPackages(String extension, List<String> packages, String marker, String swiftBody,
+            String bridgingHeader) throws Exception {
+        Path upload = Files.createDirectories(workDir.resolve("upload-" + extension + "-" + packages.get(0)));
         Files.createDirectories(upload.resolve("src"));
         Files.createDirectories(upload.resolve("osx"));
         Files.writeString(upload.resolve("ext.manifest"), "name: " + extension + "\n");
@@ -448,9 +487,11 @@ public class MacSandboxIntegrationTest {
             + "    dmLogInfo(\"%s\", [[[[" + extension + "Greeter alloc] init] message] UTF8String]);\n"
             + "    return dmExtension::RESULT_OK;\n}\n"
             + "DM_DECLARE_EXTENSION(" + extension + ", \"" + extension + "\", 0, 0, Init, 0, 0, 0)\n");
+        String entries = packages.stream()
+            .map(pkg -> "{ \"url\": \"https://localhost/" + pkg + ".git\", \"from\": \"1.0.0\", \"products\": [\"" + pkg + "\"] }")
+            .collect(Collectors.joining(", "));
         Files.writeString(upload.resolve("osx/SwiftPackages.json"),
-            "{ \"platform\": \"osx\", \"minVersion\": \"14.0\", \"packages\": ["
-            + "  { \"url\": \"https://localhost/" + pkg + ".git\", \"from\": \"1.0.0\", \"products\": [\"" + pkg + "\"] } ] }");
+            "{ \"platform\": \"osx\", \"minVersion\": \"14.0\", \"packages\": [ " + entries + " ] }");
         List<ExtenderResource> sources = new ArrayList<>(List.of(
             new FileExtenderResource(upload.resolve("ext.manifest").toString(), extension + "/ext.manifest"),
             new FileExtenderResource(upload.resolve("src/Greeter.swift").toString(), extension + "/src/Greeter.swift"),
