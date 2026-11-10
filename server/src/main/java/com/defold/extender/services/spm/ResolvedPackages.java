@@ -54,8 +54,8 @@ public class ResolvedPackages implements ResolvedNativeDeps {
     }
 
     /**
-     * @param wrapperModuleMaps the module maps that the Swift compile of the wrapper got, as the
-     *                          build log names them
+     * @param wrapperModuleMaps the module maps that the package targets impart to the Swift compile
+     *                          of the wrapper, as the build settings of the wrapper name them
      */
     static ResolvedPackages harvest(SpmServiceBuildState buildState, String platformMinVersion, LinkInfo linkInfo,
             File swiftRuntimeLibDir, List<String> wrapperModuleMaps) throws IOException, ExtenderException {
@@ -200,9 +200,10 @@ public class ResolvedPackages implements ResolvedNativeDeps {
     private static final java.util.regex.Pattern COMMAND_LINE_SPECIAL = java.util.regex.Pattern.compile("[\\s'\"\\\\]");
 
     /**
-     * The module map at a path the log names, as Xcode spelled it, or null. Package code ran in the
-     * build that wrote the log, so the path is first checked by name against the folder of the build:
-     * resolving an arbitrary path can reach the network through an automounted folder.
+     * The module map at a path the wrapper build settings name, as Xcode spelled it, or null.
+     * Package code ran in the build that wrote them, so the path is first checked by name against
+     * the folder of the build: resolving an arbitrary path can reach the network through an
+     * automounted folder.
      */
     private static File packageModuleMap(File workingDir, List<Path> workingDirSpellings, String path) {
         Path lexical;

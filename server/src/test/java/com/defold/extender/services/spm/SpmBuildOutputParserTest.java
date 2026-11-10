@@ -3,10 +3,12 @@ package com.defold.extender.services.spm;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.util.List;
 
@@ -151,41 +153,67 @@ public class SpmBuildOutputParserTest {
     }
 
     @Test
-    public void testFindWrapperSwiftModuleMaps() throws IOException {
-        // Xcode 27.1 writes the flag as -fmodule-map-file\=<path>; a target with its own
-        // module.modulemap gets no generated map, its map is in the checkout
-        List<String> moduleMaps = SpmBuildOutputParser.findWrapperSwiftModuleMaps(
-            new File("test-data/spm-buildlogs/swift-wrapper-osx.log"), "SpmWrapper");
-        assertEquals(List.of(
-            "/tmp/job123/SwiftPackageManagerService/clonedSourcePackages/checkouts/Foo/Sources/CBar/include/module.modulemap",
-            DERIVED_DATA + "/Build/Intermediates.noindex/GeneratedModuleMaps/CFoo.modulemap"),
-            moduleMaps);
+    public void testParseSwiftModuleMaps() throws IOException {
+        // what the script phase of the wrapper wrote in an Xcode 27.1 iOS build of a package whose
+        // two C targets have their own module.modulemap, one of them in a folder with a space
+        File settingsDir = new File("test-data/spm-build-settings");
+        String flags = SpmBuildOutputParser.readWrapperBuildSetting(settingsDir, new File(settingsDir, "build-settings.txt"),
+            "OTHER_SWIFT_FLAGS");
+        String sources = "/tmp/job123/SwiftPackageManagerService/clonedSourcePackages/checkouts/Lib/Sources";
+        assertEquals(List.of(sources + "/CBar/include/module.modulemap", sources + "/C Space/include/module.modulemap"),
+            SpmBuildOutputParser.parseSwiftModuleMaps(flags));
     }
 
     @Test
-    public void testFindWrapperSwiftModuleMapsTakesTheFirstWrapperCompile(@TempDir File tmpDir) throws IOException {
-        Files.writeString(new File(tmpDir, "args.resp").toPath(), "-Xcc -fmodule-map-file=/x/c.modulemap\n");
-        File log = new File(tmpDir, "build.log");
-        Files.writeString(log.toPath(),
-            "SwiftDriver SpmWrapper normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SpmWrapper' from project 'SpmWrapper')\n"
-            + "    /x/clang -fmodule-map-file=/x/clang.modulemap -o /x/SpmWrapper.o\n"
-            + "    builtin-SwiftDriver -- /x/swiftc -module-name Foo -Xcc -fmodule-map-file=/x/foo.modulemap -o /x/SpmWrapper.o\n"
-            + "    builtin-SwiftDriver -- /x/swiftc -module-name SpmWrapper -fmodule-map-file=/x/swift.modulemap "
-            + "-Xcc -fmodule-map-file\\=/x/a\\ b.modulemap -Xcc '-fmodule-map-file=/x/b.modulemap' @" + tmpDir + "/args.resp\n"
-            + "    builtin-Swift-Compilation -- /x/swiftc -module-name SpmWrapper -Xcc -fmodule-map-file=/x/later.modulemap\n");
-
-        // only -Xcc values reach clang, and a response file named on the line is not read
-        assertEquals(List.of("/x/a b.modulemap", "/x/b.modulemap"),
-            SpmBuildOutputParser.findWrapperSwiftModuleMaps(log, "SpmWrapper"));
+    public void testParseSwiftModuleMapsTakesOnlyTheFlagsOfClang() {
+        // only -Xcc values reach clang, and a response file among the flags is not read
+        assertEquals(List.of("/x/a.modulemap", "/x/b.modulemap"), SpmBuildOutputParser.parseSwiftModuleMaps(
+            "-fmodule-map-file=/x/swift.modulemap -Xcc -fmodule-map-file=/x/a.modulemap "
+            + "-Xcc '-fmodule-map-file=/x/b.modulemap' -Xcc -fmodule-map-file=/x/a.modulemap @/x/args.resp"));
+        assertEquals(List.of(), SpmBuildOutputParser.parseSwiftModuleMaps(""));
     }
 
     @Test
-    public void testFindWrapperSwiftModuleMapsWithoutTheWrapperCompile(@TempDir File tmpDir) throws IOException {
-        File log = new File(tmpDir, "build.log");
-        Files.writeString(log.toPath(),
-            "    builtin-SwiftDriver -- /x/swiftc -module-name Foo -Xcc -fmodule-map-file=/x/foo.modulemap -o /x/SpmWrapper.o\n"
-            + "    /x/swift-frontend -module-name SpmWrapper -Xcc -fmodule-map-file=/x/frontend.modulemap\n");
-        assertNull(SpmBuildOutputParser.findWrapperSwiftModuleMaps(log, "SpmWrapper"));
+    public void testReadWrapperBuildSetting(@TempDir File jobDir) throws IOException {
+        File settings = new File(jobDir, "build-settings.txt");
+        assertNull(SpmBuildOutputParser.readWrapperBuildSetting(jobDir, settings, "OTHER_SWIFT_FLAGS"));
+
+        Files.writeString(settings.toPath(),
+            "OTHER_SWIFT_FLAGS_X=-Xcc x\nOTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/x/a.modulemap\nOTHER_SWIFT_FLAGS=later\n");
+        assertEquals("-Xcc -fmodule-map-file=/x/a.modulemap",
+            SpmBuildOutputParser.readWrapperBuildSetting(jobDir, settings, "OTHER_SWIFT_FLAGS"));
+        assertNull(SpmBuildOutputParser.readWrapperBuildSetting(jobDir, settings, "OTHER_LDFLAGS"));
+
+        Files.writeString(settings.toPath(), "OTHER_SWIFT_FLAGS=\n");
+        assertEquals("", SpmBuildOutputParser.readWrapperBuildSetting(jobDir, settings, "OTHER_SWIFT_FLAGS"));
+    }
+
+    @Test
+    public void testReadWrapperBuildSettingRefusesWhatTheBuildCouldPutInItsPlace(@TempDir File jobDir, @TempDir File outsideDir)
+            throws IOException {
+        File outside = new File(outsideDir, "build-settings.txt");
+        Files.writeString(outside.toPath(), "OTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/x/a.modulemap\n");
+        File inside = new File(jobDir, "other.txt");
+        Files.writeString(inside.toPath(), "OTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/x/a.modulemap\n");
+
+        // the script writes a regular file; a link in its place, even to a file of the job, is not its output
+        File linkOut = new File(jobDir, "out.txt");
+        Files.createSymbolicLink(linkOut.toPath(), outside.toPath());
+        File linkIn = new File(jobDir, "in.txt");
+        Files.createSymbolicLink(linkIn.toPath(), inside.toPath());
+        File linkedDir = new File(jobDir, "Wrapper");
+        Files.createSymbolicLink(linkedDir.toPath(), outsideDir.toPath());
+        File dir = new File(jobDir, "dir.txt");
+        dir.mkdirs();
+        File large = new File(jobDir, "large.txt");
+        try (RandomAccessFile file = new RandomAccessFile(large, "rw")) {
+            file.setLength(4L * 1024 * 1024 + 1);
+        }
+
+        for (File settings : List.of(linkOut, linkIn, new File(linkedDir, "build-settings.txt"), dir, large)) {
+            assertThrows(IOException.class,
+                () -> SpmBuildOutputParser.readWrapperBuildSetting(jobDir, settings, "OTHER_SWIFT_FLAGS"), settings.getName());
+        }
     }
 
     @Test

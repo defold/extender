@@ -33,6 +33,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import org.springframework.core.io.FileSystemResource;
+import org.yaml.snakeyaml.Yaml;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.services.cocoapods.PodUtils;
@@ -91,6 +92,53 @@ public class SwiftPackageManagerServiceTest {
         assertTrue(projectYml.contains("GENERATE_INFOPLIST_FILE: \"YES\""));
         assertTrue(projectYml.contains("path: ../Package"));
         assertTrue(projectYml.contains("product: SpmDeps"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testScriptPhaseOfTheWrapperWritesWhatTheServerReads(@TempDir File wrapperDir)
+            throws IOException, InterruptedException, SpmManifestParsingException {
+        SwiftPackageManagerService service = createService();
+        SpmManifestParser.ParseResult manifest = SpmManifestParser.parseManifests(
+            List.of(new File("test-data/swiftpackages/regular_ios.json")), "ios", "11.0");
+        Map<String, Object> spec = new Yaml().load(service.generateProjectYml(manifest, true));
+        Map<String, Object> wrapper = (Map<String, Object>) ((Map<String, Object>) spec.get("targets")).get("SpmWrapper");
+
+        // the sandbox of the build refuses the one Xcode would apply to the script
+        Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) wrapper.get("settings")).get("base");
+        assertEquals("NO", settings.get("ENABLE_USER_SCRIPT_SANDBOXING"));
+        List<Map<String, Object>> scripts = (List<Map<String, Object>>) wrapper.get("postCompileScripts");
+        assertEquals(1, scripts.size());
+        assertEquals(List.of("$(PROJECT_DIR)/" + SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME), scripts.get(0).get("outputFiles"));
+        assertEquals(false, scripts.get(0).get("basedOnDependencyAnalysis"));
+
+        // Xcode runs the script with /bin/sh, the build settings in its environment
+        File settingsFile = new File(wrapperDir, SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME);
+        String swiftFlags = "-Xcc -fmodule-map-file=/x/C\\ Space/module.modulemap -n %s%d \\n $(touch run) `touch run` \"$HOME\" ";
+        ProcessBuilder script = new ProcessBuilder("/bin/sh", "-c", (String) scripts.get(0).get("script")).directory(wrapperDir);
+        script.environment().put("OTHER_SWIFT_FLAGS", swiftFlags);
+        script.environment().put("SCRIPT_OUTPUT_FILE_0", settingsFile.getAbsolutePath());
+        assertEquals(0, script.start().waitFor());
+        assertEquals(swiftFlags, SpmBuildOutputParser.readWrapperBuildSetting(wrapperDir, settingsFile, "OTHER_SWIFT_FLAGS"));
+        assertFalse(new File(wrapperDir, "run").exists());
+    }
+
+    @Test
+    public void testSwiftModuleMapsAreReadFromTheBuildSettingsOfTheWrapper(@TempDir File rootDir) throws IOException {
+        SpmServiceBuildState buildState = new SpmServiceBuildState();
+        buildState.workingDir = new File(rootDir, "job/SwiftPackageManagerService");
+        buildState.wrapperDir = new File(buildState.workingDir, "Wrapper");
+        buildState.wrapperDir.mkdirs();
+        assertEquals(List.of(), SwiftPackageManagerService.readWrapperSwiftModuleMaps(buildState));
+
+        File other = new File(buildState.workingDir, "other.txt");
+        Files.writeString(other.toPath(), "OTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/x/a.modulemap\n");
+        Files.createSymbolicLink(buildState.getWrapperBuildSettingsFile().toPath(), other.toPath());
+        assertEquals(List.of(), SwiftPackageManagerService.readWrapperSwiftModuleMaps(buildState));
+
+        Files.delete(buildState.getWrapperBuildSettingsFile().toPath());
+        Files.copy(other.toPath(), buildState.getWrapperBuildSettingsFile().toPath());
+        assertEquals(List.of("/x/a.modulemap"), SwiftPackageManagerService.readWrapperSwiftModuleMaps(buildState));
     }
 
     @Test

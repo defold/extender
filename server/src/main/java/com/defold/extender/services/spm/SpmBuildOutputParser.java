@@ -4,9 +4,13 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -17,11 +21,14 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.extender.process.JobFiles;
+
 /**
- * Extracts the wrapper's final link line and the module maps of its Swift compile from the
- * captured xcodebuild log. A dynamic wrapper links via clang -dynamiclib, a static one archives via
- * libtool -static; package targets are prelinked with clang -r into loose <Target>.o files
- * whose Ld lines must not be mistaken for the wrapper link.
+ * Extracts the wrapper's final link line from the captured xcodebuild log, and the module maps
+ * imparted to the wrapper from the build settings its script phase writes. A dynamic wrapper
+ * links via clang -dynamiclib, a static one archives via libtool -static; package targets are
+ * prelinked with clang -r into loose <Target>.o files whose Ld lines must not be mistaken for
+ * the wrapper link.
  */
 public class SpmBuildOutputParser {
 
@@ -48,6 +55,8 @@ public class SpmBuildOutputParser {
     private static final long MAX_RESPONSE_FILE_SIZE = 4L * 1024 * 1024;
     // dyld run-path placeholders: an "@" token that is a path value, not a response file
     private static final List<String> DYLD_PATH_PREFIXES = List.of("@rpath/", "@executable_path/", "@loader_path/");
+
+    private static final int MAX_BUILD_SETTINGS_FILE_SIZE = 4 * 1024 * 1024;
 
     /**
      * Single streaming pass — a large package graph produces a log too big to hold whole.
@@ -202,43 +211,43 @@ public class SpmBuildOutputParser {
     }
 
     /**
-     * The clang module maps that the Swift compile of the wrapper got, or null when the log has
-     * no such compile. The wrapper depends on every product, so these are the maps a Swift client
-     * of the products needs: the ones Xcode generates and the ones targets bring themselves.
-     * Response files on the line are not read; Xcode writes these flags on the line itself.
+     * The value of a setting in the file the script phase of the wrapper writes, or null when the
+     * file or the setting is missing. Package code ran in the build that wrote the file, so it must be
+     * a regular file of the job, not reached through a link out of it.
      */
-    public static List<String> findWrapperSwiftModuleMaps(File logFile, String wrapperName) throws IOException {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new FileInputStream(logFile), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.contains("swiftc") || !line.contains(wrapperName)) {
-                    continue;
-                }
-                List<String> tokens = tokenize(line);
-                if (isSwiftCompileOf(tokens, wrapperName)) {
-                    return swiftModuleMaps(tokens);
-                }
+    public static String readWrapperBuildSetting(File jobDir, File settingsFile, String name) throws IOException {
+        BasicFileAttributes attributes;
+        try {
+            attributes = Files.readAttributes(settingsFile.toPath(), BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        } catch (NoSuchFileException e) {
+            return null;
+        }
+        if (!attributes.isRegularFile()) {
+            throw new IOException(settingsFile + " is not a regular file");
+        }
+        JobFiles.requireWithin(jobDir, settingsFile);
+        byte[] data;
+        try (InputStream in = Files.newInputStream(settingsFile.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+            data = in.readNBytes(MAX_BUILD_SETTINGS_FILE_SIZE + 1);
+        }
+        if (data.length > MAX_BUILD_SETTINGS_FILE_SIZE) {
+            throw new IOException(settingsFile + " is larger than " + MAX_BUILD_SETTINGS_FILE_SIZE + " bytes");
+        }
+        String prefix = name + "=";
+        for (String line : new String(data, StandardCharsets.UTF_8).split("\n")) {
+            if (line.startsWith(prefix)) {
+                return line.substring(prefix.length());
             }
         }
         return null;
     }
 
-    private static boolean isSwiftCompileOf(List<String> tokens, String moduleName) {
-        boolean swiftc = false;
-        for (int i = 0; i < tokens.size(); i++) {
-            String token = tokens.get(i);
-            if (token.equals("swiftc") || token.endsWith("/swiftc")) {
-                swiftc = true;
-            }
-            else if (swiftc && token.equals("-module-name") && i + 1 < tokens.size()) {
-                return tokens.get(i + 1).equals(moduleName);
-            }
-        }
-        return false;
-    }
-
-    private static List<String> swiftModuleMaps(List<String> tokens) {
+    /**
+     * The clang module maps that the {@code -Xcc -fmodule-map-file=} flags among Swift compiler
+     * flags name. Response files are not read.
+     */
+    public static List<String> parseSwiftModuleMaps(String swiftFlags) {
+        List<String> tokens = tokenize(swiftFlags);
         Set<String> moduleMaps = new LinkedHashSet<>();
         for (int i = 1; i < tokens.size(); i++) {
             String token = tokens.get(i);

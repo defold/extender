@@ -253,10 +253,10 @@ public class ResolvedPackagesTest {
     }
 
     @Test
-    public void testHarvestAddsTheModuleMapsOfTheWrapperSwiftCompile(@TempDir File rootDir, @TempDir File outsideDir)
+    public void testHarvestAddsTheModuleMapsImpartedToTheWrapper(@TempDir File rootDir, @TempDir File outsideDir)
             throws IOException, ExtenderException {
         // @TempDir is under /var, which resolves to /private/var: the server knows the build folder by
-        // its real path, and Xcode writes the /var one into the log
+        // its real path, and Xcode writes the /var one into the build settings
         SpmServiceBuildState buildState = createBuildState(rootDir.getCanonicalFile());
         File productsDir = buildState.getProductsDir();
         productsDir.mkdirs();
@@ -301,7 +301,7 @@ public class ResolvedPackagesTest {
             "clonedSourcePackages/checkouts/foo/Sources/CBar/include/module.modulemap"));
 
         // the generated map is passed once, and only a module map file inside the build gets in,
-        // spelled as the log has it
+        // spelled as the build settings have it
         assertEquals(List.of(generated.getCanonicalPath(), own.getAbsolutePath()), resolved.getSwiftModuleMaps());
         assertEquals(List.of(includeDir.getAbsolutePath()), resolved.getSwiftIncludePaths());
         // the C and C++ compile of the extension is unchanged

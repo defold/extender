@@ -1,0 +1,1 @@
+OTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/tmp/job123/SwiftPackageManagerService/clonedSourcePackages/checkouts/Lib/Sources/CBar/include/module.modulemap -Xcc -fmodule-map-file=/tmp/job123/SwiftPackageManagerService/clonedSourcePackages/checkouts/Lib/Sources/C\ Space/include/module.modulemap 

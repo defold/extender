@@ -61,8 +61,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 /**
  * Resolves Swift Package Manager dependencies declared in SwiftPackages.json manifests:
  * a generated aggregator Package.swift plus an XcodeGen wrapper project are built with
- * xcodebuild, and the products directory and the wrapper's final link line are harvested
- * into a {@link ResolvedPackages}.
+ * xcodebuild, and the products directory, the wrapper's final link line and the module maps
+ * imparted to the wrapper are harvested into a {@link ResolvedPackages}.
  *
  * Xcode is selected per job via the child processes' DEVELOPER_DIR (never xcode-select —
  * concurrent jobs may need different Xcode versions).
@@ -290,7 +290,7 @@ public class SwiftPackageManagerService {
         File swiftRuntimeLibDir = new File(developerDir, "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/"
             + spmBuildState.getSelectedPlatform().toString().toLowerCase());
         ResolvedPackages resolvedPackages = ResolvedPackages.harvest(spmBuildState, manifest.minVersion, linkInfo, swiftRuntimeLibDir,
-            parseWrapperSwiftModuleMaps(spmBuildState));
+            readWrapperSwiftModuleMaps(spmBuildState));
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.spm.get", System.currentTimeMillis() - methodStart);
         LOGGER.info("Resolved Swift package dependencies");
@@ -440,6 +440,7 @@ public class SwiftPackageManagerService {
         context.put("PLATFORM_MIN_VERSION", manifest.minVersion);
         context.put("SWIFT_VERSION", swiftVersion);
         context.put("MACH_O_TYPE", machOTypeFor(manifest));
+        context.put("BUILD_SETTINGS_FILE", SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME);
         return templateExecutor.execute(projectYmlTemplateContents, context);
     }
 
@@ -1288,14 +1289,21 @@ public class SwiftPackageManagerService {
             buildState.getWrapperDir());
     }
 
-    private List<String> parseWrapperSwiftModuleMaps(SpmServiceBuildState buildState) throws IOException {
-        List<String> moduleMaps = SpmBuildOutputParser.findWrapperSwiftModuleMaps(buildState.getBuildLogFile(),
-            SpmServiceBuildState.WRAPPER_NAME);
-        if (moduleMaps == null) {
-            LOGGER.warn("No Swift compile of the wrapper found in the SPM build log; Swift code gets only the generated module maps");
+    static List<String> readWrapperSwiftModuleMaps(SpmServiceBuildState buildState) {
+        File settingsFile = buildState.getWrapperBuildSettingsFile();
+        String swiftFlags;
+        try {
+            swiftFlags = SpmBuildOutputParser.readWrapperBuildSetting(buildState.getJobDir(), settingsFile, "OTHER_SWIFT_FLAGS");
+        } catch (IOException e) {
+            LOGGER.warn("Failed to read the build settings of the SPM wrapper; Swift code gets only the generated module maps: {}",
+                e.getMessage());
             return List.of();
         }
-        return moduleMaps;
+        if (swiftFlags == null) {
+            LOGGER.warn("No OTHER_SWIFT_FLAGS in {}; Swift code gets only the generated module maps", settingsFile);
+            return List.of();
+        }
+        return SpmBuildOutputParser.parseSwiftModuleMaps(swiftFlags);
     }
 
     // Shared cache layout: <home-dir-prefix>/<uuid>/<xcode-version>/packageCache, keyed by
