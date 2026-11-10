@@ -41,19 +41,19 @@ public class SpmBuildOutputParser {
                            List<String> forceLoad) {}
 
     private static final Pattern MODULE_MAP_PATTERN = Pattern.compile("-fmodule-map-file=([^\\s']+)");
-    // an exact -l<name> token. This on its own does not separate libraries from the ld
+    // an exact -l<name> argument. This on its own does not separate libraries from the ld
     // flags that also begin with -l ("-lto_library" matches it too) — those are listed
     // in LD_FLAGS_WITH_ARG and consumed with their argument before this is tried.
-    private static final Pattern LIB_TOKEN_PATTERN = Pattern.compile("-l[A-Za-z0-9_+.]+");
+    private static final Pattern LIBRARY_PATTERN = Pattern.compile("-l[A-Za-z0-9_+.]+");
     // ld flags that begin with -l but name no library; each takes a following argument
     private static final Set<String> LD_FLAGS_WITH_ARG = Set.of("-lto_library", "-lazy_library", "-lazy_framework");
 
     // Xcode moves long link commands into response files referenced as @<path>. The flags
-    // inside are part of the link line and are expanded here — an unexpanded token silently
+    // inside are part of the link line and are expanded here — an unexpanded argument silently
     // drops every -framework/-l/-L the wrapper's consumers need.
     private static final int MAX_RESPONSE_FILE_DEPTH = 4;
     private static final long MAX_RESPONSE_FILE_SIZE = 4L * 1024 * 1024;
-    // dyld run-path placeholders: an "@" token that is a path value, not a response file
+    // dyld run-path placeholders: an "@" argument that is a path value, not a response file
     private static final List<String> DYLD_PATH_PREFIXES = List.of("@rpath/", "@executable_path/", "@loader_path/");
 
     private static final int MAX_BUILD_SETTINGS_FILE_SIZE = 4 * 1024 * 1024;
@@ -125,12 +125,12 @@ public class SpmBuildOutputParser {
         int slash = wrapperBinary.indexOf('/');
         String bundleName = wrapperBinary.substring(0, slash);
         String binaryName = wrapperBinary.substring(slash);
-        List<String> tokens = tokenize(line);
-        for (int i = 0; i < tokens.size() - 1; i++) {
-            if (!tokens.get(i).equals("-o")) {
+        List<String> arguments = splitArguments(line);
+        for (int i = 0; i < arguments.size() - 1; i++) {
+            if (!arguments.get(i).equals("-o")) {
                 continue;
             }
-            String output = tokens.get(i + 1);
+            String output = arguments.get(i + 1);
             if (output.endsWith(binaryName) && output.contains(bundleName + "/")) {
                 return true;
             }
@@ -139,7 +139,7 @@ public class SpmBuildOutputParser {
     }
 
     /**
-     * Tokenizes one link line and collects the flags a consumer of the wrapper needs.
+     * Splits one link line into arguments and collects the flags a consumer of the wrapper needs.
      * Search paths under excludePathPrefix (the job's DerivedData) are dropped — they
      * are job-local and re-expressed from the harvested products directory instead.
      */
@@ -148,7 +148,7 @@ public class SpmBuildOutputParser {
     }
 
     /**
-     * @param responseFileBaseDir directory relative @<path> response-file tokens resolve
+     * @param responseFileBaseDir directory relative @<path> response-file arguments resolve
      *                            against (the working directory of the build step)
      */
     public static LinkInfo parseLinkLine(String linkLine, String excludePathPrefix, File responseFileBaseDir) {
@@ -158,41 +158,41 @@ public class SpmBuildOutputParser {
         Set<String> rpaths = new LinkedHashSet<>();
         Set<String> forceLoad = new LinkedHashSet<>();
 
-        List<String> tokens = expandResponseFiles(tokenize(linkLine), responseFileBaseDir, 0);
-        for (int i = 0; i < tokens.size(); i++) {
-            String token = tokens.get(i);
-            if (token.equals("-framework") && i + 1 < tokens.size()) {
-                frameworks.add(tokens.get(++i));
+        List<String> arguments = expandResponseFiles(splitArguments(linkLine), responseFileBaseDir, 0);
+        for (int i = 0; i < arguments.size(); i++) {
+            String argument = arguments.get(i);
+            if (argument.equals("-framework") && i + 1 < arguments.size()) {
+                frameworks.add(arguments.get(++i));
             }
-            else if (LD_FLAGS_WITH_ARG.contains(token)) {
+            else if (LD_FLAGS_WITH_ARG.contains(argument)) {
                 // consume the flag's argument so it is not mistaken for an input file
                 i++;
             }
-            else if (LIB_TOKEN_PATTERN.matcher(token).matches()) {
-                systemLibs.add(token.substring(2));
+            else if (LIBRARY_PATTERN.matcher(argument).matches()) {
+                systemLibs.add(argument.substring(2));
             }
-            else if (token.startsWith("-L") && token.length() > 2) {
-                String path = token.substring(2);
+            else if (argument.startsWith("-L") && argument.length() > 2) {
+                String path = argument.substring(2);
                 if (!path.startsWith(excludePathPrefix)) {
                     librarySearchPaths.add(path);
                 }
             }
-            else if (token.equals("-force_load") && i + 1 < tokens.size()) {
-                forceLoad.add(tokens.get(++i));
+            else if (argument.equals("-force_load") && i + 1 < arguments.size()) {
+                forceLoad.add(arguments.get(++i));
             }
-            else if (token.equals("-Xlinker") && i + 1 < tokens.size()) {
-                String linkerArg = tokens.get(++i);
-                if (linkerArg.equals("-rpath") && i + 2 < tokens.size() && tokens.get(i + 1).equals("-Xlinker")) {
-                    rpaths.add(tokens.get(i + 2));
+            else if (argument.equals("-Xlinker") && i + 1 < arguments.size()) {
+                String linkerArg = arguments.get(++i);
+                if (linkerArg.equals("-rpath") && i + 2 < arguments.size() && arguments.get(i + 1).equals("-Xlinker")) {
+                    rpaths.add(arguments.get(i + 2));
                     i += 2;
                 }
-                else if (linkerArg.equals("-force_load") && i + 2 < tokens.size() && tokens.get(i + 1).equals("-Xlinker")) {
-                    forceLoad.add(tokens.get(i + 2));
+                else if (linkerArg.equals("-force_load") && i + 2 < arguments.size() && arguments.get(i + 1).equals("-Xlinker")) {
+                    forceLoad.add(arguments.get(i + 2));
                     i += 2;
                 }
             }
-            else if (token.startsWith("-Wl,")) {
-                String[] parts = token.substring(4).split(",");
+            else if (argument.startsWith("-Wl,")) {
+                String[] parts = argument.substring(4).split(",");
                 if (parts.length > 1 && parts[0].equals("-rpath")) {
                     rpaths.add(parts[1]);
                 }
@@ -247,7 +247,7 @@ public class SpmBuildOutputParser {
      * flags name. Response files are not read.
      */
     public static List<String> parseSwiftModuleMaps(String swiftFlags) {
-        List<String> arguments = tokenize(swiftFlags);
+        List<String> arguments = splitArguments(swiftFlags);
         Set<String> moduleMaps = new LinkedHashSet<>();
         for (int i = 1; i < arguments.size(); i++) {
             String argument = arguments.get(i);
@@ -281,29 +281,29 @@ public class SpmBuildOutputParser {
     }
 
     /**
-     * Replaces every @<path> response-file token with the tokens the file holds. A file
-     * that cannot be expanded is reported and dropped: silently keeping the token would
+     * Replaces every @<path> response-file argument with the arguments the file holds. A file
+     * that cannot be expanded is reported and dropped: silently keeping the argument would
      * leave the harvested link surface incomplete with no trace of why.
      */
-    private static List<String> expandResponseFiles(List<String> tokens, File baseDir, int depth) {
+    private static List<String> expandResponseFiles(List<String> arguments, File baseDir, int depth) {
         boolean hasResponseFile = false;
-        for (String token : tokens) {
-            if (isResponseFileToken(token)) {
+        for (String argument : arguments) {
+            if (isResponseFile(argument)) {
                 hasResponseFile = true;
                 break;
             }
         }
         if (!hasResponseFile) {
-            return tokens;
+            return arguments;
         }
 
-        List<String> expanded = new ArrayList<>(tokens.size());
-        for (String token : tokens) {
-            if (!isResponseFileToken(token)) {
-                expanded.add(token);
+        List<String> expanded = new ArrayList<>(arguments.size());
+        for (String argument : arguments) {
+            if (!isResponseFile(argument)) {
+                expanded.add(argument);
                 continue;
             }
-            String path = token.substring(1);
+            String path = argument.substring(1);
             File file = new File(path);
             if (!file.isAbsolute() && baseDir != null) {
                 file = new File(baseDir, path);
@@ -324,7 +324,7 @@ public class SpmBuildOutputParser {
             }
             try {
                 String contents = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-                expanded.addAll(expandResponseFiles(tokenize(contents), file.getParentFile(), depth + 1));
+                expanded.addAll(expandResponseFiles(splitArguments(contents), file.getParentFile(), depth + 1));
             } catch (IOException e) {
                 LOGGER.warn("Failed to read link response file {}, its link flags are not harvested", file, e);
             }
@@ -332,12 +332,12 @@ public class SpmBuildOutputParser {
         return expanded;
     }
 
-    private static boolean isResponseFileToken(String token) {
-        if (token.length() < 2 || token.charAt(0) != '@') {
+    private static boolean isResponseFile(String argument) {
+        if (argument.length() < 2 || argument.charAt(0) != '@') {
             return false;
         }
         for (String prefix : DYLD_PATH_PREFIXES) {
-            if (token.startsWith(prefix)) {
+            if (argument.startsWith(prefix)) {
                 return false;
             }
         }
@@ -345,19 +345,19 @@ public class SpmBuildOutputParser {
     }
 
     /**
-     * Splits a command line into tokens the way a shell would: quoted runs and
+     * Splits a command line into arguments the way a shell would: quoted runs and
      * backslash-escaped characters keep their whitespace, quotes are not part of the value.
      */
-    private static List<String> tokenize(String text) {
-        List<String> tokens = new ArrayList<>();
+    private static List<String> splitArguments(String text) {
+        List<String> arguments = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        boolean inToken = false;
+        boolean inArgument = false;
         char quote = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (c == '\\' && quote != '\'' && i + 1 < text.length()) {
                 current.append(text.charAt(++i));
-                inToken = true;
+                inArgument = true;
             }
             else if (quote != 0) {
                 if (c == quote) {
@@ -369,23 +369,23 @@ public class SpmBuildOutputParser {
             }
             else if (c == '\'' || c == '"') {
                 quote = c;
-                inToken = true;
+                inArgument = true;
             }
             else if (Character.isWhitespace(c)) {
-                if (inToken) {
-                    tokens.add(current.toString());
+                if (inArgument) {
+                    arguments.add(current.toString());
                     current.setLength(0);
-                    inToken = false;
+                    inArgument = false;
                 }
             }
             else {
                 current.append(c);
-                inToken = true;
+                inArgument = true;
             }
         }
-        if (inToken) {
-            tokens.add(current.toString());
+        if (inArgument) {
+            arguments.add(current.toString());
         }
-        return tokens;
+        return arguments;
     }
 }
