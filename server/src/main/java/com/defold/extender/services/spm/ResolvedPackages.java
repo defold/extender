@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,7 +20,7 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.process.JobFiles;
 import com.defold.extender.services.ResolvedNativeDeps;
-import com.defold.extender.services.spm.SpmBuildOutputParser.LinkInfo;
+import com.defold.extender.services.spm.SpmWrapperBuildSettings.LinkInfo;
 import com.defold.extender.utils.FrameworkUtil;
 
 /**
@@ -117,25 +118,20 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         // home of ObjC classes the extension code references itself
         Set<String> frameworkNames = new LinkedHashSet<>(productFrameworks.keySet());
 
-        Set<String> librarySearchPaths = new LinkedHashSet<>();
-        if (linkInfo != null) {
-            frameworkNames.addAll(linkInfo.frameworkNames());
-            // a -l naming a products-dir library is a wrapper input the wrapper already
-            // resolved; system libs (c++, z, ...) have no products-dir counterpart and stay
-            for (String lib : linkInfo.systemLibs()) {
-                if (!new File(productsDir, "lib" + lib + ".a").exists()) {
-                    resolved.staticLibraries.add(lib);
-                }
+        frameworkNames.addAll(linkInfo.frameworkNames());
+        // a -l naming a products-dir library is a wrapper input the wrapper already
+        // resolved; system libs (c++, z, ...) have no products-dir counterpart and stay
+        for (String lib : linkInfo.systemLibs()) {
+            if (!Files.exists(new File(productsDir, "lib" + lib + ".a").toPath(), LinkOption.NOFOLLOW_LINKS)) {
+                resolved.staticLibraries.add(lib);
             }
-            librarySearchPaths.addAll(linkInfo.librarySearchPaths());
         }
         // package objects auto-link the Swift compatibility archives from the building
-        // Xcode's toolchain; a static wrapper's libtool line carries no -L for them
+        // Xcode's toolchain
         if (swiftRuntimeLibDir != null && swiftRuntimeLibDir.isDirectory()) {
-            librarySearchPaths.add(swiftRuntimeLibDir.getAbsolutePath());
+            resolved.librarySearchPaths.add(swiftRuntimeLibDir.getAbsolutePath());
             resolved.sandboxReadOnlyPaths.add(swiftRuntimeLibDir.getAbsolutePath());
         }
-        resolved.librarySearchPaths.addAll(librarySearchPaths);
         resolved.frameworks.addAll(frameworkNames);
 
         resolved.frameworksSearchPaths.add(productsDir.getAbsolutePath());

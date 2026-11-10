@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.services.cocoapods.PodUtils;
-import com.defold.extender.services.spm.SpmBuildOutputParser.LinkInfo;
+import com.defold.extender.services.spm.SpmWrapperBuildSettings.LinkInfo;
 
 // classification of framework binaries shells out to file(1) with Mach-O magic bytes,
 // which is only reliable on a Mac
@@ -92,13 +92,10 @@ public class ResolvedPackagesTest {
         Files.writeString(lockFile.toPath(), "{}");
     }
 
+    private static final LinkInfo NO_LINKS = new LinkInfo(List.of(), List.of());
+
     private static LinkInfo linkInfo() {
-        return new LinkInfo(
-            List.of("c++", "z", "sqlite3"),
-            List.of("UIKit", "Security", "Sentry"),
-            List.of("/usr/lib/swift"),
-            List.of("/usr/lib/swift", "@executable_path/Frameworks"),
-            List.of());
+        return new LinkInfo(List.of("c++", "z", "sqlite3"), List.of("UIKit", "Security", "Sentry"));
     }
 
     @Test
@@ -111,12 +108,11 @@ public class ResolvedPackagesTest {
 
         ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", linkInfo(), swiftLibDir, List.of());
 
-        // products-dir frameworks first (sorted), then link-line names deduplicated
+        // products-dir frameworks first (sorted), then the linked names deduplicated
         assertEquals(List.of("FirebaseAnalytics", "Sentry", "SpmWrapper", "UIKit", "Security"), resolved.getFrameworks());
         assertEquals(List.of(buildState.getProductsDir().getAbsolutePath()), resolved.getFrameworksSearchPaths());
         assertEquals(List.of("c++", "z", "sqlite3"), resolved.getStaticLibraries());
-        // link-line paths first, then the derived toolchain swift runtime dir
-        assertEquals(List.of("/usr/lib/swift", swiftLibDir.getAbsolutePath()), resolved.getLibrarySearchPaths());
+        assertEquals(List.of(swiftLibDir.getAbsolutePath()), resolved.getLibrarySearchPaths());
 
         // the dylib wrapper and the dylib dependency get embedded; the static framework does not
         assertEquals(2, resolved.getDynamicFrameworks().size());
@@ -199,7 +195,7 @@ public class ResolvedPackagesTest {
         // a name that also exists at the products root is classified once, root wins
         createFramework(packageFrameworksDir, "Sentry", true);
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of());
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", NO_LINKS, null, List.of());
 
         assertEquals(List.of("FirebaseAnalytics", "Sentry", "SpmWrapper", "SentryDynamic"), resolved.getFrameworks());
         assertEquals(List.of(
@@ -215,13 +211,13 @@ public class ResolvedPackagesTest {
     }
 
     @Test
-    public void testHarvestWithoutLinkInfoAndLockFile(@TempDir File rootDir) throws IOException, ExtenderException {
+    public void testHarvestWithoutLinkedLibrariesAndLockFile(@TempDir File rootDir) throws IOException, ExtenderException {
         SpmServiceBuildState buildState = createBuildState(rootDir);
         File productsDir = buildState.getProductsDir();
         productsDir.mkdirs();
         createFramework(productsDir, "SpmWrapper", false);
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of());
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", NO_LINKS, null, List.of());
 
         assertEquals(List.of("SpmWrapper"), resolved.getFrameworks());
         assertTrue(resolved.getStaticLibraries().isEmpty());
@@ -232,6 +228,22 @@ public class ResolvedPackagesTest {
         // no GeneratedModuleMaps dir was created; only the products dir remains
         assertEquals(List.of(productsDir.getAbsolutePath()), resolved.getAdditionalIncludePaths());
         assertTrue(resolved.getSwiftModuleMaps().isEmpty());
+    }
+
+    @Test
+    public void testHarvestLeavesOutTheLibrariesOfTheProducts(@TempDir File rootDir) throws IOException, ExtenderException {
+        SpmServiceBuildState buildState = createBuildState(rootDir);
+        File productsDir = buildState.getProductsDir();
+        productsDir.mkdirs();
+        createFramework(productsDir, "SpmWrapper", false);
+        writeStaticArchiveBinary(new File(productsDir, "libBin.a"));
+        // a link the build left in the products is not followed, and its name still counts
+        Files.createSymbolicLink(new File(productsDir, "libLinked.a").toPath(), new File(rootDir, "missing.a").toPath());
+
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0",
+            new LinkInfo(List.of("z", "Bin", "Linked", "sqlite3"), List.of()), null, List.of());
+
+        assertEquals(List.of("z", "sqlite3"), resolved.getStaticLibraries());
     }
 
     @Test
@@ -246,7 +258,7 @@ public class ResolvedPackagesTest {
         Files.writeString(new File(moduleMapsDir, "CFoo.modulemap").toPath(), "module CFoo {\n}\n");
         Files.writeString(new File(moduleMapsDir, "Foo-Swift.h").toPath(), "");
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of());
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", NO_LINKS, null, List.of());
 
         assertEquals(List.of(new File(moduleMapsDir, "CFoo.modulemap").getAbsolutePath(), new File(moduleMapsDir, "Foo.modulemap").getAbsolutePath()),
             resolved.getSwiftModuleMaps());
@@ -288,7 +300,7 @@ public class ResolvedPackagesTest {
         spaced.getParentFile().mkdirs();
         Files.writeString(spaced.toPath(), "module CSpaced {\n}\n");
 
-        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", null, null, List.of(
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", NO_LINKS, null, List.of(
             own.getAbsolutePath(),
             generated.getAbsolutePath(),
             outside.getAbsolutePath(),

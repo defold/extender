@@ -115,30 +115,34 @@ public class SwiftPackageManagerServiceTest {
         // Xcode runs the script with /bin/sh, the build settings in its environment
         File settingsFile = new File(wrapperDir, SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME);
         String swiftFlags = "-Xcc -fmodule-map-file=/x/C\\ Space/module.modulemap -n %s%d \\n $(touch run) `touch run` \"$HOME\" ";
+        String ldFlags = " -framework CoreML -lz %s $(touch run) ";
         ProcessBuilder script = new ProcessBuilder("/bin/sh", "-c", (String) scripts.get(0).get("script")).directory(wrapperDir);
         script.environment().put("OTHER_SWIFT_FLAGS", swiftFlags);
+        script.environment().put("OTHER_LDFLAGS", ldFlags);
         script.environment().put("SCRIPT_OUTPUT_FILE_0", settingsFile.getAbsolutePath());
         assertEquals(0, script.start().waitFor());
-        assertEquals(swiftFlags, SpmBuildOutputParser.readWrapperBuildSetting(wrapperDir, settingsFile, "OTHER_SWIFT_FLAGS"));
+        assertEquals(Map.of("OTHER_SWIFT_FLAGS", swiftFlags, "OTHER_LDFLAGS", ldFlags),
+            SpmWrapperBuildSettings.read(wrapperDir, settingsFile));
         assertFalse(new File(wrapperDir, "run").exists());
     }
 
     @Test
-    public void testSwiftModuleMapsAreReadFromTheBuildSettingsOfTheWrapper(@TempDir File rootDir) throws IOException {
+    public void testBuildSettingsOfTheWrapperAreReadFromTheJob(@TempDir File rootDir) throws IOException {
         SpmServiceBuildState buildState = new SpmServiceBuildState();
         buildState.workingDir = new File(rootDir, "job/SwiftPackageManagerService");
         buildState.wrapperDir = new File(buildState.workingDir, "Wrapper");
         buildState.wrapperDir.mkdirs();
-        assertEquals(List.of(), SwiftPackageManagerService.readWrapperSwiftModuleMaps(buildState));
+        assertEquals(Map.of(), SwiftPackageManagerService.readWrapperBuildSettings(buildState));
 
         File other = new File(buildState.workingDir, "other.txt");
-        Files.writeString(other.toPath(), "OTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/x/a.modulemap\n");
+        Files.writeString(other.toPath(), "OTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/x/a.modulemap\nOTHER_LDFLAGS=-lz\n");
         Files.createSymbolicLink(buildState.getWrapperBuildSettingsFile().toPath(), other.toPath());
-        assertEquals(List.of(), SwiftPackageManagerService.readWrapperSwiftModuleMaps(buildState));
+        assertEquals(Map.of(), SwiftPackageManagerService.readWrapperBuildSettings(buildState));
 
         Files.delete(buildState.getWrapperBuildSettingsFile().toPath());
         Files.copy(other.toPath(), buildState.getWrapperBuildSettingsFile().toPath());
-        assertEquals(List.of("/x/a.modulemap"), SwiftPackageManagerService.readWrapperSwiftModuleMaps(buildState));
+        assertEquals(Map.of("OTHER_SWIFT_FLAGS", "-Xcc -fmodule-map-file=/x/a.modulemap", "OTHER_LDFLAGS", "-lz"),
+            SwiftPackageManagerService.readWrapperBuildSettings(buildState));
     }
 
     @Test
