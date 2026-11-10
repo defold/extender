@@ -126,6 +126,23 @@ public class ResolvedPackages implements ResolvedNativeDeps {
                 resolved.staticLibraries.add(lib);
             }
         }
+        // a package can keep libraries of its own in its folder, with a search path for them in unsafeFlags
+        List<Path> workingDirSpellings = spellingsOf(buildState.getWorkingDir());
+        Set<String> knownSearchPaths = new HashSet<>();
+        Set<String> ignoredSearchPaths = new LinkedHashSet<>();
+        for (String path : linkInfo.librarySearchPaths()) {
+            File dir = packageLibraryDir(buildState.getWorkingDir(), workingDirSpellings, path);
+            if (dir == null) {
+                ignoredSearchPaths.add(path);
+            }
+            else if (knownSearchPaths.add(dir.getCanonicalPath())) {
+                resolved.librarySearchPaths.add(dir.getPath());
+            }
+        }
+        if (!ignoredSearchPaths.isEmpty()) {
+            LOGGER.warn("Ignoring {} library search paths of the Swift packages that are not folders of the Swift package build: {}",
+                ignoredSearchPaths.size(), SpmWrapperBuildSettings.sample(ignoredSearchPaths));
+        }
         // package objects auto-link the Swift compatibility archives from the building
         // Xcode's toolchain
         if (swiftRuntimeLibDir != null && swiftRuntimeLibDir.isDirectory()) {
@@ -163,7 +180,6 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         }
         // a target with its own module.modulemap gets no generated one. Xcode also puts the folder of
         // the map on the include path, as the headers of the module include each other from there
-        List<Path> workingDirSpellings = spellingsOf(buildState.getWorkingDir());
         Set<String> swiftIncludePaths = new LinkedHashSet<>();
         for (String path : wrapperModuleMaps) {
             File moduleMap = packageModuleMap(buildState.getWorkingDir(), workingDirSpellings, path);
@@ -197,19 +213,10 @@ public class ResolvedPackages implements ResolvedNativeDeps {
 
     /**
      * The module map at a path the wrapper build settings name, as Xcode spelled it, or null.
-     * Package code ran in the build that wrote them, so the path is first checked by name against
-     * the folder of the build: resolving an arbitrary path can reach the network through an
-     * automounted folder.
      */
     private static File packageModuleMap(File workingDir, List<Path> workingDirSpellings, String path) {
-        Path lexical;
-        try {
-            lexical = Path.of(path).normalize();
-        } catch (InvalidPathException e) {
-            lexical = null;
-        }
-        if (lexical == null || !lexical.isAbsolute() || !lexical.toString().endsWith(".modulemap")
-                || COMMAND_LINE_SPECIAL.matcher(path).find() || workingDirSpellings.stream().noneMatch(lexical::startsWith)) {
+        Path lexical = packagePath(workingDirSpellings, path);
+        if (lexical == null || !lexical.toString().endsWith(".modulemap")) {
             LOGGER.warn("Ignoring the module map {} of the Swift package build", path);
             return null;
         }
@@ -223,6 +230,42 @@ public class ResolvedPackages implements ResolvedNativeDeps {
             LOGGER.warn("Ignoring the module map {} of the Swift package build: {}", path, e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * The folder at a library search path the wrapper build settings name, as Xcode spelled it, or
+     * null. A folder out of the build would add libraries of the build host to the engine link.
+     */
+    private static File packageLibraryDir(File workingDir, List<Path> workingDirSpellings, String path) {
+        Path lexical = packagePath(workingDirSpellings, path);
+        if (lexical == null) {
+            return null;
+        }
+        try {
+            return JobFiles.requireWithin(workingDir, lexical.toFile()).isDirectory() ? lexical.toFile() : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * A path the wrapper build settings name, normalized, if by name it is in the folder of the build
+     * and is one argument of a rendered command line, or null. Package code ran in the build that
+     * wrote the settings, so the path is checked by name before it is resolved: resolving an
+     * arbitrary path can reach the network through an automounted folder.
+     */
+    private static Path packagePath(List<Path> workingDirSpellings, String path) {
+        Path lexical;
+        try {
+            lexical = Path.of(path).normalize();
+        } catch (InvalidPathException e) {
+            return null;
+        }
+        if (!lexical.isAbsolute() || COMMAND_LINE_SPECIAL.matcher(path).find()
+                || workingDirSpellings.stream().noneMatch(lexical::startsWith)) {
+            return null;
+        }
+        return lexical;
     }
 
     // Xcode names /private/tmp and /private/var by their links /tmp and /var

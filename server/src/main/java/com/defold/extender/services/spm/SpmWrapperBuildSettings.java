@@ -32,7 +32,7 @@ public class SpmWrapperBuildSettings {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SpmWrapperBuildSettings.class);
 
-    public record LinkInfo(List<String> systemLibs, List<String> frameworkNames) {}
+    public record LinkInfo(List<String> systemLibs, List<String> frameworkNames, List<String> librarySearchPaths) {}
 
     private static final int MAX_FILE_SIZE = 4 * 1024 * 1024;
 
@@ -94,13 +94,15 @@ public class SpmWrapperBuildSettings {
     }
 
     /**
-     * The libraries and frameworks that linker flags name. Only {@code -l<name>} and
-     * {@code -framework <name>} with plain names are taken, as the names go into the command line
-     * of the engine link; response files are not read.
+     * The libraries, frameworks and library search paths that linker flags name. Only
+     * {@code -l<name>} and {@code -framework <name>} with plain names are taken, as the names go
+     * into the command line of the engine link, and {@code -L<path>}, which the caller checks;
+     * response files are not read.
      */
     public static LinkInfo linkInfo(String ldFlags) throws ExtenderException {
         Set<String> systemLibs = new LinkedHashSet<>();
         Set<String> frameworks = new LinkedHashSet<>();
+        Set<String> searchPaths = new LinkedHashSet<>();
         Set<String> ignored = new LinkedHashSet<>();
         List<String> arguments = splitArguments(ldFlags);
         for (int i = 0; i < arguments.size(); i++) {
@@ -114,6 +116,12 @@ public class SpmWrapperBuildSettings {
                     ignored.add("-framework " + name);
                 }
             }
+            else if (argument.equals("-L") && i + 1 < arguments.size()) {
+                searchPaths.add(arguments.get(++i));
+            }
+            else if (argument.startsWith("-L") && argument.length() > 2) {
+                searchPaths.add(argument.substring(2));
+            }
             else if (LD_FLAGS_WITH_ARG.contains(argument)) {
                 // consume the flag's argument so it is not mistaken for a library
                 i++;
@@ -126,18 +134,20 @@ public class SpmWrapperBuildSettings {
                     ignored.add(argument);
                 }
             }
-            if (systemLibs.size() + frameworks.size() > MAX_LINKED_NAMES) {
-                throw new ExtenderException("The Swift packages link more than " + MAX_LINKED_NAMES + " libraries and frameworks");
+            if (systemLibs.size() + frameworks.size() + searchPaths.size() > MAX_LINKED_NAMES) {
+                throw new ExtenderException("The Swift packages link more than " + MAX_LINKED_NAMES
+                    + " libraries, frameworks and library search paths");
             }
         }
         if (!ignored.isEmpty()) {
             LOGGER.warn("Ignoring {} libraries and frameworks that the Swift packages link, as their names are not plain: {}",
                 ignored.size(), sample(ignored));
         }
-        return new LinkInfo(new ArrayList<>(systemLibs), new ArrayList<>(frameworks));
+        return new LinkInfo(new ArrayList<>(systemLibs), new ArrayList<>(frameworks), new ArrayList<>(searchPaths));
     }
 
-    private static String sample(Set<String> values) {
+    /** At most five of the values, each cut to 100 characters, as package code chose them. */
+    static String sample(Set<String> values) {
         return values.stream().limit(5)
             .map(value -> (value.length() > 100 ? value.substring(0, 100) + "..." : value).replaceAll("\\p{Cntrl}", "?"))
             .collect(Collectors.joining(", ")) + (values.size() > 5 ? ", ..." : "");

@@ -467,6 +467,46 @@ public class MacSandboxIntegrationTest {
             + "static volatile int g_" + name + " = " + name + "_add(1, 2) + " + name + "_value();\n", "dynamic"));
     }
 
+    // Verifies that a library a package keeps in its own folder, with a search path for it in
+    // unsafeFlags, reaches the engine link. SwiftPM takes unsafeFlags only from a dependency
+    // required by branch or revision.
+    @Test
+    public void librarySearchPathOfAPackageReachesTheEngineLink() throws Exception {
+        buildPackageWithItsOwnLibrary("static");
+    }
+
+    @Test
+    public void librarySearchPathOfAPackageReachesTheEngineLinkWithADynamicWrapper() throws Exception {
+        buildPackageWithItsOwnLibrary("dynamic");
+    }
+
+    private static void buildPackageWithItsOwnLibrary(String wrapperType) throws Exception {
+        String pkg = "SpmOwnLib" + UUID.randomUUID().toString().substring(0, 8);
+        Path source = Files.createDirectories(workDir.resolve("repos/" + pkg));
+        Files.writeString(source.resolve("Package.swift"),
+            "// swift-tools-version:5.9\n"
+            + "import PackageDescription\n"
+            + "import Foundation\n"
+            + "let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path\n"
+            + "let package = Package(name: \"" + pkg + "\",\n"
+            + "    products: [.library(name: \"" + pkg + "\", targets: [\"" + pkg + "\"])],\n"
+            + "    targets: [.target(name: \"" + pkg + "\", linkerSettings: [\n"
+            + "        .unsafeFlags([\"-L\" + root + \"/lib\"]), .linkedLibrary(\"" + pkg + "Own\")])])\n");
+        Files.createDirectories(source.resolve("Sources/" + pkg + "/include"));
+        Files.writeString(source.resolve("Sources/" + pkg + "/include/" + pkg + ".h"), "int " + pkg + "_value(void);\n");
+        Files.writeString(source.resolve("Sources/" + pkg + "/value.c"),
+            "int " + pkg + "_own(void);\nint " + pkg + "_value(void) { return " + pkg + "_own(); }\n");
+        Path lib = Files.createDirectories(source.resolve("lib"));
+        Files.writeString(lib.resolve("own.c"), "int " + pkg + "_own(void) { return 42; }\n");
+        run(lib, "/usr/bin/clang", "-c", "-arch", "arm64", "-mmacosx-version-min=11.0", "own.c", "-o", "own.o");
+        run(lib, "/usr/bin/ar", "rcs", "lib" + pkg + "Own.a", "own.o");
+        publish(source, pkg, "1.0.0");
+        String revision = run("git", "-C", source.toString(), "rev-parse", "HEAD").trim();
+
+        build(spmExtension(pkg, "https://localhost/" + pkg + ".git", "revision", revision, pkg,
+            "extern \"C\" int " + pkg + "_value();\nstatic volatile int g_" + pkg + " = " + pkg + "_value();\n", wrapperType));
+    }
+
     /** The libraries the engine links, from an extension that calls a package that links sqlite3. */
     private static String buildPackageThatLinksSqlite(String wrapperType) throws Exception {
         String pkg = "SpmLinks" + UUID.randomUUID().toString().substring(0, 8);
@@ -671,7 +711,12 @@ public class MacSandboxIntegrationTest {
 
     private static List<ExtenderResource> spmExtension(String name, String url, String from, String product,
             String extraSource, String wrapperType) throws IOException {
-        Path upload = workDir.resolve("upload-" + name + "-" + from);
+        return spmExtension(name, url, "from", from, product, extraSource, wrapperType);
+    }
+
+    private static List<ExtenderResource> spmExtension(String name, String url, String requirement, String version,
+            String product, String extraSource, String wrapperType) throws IOException {
+        Path upload = workDir.resolve("upload-" + name + "-" + version);
         Files.createDirectories(upload.resolve("src"));
         Files.createDirectories(upload.resolve("osx"));
         Files.writeString(upload.resolve("ext.manifest"), "name: SpmExt\n");
@@ -682,7 +727,7 @@ public class MacSandboxIntegrationTest {
         Files.writeString(upload.resolve("osx/SwiftPackages.json"),
             "{ \"platform\": \"osx\", \"minVersion\": \"14.0\", "
             + (wrapperType != null ? "\"wrapperType\": \"" + wrapperType + "\", " : "") + "\"packages\": ["
-            + "  { \"url\": \"" + url + "\", \"from\": \"" + from + "\", \"products\": [\"" + product + "\"] } ] }");
+            + "  { \"url\": \"" + url + "\", \"" + requirement + "\": \"" + version + "\", \"products\": [\"" + product + "\"] } ] }");
         return new ArrayList<>(List.of(
             new FileExtenderResource(upload.resolve("ext.manifest").toString(), "spmext/ext.manifest"),
             new FileExtenderResource(upload.resolve("src/spmext.mm").toString(), "spmext/src/spmext.mm"),

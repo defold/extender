@@ -92,10 +92,10 @@ public class ResolvedPackagesTest {
         Files.writeString(lockFile.toPath(), "{}");
     }
 
-    private static final LinkInfo NO_LINKS = new LinkInfo(List.of(), List.of());
+    private static final LinkInfo NO_LINKS = new LinkInfo(List.of(), List.of(), List.of());
 
     private static LinkInfo linkInfo() {
-        return new LinkInfo(List.of("c++", "z", "sqlite3"), List.of("UIKit", "Security", "Sentry"));
+        return new LinkInfo(List.of("c++", "z", "sqlite3"), List.of("UIKit", "Security", "Sentry"), List.of());
     }
 
     @Test
@@ -241,9 +241,35 @@ public class ResolvedPackagesTest {
         Files.createSymbolicLink(new File(productsDir, "libLinked.a").toPath(), new File(rootDir, "missing.a").toPath());
 
         ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0",
-            new LinkInfo(List.of("z", "Bin", "Linked", "sqlite3"), List.of()), null, List.of());
+            new LinkInfo(List.of("z", "Bin", "Linked", "sqlite3"), List.of(), List.of()), null, List.of());
 
         assertEquals(List.of("z", "sqlite3"), resolved.getStaticLibraries());
+    }
+
+    @Test
+    public void testHarvestTakesTheLibrarySearchPathsInTheFolderOfTheBuild(@TempDir File rootDir, @TempDir File outsideDir)
+            throws IOException, ExtenderException {
+        SpmServiceBuildState buildState = createBuildState(rootDir);
+        File productsDir = buildState.getProductsDir();
+        productsDir.mkdirs();
+        createFramework(productsDir, "SpmWrapper", false);
+        File lib = new File(rootDir, "clonedSourcePackages/checkouts/Pkg/lib");
+        lib.mkdirs();
+        File spaced = new File(lib.getParentFile(), "my lib");
+        spaced.mkdirs();
+        File archive = new File(lib, "libx.a");
+        writeStaticArchiveBinary(archive);
+        File linkOut = new File(rootDir, "out");
+        Files.createSymbolicLink(linkOut.toPath(), outsideDir.toPath());
+
+        ResolvedPackages resolved = ResolvedPackages.harvest(buildState, "15.0", new LinkInfo(List.of(), List.of(), List.of(
+            lib.getAbsolutePath(), lib.toPath().toRealPath().toString(), lib.getAbsolutePath() + "/../lib",
+            spaced.getAbsolutePath(), archive.getAbsolutePath(), linkOut.getAbsolutePath(), outsideDir.getAbsolutePath(),
+            "/usr/lib", "clonedSourcePackages/checkouts/Pkg/lib", rootDir + "/missing", rootDir + "/../" + rootDir.getName() + "x")),
+            null, List.of());
+
+        // the folder is passed once, as Xcode spelled it
+        assertEquals(List.of(lib.getAbsolutePath()), resolved.getLibrarySearchPaths());
     }
 
     @Test

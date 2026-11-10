@@ -48,6 +48,7 @@ public class SpmWrapperBuildSettingsTest {
         LinkInfo info = SpmWrapperBuildSettings.linkInfo(fixture().get("OTHER_LDFLAGS"));
         assertEquals(List.of("z", "sqlite3"), info.systemLibs());
         assertEquals(List.of("CoreML", "Accelerate"), info.frameworkNames());
+        assertEquals(List.of(), info.librarySearchPaths());
     }
 
     @Test
@@ -61,15 +62,27 @@ public class SpmWrapperBuildSettingsTest {
 
     @Test
     public void testLinkInfoTakesOnlyPlainNames() throws ExtenderException {
-        // the names go into the command line of the engine link: anything but -l<name> and
-        // -framework <name> is left out, and so is a name that is not plain
+        // the names go into the command line of the engine link: anything but -l<name>,
+        // -framework <name> and -L<path> is left out, and so is a name that is not plain
         LinkInfo info = SpmWrapperBuildSettings.linkInfo(
             "-lc++ -framework 'Foo Bar' -framework ../Evil -framework -Wl,-x -l/abs/libx.a -l'a b' "
             + "-lto_library /x/libLTO.dylib -load_hidden -lnot -ld_classic -ld_new -lazy_framework Lazy "
             + "-Xlinker -lfoo @/x/args.resp -L/x -F/x -Wl,-force_load,/x/libFoo.a -force_load /x/libBar.a "
-            + "-framework UIKit -framework");
+            + "-framework UIKit -L '/y z' -L/x -framework");
         assertEquals(List.of("c++", "foo"), info.systemLibs());
         assertEquals(List.of("UIKit"), info.frameworkNames());
+        // the caller checks the paths
+        assertEquals(List.of("/x", "/y z"), info.librarySearchPaths());
+        assertEquals(List.of(), SpmWrapperBuildSettings.linkInfo("-L").librarySearchPaths());
+    }
+
+    @Test
+    public void testLinkInfoOfUnsafeFlags() throws ExtenderException {
+        // what a package required by revision with linkerSettings
+        // [.unsafeFlags(["-L/opt/unsafe-lib-dir"]), .linkedLibrary("z")] imparts with Xcode 27.1
+        LinkInfo info = SpmWrapperBuildSettings.linkInfo(" -lz -L/opt/unsafe-lib-dir");
+        assertEquals(List.of("z"), info.systemLibs());
+        assertEquals(List.of("/opt/unsafe-lib-dir"), info.librarySearchPaths());
     }
 
     @Test
