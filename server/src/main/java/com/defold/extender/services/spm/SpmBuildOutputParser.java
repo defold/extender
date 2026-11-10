@@ -247,12 +247,12 @@ public class SpmBuildOutputParser {
      * flags name. Response files are not read.
      */
     public static List<String> parseSwiftModuleMaps(String swiftFlags) {
-        List<String> tokens = tokenize(swiftFlags);
+        List<String> arguments = tokenize(swiftFlags);
         Set<String> moduleMaps = new LinkedHashSet<>();
-        for (int i = 1; i < tokens.size(); i++) {
-            String token = tokens.get(i);
-            if (tokens.get(i - 1).equals("-Xcc") && token.startsWith("-fmodule-map-file=")) {
-                moduleMaps.add(token.substring("-fmodule-map-file=".length()));
+        for (int i = 1; i < arguments.size(); i++) {
+            String argument = arguments.get(i);
+            if (arguments.get(i - 1).equals("-Xcc") && argument.startsWith("-fmodule-map-file=")) {
+                moduleMaps.add(argument.substring("-fmodule-map-file=".length()));
             }
         }
         return new ArrayList<>(moduleMaps);
