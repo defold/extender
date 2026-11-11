@@ -24,14 +24,14 @@ targets:
         # the build runs in a sandbox, inside which Xcode can't apply its own to the script
         ENABLE_USER_SCRIPT_SANDBOXING: "NO"
     # the settings the package targets impart to the wrapper, which Swift code that imports
-    # the packages needs as well
+    # the packages and the engine link need as well
     postCompileScripts:
       - name: Write the imparted build settings
         basedOnDependencyAnalysis: false
         outputFiles:
           - $(PROJECT_DIR)/{{BUILD_SETTINGS_FILE}}
         script: |
-          printf 'OTHER_SWIFT_FLAGS=%s\n' "$OTHER_SWIFT_FLAGS" > "$SCRIPT_OUTPUT_FILE_0"
+          printf 'OTHER_SWIFT_FLAGS=%s\nOTHER_LDFLAGS=%s\n' "$OTHER_SWIFT_FLAGS" "$OTHER_LDFLAGS" > "$SCRIPT_OUTPUT_FILE_0"
     dependencies:
       - package: {{AGGREGATOR_NAME}}
         product: {{AGGREGATOR_NAME}}
