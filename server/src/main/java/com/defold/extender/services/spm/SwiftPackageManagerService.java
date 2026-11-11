@@ -53,7 +53,6 @@ import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.DarwinSandboxPaths;
 import com.defold.extender.process.SandboxPolicy;
-import com.defold.extender.services.spm.SpmBuildOutputParser.LinkInfo;
 import com.defold.extender.services.spm.SpmManifestParser.PackageRef;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -61,8 +60,9 @@ import io.micrometer.core.instrument.MeterRegistry;
 /**
  * Resolves Swift Package Manager dependencies declared in SwiftPackages.json manifests:
  * a generated aggregator Package.swift plus an XcodeGen wrapper project are built with
- * xcodebuild, and the products directory and the wrapper's final link line are harvested
- * into a {@link ResolvedPackages}.
+ * xcodebuild, and the products directory and the build settings the packages impart to the
+ * wrapper (its linked libraries and frameworks and the module maps) are harvested into a
+ * {@link ResolvedPackages}.
  *
  * Xcode is selected per job via the child processes' DEVELOPER_DIR (never xcode-select —
  * concurrent jobs may need different Xcode versions).
@@ -286,10 +286,12 @@ public class SwiftPackageManagerService {
 
         SpmWrapperArchive.removeDuplicateMembers(spmBuildState.getJobDir(), spmBuildState.getWrapperBinary(),
             spmBuildState.getWorkingDir(), developerDir, spmBuildState.buildArch, processEnv);
-        LinkInfo linkInfo = parseLinkInfo(spmBuildState);
+        Map<String, String> wrapperSettings = readWrapperBuildSettings(spmBuildState);
         File swiftRuntimeLibDir = new File(developerDir, "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/"
             + spmBuildState.getSelectedPlatform().toString().toLowerCase());
-        ResolvedPackages resolvedPackages = ResolvedPackages.harvest(spmBuildState, manifest.minVersion, linkInfo, swiftRuntimeLibDir);
+        ResolvedPackages resolvedPackages = ResolvedPackages.harvest(spmBuildState, manifest.minVersion,
+            SpmWrapperBuildSettings.linkInfo(wrapperSettings.getOrDefault("OTHER_LDFLAGS", "")), swiftRuntimeLibDir,
+            SpmWrapperBuildSettings.swiftModuleMaps(wrapperSettings.getOrDefault("OTHER_SWIFT_FLAGS", "")));
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.spm.get", System.currentTimeMillis() - methodStart);
         LOGGER.info("Resolved Swift package dependencies");
@@ -439,6 +441,7 @@ public class SwiftPackageManagerService {
         context.put("PLATFORM_MIN_VERSION", manifest.minVersion);
         context.put("SWIFT_VERSION", swiftVersion);
         context.put("MACH_O_TYPE", machOTypeFor(manifest));
+        context.put("BUILD_SETTINGS_FILE", SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME);
         return templateExecutor.execute(projectYmlTemplateContents, context);
     }
 
@@ -1270,21 +1273,26 @@ public class SwiftPackageManagerService {
         }
     }
 
-    private LinkInfo parseLinkInfo(SpmServiceBuildState buildState) throws IOException {
-        String linkLine = SpmBuildOutputParser.findWrapperLinkLine(buildState.getBuildLogFile(), SpmServiceBuildState.WRAPPER_NAME);
-        if (linkLine == null) {
-            LOGGER.warn("No wrapper link line found in the SPM build log; system link dependencies are not harvested");
-            return null;
+    /** The build settings the script phase of the wrapper wrote, none if it wrote no file that can be read. */
+    static Map<String, String> readWrapperBuildSettings(SpmServiceBuildState buildState) {
+        File settingsFile = buildState.getWrapperBuildSettingsFile();
+        try {
+            Map<String, String> settings = SpmWrapperBuildSettings.read(buildState.getJobDir(), settingsFile);
+            if (settings != null) {
+                for (String name : List.of("OTHER_LDFLAGS", "OTHER_SWIFT_FLAGS")) {
+                    if (!settings.containsKey(name)) {
+                        LOGGER.warn("The SPM wrapper build wrote no {} to {}", name, settingsFile);
+                    }
+                }
+                return settings;
+            }
+            LOGGER.warn("The SPM wrapper build wrote no {}", settingsFile);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to read the build settings of the SPM wrapper: {}", e.getMessage());
         }
-        // everything on a libtool -static line is an input merged INTO the wrapper archive,
-        // not an external link dependency — harvesting it would double-link or dangle
-        if (linkLine.contains("libtool") && linkLine.contains("-static")) {
-            return null;
-        }
-        // xcodebuild runs the link step from the wrapper dir; @<path> response files on the
-        // line resolve against it
-        return SpmBuildOutputParser.parseLinkLine(linkLine, buildState.getDerivedDataDir().getAbsolutePath(),
-            buildState.getWrapperDir());
+        LOGGER.warn("The libraries the Swift packages link and the module maps of their own are not harvested;"
+            + " the engine link may fail with undefined symbols");
+        return Map.of();
     }
 
     // Shared cache layout: <home-dir-prefix>/<uuid>/<xcode-version>/packageCache, keyed by

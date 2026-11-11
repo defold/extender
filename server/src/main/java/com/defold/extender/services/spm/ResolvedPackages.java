@@ -2,16 +2,25 @@ package com.defold.extender.services.spm;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
+import com.defold.extender.process.JobFiles;
 import com.defold.extender.services.ResolvedNativeDeps;
-import com.defold.extender.services.spm.SpmBuildOutputParser.LinkInfo;
+import com.defold.extender.services.spm.SpmWrapperBuildSettings.LinkInfo;
 import com.defold.extender.utils.FrameworkUtil;
 
 /**
@@ -22,12 +31,15 @@ import com.defold.extender.utils.FrameworkUtil;
  */
 public class ResolvedPackages implements ResolvedNativeDeps {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ResolvedPackages.class);
+
     private final List<String> frameworks = new ArrayList<>();
     private final List<String> frameworksSearchPaths = new ArrayList<>();
     private final List<String> staticLibraries = new ArrayList<>();
     private final List<String> librarySearchPaths = new ArrayList<>();
     private final List<String> additionalIncludePaths = new ArrayList<>();
     private final List<String> swiftModuleMaps = new ArrayList<>();
+    private final List<String> swiftIncludePaths = new ArrayList<>();
     private final List<String> linkFlags = new ArrayList<>();
     private final List<File> resources = new ArrayList<>();
     private final List<File> dynamicFrameworks = new ArrayList<>();
@@ -42,8 +54,12 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         this.platformMinVersion = platformMinVersion;
     }
 
+    /**
+     * @param wrapperModuleMaps the module maps that the package targets impart to the Swift compile
+     *                          of the wrapper, as the build settings of the wrapper name them
+     */
     static ResolvedPackages harvest(SpmServiceBuildState buildState, String platformMinVersion, LinkInfo linkInfo,
-            File swiftRuntimeLibDir) throws IOException, ExtenderException {
+            File swiftRuntimeLibDir, List<String> wrapperModuleMaps) throws IOException, ExtenderException {
         File productsDir = buildState.getProductsDir();
         if (!productsDir.isDirectory()) {
             throw new ExtenderException("Swift package build products directory does not exist: " + productsDir);
@@ -102,25 +118,37 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         // home of ObjC classes the extension code references itself
         Set<String> frameworkNames = new LinkedHashSet<>(productFrameworks.keySet());
 
-        Set<String> librarySearchPaths = new LinkedHashSet<>();
-        if (linkInfo != null) {
-            frameworkNames.addAll(linkInfo.frameworkNames());
-            // a -l naming a products-dir library is a wrapper input the wrapper already
-            // resolved; system libs (c++, z, ...) have no products-dir counterpart and stay
-            for (String lib : linkInfo.systemLibs()) {
-                if (!new File(productsDir, "lib" + lib + ".a").exists()) {
-                    resolved.staticLibraries.add(lib);
-                }
+        frameworkNames.addAll(linkInfo.frameworkNames());
+        // a -l naming a products-dir library is a wrapper input the wrapper already
+        // resolved; system libs (c++, z, ...) have no products-dir counterpart and stay
+        for (String lib : linkInfo.systemLibs()) {
+            if (!Files.exists(new File(productsDir, "lib" + lib + ".a").toPath(), LinkOption.NOFOLLOW_LINKS)) {
+                resolved.staticLibraries.add(lib);
             }
-            librarySearchPaths.addAll(linkInfo.librarySearchPaths());
+        }
+        // a package can keep libraries of its own in its folder, with a search path for them in unsafeFlags
+        List<Path> workingDirSpellings = spellingsOf(buildState.getWorkingDir());
+        Set<String> knownSearchPaths = new HashSet<>();
+        Set<String> ignoredSearchPaths = new LinkedHashSet<>();
+        for (String path : linkInfo.librarySearchPaths()) {
+            File dir = packageLibraryDir(buildState.getWorkingDir(), workingDirSpellings, path);
+            if (dir == null) {
+                ignoredSearchPaths.add(path);
+            }
+            else if (knownSearchPaths.add(dir.getCanonicalPath())) {
+                resolved.librarySearchPaths.add(dir.getPath());
+            }
+        }
+        if (!ignoredSearchPaths.isEmpty()) {
+            LOGGER.warn("Ignoring {} library search paths of the Swift packages that are not folders of the Swift package build: {}",
+                ignoredSearchPaths.size(), SpmWrapperBuildSettings.sample(ignoredSearchPaths));
         }
         // package objects auto-link the Swift compatibility archives from the building
-        // Xcode's toolchain; a static wrapper's libtool line carries no -L for them
+        // Xcode's toolchain
         if (swiftRuntimeLibDir != null && swiftRuntimeLibDir.isDirectory()) {
-            librarySearchPaths.add(swiftRuntimeLibDir.getAbsolutePath());
+            resolved.librarySearchPaths.add(swiftRuntimeLibDir.getAbsolutePath());
             resolved.sandboxReadOnlyPaths.add(swiftRuntimeLibDir.getAbsolutePath());
         }
-        resolved.librarySearchPaths.addAll(librarySearchPaths);
         resolved.frameworks.addAll(frameworkNames);
 
         resolved.frameworksSearchPaths.add(productsDir.getAbsolutePath());
@@ -141,13 +169,26 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         collectModuleMapIncludePaths(generatedModuleMapsDir, new File(buildState.getWorkingDir(), "include"), includePaths);
         resolved.additionalIncludePaths.addAll(includePaths);
 
+        Set<String> knownModuleMaps = new HashSet<>();
         File[] moduleMaps = generatedModuleMapsDir.listFiles((dir, name) -> name.endsWith(".modulemap"));
         if (moduleMaps != null) {
             Arrays.sort(moduleMaps);
             for (File moduleMap : moduleMaps) {
                 resolved.swiftModuleMaps.add(moduleMap.getAbsolutePath());
+                knownModuleMaps.add(moduleMap.getCanonicalPath());
             }
         }
+        // a target with its own module.modulemap gets no generated one. Xcode also puts the folder of
+        // the map on the include path, as the headers of the module include each other from there
+        Set<String> swiftIncludePaths = new LinkedHashSet<>();
+        for (String path : wrapperModuleMaps) {
+            File moduleMap = packageModuleMap(buildState.getWorkingDir(), workingDirSpellings, path);
+            if (moduleMap != null && knownModuleMaps.add(moduleMap.getCanonicalPath())) {
+                resolved.swiftModuleMaps.add(moduleMap.getPath());
+                swiftIncludePaths.add(moduleMap.getParent());
+            }
+        }
+        resolved.swiftIncludePaths.addAll(swiftIncludePaths);
 
         // an embedded framework resolves the Swift runtime and its own location at run time
         if (!resolved.dynamicFrameworks.isEmpty()) {
@@ -165,6 +206,82 @@ public class ResolvedPackages implements ResolvedNativeDeps {
         }
 
         return resolved;
+    }
+
+    // the characters that split or quote an argument of a rendered command line
+    private static final java.util.regex.Pattern COMMAND_LINE_SPECIAL = java.util.regex.Pattern.compile("[\\s'\"\\\\]");
+
+    /**
+     * The module map at a path the wrapper build settings name, as Xcode spelled it, or null.
+     */
+    private static File packageModuleMap(File workingDir, List<Path> workingDirSpellings, String path) {
+        Path lexical = packagePath(workingDirSpellings, path);
+        if (lexical == null || !lexical.toString().endsWith(".modulemap")) {
+            LOGGER.warn("Ignoring the module map {} of the Swift package build", path);
+            return null;
+        }
+        try {
+            File real = JobFiles.requireWithin(workingDir, lexical.toFile());
+            if (real.isFile() && real.getName().endsWith(".modulemap")) {
+                return lexical.toFile();
+            }
+            LOGGER.warn("Ignoring the module map {} of the Swift package build: not a module map file", path);
+        } catch (IOException e) {
+            LOGGER.warn("Ignoring the module map {} of the Swift package build: {}", path, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * The folder at a library search path the wrapper build settings name, as Xcode spelled it, or
+     * null. A folder out of the build would add libraries of the build host to the engine link.
+     */
+    private static File packageLibraryDir(File workingDir, List<Path> workingDirSpellings, String path) {
+        Path lexical = packagePath(workingDirSpellings, path);
+        if (lexical == null) {
+            return null;
+        }
+        try {
+            return JobFiles.requireWithin(workingDir, lexical.toFile()).isDirectory() ? lexical.toFile() : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * A path the wrapper build settings name, normalized, if by name it is in the folder of the build
+     * and is one argument of a rendered command line, or null. Package code ran in the build that
+     * wrote the settings, so the path is checked by name before it is resolved: resolving an
+     * arbitrary path can reach the network through an automounted folder.
+     */
+    private static Path packagePath(List<Path> workingDirSpellings, String path) {
+        Path lexical;
+        try {
+            lexical = Path.of(path).normalize();
+        } catch (InvalidPathException e) {
+            return null;
+        }
+        if (!lexical.isAbsolute() || COMMAND_LINE_SPECIAL.matcher(path).find()
+                || workingDirSpellings.stream().noneMatch(lexical::startsWith)) {
+            return null;
+        }
+        return lexical;
+    }
+
+    // Xcode names /private/tmp and /private/var by their links /tmp and /var
+    private static List<Path> spellingsOf(File dir) throws IOException {
+        Set<Path> spellings = new LinkedHashSet<>();
+        spellings.add(dir.getAbsoluteFile().toPath().normalize());
+        Path real = dir.toPath().toRealPath();
+        spellings.add(real);
+        Path privateDir = Path.of("/private");
+        if (real.startsWith(privateDir)) {
+            Path linked = Path.of("/").resolve(privateDir.relativize(real));
+            if (Files.exists(linked) && linked.toRealPath().equals(real)) {
+                spellings.add(linked);
+            }
+        }
+        return new ArrayList<>(spellings);
     }
 
     private static final java.util.regex.Pattern MODULE_NAME_PATTERN =
@@ -247,6 +364,11 @@ public class ResolvedPackages implements ResolvedNativeDeps {
     @Override
     public List<String> getSwiftModuleMaps() {
         return swiftModuleMaps;
+    }
+
+    @Override
+    public List<String> getSwiftIncludePaths() {
+        return swiftIncludePaths;
     }
 
     /** Directories outside the job the engine link reads (the building Xcode's Swift runtime libs). */
