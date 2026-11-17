@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,6 +53,8 @@ public class RealGradleService implements GradleServiceInterface {
     );
     private static final String GRADLE_USER_HOME = System.getenv("GRADLE_USER_HOME");
     private static final String GRADLE_PLUGIN_VERSION = System.getenv("GRADLE_PLUGIN_VERSION");
+    // The JDK directory name carries its version, so it comes from the image rather than from this jar
+    private static final String JAVA_HOME = Objects.requireNonNullElseGet(System.getenv("JAVA_HOME"), () -> System.getProperty("java.home"));
     private static final String ARTIFACT_KIND_EXPLODED_AAR = "exploded-aar";
     private static final String ARTIFACT_KIND_JAR = "jar";
 
@@ -152,6 +155,7 @@ public class RealGradleService implements GradleServiceInterface {
     private void createGradlePropertiesFile(File gradlePropertiesFile, Boolean useJetifier) throws IOException {
         HashMap<String, Object> envContext = new HashMap<>();
         envContext.put("android-enable-jetifier", useJetifier.toString());
+        envContext.put("java-home", JAVA_HOME);
         String contents = templateExecutor.execute(gradlePropertiesTemplateContents, envContext);
         JobFiles.write(gradlePropertiesFile.getParentFile(), gradlePropertiesFile, contents.getBytes());
     }

@@ -2,6 +2,7 @@ package com.defold.extender.services;
 
 import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
+import com.defold.extender.TemplateExecutor;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.json.simple.JSONArray;
@@ -63,6 +64,18 @@ public class RealGradleServiceTest {
         assertTrue(template.contains("android.enableJetifier={{android-enable-jetifier}}"));
         assertTrue(template.contains("android.useAndroidX=true"));
         assertFalse(template.contains("android.useAndroidX={{android-enable-jetifier}}"));
+    }
+
+    // Verifies that Gradle runs on the image's JDK instead of a path baked into the jar.
+    @Test
+    public void testGradleJavaHomeComesFromEnvironment() throws Exception {
+        String template = readResource("/template.gradle.properties");
+
+        assertFalse(template.contains("/usr/local/jdk"));
+
+        String rendered = new TemplateExecutor().execute(template,
+                Map.of("android-enable-jetifier", "false", "java-home", "/usr/local/jdk-25.0.5.1+2"));
+        assertTrue(rendered.contains("org.gradle.java.home=/usr/local/jdk-25.0.5.1+2\n"));
     }
 
     // Verifies that dependency resolution, reporting, and lock generation use one deterministic Gradle invocation.
