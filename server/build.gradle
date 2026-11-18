@@ -40,9 +40,9 @@ configurations.all {
     resolutionStrategy.eachDependency { details ->
         if (details.requested.group == 'com.fasterxml.jackson.core') {
             // jackson-annotations tags only the minor version (e.g. "2.22"), unlike jackson-core/-databind's patch releases.
-            // It must stay >= the version jackson-bom expects (3.2.2 -> 2.22, which adds JsonApplyView);
+            // It must stay >= the version jackson-bom expects (3.3.0 -> 2.23; 2.22 added JsonApplyView);
             // pinning it lower makes Spring's Jackson 3 integration fail at runtime, not compile time.
-            details.useVersion(details.requested.name == 'jackson-annotations' ? '2.22' : '2.21.5')
+            details.useVersion(details.requested.name == 'jackson-annotations' ? '2.23' : '2.21.5')
             details.because 'CVE-2026-54512/54513/54514/54515/54516/54517/54518 - align transitive Jackson 2.x pulled in by google-cloud-storage'
         }
         if (details.requested.group == 'ch.qos.logback') {
