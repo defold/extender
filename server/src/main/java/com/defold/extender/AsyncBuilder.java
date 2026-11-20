@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.defold.extender.cache.ExtensionCompileCache;
 import com.defold.extender.log.LogTruncator;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
@@ -45,6 +46,7 @@ public class AsyncBuilder {
     private SwiftPackageManagerService swiftPackageManagerService;
     private BuildProgressService buildProgressService;
     private R8Configuration r8Configuration;
+    private final ExtensionCompileCache extensionCompileCache;
     private File jobResultLocation;
     private long resultLifetime;
     private boolean keepJobDirectory = false;
@@ -55,6 +57,7 @@ public class AsyncBuilder {
                         Optional<SwiftPackageManagerService> swiftPackageManagerService,
                         BuildProgressService buildProgressService,
                         R8Configuration r8Configuration,
+                        ExtensionCompileCache extensionCompileCache,
                         @Value("${extender.job-result.location}") String jobResultLocation,
                         @Value("${extender.job-result.lifetime:1200000}") long jobResultLifetime) {
         this.defoldSdkService = defoldSdkService;
@@ -63,6 +66,7 @@ public class AsyncBuilder {
         swiftPackageManagerService.ifPresent(val -> { this.swiftPackageManagerService = val; });
         this.buildProgressService = buildProgressService;
         this.r8Configuration = r8Configuration;
+        this.extensionCompileCache = extensionCompileCache;
         this.jobResultLocation = new File(jobResultLocation);
         this.keepJobDirectory = System.getenv("DM_DEBUG_KEEP_JOB_FOLDER") != null || System.getenv("DM_DEBUG_JOB_FOLDER") != null;
         this.resultLifetime = jobResultLifetime;
@@ -148,6 +152,7 @@ public class AsyncBuilder {
                             .setMetricsWriter(metricsWriter)
                             .setProgressReporter(progressReporter)
                             .setR8Configuration(r8Configuration)
+                            .setExtensionCompileCache(extensionCompileCache, sdkVersion)
                             .build();
 
                 // Resolve Gradle dependencies and .aar files shipped inside the extensions

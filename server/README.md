@@ -102,6 +102,29 @@ docker compose -p extender down
 ```
 if docker compose was run in detached mode (e.g. '-d' flag was passed to `docker compose up` command).
 
+## Native extension compilation cache
+
+Android and Web builders can reuse static libraries built from extension C and C++ sources across Bob projects. Enable the cache in each builder's Spring configuration and mount its directory on a persistent volume outside the job directory. Use the same `toolchain-id` across restarts of the same immutable builder environment. Change it when the compiler, system headers, or toolchain environment changes. On Web builders include the Emscripten version and the immutable SDK image/configuration in this ID.
+
+```yaml
+extender:
+    extension-cache:
+        directory: /var/extender/extension-cache
+        toolchain-id: ndk25-sdk36-builder-v1
+        max-size-bytes: 5368709120
+        probe-timeout-millis: 1000
+        platforms:
+            arm64-android: true
+            wasm-web: false
+            wasm_pthread-web: false
+```
+
+Each `platforms` switch defaults to `false`. Set `extender.extension-cache.platforms.<target>` to `true` to enable caching for that exact target. Configuring `directory` and `toolchain-id` also remains necessary. The Android, regular Web, and threaded Web switches operate independently.
+
+The cache applies to `arm64-android`, `wasm-web`, and `wasm_pthread-web` builds using a Defold SDK SHA and supported compiler and archive commands. Regular and threaded Web builds have separate cache keys. Commands using Emscripten ports or other unsupported inputs use the regular compilation path. A direct hit copies the cached `.a` into the current job. A new input environment can use a bounded preprocessor comparison to find an equivalent archive and remember the match for the next request. If a Web probe times out, a successful compile can still seed an exact-input hit. The direct key conservatively covers files visible to the compiler, including the upload root. Each job still links its own engine and processes any platform resources.
+
+Keep one builder process per cache volume. Concurrent requests for the same artifact share a compilation, and the builder evicts least recently used archives when the configured capacity is exceeded. The `Native extension cache:` log lines show per-extension outcomes and elapsed time.
+
 ## Structured logging
 If you want to see logs in structured form you need to execute docker compose with `STRUCTURED_LOGGING=1` environment variable. For example
 ```sh

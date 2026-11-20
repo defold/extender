@@ -31,6 +31,11 @@ extender:
     cache:
         enabled: false
         file-size-threshold: 65536
+    extension-cache:
+        platforms:
+            arm64-android: false
+            wasm-web: false
+            wasm_pthread-web: false
     remote-builder:
         enabled: false
         build-sleep-timeout: 5000
