@@ -34,6 +34,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Arrays;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -53,9 +58,13 @@ import com.defold.extender.services.cocoapods.ResolvedPods;
 import com.defold.extender.utils.PodBuildUtil;
 import com.defold.extender.utils.VersionUtil;
 import com.defold.extender.builders.CSharpBuilder;
+import com.defold.extender.cache.ExtensionCompileCache;
+import com.defold.extender.cache.ExtensionCompileFingerprint;
 import com.defold.extender.log.LogSanitizer;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.CommandLineTokenizer;
+import com.defold.extender.process.CommandTimeoutException;
 import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessUtils;
 import com.defold.extender.progress.BuildStage;
@@ -73,6 +82,8 @@ class Extender {
     private final ProcessExecutor processExecutor = new ProcessExecutor();
     private final ProgressReporter progressReporter;
     private final R8Configuration r8Configuration;
+    private final ExtensionCompileCache extensionCompileCache;
+    private final ExtensionCompileFingerprint extensionCompileFingerprint;
     private MetricsWriter metricsWriter;
     // context flags
     private Boolean needsCSLibraries = false;
@@ -134,6 +145,8 @@ class Extender {
         MetricsWriter metricsWriter;
         ProgressReporter progressReporter = ProgressReporter.NOOP;
         R8Configuration r8Configuration = new R8Configuration();
+        ExtensionCompileCache extensionCompileCache;
+        String sdkVersion;
 
         public Builder() { }
 
@@ -179,6 +192,12 @@ class Extender {
 
         public Builder setR8Configuration(R8Configuration r8Configuration) {
             this.r8Configuration = r8Configuration;
+            return this;
+        }
+
+        public Builder setExtensionCompileCache(ExtensionCompileCache cache, String sdkVersion) {
+            this.extensionCompileCache = cache;
+            this.sdkVersion = sdkVersion;
             return this;
         }
 
@@ -347,6 +366,21 @@ class Extender {
 
         // Load and merge manifests
         loadManifests(manifestValidator);
+        extensionCompileCache = builder.extensionCompileCache;
+        String debugSourcePath = buildState.getDebugSourcePath();
+        if (extensionCompileCache != null
+                && ("arm64-android".equals(builder.platform) || ExtensionCompileFingerprint.isWebPlatform(builder.platform))
+                && extensionCompileCache.enabledForPlatform(builder.platform)
+                && builder.sdkVersion != null
+                && builder.sdkVersion.matches("[0-9a-fA-F]{40}")
+                && System.getenv("DM_DEBUG_JOB_FOLDER") == null
+                && (debugSourcePath == null || debugSourcePath.isEmpty())) {
+            extensionCompileFingerprint = new ExtensionCompileFingerprint(builder.jobDirectory.toPath(),
+                    builder.uploadDirectory.toPath(), builder.sdk.toPath(), builder.sdkVersion,
+                    extensionCompileCache.toolchainId(), processExecutor.getEnv(), builder.platform);
+        } else {
+            extensionCompileFingerprint = null;
+        }
     }
 
     private int getAndIncreaseNameCount() {
@@ -926,7 +960,9 @@ class Extender {
         return objs;
     }
 
-    private List<String> compileExtensionSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles) throws IOException, InterruptedException, ExtenderException {
+    private record ExtensionObjectCommands(List<String> objects, List<String> commands) {}
+
+    private ExtensionObjectCommands planExtensionSourceFiles(File extDir, Map<String, Object> manifestContext, List<File> srcFiles) throws IOException, InterruptedException, ExtenderException {
         List<String> objs = new ArrayList<>();
         List<String> commands = new ArrayList<>();
 
@@ -948,10 +984,12 @@ class Extender {
             }
             objs.add(ExtenderUtil.getRelativePath(buildState.jobDir, o));
         }
-        final String extensionName = (String)manifestContext.get("extension_name");
+        return new ExtensionObjectCommands(objs, commands);
+    }
+
+    private void compileExtensionSourceFiles(String extensionName, List<String> commands) throws IOException, InterruptedException, ExtenderException {
         progressReporter.compileBatchBegin(extensionName, commands.size());
         ProcessExecutor.executeCommands(processExecutor, commands, () -> progressReporter.fileCompiled(extensionName)); // in parallel
-        return objs;
     }
 
     // compile the source files of a pod and return a list of object files
@@ -1303,7 +1341,8 @@ class Extender {
         // Compile extension source files
         List<String> objs = new ArrayList<>();
         objs.addAll(compileExtensionSwiftFiles(extDir, manifestContext, swiftFiles));
-        objs.addAll(compileExtensionSourceFiles(extDir, manifestContext, srcFiles));
+        ExtensionObjectCommands compilePlan = planExtensionSourceFiles(extDir, manifestContext, srcFiles);
+        objs.addAll(compilePlan.objects());
 
         // Create c++ library
         File libCpp = getStaticLibraryFile(manifestContext, libraryOut);
@@ -1311,11 +1350,150 @@ class Extender {
         Map<String, Object> context = createContext(manifestContext);
         context.put("tgt", libCpp);
         context.put("objs", objs);
-        executeCommand(platformConfig.libCmd, context);
+        String extensionName = (String) manifestContext.get("extension_name");
+        if (extensionCompileFingerprint == null || !swiftFiles.isEmpty() || srcFiles.isEmpty()
+                || !buildCachedExtension(extensionName, compilePlan, srcFiles, libCpp, context)) {
+            compileExtensionSourceFiles(extensionName, compilePlan.commands());
+            executeCommand(platformConfig.libCmd, context);
+        }
 
         List<File> out = new ArrayList<>();
         out.add(libCpp);
         return out;
+    }
+
+    private boolean buildCachedExtension(String extensionName, ExtensionObjectCommands plan, List<File> sources,
+            File archive, Map<String, Object> archiveContext) throws IOException, InterruptedException, ExtenderException {
+        long start = System.nanoTime();
+        List<String> archiveArgs;
+        try {
+            archiveArgs = CommandLineTokenizer.parse(templateExecutor.execute(platformConfig.libCmd, archiveContext));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        // Thin archives or custom archive commands can keep references to task-local objects.
+        String archiver = ExtensionCompileFingerprint.isWebPlatform(buildState.fullPlatform)
+                ? "(?:.*/)?emar" : "(?:.*/)?(?:[A-Za-z0-9_]+-)*ar";
+        if (archiveArgs.size() != plan.objects().size() + 3 || !archiveArgs.getFirst().matches(archiver)
+                || !archiveArgs.get(1).equals("rcs") || !archiveArgs.get(2).equals(archive.toString())
+                || !archiveArgs.subList(3, archiveArgs.size()).equals(plan.objects())) {
+            return false;
+        }
+        // Route debug and macro paths consistently through the temporary job-directory boundary.
+        String prefix = CommandLineTokenizer.escapeWhitespace(buildState.jobDir.getAbsolutePath());
+        List<String> commands = plan.commands().stream()
+                .map(command -> command + " -ffile-prefix-map=" + prefix + "=. -fdebug-compilation-dir=.")
+                .toList();
+        ExtensionCompileFingerprint.Keys keys;
+        try {
+            keys = extensionCompileFingerprint.keys(extensionName, commands, plan.objects(),
+                    sources.stream().map(File::toPath).toList(), archiveArgs.getFirst() + " rcs");
+        } catch (IOException e) {
+            LOGGER.debug("Could not fingerprint native extension {}", extensionName, e);
+            keys = null;
+        }
+        if (keys == null) {
+            return false;
+        }
+        if (extensionCompileCache.restore(keys.family(), keys.direct(), archive.toPath())) {
+            logExtensionCache(extensionName, "direct hit", start);
+            return true;
+        }
+
+        ExtensionProbe probe = preprocessExtension(keys);
+        String effectiveKey = probe.key();
+        boolean directOnly = probe.outOfBudget() && ExtensionCompileFingerprint.isWebPlatform(buildState.fullPlatform);
+        if ((effectiveKey == null && !directOnly) || !archive.getName().endsWith(".a")) {
+            logExtensionCache(extensionName, "probe skipped", start);
+            return false;
+        }
+
+        // Large Web extensions can exceed the probe budget. Their normal compile can still
+        // seed an exact-input hit, provided no compiler header expands a time-dependent macro.
+        List<String> compileCommands = directOnly
+                ? commands.stream().map(command -> command + " -Werror=date-time").toList()
+                : commands;
+        try {
+            boolean restored = extensionCompileCache.buildOrRestore(keys.family(), keys.direct(), effectiveKey,
+                    archive.toPath(), () -> {
+                        compileExtensionSourceFiles(extensionName, compileCommands);
+                        executeCommand(platformConfig.libCmd, archiveContext);
+                    });
+            logExtensionCache(extensionName, restored ? (directOnly ? "direct hit" : "effective hit") : "compiled", start);
+            return true;
+        } catch (IOException e) {
+            if (directOnly && e.getMessage() != null && e.getMessage().contains("[-Werror,-Wdate-time]")) {
+                logExtensionCache(extensionName, "time-dependent source", start);
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private void logExtensionCache(String extension, String result, long start) {
+        long millis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        String message = String.format("Native extension cache: %s %s (%d ms)", extension, result, millis);
+        LOGGER.info(message);
+        processExecutor.putLog(message + "\n");
+    }
+
+    private record ExtensionProbe(String key, boolean outOfBudget) {}
+
+    private ExtensionProbe preprocessExtension(ExtensionCompileFingerprint.Keys keys) throws InterruptedException {
+        long timeout = extensionCompileCache.probeTimeoutMillis();
+        if (timeout <= 0) {
+            return new ExtensionProbe(null, true);
+        }
+        if (keys.probes().isEmpty()) {
+            return new ExtensionProbe(null, false);
+        }
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
+        List<Path> outputs = new ArrayList<>();
+        try {
+            List<Callable<Void>> probes = new ArrayList<>();
+            for (List<String> probe : keys.probes()) {
+                Path output = Files.createTempFile(buildState.buildDir.toPath(), "extension-preprocess-", ".i");
+                outputs.add(output);
+                probes.add(() -> {
+                    long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+                    if (remaining <= 0) {
+                        throw new TimeoutException("Extension preprocessing budget expired");
+                    }
+                    ProcessExecutor executor = new ProcessExecutor(processExecutor.getSandbox());
+                    executor.setCwd(buildState.jobDir);
+                    executor.putEnv(processExecutor.getEnv());
+                    executor.setPolicy(processExecutor.getPolicy());
+                    executor.setCommandTimeout(remaining);
+                    List<String> args = new ArrayList<>(probe);
+                    args.add("-Werror=date-time");
+                    args.add("-o");
+                    args.add(output.toAbsolutePath().toString());
+                    executor.execute(args);
+                    return null;
+                });
+            }
+            int parallelism = Math.min(probes.size(), Runtime.getRuntime().availableProcessors());
+            try (var pool = Executors.newFixedThreadPool(parallelism)) {
+                for (var future : pool.invokeAll(probes)) {
+                    future.get();
+                }
+            }
+            if (System.nanoTime() >= deadline) {
+                return new ExtensionProbe(null, true);
+            }
+            return new ExtensionProbe(extensionCompileFingerprint.effective(keys, outputs), false);
+        } catch (ExecutionException e) {
+            LOGGER.debug("Could not preprocess extension for semantic cache lookup", e);
+            Throwable cause = e.getCause();
+            return new ExtensionProbe(null, cause instanceof CommandTimeoutException || cause instanceof TimeoutException);
+        } catch (IOException e) {
+            LOGGER.debug("Could not preprocess extension for semantic cache lookup", e);
+            return new ExtensionProbe(null, false);
+        } finally {
+            for (Path output : outputs) {
+                FileUtils.deleteQuietly(output.toFile());
+            }
+        }
     }
 
     private List<File> buildExtensionInternal_CSharp(File manifest, Map<String, Object> manifestContext, File libraryOut) throws IOException, InterruptedException, ExtenderException {
