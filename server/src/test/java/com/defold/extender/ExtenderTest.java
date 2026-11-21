@@ -2,6 +2,7 @@ package com.defold.extender;
 
 import org.apache.commons.fileupload2.core.FileUploadException;
 import org.apache.commons.io.FileUtils;
+import com.samskivert.mustache.Mustache;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
@@ -864,6 +865,11 @@ public class ExtenderTest {
 
     static File setupJobFolder(String variant) throws IOException
     {
+        return setupJobFolder(variant, new HashMap<>());
+    }
+
+    static File setupJobFolder(String variant, Map<String, Object> extraContext) throws IOException
+    {
         File jobDir = Files.createTempDirectory(variant).toFile();
         jobDir.deleteOnExit();
         File uploadDir = new File(jobDir, "upload");
@@ -880,6 +886,7 @@ public class ExtenderTest {
         map.put("context", context);
         map.put("platforms", platforms);
         context.put(ExtenderBuildState.APPMANIFEST_BASE_VARIANT_KEYWORD, variant);
+        context.putAll(extraContext);
 
         writeYaml(new File(appDir, Extender.APPMANIFEST_FILENAME), map);
         return jobDir;
@@ -969,5 +976,92 @@ public class ExtenderTest {
 
         FileUtils.deleteQuietly(jobDir);
         assertTrue(true);
+    }
+
+    private static Map<String, Object> getMergedAppContext(File jobDir, String platform) throws IOException, InterruptedException, ExtenderException {
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+        Map<String, String> env = createEnv();
+        // The web platform env block in build.yml references the emscripten toolchain
+        // env variables, which are only defined in the emsdk docker image
+        for (String suffix : new String[] {"CACHE", "CONFIG", "PYTHON", "PATH", "HOME", "BIN"}) {
+            env.put("EMSCRIPTEN_" + suffix + "_3_1_65", "/opt/emsdk");
+        }
+        Extender extender = new Extender.Builder()
+                            .setPlatform(platform)
+                            .setSdk(sdk)
+                            .setJobDirectory(jobDir)
+                            .setUploadDirectory(new File(jobDir, "upload"))
+                            .setBuildDirectory(new File(jobDir, "build"))
+                            .setEnv(env)
+                            .build();
+        return extender.getMergedAppContext();
+    }
+
+    private static PlatformConfig getBuildYmlPlatform(String platform) throws IOException, ExtenderException {
+        File sdk = new File("test-data/sdk/a/defoldsdk");
+        Configuration config = Extender.loadYaml(sdk, new File(sdk, "extender/build.yml"), Configuration.class);
+        return config.platforms.get(platform);
+    }
+
+    // The link command of a platform, rendered with the context of a job with the given app manifest context
+    private static String getLinkCommand(String variant, Map<String, Object> manifestContext, String platform) throws IOException, InterruptedException, ExtenderException {
+        File jobDir = setupJobFolder(variant, manifestContext);
+        try {
+            Map<String, Object> context = getMergedAppContext(jobDir, platform);
+            return Mustache.compiler().defaultValue("").compile(getBuildYmlPlatform(platform).linkCmd).execute(context);
+        } finally {
+            FileUtils.deleteQuietly(jobDir);
+        }
+    }
+
+    // Debug builds requesting symbols, which is also the default of the server, link the wasm
+    // platforms with the debug info flags, after the optimization level, and return the sidecars.
+    @Test
+    public void testWithSymbolsLinkFlagsDebug() throws IOException, InterruptedException, ExtenderException {
+        for (String platform : new String[] {"wasm-web", "wasm_pthread-web"}) {
+            List<Map<String, Object>> manifestContexts = List.of(Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, true), Map.of());
+            for (Map<String, Object> manifestContext : manifestContexts) {
+                String command = getLinkCommand("debug", manifestContext, platform);
+                assertTrue(command.contains("-gseparate-dwarf -gsource-map -Wl,--build-id"), command);
+                assertTrue(command.contains("-O{{optLevel}}"), command);
+                assertTrue(command.indexOf("-gseparate-dwarf") > command.indexOf("-O{{optLevel}}"), command);
+            }
+            String symbolsPattern = getBuildYmlPlatform(platform).symbolsPattern;
+            assertTrue("dmengine.js.symbols".matches(symbolsPattern));
+            assertTrue("dmengine.wasm.debug.wasm".matches(symbolsPattern));
+            assertTrue("dmengine.wasm.map".matches(symbolsPattern));
+        }
+    }
+
+    // Clients request symbols by default, and the debug info flags disable JS minification and parts of
+    // the wasm optimization, so a release build must opt in through the app manifest to get them.
+    @Test
+    public void testWithSymbolsLinkFlagsRelease() throws IOException, InterruptedException, ExtenderException {
+        for (String platform : new String[] {"wasm-web", "wasm_pthread-web"}) {
+            String command = getLinkCommand("release", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, true), platform);
+            assertFalse(command.contains("-gseparate-dwarf"), command);
+            assertFalse(command.contains("-gsource-map"), command);
+
+            command = getLinkCommand("release", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, true,
+                                                       ExtenderBuildState.APPMANIFEST_RELEASE_DEBUG_INFO_KEYWORD, true), platform);
+            assertTrue(command.contains("-gseparate-dwarf -gsource-map -Wl,--build-id"), command);
+        }
+    }
+
+    // The debug info flags are left out when symbols are turned off, also with the release opt-in,
+    // and on platforms that don't define withSymbolsLinkFlags.
+    @Test
+    public void testWithSymbolsLinkFlagsNotApplied() throws IOException, InterruptedException, ExtenderException {
+        String command = getLinkCommand("debug", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, false), "wasm-web");
+        assertFalse(command.contains("-gseparate-dwarf"), command);
+
+        command = getLinkCommand("release", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, false,
+                                                   ExtenderBuildState.APPMANIFEST_RELEASE_DEBUG_INFO_KEYWORD, true), "wasm-web");
+        assertFalse(command.contains("-gseparate-dwarf"), command);
+
+        File jobDir = setupJobFolder("debug", Map.of(ExtenderBuildState.APPMANIFEST_WITH_SYMBOLS_KEYWORD, true));
+        List<String> linkFlags = (List<String>) getMergedAppContext(jobDir, "x86_64-linux").getOrDefault("linkFlags", new ArrayList<String>());
+        assertFalse(linkFlags.contains("-gseparate-dwarf"));
+        FileUtils.deleteQuietly(jobDir);
     }
 }

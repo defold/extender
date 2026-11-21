@@ -321,6 +321,24 @@ public class ExtensionManifestValidatorTest {
         }
     }
 
+    // releaseDebugInfo is read as a Boolean, so another type must fail validation instead of a cast
+    @Test
+    public void testValidateAppManifestContextReleaseDebugInfo() {
+        List<String> empty = new ArrayList<>();
+        ExtensionManifestValidator validator = new ExtensionManifestValidator(new WhitelistConfig(), empty, empty);
+
+        Map<String, Object> valid = new HashMap<>();
+        valid.put("releaseDebugInfo", true);
+        assertDoesNotThrow(() -> validator.validateAppManifestContext(valid));
+
+        Map<String, Object> invalid = new HashMap<>();
+        invalid.put("releaseDebugInfo", "true");
+        ExtenderException exc = assertThrows(ExtenderException.class,
+                () -> validator.validateAppManifestContext(invalid));
+        assertTrue(exc.getMessage().contains("releaseDebugInfo"),
+                "message should mention releaseDebugInfo, got: " + exc.getMessage());
+    }
+
     @Test
     public void testValidateAppManifestContextDebugSourcePath() throws ExtenderException {
         List<String> empty = new ArrayList<>();
