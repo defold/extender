@@ -2,7 +2,9 @@ package com.defold.extender.services.cocoapods;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -20,7 +22,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderException;
+import com.defold.extender.process.CommandFailedException;
 import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.SandboxConfiguration;
 
@@ -195,5 +199,27 @@ public class CocoaPodsServiceTest {
         } finally {
             ProcessSandbox.install(ProcessSandbox.disabled());
         }
+    }
+
+    private static ExtenderException podInstallExit(int exitCode) {
+        return new ExtenderException(new CommandFailedException(exitCode, "pod install failed"), "[!] pod install output");
+    }
+
+    @Test
+    public void unsatisfiableVersionIsABuildFailure() {
+        ExtenderException failure = CocoaPodsService.podInstallFailure(
+            podInstallExit(CocoaPodsService.POD_NO_SPEC_FOUND_EXIT_CODE));
+
+        assertInstanceOf(BuildFailedException.class, failure);
+        assertEquals("[!] pod install output", failure.getOutput());
+    }
+
+    @Test
+    public void otherPodInstallFailuresStayServerErrors() {
+        // CocoaPods exits with 1 for an unknown pod and for an unreachable CDN alike
+        ExtenderException generic = podInstallExit(1);
+        assertSame(generic, CocoaPodsService.podInstallFailure(generic));
+        ExtenderException notStarted = new ExtenderException(new IOException("Cannot start pod"), "");
+        assertSame(notStarted, CocoaPodsService.podInstallFailure(notStarted));
     }
 }

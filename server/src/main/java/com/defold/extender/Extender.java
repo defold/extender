@@ -56,6 +56,7 @@ import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.LogSanitizer;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.CommandFailedException;
 import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessUtils;
 import com.defold.extender.progress.BuildStage;
@@ -202,7 +203,7 @@ class Extender {
         Collection<File> allFiles = FileUtils.listFiles(builder.uploadDirectory, null, true);
         List<File> appManifests = allFiles.stream().filter(f -> f.getName().equals(APPMANIFEST_FILENAME)).collect(Collectors.toList());
         if (appManifests.size() > 1 ) {
-            throw new ExtenderException("Only one app.manifest allowed!");
+            throw new BuildFailedException("Only one app.manifest allowed!");
         }
 
         AppManifestConfiguration appManifest = null;
@@ -232,7 +233,7 @@ class Extender {
                 File baseVariantFile = new File(builder.sdk.getPath() + "/extender/variants/" + baseVariant + ".appmanifest");
 
                 if (!baseVariantFile.exists()) {
-                    throw new ExtenderException("Base variant " + baseVariant + " not found!");
+                    throw new BuildFailedException("Base variant " + baseVariant + " not found!");
                 }
                 LOGGER.info("Using base variant: " + baseVariant);
 
@@ -240,7 +241,7 @@ class Extender {
             }
         }
         if (config.platforms.get(builder.platform) == null) {
-            throw new ExtenderException(String.format("Unsupported platform %s by this sdk", builder.platform));
+            throw new BuildFailedException(String.format("Unsupported platform %s by this sdk", builder.platform));
         }
 
         // Merge the platform configs from build.yml into a single instance: common -> platform -> arch-platform
@@ -377,10 +378,17 @@ class Extender {
                 throw new ExtenderException(processExecutor.getOutput());
             }
         } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+            throw commandFailure(e);
         }
 
         return processExecutor.getOutput();
+    }
+
+    private ExtenderException commandFailure(Exception e) {
+        if (e instanceof CommandFailedException failure && failure.isToolError()) {
+            return new BuildFailedException(e, processExecutor.getOutput());
+        }
+        return new ExtenderException(e, processExecutor.getOutput());
     }
 
     private static int countLines(String str) {
@@ -393,13 +401,13 @@ class Extender {
 
         if (yaml.contains("\t")) {
             int numLines = 1 + countLines(yaml.substring(0, yaml.indexOf("\t")));
-            throw new ExtenderException(String.format("%s:%d: error: Manifest files are YAML files and cannot contain tabs. Indentation should be done with spaces.", ExtenderUtil.getRelativePath(root, manifest), numLines));
+            throw new BuildFailedException(String.format("%s:%d: error: Manifest files are YAML files and cannot contain tabs. Indentation should be done with spaces.", ExtenderUtil.getRelativePath(root, manifest), numLines));
         }
 
         try {
             return new Yaml(new ExtenderYamlSafeConstructor(new LoaderOptions())).loadAs(yaml, type);
         } catch(YAMLException e) {
-            throw new ExtenderException(String.format("%s:1: error: %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
+            throw new BuildFailedException(String.format("%s:1: error: %s", ExtenderUtil.getRelativePath(root, manifest), e.toString()));
         }
     }
 
@@ -416,7 +424,7 @@ class Extender {
                     v = templateExecutor.execute((List<String>) v, context);
                 }
             } catch (Exception e) {
-                LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute key %s", k));
+                LOGGER.error(Markers.SERVER_ERROR, String.format("Failed to substitute key %s", k));
                 throw e;
             }
             context.put(k, v);
@@ -800,7 +808,7 @@ class Extender {
         else if (language.equals("python"))
             suffix = "_pb2.py";
         else
-            throw new ExtenderException("Proto output doesn't support language: " + language);
+            throw new BuildFailedException("Proto output doesn't support language: " + language);
 
         for (File protoFile : protoFiles) {
 
@@ -844,14 +852,14 @@ class Extender {
         if (platformConfig.swiftSourceRe == null || platformConfig.compileSwiftModuleCmd == null) {
             if (!swiftFiles.isEmpty() || !misplaced.isEmpty()) {
                 File first = !swiftFiles.isEmpty() ? swiftFiles.get(0) : misplaced.get(0);
-                throw new ExtenderException(String.format("%s:1: error: Swift sources are not supported by this Defold SDK version, use a newer Defold version",
+                throw new BuildFailedException(String.format("%s:1: error: Swift sources are not supported by this Defold SDK version, use a newer Defold version",
                     ExtenderUtil.getRelativePath(buildState.uploadDir, first)));
             }
             return swiftFiles;
         }
 
         if (!misplaced.isEmpty()) {
-            throw new ExtenderException(String.format("%s:1: error: Swift sources are only supported in the '%s' folder: %s",
+            throw new BuildFailedException(String.format("%s:1: error: Swift sources are only supported in the '%s' folder: %s",
                 ExtenderUtil.getRelativePath(buildState.uploadDir, manifest), FOLDER_ENGINE_SRC, ExtenderUtil.getRelativePath(buildState.uploadDir, misplaced.get(0))));
         }
         return swiftFiles;
@@ -944,7 +952,7 @@ class Extender {
             }
 
             if (o == null) {
-                throw new ExtenderException(String.format("Source file '%s' didn't match a source builder.", src));
+                throw new BuildFailedException(String.format("Source file '%s' didn't match a source builder.", src));
             }
             objs.add(ExtenderUtil.getRelativePath(buildState.jobDir, o));
         }
@@ -1325,7 +1333,7 @@ class Extender {
 
         if (libraryOut != null) {
             // TODO: Allow to set the actual output artifact path or name (i.e. libCpp.getAbsolutePath())
-            throw new ExtenderException(String.format("%s:1: error: We currently don't support merging or building two library files at the same time!", ExtenderUtil.getRelativePath(buildState.uploadDir, manifest)));
+            throw new BuildFailedException(String.format("%s:1: error: We currently don't support merging or building two library files at the same time!", ExtenderUtil.getRelativePath(buildState.uploadDir, manifest)));
         }
 
         // Create static library
@@ -1390,7 +1398,7 @@ class Extender {
         List<File> protoFiles = ExtenderUtil.listFiles(srcDirs, ExtenderConst.PROTO_RE);
         List<File> generated = generateProtoCxxForEngine(extDir, manifestContext, protoFiles);
         if (!protoFiles.isEmpty() && generated.isEmpty()) {
-            throw new ExtenderException(String.format("%s:1: error: Protofiles didn't generate any output engine cpp files!", ExtenderUtil.getRelativePath(buildState.uploadDir, protoFiles.get(0)) ));
+            throw new BuildFailedException(String.format("%s:1: error: Protofiles didn't generate any output engine cpp files!", ExtenderUtil.getRelativePath(buildState.uploadDir, protoFiles.get(0)) ));
         }
         srcFiles.addAll(generated);
 
@@ -1403,7 +1411,7 @@ class Extender {
         List<File> swiftFiles = collectSwiftSourceFiles(manifest, extDir, srcDirs);
 
         if (srcFiles.isEmpty() && srcCSFiles.isEmpty() && swiftFiles.isEmpty()) {
-            throw new ExtenderException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(buildState.uploadDir, manifest) ));
+            throw new BuildFailedException(String.format("%s:1: error: Extension has no source!", ExtenderUtil.getRelativePath(buildState.uploadDir, manifest) ));
         }
 
         List<File> outputFiles = new ArrayList<>();
@@ -2257,7 +2265,7 @@ class Extender {
         Set<String> manifestPlatforms = new HashSet<>(manifestConfig.platforms.keySet());
         manifestPlatforms.removeAll(Arrays.asList(ALLOWED_MANIFEST_PLATFORMS));
         if (!manifestPlatforms.isEmpty()) {
-            throw new ExtenderException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), Arrays.toString(ALLOWED_MANIFEST_PLATFORMS)));
+            throw new BuildFailedException(String.format("Extension %s contains invalid platform(s): %s. Allowed platforms: %s", manifestConfig.name, manifestPlatforms.toString(), Arrays.toString(ALLOWED_MANIFEST_PLATFORMS)));
         }
     }
 
@@ -2354,7 +2362,7 @@ class Extender {
             LOGGER.info("Creating .res file");
             processExecutor.execute(command);
         } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+            throw commandFailure(e);
         }
 
         return resourceFile;
@@ -2384,7 +2392,7 @@ class Extender {
             ManifestConfiguration manifestConfig = Extender.loadYaml(buildState.jobDir, manifest, ManifestConfiguration.class);
 
             if (manifestConfig == null) {
-                throw new ExtenderException("Missing manifest file: " + manifest.getAbsolutePath());
+                throw new BuildFailedException("Missing manifest file: " + manifest.getAbsolutePath());
             }
             SandboxedPath.validateName(manifestConfig.name);
             validateManifestPlatforms(manifestConfig);
@@ -2514,7 +2522,7 @@ class Extender {
             metricsWriter.measureBuildTarget("library");
             return outputFiles;
         } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+            throw commandFailure(e);
         }
     }
 
@@ -2573,7 +2581,7 @@ class Extender {
             metricsWriter.measureBuildTarget("engine");
             return outputFiles;
         } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+            throw commandFailure(e);
         }
     }
 
@@ -2593,7 +2601,7 @@ class Extender {
             return new ArrayList<>();
         }
         if (platformConfig.writeShLibPattern == null) {
-            throw new ExtenderException("Trying to build plugins with an old sdk");
+            throw new BuildFailedException("Trying to build plugins with an old sdk");
         }
 
         LOGGER.info("Building pipeline plugin for platform {} with extension source {}", buildState.fullPlatform, buildState.uploadDir);
@@ -2612,7 +2620,7 @@ class Extender {
             metricsWriter.measureBuildTarget("plugins");
             return output;
         } catch (IOException | InterruptedException e) {
-            throw new ExtenderException(e, processExecutor.getOutput());
+            throw commandFailure(e);
         }
     }
 

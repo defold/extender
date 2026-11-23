@@ -31,7 +31,7 @@ public class TemplateExecutor {
         try {
             return executeWithoutLogging(template, context);
         } catch (Exception e) {
-            LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string '%s'", LogSanitizer.sanitize(template)));
+            LOGGER.error(Markers.SERVER_ERROR, String.format("Failed to substitute string '%s'", LogSanitizer.sanitize(template)));
             ExtenderUtil.debugPrint(context, 0);
             throw e;
         }
@@ -43,7 +43,7 @@ public class TemplateExecutor {
             try {
                 out.add(this.execute(template, context));
             } catch (Exception e) {
-                LOGGER.error(Markers.COMPILATION_ERROR, String.format("Failed to substitute string in list [..., '%s', ...]", LogSanitizer.sanitize(template)));
+                LOGGER.error(Markers.SERVER_ERROR, String.format("Failed to substitute string in list [..., '%s', ...]", LogSanitizer.sanitize(template)));
                 ExtenderUtil.debugPrint(context, 0);
                 throw e;
            }

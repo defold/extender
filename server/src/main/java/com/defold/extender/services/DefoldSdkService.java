@@ -1,5 +1,6 @@
 package com.defold.extender.services;
 
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.ZipUtils;
@@ -45,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
@@ -147,7 +149,7 @@ public class DefoldSdkService {
         CompletableFuture<DefoldSdk> operation = operationCache.computeIfAbsent(cacheId, id -> getRemoteSdk(id, hash, sdkUrls));
         try (DefoldSdk sdk = operation.get()){
             if (sdk == null) {
-                throw new ExtenderException(String.format("The given sdk does not exist: %s", hash));
+                throw new BuildFailedException(String.format("The given sdk does not exist: %s", hash));
             }
             if (!sdk.isValid()) {
                 throw new ExtenderException(String.format("Sdk verification failed: %s", hash));
@@ -177,14 +179,18 @@ public class DefoldSdkService {
                 isVerified = true;
             } else  {
                 boolean sdkFound = false;
+                // only a definitive "not found" from every source means the client asked for an unknown sdk
+                boolean sdkMissing = true;
                 String url = null;
                 for (String urlPattern : urlPatterns) {
                     try {
                         url = String.format(urlPattern, hash);
                         URI sdkURI = URI.create(url);
                         try (ClientHttpResponse response = doRequestWithRedirects(sdkURI, HttpMethod.HEAD, configuration.getMaxRedirectCount())) {
-                            if (response.getStatusCode() != HttpStatus.OK) {
-                                LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
+                            HttpStatusCode status = response.getStatusCode();
+                            if (status != HttpStatus.OK) {
+                                sdkMissing &= status == HttpStatus.NOT_FOUND || status == HttpStatus.FORBIDDEN;
+                                LOGGER.info("The given sdk does not exist: {} {}", url, status.toString());
                                 continue;
                             } else {
                                 // mark sdk as found for download
@@ -192,9 +198,11 @@ public class DefoldSdkService {
                                 break;
                             }
                         } catch (IOException exc) {
+                            sdkMissing = false;
                             LOGGER.warn(String.format("HEAD for %s failed", url), exc);
                         }
                     }  catch (Exception exc) {
+                        sdkMissing = false;
                         LOGGER.warn("Can't create HEAD request", exc);
                     }
                 }
@@ -278,6 +286,9 @@ public class DefoldSdkService {
                     }
                 } else {
                     sdk.close();
+                    if (!sdkMissing) {
+                        throw new CompletionException(new IOException("No sdk source is reachable for " + hash));
+                    }
                     return null;
                 }
 

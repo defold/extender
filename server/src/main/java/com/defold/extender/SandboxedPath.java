@@ -29,13 +29,13 @@ public final class SandboxedPath {
      */
     public static File resolve(File root, String childPath) throws ExtenderException {
         if (childPath == null || childPath.isEmpty()) {
-            throw new ExtenderException("Path must not be null or empty");
+            throw new BuildFailedException("Path must not be null or empty");
         }
 
         // Reject absolute paths
         Path childAsPath = Path.of(childPath);
         if (childAsPath.isAbsolute()) {
-            throw new ExtenderException(
+            throw new BuildFailedException(
                 String.format("Absolute paths are not allowed: '%s'", childPath));
         }
 
@@ -45,7 +45,7 @@ public final class SandboxedPath {
 
         // Verify the normalized path is within the root
         if (!resolved.startsWith(rootPath)) {
-            throw new ExtenderException(
+            throw new BuildFailedException(
                 String.format("Path traversal detected: '%s' escapes root directory", childPath));
         }
 
@@ -67,7 +67,7 @@ public final class SandboxedPath {
         Path targetPath = target.toPath().toAbsolutePath().normalize();
 
         if (!targetPath.startsWith(rootPath)) {
-            throw new ExtenderException(
+            throw new BuildFailedException(
                 String.format("Path '%s' is outside the allowed directory '%s'", target.getPath(), root.getPath()));
         }
 
@@ -93,11 +93,11 @@ public final class SandboxedPath {
         }
         try {
             if (!existing.toRealPath().startsWith(existingRoot.toRealPath())) {
-                throw new ExtenderException(
+                throw new BuildFailedException(
                     String.format("Symlink escape detected: '%s' resolves outside '%s'", name, root.getPath()));
             }
         } catch (IOException e) {
-            throw new ExtenderException(
+            throw new ExtenderException(e,
                 String.format("Failed to resolve real path for '%s': %s", name, e.getMessage()));
         }
     }
@@ -113,10 +113,10 @@ public final class SandboxedPath {
      */
     public static String validateName(String name) throws ExtenderException {
         if (name == null || name.isEmpty()) {
-            throw new ExtenderException("Name must not be null or empty");
+            throw new BuildFailedException("Name must not be null or empty");
         }
         if (!NAME_RE.matcher(name).matches()) {
-            throw new ExtenderException(
+            throw new BuildFailedException(
                 String.format("Invalid name '%s': must start with a letter, contain only [a-zA-Z0-9_-], and be at most 128 characters", name));
         }
         return name;

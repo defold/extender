@@ -1,8 +1,10 @@
 package com.defold.extender.services;
 
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.TemplateExecutor;
+import com.defold.extender.process.CommandFailedException;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.json.simple.JSONArray;
@@ -13,6 +15,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,8 +26,10 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -92,8 +97,60 @@ public class RealGradleServiceTest {
                         "--stacktrace",
                         "--warning-mode",
                         "all",
-                        "--no-daemon"),
-                RealGradleService.getGradleResolveCommand());
+                        "--no-daemon",
+                        "--init-script",
+                        "/job/gradle-failure-report.gradle",
+                        "-PextenderFailureReport=/job/build/gradle-failures.json"),
+                RealGradleService.getGradleResolveCommand(
+                        new File("/job/gradle-failure-report.gradle"),
+                        new File("/job/build/gradle-failures.json")));
+    }
+
+    @Test
+    public void testFailuresAreReportedByType() throws Exception {
+        String template = readResource("/template.build.gradle");
+        assertTrue(template.contains("it instanceof UnresolvedDependencyResult"));
+        assertTrue(template.contains("gradle.ext.extenderReportFailures.call("));
+
+        String initScript = readResource("/" + RealGradleService.FAILURE_REPORT_SCRIPT_FILENAME);
+        assertTrue(initScript.contains("gradle.ext.extenderReportFailures ="));
+        assertTrue(initScript.contains("gradle.afterProject"));
+        assertTrue(initScript.contains("projectProperties['extenderFailureReport']"));
+    }
+
+    private static ExtenderException gradleFailure(int exitCode) {
+        return new ExtenderException(new CommandFailedException(exitCode, "gradle failed"), "Could not resolve all files");
+    }
+
+    private static File report(Path dir, String type) throws Exception {
+        return Files.writeString(dir.resolve(RealGradleService.FAILURE_REPORT_FILENAME),
+                "[{\"subject\":\"com.example:lib:1.0\",\"types\":[\"" + type + "\"]}]").toFile();
+    }
+
+    @Test
+    public void testFailureBlamedOnTheProjectIsABuildFailure(@TempDir Path dir) throws Exception {
+        ExtenderException failure = RealGradleService.classifyFailure(gradleFailure(1),
+                report(dir, "org.gradle.internal.resolve.ModuleVersionNotFoundException"));
+
+        assertInstanceOf(BuildFailedException.class, failure);
+        assertEquals("Could not resolve all files", failure.getOutput());
+    }
+
+    @Test
+    public void testOtherFailuresStayServerErrors(@TempDir Path dir) throws Exception {
+        File missingReport = new File(dir.toFile(), RealGradleService.FAILURE_REPORT_FILENAME);
+        ExtenderException withoutReport = gradleFailure(1);
+        assertSame(withoutReport, RealGradleService.classifyFailure(withoutReport, missingReport));
+
+        File outage = report(dir, "org.gradle.api.resources.ResourceException");
+        ExtenderException repositoryDown = gradleFailure(1);
+        assertSame(repositoryDown, RealGradleService.classifyFailure(repositoryDown, outage));
+
+        File notFound = report(dir, "org.gradle.internal.resolve.ModuleVersionNotFoundException");
+        ExtenderException killed = gradleFailure(137);
+        assertSame(killed, RealGradleService.classifyFailure(killed, notFound));
+        ExtenderException notStarted = new ExtenderException(new IOException("Cannot start gradle"), "");
+        assertSame(notStarted, RealGradleService.classifyFailure(notStarted, notFound));
     }
 
     // Verifies that artifact-manifest parsing preserves canonical Gradle cache paths, metadata, ordering, and de-duplicates entries.
@@ -200,6 +257,7 @@ public class RealGradleServiceTest {
                         "}\n").getBytes(StandardCharsets.UTF_8)),
                 new ClassPathResource("template.gradle.properties"),
                 new ClassPathResource("template.local.properties"),
+                new ClassPathResource(RealGradleService.FAILURE_REPORT_SCRIPT_FILENAME),
                 new SimpleMeterRegistry());
         List<File> outputFiles = new ArrayList<>();
 

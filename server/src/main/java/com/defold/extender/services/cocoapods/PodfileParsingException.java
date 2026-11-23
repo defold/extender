@@ -1,8 +1,8 @@
 package com.defold.extender.services.cocoapods;
 
-import com.defold.extender.ExtenderException;
+import com.defold.extender.BuildFailedException;
 
-public class PodfileParsingException extends ExtenderException {
+public class PodfileParsingException extends BuildFailedException {
     public PodfileParsingException(String reason) {
         super(reason);
     }

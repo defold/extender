@@ -1,5 +1,6 @@
 package com.defold.extender.services;
 
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.services.data.DefoldSdk;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -130,6 +132,10 @@ public class DefoldSDKServiceTest {
         stubFor(get(urlEqualTo("/test_sdk_no_checksum.sha256"))
                 .willReturn(aResponse()
                         .withStatus(404)));
+
+        stubFor(head(urlEqualTo("/test_sdk_unavailable.zip"))
+                .willReturn(aResponse()
+                        .withStatus(503)));
 
         stubFor(get(urlEqualTo("/platform_sdk_mapping.json"))
                 .willReturn(aResponse()
@@ -401,6 +407,41 @@ public class DefoldSDKServiceTest {
         } finally {
             FileUtils.deleteDirectory(tmpLocation.toFile());
         }
+    }
+
+    private static ExtenderException getSdkFailure(String urlPattern, String hash) throws IOException {
+        Path tmpLocation = Files.createTempDirectory("defoldsdk_missing_test");
+        try {
+            DefoldSdkServiceConfiguration conf = DefoldSdkServiceConfiguration.builder()
+                .location(tmpLocation)
+                .cacheSize(0)
+                .sdkUrls(Map.of(DefoldSdkServiceConfiguration.DEFAULT_URL_KEY, List.of(urlPattern)))
+                .enableSdkVerification(false)
+                .maxVerificationRetryCount(3)
+                .build();
+            DefoldSdkService sdkService = new DefoldSdkService(conf, new SimpleMeterRegistry());
+            return assertThrows(ExtenderException.class, () -> sdkService.getSdk(hash, PLATFORM));
+        } finally {
+            FileUtils.deleteDirectory(tmpLocation.toFile());
+        }
+    }
+
+    @Test
+    public void unknownSdkIsABuildFailure() throws IOException {
+        ExtenderException exc = getSdkFailure("http://localhost:" + serverPort + "/%s.zip", "test_sdk_unknown");
+        assertInstanceOf(BuildFailedException.class, exc);
+    }
+
+    @Test
+    public void unavailableSdkServerIsNotABuildFailure() throws IOException {
+        ExtenderException exc = getSdkFailure("http://localhost:" + serverPort + "/%s.zip", "test_sdk_unavailable");
+        assertFalse(exc instanceof BuildFailedException);
+    }
+
+    @Test
+    public void unreachableSdkServerIsNotABuildFailure() throws IOException {
+        ExtenderException exc = getSdkFailure("http://localhost:1/%s.zip", "test_sdk");
+        assertFalse(exc instanceof BuildFailedException);
     }
 
     @Test

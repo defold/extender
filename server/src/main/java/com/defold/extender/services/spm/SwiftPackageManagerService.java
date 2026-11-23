@@ -5,6 +5,11 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -13,6 +18,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -28,6 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -41,12 +48,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.defold.extender.process.JobFiles;
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderBuildState;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.CommandFailedException;
 import com.defold.extender.process.CommandTimeoutException;
 import com.defold.extender.process.ProcessLaunchException;
 import com.defold.extender.process.ProcessExecutor;
@@ -114,6 +123,23 @@ public class SwiftPackageManagerService {
     // SwiftPM verifies a cached archive against the manifest's checksum; a mismatch means the
     // publisher replaced the archive behind its URL (or the cache entry was tampered with)
     static final String CHECKSUM_MISMATCH_MARKER = "does not match checksum specified by the manifest";
+    // curl's --write-out line after a transfer: the last HTTP status, 000 when none arrived
+    static final String HTTP_STATUS_PREFIX = "extender-http-status:";
+    private static final String HTTP_STATUS_WRITE_OUT = "\n" + HTTP_STATUS_PREFIX + "%{http_code}\n";
+    // answers for a URL that serves nothing to an anonymous client: mistyped, removed or private.
+    // 403 is left out, forges answer rate limited clients with it as well
+    private static final Set<Integer> MISSING_RESOURCE_STATUSES = Set.of(401, 404, 410);
+    // xcodebuild's exits for the project (sysexits): 65 a build that failed, 74 a package graph
+    // that did not resolve
+    static final Set<Integer> XCODEBUILD_PROJECT_FAILURES = Set.of(65, 74);
+    // CURLE_FILESIZE_EXCEEDED: the archive is larger than --max-filesize
+    static final int CURL_FILE_TOO_LARGE = 63;
+    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(30);
+    // a redirect from https to http is not followed
+    private static final HttpClient PROBE_CLIENT = HttpClient.newBuilder()
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .connectTimeout(PROBE_TIMEOUT)
+        .build();
 
     private final Object syncLock = new Object();
     // one git or curl process at a time per mirror or archive; concurrent jobs wanting the same
@@ -828,10 +854,13 @@ public class SwiftPackageManagerService {
         }
     }
 
-    // the message is what the client gets; the cause-carrying constructor would report the
-    // IOException the executor raised and drop both the output and the hint
-    private static ExtenderException buildFailure(String output) {
-        return new ExtenderException("Swift package build failed:\n" + output + offlineBuildHint(output));
+    // The rounds run with network denied against mirrors of every repository named so far, so a
+    // round that failed on the project (XCODEBUILD_PROJECT_FAILURES) without naming anything new
+    // fails on the graph or the code in it. The message is what the client gets; the
+    // cause-carrying constructor would report the IOException the executor raised and drop both
+    // the output and the hint
+    private static BuildFailedException buildFailure(String output) {
+        return new BuildFailedException("Swift package build failed:\n" + output + offlineBuildHint(output));
     }
 
     /**
@@ -857,27 +886,104 @@ public class SwiftPackageManagerService {
             Map<String, String> processEnv, boolean forceRefresh) throws IOException, ExtenderException {
         // the marker is missing for a mirror written before it existed, which just fetches once
         File marker = new File(mirrorsDir, mirror.getName() + FETCH_MARKER_SUFFIX);
-        String failure;
+        PrefetchResult result;
         if (!mirror.isDirectory()) {
             LOGGER.info("Mirroring {} into {}", repo.fetchUrl, mirror.getName());
-            failure = runGit(List.of("git", "clone", "--mirror", "--quiet", repo.fetchUrl, mirror.getAbsolutePath()),
+            result = runGit(List.of("git", "clone", "--mirror", "--quiet", repo.fetchUrl, mirror.getAbsolutePath()),
                 mirrorsDir, buildState, processEnv);
-            if (failure != null) {
+            if (result.failed()) {
                 // a half-written clone would be mistaken for a mirror next time
                 FileUtils.deleteQuietly(mirror);
             }
         } else if (forceRefresh || System.currentTimeMillis() - marker.lastModified() > mirrorRefreshIntervalMillis) {
             LOGGER.info("Updating mirror {} for {}", mirror.getName(), repo.fetchUrl);
-            failure = runGit(List.of("git", "-C", mirror.getAbsolutePath(), "fetch", "--quiet", "--prune", "origin"),
+            result = runGit(List.of("git", "-C", mirror.getAbsolutePath(), "fetch", "--quiet", "--prune", "origin"),
                 mirrorsDir, buildState, processEnv);
         } else {
             LOGGER.info("Mirror {} for {} is up to date", mirror.getName(), repo.fetchUrl);
             return;
         }
-        if (failure != null) {
-            throw new ExtenderException("Fetching Swift package " + repo.fetchUrl + " failed:\n" + failure);
+        if (result.failed()) {
+            String message = "Fetching Swift package " + repo.fetchUrl + " failed:\n" + result.output();
+            if (repositoryIsMissing(repo.fetchUrl)) {
+                throw new BuildFailedException(message);
+            }
+            throw new ExtenderException(message);
         }
         touchFetchMarker(marker);
+    }
+
+    /**
+     * Asks the forge whether a repository git could not fetch exists at all: git exits with 128
+     * both when the repository is missing and when the forge cannot be reached, the status of its
+     * smart HTTP endpoint tells the two apart. This is the first request git sent, so the probe
+     * reaches nothing git could not.
+     */
+    static boolean repositoryIsMissing(String repositoryUrl) {
+        URI uri;
+        try {
+            uri = URI.create(infoRefsUrl(repositoryUrl));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (!"https".equalsIgnoreCase(uri.getScheme())) {
+            return false;
+        }
+        HttpRequest request = HttpRequest.newBuilder(uri)
+            .timeout(PROBE_TIMEOUT)
+            // protocol v2 answers with its capabilities only instead of every ref of the repository
+            .header("Git-Protocol", "version=2")
+            .GET()
+            .build();
+        try {
+            HttpResponse<InputStream> response = PROBE_CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            // the status is all the probe needs, closing the body leaves the rest unread
+            response.body().close();
+            LOGGER.info("{} answers HTTP {}", repositoryUrl, response.statusCode());
+            return MISSING_RESOURCE_STATUSES.contains(response.statusCode());
+        } catch (IOException e) {
+            LOGGER.info("Probing {} failed: {}", repositoryUrl, e.toString());
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    static String infoRefsUrl(String repositoryUrl) {
+        String base = repositoryUrl.endsWith("/") ? repositoryUrl.substring(0, repositoryUrl.length() - 1) : repositoryUrl;
+        return base + "/info/refs?service=git-upload-pack";
+    }
+
+    /** The status curl's --write-out reported, -1 when there is none. */
+    static int httpStatus(String output) {
+        int at = output == null ? -1 : output.lastIndexOf(HTTP_STATUS_PREFIX);
+        if (at < 0) {
+            return -1;
+        }
+        int start = at + HTTP_STATUS_PREFIX.length();
+        int end = start;
+        while (end < output.length() && Character.isDigit(output.charAt(end))) {
+            end++;
+        }
+        return end > start ? Integer.parseInt(output.substring(start, end)) : -1;
+    }
+
+    static String withoutHttpStatus(String output) {
+        return output.lines()
+            .filter(line -> !line.startsWith(HTTP_STATUS_PREFIX))
+            .collect(Collectors.joining("\n"))
+            .strip();
+    }
+
+    /**
+     * Whether a failed archive download is the manifest's doing: its URL serves nothing, or the
+     * archive is too large. Decided on the HTTP status rather than the exit code, which curl does
+     * not keep at 22 for an HTTP error (an HTTP/2 404 exits with 56).
+     */
+    static boolean archiveIsUnavailable(PrefetchResult download) {
+        return download.exitCode() == CURL_FILE_TOO_LARGE
+            || MISSING_RESOURCE_STATUSES.contains(httpStatus(download.output()));
     }
 
     private static void touchFetchMarker(File marker) {
@@ -928,19 +1034,24 @@ public class SwiftPackageManagerService {
             "--max-time", Long.toString(Math.max(1, artifactDownloadTimeoutMillis / 1000)),
             // only honoured when the server declares a length; the size is checked again below
             "--max-filesize", Long.toString(maxArtifactSizeBytes),
+            "--write-out", HTTP_STATUS_WRITE_OUT,
             "--output", part.getAbsolutePath(), artifact.url);
         try {
-            String failure = runPrefetchCommand(args, artifactPrefetchPolicy(artifactsDir), Map.of(), buildState, processEnv);
-            if (failure != null) {
-                throw new ExtenderException("Fetching the archive of Swift binary target " + artifact.targetName
-                    + " from " + artifact.url + " failed:\n" + failure);
+            PrefetchResult download = runPrefetchCommand(args, artifactPrefetchPolicy(artifactsDir), Map.of(), buildState, processEnv);
+            if (download.failed()) {
+                String message = "Fetching the archive of Swift binary target " + artifact.targetName
+                    + " from " + artifact.url + " failed:\n" + withoutHttpStatus(download.output());
+                if (archiveIsUnavailable(download)) {
+                    throw new BuildFailedException(message);
+                }
+                throw new ExtenderException(message);
             }
             if (!part.isFile()) {
                 throw new ExtenderException("Fetching the archive of Swift binary target " + artifact.targetName
                     + " from " + artifact.url + " produced no file");
             }
             if (part.length() > maxArtifactSizeBytes) {
-                throw new ExtenderException(String.format("The archive of Swift binary target %s (%s) is larger than %d bytes",
+                throw new BuildFailedException(String.format("The archive of Swift binary target %s (%s) is larger than %d bytes",
                     artifact.targetName, artifact.url, maxArtifactSizeBytes));
             }
             Files.move(part.toPath(), archive.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
@@ -960,18 +1071,22 @@ public class SwiftPackageManagerService {
                 .withMachServices(List.of("com.apple.SystemConfiguration.configd"));
     }
 
-    /**
-     * Runs git under the pre-fetch policy. Returns null on exit 0, otherwise the command's
-     * output (the executor raises on a non-zero exit); a launch failure still propagates.
-     */
-    private String runGit(List<String> args, File mirrorsDir, SpmServiceBuildState buildState,
+    /** How a pre-fetch command ended: its exit code (-1 when it did not exit on its own) and its output. */
+    record PrefetchResult(int exitCode, String output) {
+        boolean failed() {
+            return exitCode != 0;
+        }
+    }
+
+    /** Runs git under the pre-fetch policy; a launch failure propagates. */
+    private PrefetchResult runGit(List<String> args, File mirrorsDir, SpmServiceBuildState buildState,
             Map<String, String> processEnv) throws IOException {
         // https only: a redirect to ssh://, git:// or a local path is refused by git itself
         return runPrefetchCommand(args, gitPrefetchPolicy(mirrorsDir), Map.of("GIT_ALLOW_PROTOCOL", "https"),
             buildState, processEnv);
     }
 
-    private String runPrefetchCommand(List<String> args, SandboxPolicy policy, Map<String, String> extraEnv,
+    private PrefetchResult runPrefetchCommand(List<String> args, SandboxPolicy policy, Map<String, String> extraEnv,
             SpmServiceBuildState buildState, Map<String, String> processEnv) throws IOException {
         ProcessExecutor processExecutor = new ProcessExecutor();
         processExecutor.setCwd(buildState.getWrapperDir());
@@ -980,14 +1095,14 @@ public class SwiftPackageManagerService {
         processExecutor.setPolicy(policy);
         try {
             processExecutor.execute(args);
-            return null;
+            return new PrefetchResult(0, processExecutor.getOutput());
         } catch (ProcessLaunchException e) {
             // nothing ran at all (launcher or tool missing): not a failure of the command
             throw e;
         } catch (IOException e) {
             String output = processExecutor.getOutput();
             LOGGER.info("{} failed:\n{}", String.join(" ", args), output.strip());
-            return output;
+            return new PrefetchResult(e instanceof CommandFailedException failure ? failure.getExitCode() : -1, output);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while running " + String.join(" ", args), e);
@@ -1048,7 +1163,8 @@ public class SwiftPackageManagerService {
 
     /**
      * Resolves and builds the graph offline. Returns null when the build succeeded, otherwise
-     * the xcodebuild output, which names the repositories the resolution could not reach.
+     * the output of the xcodebuild that failed, which names the repositories the resolution could
+     * not reach.
      */
     private String buildWrapperProject(SpmServiceBuildState buildState, File clonedSourcesDir, File packageCacheDir,
             File mirrorsDir, File gitConfig, Map<String, String> processEnv) throws IOException, ExtenderException {
@@ -1102,9 +1218,17 @@ public class SwiftPackageManagerService {
             // past the time budget, which is only checked between rounds
             writeBuildLog(buildState, processExecutor);
             throw e;
+        } catch (CommandFailedException e) {
+            writeBuildLog(buildState, processExecutor);
+            // a destination xcodebuild cannot use (70), a missing Xcode (1), a crash or a kill
+            // are about this server rather than the graph or its code
+            if (!XCODEBUILD_PROJECT_FAILURES.contains(e.getExitCode())) {
+                throw e;
+            }
+            return processExecutor.getOutput();
         } catch (IOException e) {
             writeBuildLog(buildState, processExecutor);
-            return processExecutor.getOutput();
+            throw e;
         } finally {
             deleteLinks(userDirLinks);
         }

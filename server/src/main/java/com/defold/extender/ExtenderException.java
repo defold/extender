@@ -18,7 +18,7 @@ public class ExtenderException extends Exception {
         this.output = output;
     }
 
-    String getOutput() {
+    public String getOutput() {
         return output;
     }
 }
