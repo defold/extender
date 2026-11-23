@@ -162,7 +162,7 @@ class ExtensionManifestValidator {
     // so a bare value can't stand in as a positional argument.
     private void validateSwiftFlags(String extensionName, Object value) throws ExtenderException {
         if (!(value instanceof List)) {
-            throw new ExtenderException(String.format("Error in '%s': The 'swiftFlags' must be a list of strings. Got %s", extensionName, value));
+            throw new BuildFailedException(String.format("Error in '%s': The 'swiftFlags' must be a list of strings. Got %s", extensionName, value));
         }
         List<String> flags = (List<String>) value;
         validateArgvSafe(extensionName, "swiftFlags", flags);
@@ -173,7 +173,7 @@ class ExtensionManifestValidator {
                 if (i + 1 < flags.size() && matchesAny(allowedSwiftFlags, flag + " " + flags.get(i + 1))) {
                     ++i;
                 } else {
-                    throw new ExtenderException(String.format("Error in '%s': Invalid flag - 'swiftFlags': '%s'", extensionName, flag));
+                    throw new BuildFailedException(String.format("Error in '%s': Invalid flag - 'swiftFlags': '%s'", extensionName, flag));
                 }
             }
         }
@@ -183,18 +183,18 @@ class ExtensionManifestValidator {
     // paths, "..", or characters the compiler could take as part of an option.
     private static void validateExtensionPaths(String extensionName, File extensionFolder, String key, Object value) throws ExtenderException {
         if (!(value instanceof List)) {
-            throw new ExtenderException(String.format("Error in '%s': The '%s' must be a list of strings. Got %s", extensionName, key, value));
+            throw new BuildFailedException(String.format("Error in '%s': The '%s' must be a list of strings. Got %s", extensionName, key, value));
         }
         for (String path : (List<String>) value) {
             if (path == null || path.startsWith("-") || !VALID_INCLUDE_PATH.matcher(path).matches()) {
-                throw new ExtenderException(String.format(
+                throw new BuildFailedException(String.format(
                         "Error in '%s': Invalid path '%s' in '%s'. Paths may only contain letters, digits and '._+-/', and may not start with '-'.",
                         extensionName, path, key));
             }
             try {
                 SandboxedPath.resolve(extensionFolder, path);
             } catch (ExtenderException e) {
-                throw new ExtenderException(String.format("Error in '%s': The path '%s' in '%s' must be inside the extension folder: %s",
+                throw new BuildFailedException(String.format("Error in '%s': The path '%s' in '%s' must be inside the extension folder: %s",
                         extensionName, path, key, e.getMessage()));
             }
         }

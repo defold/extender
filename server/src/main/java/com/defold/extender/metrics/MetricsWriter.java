@@ -3,6 +3,7 @@ package com.defold.extender.metrics;
 import com.defold.extender.BuildFailure;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.core.instrument.DistributionSummary;
@@ -91,7 +92,7 @@ public class MetricsWriter {
 
     public void measureCounterBuild(String platform, String sdk, String buildType, BuildFailure failure) {
         measureCounterBuild("platform", platform, "sdk", sdk, "type", buildType,
-                "success", Boolean.toString(failure == BuildFailure.NONE), "failure", failure.tag());
+                "success", Boolean.toString(failure == BuildFailure.NONE), "failure", failure.name().toLowerCase(Locale.ROOT));
     }
 
     private void measureCounterBuild(String... tags) {

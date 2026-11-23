@@ -853,14 +853,14 @@ class Extender {
         if (platformConfig.swiftSourceRe == null || platformConfig.compileSwiftModuleCmd == null) {
             if (!swiftFiles.isEmpty() || !misplaced.isEmpty()) {
                 File first = !swiftFiles.isEmpty() ? swiftFiles.get(0) : misplaced.get(0);
-                throw new ExtenderException(String.format("%s:1: error: Swift sources are not supported by this Defold SDK version, use a newer Defold version",
+                throw new BuildFailedException(String.format("%s:1: error: Swift sources are not supported by this Defold SDK version, use a newer Defold version",
                     ExtenderUtil.getRelativePath(buildState.uploadDir, first)));
             }
             return swiftFiles;
         }
 
         if (!misplaced.isEmpty()) {
-            throw new ExtenderException(String.format("%s:1: error: Swift sources are only supported in the '%s' folder: %s",
+            throw new BuildFailedException(String.format("%s:1: error: Swift sources are only supported in the '%s' folder: %s",
                 ExtenderUtil.getRelativePath(buildState.uploadDir, manifest), FOLDER_ENGINE_SRC, ExtenderUtil.getRelativePath(buildState.uploadDir, misplaced.get(0))));
         }
         return swiftFiles;
@@ -2982,17 +2982,18 @@ class Extender {
         return logFile;
     }
 
-    private static ExtenderException dependencyFailure(Tool tool, Exception cause, String output) {
+    private static ExtenderException dependencyFailure(Tool tool, String what, Exception cause) {
         if (cause instanceof BuildFailedException buildFailure) {
             return buildFailure;
         }
+        ExtenderException known = cause instanceof ExtenderException extenderException ? extenderException : null;
+        String output = known != null
+                ? known.getOutput()
+                : "Failed to resolve " + what + " dependencies. " + cause.getMessage();
         if (DependencyFailureClassifier.isUserError(tool, output)) {
             return new BuildFailedException(cause, output);
         }
-        if (cause instanceof ExtenderException extenderException) {
-            return extenderException;
-        }
-        return new ExtenderException(cause, output);
+        return known != null ? known : new ExtenderException(cause, output);
     }
 
     void resolve(GradleService gradleService) throws ExtenderException {
@@ -3017,11 +3018,8 @@ class Extender {
                         .withReadOnlyPaths(List.of(gradleHome.getAbsolutePath())));
             }
         }
-        catch (ExtenderException e) {
-            throw dependencyFailure(Tool.GRADLE, e, e.getOutput());
-        }
-        catch (IOException e) {
-            throw dependencyFailure(Tool.GRADLE, e, "Failed to resolve Gradle dependencies. " + e.getMessage());
+        catch (ExtenderException | IOException e) {
+            throw dependencyFailure(Tool.GRADLE, "Gradle", e);
         }
     }
 
@@ -3172,11 +3170,8 @@ class Extender {
         try {
             resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, buildState);
         }
-        catch (ExtenderException e) {
-            throw dependencyFailure(Tool.COCOAPODS, e, e.getOutput());
-        }
-        catch (IOException e) {
-            throw dependencyFailure(Tool.COCOAPODS, e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());
+        catch (ExtenderException | IOException e) {
+            throw dependencyFailure(Tool.COCOAPODS, "CocoaPod", e);
         }
         if (resolvedPods != null) {
             resolvedNativeDeps.add(resolvedPods);
@@ -3198,11 +3193,8 @@ class Extender {
                         .withReadOnlyPaths(resolvedPackages.getSandboxReadOnlyPaths()));
             }
         }
-        catch (ExtenderException e) {
-            throw dependencyFailure(Tool.SPM, e, e.getOutput());
-        }
-        catch (IOException e) {
-            throw dependencyFailure(Tool.SPM, e, "Failed to resolve Swift package dependencies. " + e.getMessage());
+        catch (ExtenderException | IOException e) {
+            throw dependencyFailure(Tool.SPM, "Swift package", e);
         }
     }
 

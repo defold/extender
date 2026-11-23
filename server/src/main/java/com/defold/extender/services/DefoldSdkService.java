@@ -187,11 +187,10 @@ public class DefoldSdkService {
                         url = String.format(urlPattern, hash);
                         URI sdkURI = URI.create(url);
                         try (ClientHttpResponse response = doRequestWithRedirects(sdkURI, HttpMethod.HEAD, configuration.getMaxRedirectCount())) {
-                            if (response.getStatusCode() != HttpStatus.OK) {
-                                if (response.getStatusCode() != HttpStatus.NOT_FOUND && response.getStatusCode() != HttpStatus.FORBIDDEN) {
-                                    sdkMissing = false;
-                                }
-                                LOGGER.info("The given sdk does not exist: {} {}", url, response.getStatusCode().toString());
+                            HttpStatusCode status = response.getStatusCode();
+                            if (status != HttpStatus.OK) {
+                                sdkMissing &= status == HttpStatus.NOT_FOUND || status == HttpStatus.FORBIDDEN;
+                                LOGGER.info("The given sdk does not exist: {} {}", url, status.toString());
                                 continue;
                             } else {
                                 // mark sdk as found for download
