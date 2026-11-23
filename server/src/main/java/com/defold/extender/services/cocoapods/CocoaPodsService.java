@@ -8,6 +8,7 @@ import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.PlatformConfig;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.CommandFailedException;
 import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.ProcessUtils;
 import com.defold.extender.process.SandboxPolicy;
@@ -72,6 +73,9 @@ public class CocoaPodsService {
     private static final Logger LOGGER = LoggerFactory.getLogger(CocoaPodsService.class);
     private static final String CURRENT_CACHE_DIR_FILE = "current_pod_cache.txt";
     private static final String OLD_CACHE_DIR_FILE = "old_pod_caches.txt";
+    // Pod::NoSpecFoundError: no spec source has a version satisfying a requirement. Every other
+    // failure exits with 1, an unknown pod as much as an unreachable CDN
+    static final int POD_NO_SPEC_FOUND_EXIT_CODE = 31;
     private final Object syncLock = new Object();
     // Guards the shared CocoaPods home directory (CP_HOME_DIR).
     // Write lock: anything that runs a 'pod' command against the shared dir or modifies it
@@ -448,6 +452,13 @@ public class CocoaPodsService {
         return installedPods;
     }
 
+    static ExtenderException podInstallFailure(ExtenderException e) {
+        if (e.getCause() instanceof CommandFailedException failure && failure.getExitCode() == POD_NO_SPEC_FOUND_EXIT_CODE) {
+            return new BuildFailedException(failure, e.getOutput());
+        }
+        return e;
+    }
+
     // Named for the shared-cache path, where the caller holds podCacheLock's write lock for this whole call.
     // Also used, unlocked, by installPodsIsolated() to run against a private cache clone that
     // only this build can see, in which case no lock is needed here at all.
@@ -461,13 +472,18 @@ public class CocoaPodsService {
             throw new ExtenderException("Unable to find Podfile " + podFile);
         }
         File dir = podFile.getParentFile();
-        String log = ProcessUtils.execCommand(List.of(
-                "pod",
-                "install",
-                "--verbose"
-            ), workingDir, Map.of("CP_HOME_DIR", cacheDir.toString(),
-            "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)),
-            podPolicy(cacheDir));
+        String log;
+        try {
+            log = ProcessUtils.execCommand(List.of(
+                    "pod",
+                    "install",
+                    "--verbose"
+                ), workingDir, Map.of("CP_HOME_DIR", cacheDir.toString(),
+                "COCOAPODS_CDN_MAX_CONCURRENCY", String.valueOf(maxPodCDNConcurrency)),
+                podPolicy(cacheDir));
+        } catch (ExtenderException e) {
+            throw podInstallFailure(e);
+        }
         LOGGER.debug("\n" + log);
 
         installedPods.podfileLock = new File(workingDir, "Podfile.lock");

@@ -1,0 +1,43 @@
+import groovy.json.JsonOutput
+
+// Records why the build failed as the exception types behind each failure (every cause and its
+// superclasses), which tell a project asking for something that does not exist apart from a
+// repository that could not be reached without reading Gradle's console output. A failing build
+// script is recorded here; the build script records the dependencies it could not resolve
+// through gradle.ext.extenderReportFailures.
+
+def reportFile = new File(gradle.startParameter.projectProperties['extenderFailureReport'])
+
+def failureTypes = { Throwable failure ->
+    def types = new TreeSet<String>()
+    def pending = [failure]
+    def seen = Collections.newSetFromMap(new IdentityHashMap<Throwable, Boolean>())
+    while (!pending.isEmpty()) {
+        Throwable t = pending.remove(0)
+        if (t == null || !seen.add(t)) {
+            continue
+        }
+        for (Class c = t.getClass(); c != null; c = c.superclass) {
+            types << c.name
+        }
+        // a resolution failure carries one cause per repository
+        if (t.respondsTo('getCauses')) {
+            pending.addAll(t.causes)
+        }
+        pending << t.cause
+    }
+    types
+}
+
+gradle.ext.extenderReportFailures = { Map<String, Throwable> failures ->
+    reportFile.parentFile.mkdirs()
+    reportFile.text = JsonOutput.toJson(failures.collect { subject, failure ->
+        [subject: subject, types: failureTypes(failure)]
+    })
+}
+
+gradle.afterProject { project, state ->
+    if (state.failure != null) {
+        gradle.ext.extenderReportFailures.call([(project.path): state.failure])
+    }
+}

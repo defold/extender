@@ -35,6 +35,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.core.io.FileSystemResource;
 import org.yaml.snakeyaml.Yaml;
 
+import com.defold.extender.BuildFailedException;
 import com.defold.extender.ExtenderException;
 import com.defold.extender.services.cocoapods.PodUtils;
 
@@ -543,25 +544,11 @@ public class SwiftPackageManagerServiceTest {
         makeLocalPackage(repos, pkgC, null);
         makeLocalPackage(repos, pkgB, pkgC);
         makeLocalPackage(repos, pkgA, pkgB);
-        File mirrorsDir = new File(service.ensureCacheDirInitialized().toFile(), SwiftPackageManagerService.MIRRORS_SUBDIR);
         for (String name : List.of(pkgA, pkgB, pkgC)) {
-            String key = SpmManifestParser.canonicalKey("https://github.com/acme/" + name + ".git");
-            File mirror = new File(mirrorsDir, SwiftPackageManagerService.mirrorDirName(key));
-            mirror.getParentFile().mkdirs();
-            git(rootDir, "git", "clone", "--mirror", "--quiet", new File(repos, name).getAbsolutePath(),
-                mirror.getAbsolutePath());
-            // a fresh fetch marker keeps the service from trying to update the mirror
-            Files.write(new File(mirrorsDir, mirror.getName() + SwiftPackageManagerService.FETCH_MARKER_SUFFIX)
-                .toPath(), new byte[0]);
+            seedMirror(service, rootDir, repos, name);
         }
 
-        File manifestDir = new File(rootDir, "job/upload/spmext/osx");
-        manifestDir.mkdirs();
-        File manifest = new File(manifestDir, "SwiftPackages.json");
-        Files.writeString(manifest.toPath(),
-            "{ \"platform\": \"osx\", \"minVersion\": \"11.0\", \"packages\": [" +
-            "  { \"url\": \"https://github.com/acme/" + pkgA + ".git\", \"from\": \"1.0.0\"," +
-            "    \"products\": [\"" + pkgA + "\"] } ] }");
+        File manifest = writeManifest(rootDir, pkgA, "1.0.0");
 
         SpmServiceBuildState buildState = macOsBuildState(new File(rootDir, "job"));
         ResolvedPackages resolved = service.resolveDependencies(
@@ -572,6 +559,70 @@ public class SwiftPackageManagerServiceTest {
         // the transitive packages were never declared and never pinned by the upload
         assertTrue(lock.contains("https://github.com/acme/" + pkgB + ".git"), lock);
         assertTrue(lock.contains("https://github.com/acme/" + pkgC + ".git"), lock);
+    }
+
+    /**
+     * A graph no version satisfies fails in the offline build, where nothing but the project can
+     * be at fault. Needs a Mac with Xcode and xcodegen; the refresh retry may probe the forge.
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "extender.test.spmE2e", matches = "true")
+    public void testUnsatisfiableGraphIsABuildFailure(@TempDir File rootDir) throws IOException, ExtenderException, InterruptedException {
+        SwiftPackageManagerService service = createService();
+        service.homeDirPrefix = new File(rootDir, "spm-cache").getAbsolutePath();
+        service.runAfterStartup();
+
+        String pkg = "Pkg" + UUID.randomUUID().toString().substring(0, 8);
+        File repos = new File(rootDir, "repos");
+        makeLocalPackage(repos, pkg, null);
+        seedMirror(service, rootDir, repos, pkg);
+        // only 1.0.0 is tagged
+        File manifest = writeManifest(rootDir, pkg, "2.0.0");
+
+        SpmServiceBuildState buildState = macOsBuildState(new File(rootDir, "job"));
+        BuildFailedException e = assertThrows(BuildFailedException.class, () -> service.resolveDependencies(
+            List.of(manifest), buildState, Map.of("env.MACOS_VERSION_MIN", "11.0"), false));
+        assertTrue(e.getOutput().contains(SwiftPackageManagerService.RESOLUTION_FAILED_MARKER), e.getOutput());
+    }
+
+    /** A repository the forge does not know is a build failure. Needs a Mac with Xcode, xcodegen and network. */
+    @Test
+    @EnabledIfSystemProperty(named = "extender.test.spmE2e", matches = "true")
+    public void testMissingRepositoryIsABuildFailure(@TempDir File rootDir) throws IOException {
+        SwiftPackageManagerService service = createService();
+        service.homeDirPrefix = new File(rootDir, "spm-cache").getAbsolutePath();
+        service.runAfterStartup();
+
+        File manifest = writeManifest(rootDir, "no-such-repo-" + UUID.randomUUID().toString().substring(0, 8), "1.0.0");
+        SpmServiceBuildState buildState = macOsBuildState(new File(rootDir, "job"));
+        BuildFailedException e = assertThrows(BuildFailedException.class, () -> service.resolveDependencies(
+            List.of(manifest), buildState, Map.of("env.MACOS_VERSION_MIN", "11.0"), false));
+        assertTrue(e.getOutput().contains("Fetching Swift package https://github.com/acme/no-such-repo-"), e.getOutput());
+    }
+
+    /** A bare mirror of a local package, filed under its https://github.com/acme/ URL and fresh enough to be used as it is. */
+    private static void seedMirror(SwiftPackageManagerService service, File rootDir, File repos, String name)
+            throws IOException, InterruptedException {
+        File mirrorsDir = new File(service.ensureCacheDirInitialized().toFile(), SwiftPackageManagerService.MIRRORS_SUBDIR);
+        String key = SpmManifestParser.canonicalKey("https://github.com/acme/" + name + ".git");
+        File mirror = new File(mirrorsDir, SwiftPackageManagerService.mirrorDirName(key));
+        mirror.getParentFile().mkdirs();
+        git(rootDir, "git", "clone", "--mirror", "--quiet", new File(repos, name).getAbsolutePath(),
+            mirror.getAbsolutePath());
+        // a fresh fetch marker keeps the service from trying to update the mirror
+        Files.write(new File(mirrorsDir, mirror.getName() + SwiftPackageManagerService.FETCH_MARKER_SUFFIX)
+            .toPath(), new byte[0]);
+    }
+
+    private static File writeManifest(File rootDir, String pkg, String from) throws IOException {
+        File manifestDir = new File(rootDir, "job/upload/spmext/osx");
+        manifestDir.mkdirs();
+        File manifest = new File(manifestDir, "SwiftPackages.json");
+        Files.writeString(manifest.toPath(),
+            "{ \"platform\": \"osx\", \"minVersion\": \"11.0\", \"packages\": [" +
+            "  { \"url\": \"https://github.com/acme/" + pkg + ".git\", \"from\": \"" + from + "\"," +
+            "    \"products\": [\"" + pkg + "\"] } ] }");
+        return manifest;
     }
 
     /** A minimal library package, committed and tagged 1.0.0, optionally depending on another one. */

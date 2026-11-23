@@ -7,6 +7,7 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.ExtenderUtil;
 import com.defold.extender.TemplateExecutor;
 import com.defold.extender.metrics.MetricsWriter;
+import com.defold.extender.process.CommandFailedException;
 import com.defold.extender.process.ProcessUtils;
 import com.defold.extender.process.SandboxPolicy;
 
@@ -58,6 +59,9 @@ public class RealGradleService implements GradleServiceInterface {
     private static final String JAVA_HOME = Objects.requireNonNullElseGet(System.getenv("JAVA_HOME"), () -> System.getProperty("java.home"));
     private static final String ARTIFACT_KIND_EXPLODED_AAR = "exploded-aar";
     private static final String ARTIFACT_KIND_JAR = "jar";
+    static final String FAILURE_REPORT_SCRIPT_FILENAME = "gradle-failure-report.gradle";
+    static final String FAILURE_REPORT_FILENAME = "gradle-failures.json";
+    private static final String FAILURE_REPORT_PROPERTY = "extenderFailureReport";
 
     private final TemplateExecutor templateExecutor = new TemplateExecutor();
 
@@ -67,10 +71,12 @@ public class RealGradleService implements GradleServiceInterface {
     private final String buildGradleTemplateContents;
     private final String gradlePropertiesTemplateContents;
     private final String localPropertiesTemplateContents;
+    private final String failureReportScriptContents;
 
     RealGradleService(@Value("classpath:template.build.gradle") Resource buildGradleTemplate,
         @Value("classpath:template.gradle.properties") Resource gradlePropertiesTemplate,
         @Value("classpath:template.local.properties") Resource localPropertiesTemplate,
+        @Value("classpath:" + FAILURE_REPORT_SCRIPT_FILENAME) Resource failureReportScript,
         MeterRegistry meterRegistry) throws IOException {
         if (GRADLE_USER_HOME != null) {
             this.gradleHome = GRADLE_USER_HOME;
@@ -85,6 +91,7 @@ public class RealGradleService implements GradleServiceInterface {
         this.buildGradleTemplateContents = ExtenderUtil.readContentFromResource(buildGradleTemplate);
         this.gradlePropertiesTemplateContents = ExtenderUtil.readContentFromResource(gradlePropertiesTemplate);
         this.localPropertiesTemplateContents = ExtenderUtil.readContentFromResource(localPropertiesTemplate);
+        this.failureReportScriptContents = ExtenderUtil.readContentFromResource(failureReportScript);
 
         LOGGER.info("GRADLE service using directory {}", this.gradleHome);
     }
@@ -131,8 +138,12 @@ public class RealGradleService implements GradleServiceInterface {
         File localPropertiesFile = new File(workDir, "local.properties");
         createLocalPropertiesFile(localPropertiesFile, jobEnvContext);
 
+        File failureReportScript = new File(workDir, FAILURE_REPORT_SCRIPT_FILENAME);
+        JobFiles.write(workDir, failureReportScript, failureReportScriptContents.getBytes(StandardCharsets.UTF_8));
+        File failureReport = new File(buildDir, FAILURE_REPORT_FILENAME);
+
         // Resolve AGP-processed dependencies and reuse their cache paths directly.
-        return resolveGradleArtifacts(workDir, artifactManifestFile, dependencyTreeFile);
+        return resolveGradleArtifacts(workDir, artifactManifestFile, dependencyTreeFile, failureReportScript, failureReport);
     }
 
     @Override
@@ -313,7 +324,7 @@ public class RealGradleService implements GradleServiceInterface {
         return artifacts;
     }
 
-    static List<String> getGradleResolveCommand() {
+    static List<String> getGradleResolveCommand(File failureReportScript, File failureReport) {
         return List.of(
                 "gradle",
                 "downloadDependencies",
@@ -324,22 +335,42 @@ public class RealGradleService implements GradleServiceInterface {
                 "--stacktrace",
                 "--warning-mode",
                 "all",
-                "--no-daemon");
+                "--no-daemon",
+                "--init-script",
+                failureReportScript.getAbsolutePath(),
+                "-P" + FAILURE_REPORT_PROPERTY + "=" + failureReport.getAbsolutePath());
+    }
+
+    // Gradle exits with 1 for any failed build; its failure report tells whether the project caused it
+    static ExtenderException classifyFailure(ExtenderException e, File failureReport) {
+        if (e.getCause() instanceof CommandFailedException failure && failure.isToolError()
+                && GradleFailureReport.isUserError(failureReport)) {
+            return new BuildFailedException(failure, e.getOutput());
+        }
+        return e;
     }
 
     private List<GradleArtifact> resolveGradleArtifacts(
             File cwd,
             File artifactManifest,
-            File dependencyTree) throws IOException, ExtenderException {
+            File dependencyTree,
+            File failureReportScript,
+            File failureReport) throws IOException, ExtenderException {
         long methodStart = System.currentTimeMillis();
         LOGGER.info("Resolving dependencies");
         Files.deleteIfExists(artifactManifest.toPath());
+        Files.deleteIfExists(failureReport.toPath());
 
         // Gradle must reach the Maven repositories and write its dependency cache; every other
         // subprocess in a build runs with the default no-network toolchain policy.
-        String log = ProcessUtils.execCommand(getGradleResolveCommand(), cwd,
-            Map.of("GRADLE_USER_HOME", this.gradleHome),
-            SandboxPolicy.dependencyResolver(List.of(this.gradleHome)));
+        String log;
+        try {
+            log = ProcessUtils.execCommand(getGradleResolveCommand(failureReportScript, failureReport), cwd,
+                Map.of("GRADLE_USER_HOME", this.gradleHome),
+                SandboxPolicy.dependencyResolver(List.of(this.gradleHome)));
+        } catch (ExtenderException e) {
+            throw classifyFailure(e, failureReport);
+        }
         LOGGER.debug("\n" + log);
         JobFiles.writeString(cwd, dependencyTree, log, StandardCharsets.UTF_8);
 

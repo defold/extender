@@ -56,7 +56,6 @@ import com.defold.extender.builders.CSharpBuilder;
 import com.defold.extender.log.LogSanitizer;
 import com.defold.extender.log.Markers;
 import com.defold.extender.metrics.MetricsWriter;
-import com.defold.extender.DependencyFailureClassifier.Tool;
 import com.defold.extender.process.CommandFailedException;
 import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessUtils;
@@ -2982,20 +2981,6 @@ class Extender {
         return logFile;
     }
 
-    private static ExtenderException dependencyFailure(Tool tool, String what, Exception cause) {
-        if (cause instanceof BuildFailedException buildFailure) {
-            return buildFailure;
-        }
-        ExtenderException known = cause instanceof ExtenderException extenderException ? extenderException : null;
-        String output = known != null
-                ? known.getOutput()
-                : "Failed to resolve " + what + " dependencies. " + cause.getMessage();
-        if (DependencyFailureClassifier.isUserError(tool, output)) {
-            return new BuildFailedException(cause, output);
-        }
-        return known != null ? known : new ExtenderException(cause, output);
-    }
-
     void resolve(GradleService gradleService) throws ExtenderException {
         try {
             for (GradleArtifact artifact : gradleService.resolveDependencies(
@@ -3018,8 +3003,8 @@ class Extender {
                         .withReadOnlyPaths(List.of(gradleHome.getAbsolutePath())));
             }
         }
-        catch (ExtenderException | IOException e) {
-            throw dependencyFailure(Tool.GRADLE, "Gradle", e);
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to resolve Gradle dependencies. " + e.getMessage());
         }
     }
 
@@ -3170,8 +3155,8 @@ class Extender {
         try {
             resolvedPods = cocoaPodsService.resolveDependencies(platformConfig, buildState);
         }
-        catch (ExtenderException | IOException e) {
-            throw dependencyFailure(Tool.COCOAPODS, "CocoaPod", e);
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to resolve CocoaPod dependencies. " + e.getMessage());
         }
         if (resolvedPods != null) {
             resolvedNativeDeps.add(resolvedPods);
@@ -3193,8 +3178,8 @@ class Extender {
                         .withReadOnlyPaths(resolvedPackages.getSandboxReadOnlyPaths()));
             }
         }
-        catch (ExtenderException | IOException e) {
-            throw dependencyFailure(Tool.SPM, "Swift package", e);
+        catch (IOException e) {
+            throw new ExtenderException(e, "Failed to resolve Swift package dependencies. " + e.getMessage());
         }
     }
 
