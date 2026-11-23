@@ -1,4 +1,6 @@
-ARG JDK_HOME_DIR=/usr/local/jdk-25+36
+ARG JDK_VERSION=25.0.5.1
+ARG JDK_BUILD=2
+ARG JDK_HOME_DIR=/usr/local/jdk-${JDK_VERSION}+${JDK_BUILD}
 ARG PLATFORMSDK_DIR=/opt/platformsdk
 ARG ZIG_VERSION=0.11.0
 ARG ZIG_PATH=${PLATFORMSDK_DIR}/zig-0-11
@@ -6,10 +8,12 @@ ARG DOTNET_ROOT=/opt/dotnet
 ARG DOTNET_VERSION_FILE=${DOTNET_ROOT}/dotnet_version
 ARG NUGET_PACKAGES=/tmp/.nuget
 
-FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.2.0 AS build
+FROM europe-west1-docker.pkg.dev/extender-426409/extender-public-registry/extender-build-env:1.3.0 AS build
 
 ARG PLATFORMSDK_DIR
 ARG TARGETARCH
+ARG JDK_VERSION
+ARG JDK_BUILD
 ARG JDK_HOME_DIR
 ARG ZIG_VERSION
 ARG ZIG_PATH
@@ -39,7 +43,7 @@ ENV LANG=en_US.UTF-8 \
 # Java
 #
 RUN \
-  wget -q -O - "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25%2B36/OpenJDK25U-jdk_${JDK_ARCH}_linux_hotspot_25_36.tar.gz" | tar xz -C /usr/local && \
+  wget -q -O - "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-${JDK_VERSION}%2B${JDK_BUILD}/OpenJDK25U-jdk_${JDK_ARCH}_linux_hotspot_${JDK_VERSION}_${JDK_BUILD}.tar.gz" | tar xz -C /usr/local && \
   "${JDK_HOME_DIR}/bin/java" -version && \
   "${JDK_HOME_DIR}/bin/javac" -version
 
@@ -71,7 +75,7 @@ RUN \
   /extender-sandbox --probe
 
 # ubuntu:22.04
-FROM ubuntu@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc
+FROM ubuntu@sha256:f64b2ffc2f10ab8f8505aa56b2664bd846cbb9df87c7e2532e30f7667021c0e6
 
 ARG PLATFORMSDK_DIR
 ARG TARGETARCH
@@ -107,6 +111,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN \
   apt-get update && \
+  # The pinned digest lags behind jammy-security (e.g. glibc), so pick up pending fixes here
+  apt-get upgrade -y && \
   apt-get install -y --no-install-recommends \
   locales \
   libicu70 \

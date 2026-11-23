@@ -58,6 +58,28 @@ public class JobFilesTest {
     }
 
     @Test
+    public void copyFileFromATrustedSourceRootStaysInsideThatRoot(@TempDir Path root) throws IOException {
+        Path job = Files.createDirectory(root.resolve("job"));
+        Path toolchain = Files.createDirectories(root.resolve("toolchain/usr/lib"));
+        Path library = Files.writeString(toolchain.resolve("libswift_Concurrency.dylib"), "dylib");
+        Path secret = Files.writeString(root.resolve("credentials.json"), "SECRET");
+        Path build = Files.createDirectory(job.resolve("build"));
+
+        JobFiles.copyFileToDirectory(job.toFile(), root.resolve("toolchain").toFile(), library.toFile(), build.toFile());
+        assertEquals("dylib", Files.readString(build.resolve("libswift_Concurrency.dylib")));
+
+        assertThrows(IOException.class,
+                () -> JobFiles.copyFileToDirectory(job.toFile(), root.resolve("toolchain").toFile(), secret.toFile(), build.toFile()));
+        Files.createSymbolicLink(toolchain.resolve("libleak.dylib"), secret);
+        assertThrows(IOException.class,
+                () -> JobFiles.copyFileToDirectory(job.toFile(), root.resolve("toolchain").toFile(), toolchain.resolve("libleak.dylib").toFile(), build.toFile()));
+        assertFalse(Files.exists(build.resolve("credentials.json")));
+        assertFalse(Files.exists(build.resolve("libleak.dylib")));
+        assertThrows(IOException.class,
+                () -> JobFiles.copyFileToDirectory(job.toFile(), root.resolve("toolchain").toFile(), library.toFile(), root.toFile()));
+    }
+
+    @Test
     public void copyRefusesALinkOutOfTheRootAndKeepsInternalOnes(@TempDir Path root) throws IOException {
         Path job = Files.createDirectory(root.resolve("job"));
         Path secret = Files.writeString(root.resolve("credentials.json"), "SECRET");

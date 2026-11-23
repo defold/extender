@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -447,6 +448,18 @@ public class ExtenderUtil
         return items;
     }
 
+    // Keeps the first occurrence of each rpath, as the linker warns about the others
+    static public List<String> removeDuplicateRpaths(List<String> linkFlags) {
+        Set<String> rpaths = new HashSet<>();
+        List<String> result = new ArrayList<>();
+        for (String flag : linkFlags) {
+            if (!flag.startsWith("-Wl,-rpath,") || rpaths.add(flag)) {
+                result.add(flag);
+            }
+        }
+        return result;
+    }
+
     private static final String MERGE_KEY_REPLACE = "_replace";
 
     // Returns true by default for e.g. "myvar"
@@ -833,6 +846,25 @@ public class ExtenderUtil
 
     public static String switchExtension(String name, String newExt) {
         return removeFileExtension(name) + newExt;
+    }
+
+    // Swift conditional compilation flags are either present or absent, a value is only a warning
+    public static List<String> toSwiftDefines(List<String> defines) {
+        Set<String> names = new LinkedHashSet<>();
+        for (String define : defines) {
+            int equals = define.indexOf('=');
+            names.add(equals < 0 ? define : define.substring(0, equals));
+        }
+        return new ArrayList<>(names);
+    }
+
+    // Swift module names are identifiers, while extension names may contain '-'
+    public static String toSwiftModuleName(String extensionName) {
+        String name = extensionName.replaceAll("[^A-Za-z0-9_]", "_");
+        if (name.isEmpty() || Character.isDigit(name.charAt(0))) {
+            name = "_" + name;
+        }
+        return name;
     }
 
 

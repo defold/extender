@@ -53,7 +53,6 @@ import com.defold.extender.process.ProcessExecutor;
 import com.defold.extender.process.ProcessSandbox;
 import com.defold.extender.process.DarwinSandboxPaths;
 import com.defold.extender.process.SandboxPolicy;
-import com.defold.extender.services.spm.SpmBuildOutputParser.LinkInfo;
 import com.defold.extender.services.spm.SpmManifestParser.PackageRef;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -61,8 +60,9 @@ import io.micrometer.core.instrument.MeterRegistry;
 /**
  * Resolves Swift Package Manager dependencies declared in SwiftPackages.json manifests:
  * a generated aggregator Package.swift plus an XcodeGen wrapper project are built with
- * xcodebuild, and the products directory and the wrapper's final link line are harvested
- * into a {@link ResolvedPackages}.
+ * xcodebuild, and the products directory and the build settings the packages impart to the
+ * wrapper (its linked libraries and frameworks and the module maps) are harvested into a
+ * {@link ResolvedPackages}.
  *
  * Xcode is selected per job via the child processes' DEVELOPER_DIR (never xcode-select —
  * concurrent jobs may need different Xcode versions).
@@ -100,11 +100,9 @@ public class SwiftPackageManagerService {
     static final String GIT_CONFIG_FILENAME = "gitconfig";
     // marker next to a mirror, touched after every successful clone or fetch
     static final String FETCH_MARKER_SUFFIX = ".fetched";
-    // one round per level of the dependency graph, plus the round that finds it closed and
-    // one forced mirror refresh; deeper than this is a runaway, not a package graph
-    static final int MAX_RESOLVE_ROUNDS = 12;
     // transitive manifests pick these URLs, so the number of repositories git is asked to
-    // clone is attacker-controlled
+    // clone is attacker-controlled. Together with MAX_BINARY_ARTIFACTS it also bounds the
+    // number of resolution rounds (see ResolveRounds)
     static final int MAX_MIRRORED_PACKAGES = 256;
     // xcodebuild's own line above whatever SwiftPM reported, present for every failure of the
     // resolution and for none of the compilation
@@ -270,16 +268,30 @@ public class SwiftPackageManagerService {
             File clonedSourcesDir = spmBuildState.getClonedSourcePackagesDir();
 
             generateXcodeProject(spmBuildState, processEnv);
-            resolveAndBuild(spmBuildState, manifest, userLockFile, clonedSourcesDir, packageCacheDir,
-                mirrorsDir, processEnv);
+            try {
+                resolveAndBuild(spmBuildState, manifest, userLockFile, clonedSourcesDir, packageCacheDir,
+                    mirrorsDir, processEnv);
+            } catch (ExtenderException e) {
+                if (isIOS) {
+                    rejectAssetCatalogsBeforeXcode27(spmBuildState, developerDir);
+                }
+                throw e;
+            }
+            if (isIOS) {
+                rejectAssetCatalogsBeforeXcode27(spmBuildState, developerDir);
+            }
         } finally {
             cacheLock.readLock().unlock();
         }
 
-        LinkInfo linkInfo = parseLinkInfo(spmBuildState);
+        SpmWrapperArchive.removeDuplicateMembers(spmBuildState.getJobDir(), spmBuildState.getWrapperBinary(),
+            spmBuildState.getWorkingDir(), developerDir, spmBuildState.buildArch, processEnv);
+        Map<String, String> wrapperSettings = readWrapperBuildSettings(spmBuildState);
         File swiftRuntimeLibDir = new File(developerDir, "Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/"
             + spmBuildState.getSelectedPlatform().toString().toLowerCase());
-        ResolvedPackages resolvedPackages = ResolvedPackages.harvest(spmBuildState, manifest.minVersion, linkInfo, swiftRuntimeLibDir);
+        ResolvedPackages resolvedPackages = ResolvedPackages.harvest(spmBuildState, manifest.minVersion,
+            SpmWrapperBuildSettings.linkInfo(wrapperSettings.getOrDefault("OTHER_LDFLAGS", "")), swiftRuntimeLibDir,
+            SpmWrapperBuildSettings.swiftModuleMaps(wrapperSettings.getOrDefault("OTHER_SWIFT_FLAGS", "")));
 
         MetricsWriter.metricsTimer(meterRegistry, "extender.service.spm.get", System.currentTimeMillis() - methodStart);
         LOGGER.info("Resolved Swift package dependencies");
@@ -359,11 +371,17 @@ public class SwiftPackageManagerService {
                 // sandbox puts under the wrapper dir, inside this tree) and runs it; plugins and
                 // macros are built and run from the working dir as well
                 .withReadWriteExecPaths(List.of(buildState.getWorkingDir().getAbsolutePath()))
-                // the Xcode build service (swbuild.tmp.*) and the tools it resets TMPDIR for use
-                // the darwin user temp dir, and CFNetwork downloads binary targets there; only
-                // the entries they create are granted, never the directory (which holds every job)
+                // what xcodebuild may still put in the shared darwin user temp dir next to the
+                // entry linkUserDirs gives the build (an error result bundle does), and CFNetwork
+                // downloads binary targets there; only these entries are granted, never the
+                // directory (which holds every job). The asset catalog agent ibtoold starts gets
+                // an environment of its own, so the suffix never reaches it: it keeps a <UUID>/
+                // directory and an Untitled-XXXXXXXX.uicatalog store there, both random names in
+                // a directory the build cannot list
                 .withReadWritePatterns(List.of(DarwinSandboxPaths.userTempPattern(
-                        "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)")))
+                        "(TemporaryDirectory\\.|ResultBundle_|com\\.apple\\.dt\\.|CFNetworkDownload_|swbuild\\.tmp\\.)"),
+                        DarwinSandboxPaths.userTempPattern(UPPER_UUID_REGEX + "(/|$)"),
+                        DarwinSandboxPaths.userTempPattern("Untitled-" + "[A-Za-z0-9]".repeat(8) + "\\.uicatalog(-journal)?$")))
                 .withMachServices(XCODEBUILD_MACH_SERVICES)
                 .withPreferenceDomains(XCODEBUILD_PREFERENCE_DOMAINS)
                 // Xcode's build service maps a sparse file larger than the default 8 GiB
@@ -423,6 +441,7 @@ public class SwiftPackageManagerService {
         context.put("PLATFORM_MIN_VERSION", manifest.minVersion);
         context.put("SWIFT_VERSION", swiftVersion);
         context.put("MACH_O_TYPE", machOTypeFor(manifest));
+        context.put("BUILD_SETTINGS_FILE", SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME);
         return templateExecutor.execute(projectYmlTemplateContents, context);
     }
 
@@ -652,72 +671,50 @@ public class SwiftPackageManagerService {
     }
 
     /**
-     * Mirrors, resolves and builds, repeating until the package graph closes. Transitive
-     * dependencies are only known once the manifests declaring them have run, and those must
-     * not run with network access, so discovery happens the other way round: a round that
-     * cannot reach a repository names it, the repository is mirrored by plain git (which
-     * evaluates nothing), and the round is repeated. The round that finds the graph closed is
-     * the build itself, so a resolved graph costs no extra xcodebuild invocation.
+     * Decides after every failed round whether resolution is still making progress. SwiftPM
+     * gives up at the first repository it cannot clone, so a round typically names one new
+     * repository and a graph takes about as many rounds as it has repositories, however
+     * shallow it is. A round is repeated only when it named a repository or archive not known
+     * yet, or for the one-time checksum refetch and mirror refresh, so the caps on both bound
+     * the number of rounds; the time budget bounds what they cost.
      */
-    private void resolveAndBuild(SpmServiceBuildState buildState, SpmManifestParser.ParseResult manifest,
-            File userLockFile, File clonedSourcesDir, File packageCacheDir, File mirrorsDir,
-            Map<String, String> processEnv) throws IOException, ExtenderException {
-        Map<String, PackageRepo> repos = new LinkedHashMap<>();
-        for (PackageRef declared : manifest.packages.values()) {
-            addRepo(repos, declared.url);
-        }
-        if (userLockFile != null) {
-            // the pins name the whole graph, so a current lock file closes it in one round
-            for (SpmLockFile.Pin pin : SpmLockFile.parse(userLockFile).values()) {
-                addRepo(repos, pin.location);
-            }
-            copyLockFile(userLockFile, buildState);
+    static final class ResolveRounds {
+        enum Next { DISCOVERED, REFETCH_ARTIFACTS, REFRESH_MIRRORS, FAIL }
+
+        interface ArtifactUrlLookup {
+            String urlFor(String targetName) throws IOException;
         }
 
+        final Map<String, PackageRepo> repos = new LinkedHashMap<>();
         // archives of binary targets, named by the round that could not download them
-        Map<String, BinaryArtifact> artifacts = new LinkedHashMap<>();
-        File artifactsDir = new File(packageCacheDir, ARTIFACTS_SUBDIR);
-        boolean forceRefresh = false;
-        boolean refreshRetried = false;
+        final Map<String, BinaryArtifact> artifacts = new LinkedHashMap<>();
         // archives the last round rejected by checksum, to be fetched again
-        Set<String> evictArtifacts = new HashSet<>();
-        boolean artifactsRetried = false;
-        String lastFailure = null;
-        for (int round = 1; round <= MAX_RESOLVE_ROUNDS; round++) {
-            Map<String, File> mirrors;
-            try {
-                mirrors = prefetchMirrors(repos.values(), mirrorsDir, buildState, processEnv, forceRefresh);
-            } catch (ExtenderException e) {
-                if (!forceRefresh) {
-                    throw e;
+        final Set<String> evictArtifacts = new HashSet<>();
+        private final long timeBudgetMillis;
+        private boolean artifactsRetried = false;
+        private boolean refreshRetried = false;
+        int newRepos;
+        int newArtifacts;
+
+        ResolveRounds(long timeBudgetMillis) {
+            this.timeBudgetMillis = timeBudgetMillis;
+        }
+
+        Next afterFailure(String failure, ArtifactUrlLookup artifactUrls) throws IOException, ExtenderException {
+            newRepos = 0;
+            newArtifacts = 0;
+            for (String url : harvestPackageUrls(failure)) {
+                if (addRepo(repos, url)) {
+                    newRepos++;
                 }
-                // the refresh was a guess; a mirror that cannot be updated must not replace
-                // the failure that actually stopped the build
-                LOGGER.info("Refreshing the Swift package mirrors failed: {}", e.getMessage());
-                throw buildFailure(lastFailure);
-            }
-            forceRefresh = false;
-            prefetchArtifacts(artifacts.values(), artifactsDir, buildState, processEnv, evictArtifacts);
-            evictArtifacts.clear();
-            File gitConfig = writeGitConfig(buildState, repos.values(), mirrors);
-            LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored, {} artifacts cached)",
-                round, repos.size(), artifacts.size());
-            String failure = buildWrapperProject(buildState, clonedSourcesDir, packageCacheDir, mirrorsDir,
-                gitConfig, processEnv);
-            if (failure == null) {
-                return;
-            }
-            lastFailure = failure;
-            boolean discovered = false;
-            List<String> harvested = harvestPackageUrls(failure);
-            for (String url : harvested) {
-                discovered |= addRepo(repos, url);
             }
             for (BinaryArtifact artifact : harvestBinaryArtifacts(failure)) {
-                discovered |= addArtifact(artifacts, artifact);
+                if (addArtifact(artifacts, artifact)) {
+                    newArtifacts++;
+                }
             }
-            if (discovered) {
-                continue;
+            if (newRepos + newArtifacts > 0) {
+                return Next.DISCOVERED;
             }
             if (!artifactsRetried && failure.contains(CHECKSUM_MISMATCH_MARKER)) {
                 // the archive behind a URL changed since it was cached (or a build tampered
@@ -725,7 +722,7 @@ public class SwiftPackageManagerService {
                 // was never named to this job, so its URL comes from the declaring manifest
                 artifactsRetried = true;
                 for (String targetName : harvestMismatchedTargets(failure)) {
-                    String url = findArtifactUrlInCheckouts(clonedSourcesDir, targetName);
+                    String url = artifactUrls.urlFor(targetName);
                     if (url == null) {
                         // the cache is shared with every concurrent build of this Xcode
                         // version, so nothing wider than the one archive may be evicted
@@ -737,7 +734,7 @@ public class SwiftPackageManagerService {
                     evictArtifacts.add(url);
                 }
                 LOGGER.info("A cached Swift package archive does not match its manifest checksum, fetching again");
-                continue;
+                return Next.REFETCH_ARTIFACTS;
             }
             // only a resolution failure can be about a mirror; a compile error must not cost
             // the job a second full build
@@ -746,14 +743,89 @@ public class SwiftPackageManagerService {
                 // the mirrors were last fetched: refresh every one of them and try once more
                 LOGGER.info("Refreshing every Swift package mirror and retrying");
                 refreshRetried = true;
-                forceRefresh = true;
-                continue;
+                return Next.REFRESH_MIRRORS;
             }
-            throw buildFailure(failure);
+            return Next.FAIL;
         }
-        throw new ExtenderException(String.format(
-            "The Swift package graph did not resolve in %d rounds; it is either too deep or keeps changing",
-            MAX_RESOLVE_ROUNDS));
+
+        /** Checked between rounds: a round already running is bounded by the command timeout. */
+        void requireWithinBudget(long elapsedMillis, int roundsRun) throws ExtenderException {
+            if (timeBudgetMillis <= 0 || elapsedMillis < timeBudgetMillis) {
+                return;
+            }
+            String budget = timeBudgetMillis % 60_000 == 0
+                ? (timeBudgetMillis / 60_000) + " minute" : (timeBudgetMillis / 1000) + " second";
+            throw new ExtenderException(String.format("The Swift package graph did not resolve within the %s time budget "
+                + "(extender.spm.resolve-time-budget): after %d rounds it had grown to %d repositories and %d binary "
+                + "target archives. SwiftPM stops at the first repository it cannot reach, so a round discovers about one; "
+                + "uploading the graph's %s next to %s resolves it in a single round.",
+                budget, roundsRun, repos.size(), artifacts.size(), LOCK_FILENAME, MANIFEST_FILENAME));
+        }
+    }
+
+    /**
+     * Mirrors, resolves and builds, repeating until the package graph closes. Transitive
+     * dependencies are only known once the manifests declaring them have run, and those must
+     * not run with network access, so discovery happens the other way round: a round that
+     * cannot reach a repository names it, the repository is mirrored by plain git (which
+     * evaluates nothing), and the round is repeated. The round that finds the graph closed is
+     * the build itself, so a resolved graph costs no extra xcodebuild invocation.
+     */
+    private void resolveAndBuild(SpmServiceBuildState buildState, SpmManifestParser.ParseResult manifest,
+            File userLockFile, File clonedSourcesDir, File packageCacheDir, File mirrorsDir,
+            Map<String, String> processEnv) throws IOException, ExtenderException {
+        ResolveRounds rounds = new ResolveRounds(spmConfiguration.getResolveTimeBudget());
+        for (PackageRef declared : manifest.packages.values()) {
+            addRepo(rounds.repos, declared.url);
+        }
+        if (userLockFile != null) {
+            // the pins name the whole graph, so a current lock file closes it in one round
+            for (SpmLockFile.Pin pin : SpmLockFile.parse(userLockFile).values()) {
+                addRepo(rounds.repos, pin.location);
+            }
+            copyLockFile(userLockFile, buildState);
+        }
+
+        File artifactsDir = new File(packageCacheDir, ARTIFACTS_SUBDIR);
+        long start = System.currentTimeMillis();
+        boolean forceRefresh = false;
+        String lastFailure = null;
+        for (int round = 1;; round++) {
+            if (round > 1) {
+                rounds.requireWithinBudget(System.currentTimeMillis() - start, round - 1);
+            }
+            Map<String, File> mirrors;
+            try {
+                mirrors = prefetchMirrors(rounds.repos.values(), mirrorsDir, buildState, processEnv, forceRefresh);
+            } catch (ExtenderException e) {
+                if (!forceRefresh) {
+                    throw e;
+                }
+                // the refresh was a guess; a mirror that cannot be updated must not replace
+                // the failure that actually stopped the build
+                LOGGER.info("Refreshing the Swift package mirrors failed: {}", e.getMessage());
+                throw buildFailure(lastFailure);
+            }
+            prefetchArtifacts(rounds.artifacts.values(), artifactsDir, buildState, processEnv, rounds.evictArtifacts);
+            rounds.evictArtifacts.clear();
+            File gitConfig = writeGitConfig(buildState, rounds.repos.values(), mirrors);
+            LOGGER.info("Building the Swift package graph offline (round {}, {} repositories mirrored, {} artifacts cached)",
+                round, rounds.repos.size(), rounds.artifacts.size());
+            String failure = buildWrapperProject(buildState, clonedSourcesDir, packageCacheDir, mirrorsDir,
+                gitConfig, processEnv);
+            if (failure == null) {
+                return;
+            }
+            lastFailure = failure;
+            ResolveRounds.Next next = rounds.afterFailure(failure,
+                targetName -> findArtifactUrlInCheckouts(clonedSourcesDir, targetName));
+            LOGGER.info("Swift package round {} named {} new repositories and {} new binary artifacts ({} s elapsed): {}",
+                round, rounds.newRepos, rounds.newArtifacts, (System.currentTimeMillis() - start) / 1000, next);
+            if (next == ResolveRounds.Next.FAIL) {
+                throw buildFailure(failure);
+            }
+            forceRefresh = next == ResolveRounds.Next.REFRESH_MIRRORS;
+        }
     }
 
     // the message is what the client gets; the cause-carrying constructor would report the
@@ -1012,8 +1084,11 @@ public class SwiftPackageManagerService {
         processExecutor.putEnv("GIT_CONFIG_GLOBAL", gitConfig.getAbsolutePath());
         processExecutor.putEnv("GIT_ALLOW_PROTOCOL", "file");
         processExecutor.setPolicy(xcodebuildPolicy(buildState, packageCacheDir, mirrorsDir));
+        String userDirSuffix = USER_DIR_LINK_PREFIX + UUID.randomUUID();
+        List<Path> userDirLinks = linkUserDirs(DarwinSandboxPaths.userTempDir().getParent(), userDirSuffix,
+                buildState.getJobDir(), new File(buildState.getWrapperDir(), "tmp"));
         try {
-            processExecutor.execute(args);
+            processExecutor.execute(withUserDirSuffix(args, userDirSuffix));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             writeBuildLog(buildState, processExecutor);
@@ -1023,15 +1098,74 @@ public class SwiftPackageManagerService {
             throw e;
         } catch (CommandTimeoutException e) {
             // the log is a partial one: its "Fetching from ..." lines would look like newly
-            // discovered packages and start another full-timeout round, up to MAX_RESOLVE_ROUNDS
+            // discovered packages and start another round that runs into the timeout as well,
+            // past the time budget, which is only checked between rounds
             writeBuildLog(buildState, processExecutor);
             throw e;
         } catch (IOException e) {
             writeBuildLog(buildState, processExecutor);
             return processExecutor.getOutput();
+        } finally {
+            deleteLinks(userDirLinks);
         }
         writeBuildLog(buildState, processExecutor);
         return null;
+    }
+
+    // Seatbelt regexes have no {n} quantifier
+    private static final String UPPER_UUID_REGEX = String.join("-", "[0-9A-F]".repeat(8), "[0-9A-F]".repeat(4),
+            "[0-9A-F]".repeat(4), "[0-9A-F]".repeat(4), "[0-9A-F]".repeat(12));
+
+    static final String USER_DIR_SUFFIX_ENV = "DIRHELPER_USER_DIR_SUFFIX";
+    static final String USER_DIR_LINK_PREFIX = "extender-spm-";
+
+    /**
+     * actool, the ibtoold daemon it starts and Foundation in general keep their scratch files in
+     * confstr(_CS_DARWIN_USER_TEMP_DIR), which ignores TMPDIR and is shared by every job.
+     * libSystem appends {@link #USER_DIR_SUFFIX_ENV} (a single name) to it, so the build gets an
+     * entry of its own there: a link to {@code tmpDir} inside the job, which the sandbox grants
+     * already, while the shared directory gets no new grant. The suffix moves the per-user dir
+     * (0) and cache dir (C) too; their links point back at the directories themselves, so the
+     * caches the build shares stay where they are.
+     */
+    static List<Path> linkUserDirs(Path userDirsRoot, String suffix, File jobDir, File tmpDir) throws IOException {
+        JobFiles.createDirectories(jobDir, tmpDir);
+        Map<Path, Path> targets = new LinkedHashMap<>();
+        targets.put(userDirsRoot.resolve("T"), tmpDir.toPath().toRealPath());
+        for (String name : List.of("C", "0")) {
+            Path dir = userDirsRoot.resolve(name);
+            if (Files.isDirectory(dir)) {
+                targets.put(dir, dir.toRealPath());
+            }
+        }
+        List<Path> links = new ArrayList<>();
+        try {
+            for (Map.Entry<Path, Path> entry : targets.entrySet()) {
+                links.add(Files.createSymbolicLink(entry.getKey().resolve(suffix), entry.getValue()));
+            }
+        } catch (IOException e) {
+            deleteLinks(links);
+            throw e;
+        }
+        return links;
+    }
+
+    private static void deleteLinks(List<Path> links) {
+        for (Path link : links) {
+            try {
+                Files.deleteIfExists(link);
+            } catch (IOException e) {
+                LOGGER.warn("Could not remove {}: {}", link, e.getMessage());
+            }
+        }
+    }
+
+    // through env(1) rather than the process environment: the sandbox launcher resolves the
+    // same directory for its own bookkeeping and must keep seeing the shared one
+    static List<String> withUserDirSuffix(List<String> args, String suffix) {
+        List<String> wrapped = new ArrayList<>(List.of("/usr/bin/env", USER_DIR_SUFFIX_ENV + "=" + suffix));
+        wrapped.addAll(args);
+        return wrapped;
     }
 
     /** Adds the reason a resolution can fail under the offline build, when the log points at one. */
@@ -1058,6 +1192,79 @@ public class SwiftPackageManagerService {
         return "";
     }
 
+    static final int MIN_IOS_ASSET_CATALOG_XCODE_MAJOR = 27;
+    private static final Pattern ASSET_CATALOG_STEP = Pattern.compile(
+        "^CompileAssetCatalog\\S* .*\\(in target '[^']+' from project '([^']+)'\\)", Pattern.MULTILINE);
+    private static final Pattern BUNDLE_SHORT_VERSION = Pattern.compile(
+        "<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>");
+
+    /**
+     * Before Xcode 27, actool compiles iOS asset catalogs against an iOS simulator runtime it
+     * finds through CoreSimulator. The xcodebuild sandbox cannot let it: with CoreSimulator, code
+     * from the package graph could boot a simulator and run commands outside the sandbox. Xcode
+     * 27 ships the runtime actool needs inside the platform and keeps it in the sandbox.
+     */
+    private void rejectAssetCatalogsBeforeXcode27(SpmServiceBuildState buildState, String developerDir)
+            throws IOException, ExtenderException {
+        File buildLog = buildState.getBuildLogFile();
+        if (buildLog == null || !buildLog.isFile()) {
+            return;
+        }
+        String failure = assetCatalogXcodeFailure(xcodeVersion(developerDir),
+            Files.readString(buildLog.toPath(), StandardCharsets.UTF_8));
+        if (failure != null) {
+            throw new ExtenderException(failure);
+        }
+    }
+
+    /** The client-facing reason an iOS build with asset catalogs cannot use this Xcode, or null. */
+    static String assetCatalogXcodeFailure(String xcodeVersion, String buildLog) {
+        Integer major = majorVersion(xcodeVersion);
+        if (major == null || major >= MIN_IOS_ASSET_CATALOG_XCODE_MAJOR || buildLog == null) {
+            return null;
+        }
+        Set<String> packages = new LinkedHashSet<>();
+        Matcher m = ASSET_CATALOG_STEP.matcher(buildLog);
+        while (m.find()) {
+            packages.add(m.group(1));
+        }
+        if (packages.isEmpty()) {
+            return null;
+        }
+        return String.format("Swift packages with asset catalogs (%s) need Xcode %d or later to build for iOS; "
+            + "this build uses Xcode %s, which compiles asset catalogs through the iOS Simulator, and Swift "
+            + "package builds have no access to it.",
+            String.join(", ", packages), MIN_IOS_ASSET_CATALOG_XCODE_MAJOR, xcodeVersion);
+    }
+
+    /** The Xcode version (e.g. 26.5) a developer dir belongs to, or null when it cannot be read. */
+    static String xcodeVersion(String developerDir) {
+        File contentsDir = new File(developerDir).getParentFile();
+        File versionPlist = contentsDir != null ? new File(contentsDir, "version.plist") : null;
+        if (versionPlist == null || !versionPlist.isFile()) {
+            LOGGER.warn("No Xcode version.plist next to {}", developerDir);
+            return null;
+        }
+        try {
+            Matcher m = BUNDLE_SHORT_VERSION.matcher(Files.readString(versionPlist.toPath(), StandardCharsets.UTF_8));
+            return m.find() ? m.group(1).strip() : null;
+        } catch (IOException e) {
+            LOGGER.warn("Could not read {}: {}", versionPlist, e.getMessage());
+            return null;
+        }
+    }
+
+    private static Integer majorVersion(String version) {
+        if (version == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(version.split("\\.", 2)[0]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private void writeBuildLog(SpmServiceBuildState buildState, ProcessExecutor processExecutor) {
         try {
             processExecutor.writeLog(buildState.getJobDir(), buildState.getBuildLogFile());
@@ -1066,21 +1273,26 @@ public class SwiftPackageManagerService {
         }
     }
 
-    private LinkInfo parseLinkInfo(SpmServiceBuildState buildState) throws IOException {
-        String linkLine = SpmBuildOutputParser.findWrapperLinkLine(buildState.getBuildLogFile(), SpmServiceBuildState.WRAPPER_NAME);
-        if (linkLine == null) {
-            LOGGER.warn("No wrapper link line found in the SPM build log; system link dependencies are not harvested");
-            return null;
+    /** The build settings the script phase of the wrapper wrote, none if it wrote no file that can be read. */
+    static Map<String, String> readWrapperBuildSettings(SpmServiceBuildState buildState) {
+        File settingsFile = buildState.getWrapperBuildSettingsFile();
+        try {
+            Map<String, String> settings = SpmWrapperBuildSettings.read(buildState.getJobDir(), settingsFile);
+            if (settings != null) {
+                for (String name : List.of("OTHER_LDFLAGS", "OTHER_SWIFT_FLAGS")) {
+                    if (!settings.containsKey(name)) {
+                        LOGGER.warn("The SPM wrapper build wrote no {} to {}", name, settingsFile);
+                    }
+                }
+                return settings;
+            }
+            LOGGER.warn("The SPM wrapper build wrote no {}", settingsFile);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to read the build settings of the SPM wrapper: {}", e.getMessage());
         }
-        // everything on a libtool -static line is an input merged INTO the wrapper archive,
-        // not an external link dependency — harvesting it would double-link or dangle
-        if (linkLine.contains("libtool") && linkLine.contains("-static")) {
-            return null;
-        }
-        // xcodebuild runs the link step from the wrapper dir; @<path> response files on the
-        // line resolve against it
-        return SpmBuildOutputParser.parseLinkLine(linkLine, buildState.getDerivedDataDir().getAbsolutePath(),
-            buildState.getWrapperDir());
+        LOGGER.warn("The libraries the Swift packages link and the module maps of their own are not harvested;"
+            + " the engine link may fail with undefined symbols");
+        return Map.of();
     }
 
     // Shared cache layout: <home-dir-prefix>/<uuid>/<xcode-version>/packageCache, keyed by

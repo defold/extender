@@ -15,6 +15,7 @@ import com.defold.extender.services.cocoapods.PodUtils;
  * <jobDir>/SwiftPackageManagerService/
  *   Package/{Package.swift, Sources/SpmDeps/Empty.swift}   # generated aggregator package
  *   Wrapper/{project.yml, Sources/Dummy.swift}             # XcodeGen spec; xcodegen emits SpmWrapper.xcodeproj here
+ *   Wrapper/build-settings.txt                             # settings imparted to the wrapper, written by its script phase
  *   DerivedData/                                           # per-job xcodebuild -derivedDataPath
  *   ModuleCache/                                           # per-job CLANG_MODULE_CACHE_PATH
  *   build.log                                              # captured xcodebuild output
@@ -24,6 +25,7 @@ public class SpmServiceBuildState {
     public static final String WRAPPER_NAME = "SpmWrapper";
     public static final String AGGREGATOR_NAME = "SpmDeps";
     static final String BUILD_CONFIGURATION = "Release";
+    static final String BUILD_SETTINGS_FILE_NAME = "build-settings.txt";
 
     File workingDir;
     File packageDir;
@@ -92,6 +94,10 @@ public class SpmServiceBuildState {
         return buildLogFile;
     }
 
+    public File getWrapperBuildSettingsFile() {
+        return new File(wrapperDir, BUILD_SETTINGS_FILE_NAME);
+    }
+
     public PodUtils.Platform getSelectedPlatform() {
         return selectedPlatform;
     }
@@ -139,6 +145,10 @@ public class SpmServiceBuildState {
 
     public File getProductsDir() {
         return new File(derivedDataDir, "Build/Products/" + getProductsDirName());
+    }
+
+    public File getWrapperBinary() {
+        return new File(getProductsDir(), WRAPPER_NAME + ".framework/" + WRAPPER_NAME);
     }
 
     /** The directory holding the generated <Module>.modulemap and <Module>-Swift.h files. */

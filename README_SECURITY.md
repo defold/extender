@@ -232,10 +232,14 @@ until the graph closes; the round that finds it closed is the build itself, so a
 costs no extra `xcodebuild`. An upload therefore needs no `Package.resolved`, and one that has
 it is used as a seed that closes the graph in the first round. Those URLs come from untrusted
 manifests, so they go through the same validation as the declared ones (https only, no
-credentials, no custom port), and both the repository count (256) and the number of rounds (12)
-are capped. A mirror is fetched at most once per `extender.spm.mirror-refresh-interval` (10
-minutes by default), so parallel builds of one graph cost one fetch per repository rather than
-one per build.
+credentials, no custom port), and the repository count is capped (256). SwiftPM stops at the
+first repository it cannot clone, so a round typically names one new repository and a graph takes
+about as many rounds as it has repositories. A round is repeated only when it named a repository
+or archive not seen before (plus one checksum refetch and one mirror refresh), so the repository
+and archive caps bound the number of rounds, and no new round starts once resolution has run for
+`extender.spm.resolve-time-budget` (15 minutes by default). A mirror is fetched at most once per
+`extender.spm.mirror-refresh-interval` (10 minutes by default), so parallel builds of one graph
+cost one fetch per repository rather than one per build.
 
 Binary targets (xcframework archives SwiftPM downloads over HTTPS during resolution, as in
 Sentry and Firebase) go the same way: SwiftPM reads an archive from its package cache before it

@@ -14,8 +14,7 @@ package com.defold.extender.client;
  */
 public interface ExtenderProgressListener {
     /**
-     * @param stage       Current build stage, e.g. "SDK", "DEPENDENCIES",
-     *                    "COMPILING", "LINKING", "PACKAGING", "SUCCESS", "ERROR"
+     * @param stage       Current build stage, one of the ExtenderBuildStage constants
      * @param detail      Human-readable detail line, e.g. the extension being compiled. May be null.
      * @param percent     Overall progress estimate 0-100, never decreasing.
      * @param currentFile Files compiled so far for the current extension, or -1 when not compiling.

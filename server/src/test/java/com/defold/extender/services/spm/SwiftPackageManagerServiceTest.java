@@ -9,13 +9,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
+import com.defold.extender.process.DarwinSandboxPaths;
 import com.defold.extender.process.SandboxPolicy;
 
 import org.junit.jupiter.api.Test;
@@ -27,6 +33,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import org.springframework.core.io.FileSystemResource;
+import org.yaml.snakeyaml.Yaml;
 
 import com.defold.extender.ExtenderException;
 import com.defold.extender.services.cocoapods.PodUtils;
@@ -85,6 +92,57 @@ public class SwiftPackageManagerServiceTest {
         assertTrue(projectYml.contains("GENERATE_INFOPLIST_FILE: \"YES\""));
         assertTrue(projectYml.contains("path: ../Package"));
         assertTrue(projectYml.contains("product: SpmDeps"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testScriptPhaseOfTheWrapperWritesWhatTheServerReads(@TempDir File wrapperDir)
+            throws IOException, InterruptedException, SpmManifestParsingException {
+        SwiftPackageManagerService service = createService();
+        SpmManifestParser.ParseResult manifest = SpmManifestParser.parseManifests(
+            List.of(new File("test-data/swiftpackages/regular_ios.json")), "ios", "11.0");
+        Map<String, Object> spec = new Yaml().load(service.generateProjectYml(manifest, true));
+        Map<String, Object> wrapper = (Map<String, Object>) ((Map<String, Object>) spec.get("targets")).get("SpmWrapper");
+
+        // the sandbox of the build refuses the one Xcode would apply to the script
+        Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) wrapper.get("settings")).get("base");
+        assertEquals("NO", settings.get("ENABLE_USER_SCRIPT_SANDBOXING"));
+        List<Map<String, Object>> scripts = (List<Map<String, Object>>) wrapper.get("postCompileScripts");
+        assertEquals(1, scripts.size());
+        assertEquals(List.of("$(PROJECT_DIR)/" + SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME), scripts.get(0).get("outputFiles"));
+        assertEquals(false, scripts.get(0).get("basedOnDependencyAnalysis"));
+
+        // Xcode runs the script with /bin/sh, the build settings in its environment
+        File settingsFile = new File(wrapperDir, SpmServiceBuildState.BUILD_SETTINGS_FILE_NAME);
+        String swiftFlags = "-Xcc -fmodule-map-file=/x/C\\ Space/module.modulemap -n %s%d \\n $(touch run) `touch run` \"$HOME\" ";
+        String ldFlags = " -framework CoreML -lz %s $(touch run) ";
+        ProcessBuilder script = new ProcessBuilder("/bin/sh", "-c", (String) scripts.get(0).get("script")).directory(wrapperDir);
+        script.environment().put("OTHER_SWIFT_FLAGS", swiftFlags);
+        script.environment().put("OTHER_LDFLAGS", ldFlags);
+        script.environment().put("SCRIPT_OUTPUT_FILE_0", settingsFile.getAbsolutePath());
+        assertEquals(0, script.start().waitFor());
+        assertEquals(Map.of("OTHER_SWIFT_FLAGS", swiftFlags, "OTHER_LDFLAGS", ldFlags),
+            SpmWrapperBuildSettings.read(wrapperDir, settingsFile));
+        assertFalse(new File(wrapperDir, "run").exists());
+    }
+
+    @Test
+    public void testBuildSettingsOfTheWrapperAreReadFromTheJob(@TempDir File rootDir) throws IOException {
+        SpmServiceBuildState buildState = new SpmServiceBuildState();
+        buildState.workingDir = new File(rootDir, "job/SwiftPackageManagerService");
+        buildState.wrapperDir = new File(buildState.workingDir, "Wrapper");
+        buildState.wrapperDir.mkdirs();
+        assertEquals(Map.of(), SwiftPackageManagerService.readWrapperBuildSettings(buildState));
+
+        File other = new File(buildState.workingDir, "other.txt");
+        Files.writeString(other.toPath(), "OTHER_SWIFT_FLAGS=-Xcc -fmodule-map-file=/x/a.modulemap\nOTHER_LDFLAGS=-lz\n");
+        Files.createSymbolicLink(buildState.getWrapperBuildSettingsFile().toPath(), other.toPath());
+        assertEquals(Map.of(), SwiftPackageManagerService.readWrapperBuildSettings(buildState));
+
+        Files.delete(buildState.getWrapperBuildSettingsFile().toPath());
+        Files.copy(other.toPath(), buildState.getWrapperBuildSettingsFile().toPath());
+        assertEquals(Map.of("OTHER_SWIFT_FLAGS", "-Xcc -fmodule-map-file=/x/a.modulemap", "OTHER_LDFLAGS", "-lz"),
+            SwiftPackageManagerService.readWrapperBuildSettings(buildState));
     }
 
     @Test
@@ -356,6 +414,94 @@ public class SwiftPackageManagerServiceTest {
         SandboxPolicy prefetch = SwiftPackageManagerService.gitPrefetchPolicy(mirrors);
         assertEquals(SandboxPolicy.Network.ALL, prefetch.network());
         assertTrue(prefetch.readWritePaths().contains(mirrors.getAbsolutePath()));
+    }
+
+    @Test
+    public void testUserDirLinksSendTempIntoTheJobAndLeaveTheCacheWhereItIs(@TempDir File root) throws IOException {
+        File userDirs = new File(root, "folders");
+        for (String name : List.of("T", "C", "0")) {
+            new File(userDirs, name).mkdirs();
+        }
+        File jobDir = new File(root, "job");
+        File tmpDir = new File(jobDir, "SwiftPackageManagerService/Wrapper/tmp");
+        jobDir.mkdirs();
+
+        List<Path> links = SwiftPackageManagerService.linkUserDirs(userDirs.toPath(), "extender-spm-x", jobDir, tmpDir);
+
+        assertEquals(List.of(userDirs.toPath().resolve("T/extender-spm-x"), userDirs.toPath().resolve("C/extender-spm-x"),
+            userDirs.toPath().resolve("0/extender-spm-x")), links);
+        assertEquals(tmpDir.toPath().toRealPath(), links.get(0).toRealPath());
+        assertEquals(new File(userDirs, "C").toPath().toRealPath(), links.get(1).toRealPath());
+        assertEquals(new File(userDirs, "0").toPath().toRealPath(), links.get(2).toRealPath());
+
+        // a name taken already fails the build rather than sharing another job's entry
+        // and leaves none of its own links behind
+        Files.delete(links.get(0));
+        Files.delete(links.get(2));
+        assertThrows(FileAlreadyExistsException.class,
+            () -> SwiftPackageManagerService.linkUserDirs(userDirs.toPath(), "extender-spm-x", jobDir, tmpDir));
+        assertFalse(Files.exists(links.get(0), LinkOption.NOFOLLOW_LINKS));
+    }
+
+    @Test
+    public void testXcodebuildMayWriteOnlyTheAssetCatalogAgentsRandomEntriesInTheSharedTempDir(@TempDir File dir)
+            throws IOException {
+        SpmServiceBuildState buildState = new SpmServiceBuildState();
+        buildState.workingDir = new File(dir, "SwiftPackageManagerService");
+        List<Pattern> patterns = SwiftPackageManagerService.xcodebuildPolicy(buildState,
+                new File(dir, "packageCache"), new File(dir, "mirrors"))
+            .readWritePatterns().stream().map(Pattern::compile).toList();
+        String temp = DarwinSandboxPaths.userTempDir().toString();
+        Predicate<String> granted = name -> patterns.stream().anyMatch(p -> p.matcher(temp + "/" + name).find());
+
+        assertTrue(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5"));
+        assertTrue(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5/assets.uicatalog"));
+        assertTrue(granted.test("Untitled-irHAJgJW.uicatalog"));
+        assertTrue(granted.test("Untitled-irHAJgJW.uicatalog-journal"));
+
+        assertFalse(granted.test(""));
+        assertFalse(granted.test("74FB7D02-961F-44C7-88E0-385A503026D5.link"));
+        assertFalse(granted.test("74fb7d02-961f-44c7-88e0-385a503026d5"));
+        assertFalse(granted.test("Untitled-1.uicatalog"));
+        assertFalse(granted.test("Untitled-irHAJgJW.uicatalog/x"));
+        assertFalse(granted.test("extender-spm-x"));
+    }
+
+    @Test
+    public void testIOSAssetCatalogsAreRefusedBeforeXcode27() {
+        String log = "CompileAssetCatalogVariant thinned /dd/Build/Products/Release-iphoneos/Yandex_Wrapper.bundle "
+            + "/src/Media.xcassets (in target 'Yandex_Wrapper' from project 'YandexMobileAdsPackage')\n"
+            + "GenerateAssetSymbols /src/Media.xcassets (in target 'Yandex' from project 'YandexMobileAdsPackage')\n"
+            + "CompileAssetCatalog /dd/Build/Products/Release-iphoneos/Other.bundle /src/A.xcassets "
+            + "(in target 'Other' from project 'OtherPackage')\n";
+
+        assertEquals("Swift packages with asset catalogs (YandexMobileAdsPackage, OtherPackage) need Xcode 27 or later "
+            + "to build for iOS; this build uses Xcode 26.5, which compiles asset catalogs through the iOS Simulator, "
+            + "and Swift package builds have no access to it.",
+            SwiftPackageManagerService.assetCatalogXcodeFailure("26.5", log));
+        assertNull(SwiftPackageManagerService.assetCatalogXcodeFailure("27.1", log));
+        assertNull(SwiftPackageManagerService.assetCatalogXcodeFailure("26.5", "CompileSwift normal arm64 /src/a.swift\n"));
+        // an unknown Xcode is not refused: the build reports whatever actool says
+        assertNull(SwiftPackageManagerService.assetCatalogXcodeFailure(null, log));
+    }
+
+    @Test
+    public void testXcodeVersionIsReadNextToTheDeveloperDir(@TempDir File dir) throws IOException {
+        File developerDir = new File(dir, "Xcode_26.5.app/Contents/Developer");
+        developerDir.mkdirs();
+        Files.writeString(new File(developerDir.getParentFile(), "version.plist").toPath(),
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n"
+            + "\t<key>BuildVersion</key>\n\t<string>2</string>\n"
+            + "\t<key>CFBundleShortVersionString</key>\n\t<string>26.5</string>\n</dict>\n</plist>\n");
+
+        assertEquals("26.5", SwiftPackageManagerService.xcodeVersion(developerDir.getAbsolutePath()));
+        assertNull(SwiftPackageManagerService.xcodeVersion(new File(dir, "CommandLineTools").getAbsolutePath()));
+    }
+
+    @Test
+    public void testUserDirSuffixIsSetForTheCommandOnly() {
+        assertEquals(List.of("/usr/bin/env", "DIRHELPER_USER_DIR_SUFFIX=extender-spm-x", "xcodebuild", "build"),
+            SwiftPackageManagerService.withUserDirSuffix(List.of("xcodebuild", "build"), "extender-spm-x"));
     }
 
     @Test
