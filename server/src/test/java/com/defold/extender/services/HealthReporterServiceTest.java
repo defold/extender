@@ -4,6 +4,10 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,8 +23,11 @@ import org.json.simple.parser.ParseException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.defold.extender.remote.RemoteInstanceConfig;
+import com.defold.extender.remote.RemoteInstanceController;
 import com.defold.extender.services.HealthReporterService.OperationalStatus;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
@@ -193,5 +200,76 @@ public class HealthReporterServiceTest {
         ));
         JSONObject result = (JSONObject) new JSONParser().parse(service.collectHealthReport(true, conf));
         assertEquals(expected, result);
+    }
+
+    // Nothing listens here: if a controlled instance were probed over HTTP it would report Unreachable.
+    private static final String NO_LISTENER_URL = "http://localhost:1";
+
+    private static HealthReporterService serviceWith(RemoteInstanceController controller) {
+        HealthReporterService controlled = new HealthReporterService(Optional.of(controller), new SimpleTracer(), Propagator.NOOP);
+        controlled.connectionTimeout = 5000;
+        return controlled;
+    }
+
+    // A controlled instance that is cold or on its way up is reported operational without probing:
+    // the next build touches it awake.
+    @ParameterizedTest
+    @ValueSource(strings = {"suspended", "suspending", "starting"})
+    public void testControlledInstanceNotRunningYetIsOperationalWithoutProbe(String state) {
+        RemoteInstanceController controller = mock(RemoteInstanceController.class);
+        when(controller.isInstanceControlled("linux-latest")).thenReturn(true);
+        when(controller.isInstanceSuspended("linux-latest")).thenReturn(state.equals("suspended"));
+        when(controller.isInstanceSuspending("linux-latest")).thenReturn(state.equals("suspending"));
+        when(controller.isInstanceStarting("linux-latest")).thenReturn(state.equals("starting"));
+        Map<String, RemoteInstanceConfig> conf = Map.of(
+            "linux-latest", new RemoteInstanceConfig(NO_LISTENER_URL, "linux-latest", false)
+        );
+
+        String result = serviceWith(controller).collectHealthReport(true, conf);
+
+        assertEquals(JSONObject.toJSONString(Map.of("linux", "Operational")), result);
+    }
+
+    // Points at the healthy mock on purpose: a probe would turn this into Operational.
+    @Test
+    public void testControlledInstanceInUnknownStateIsUnreachableWithoutProbe() {
+        RemoteInstanceController controller = mock(RemoteInstanceController.class);
+        when(controller.isInstanceControlled("linux-latest")).thenReturn(true);
+        Map<String, RemoteInstanceConfig> conf = Map.of(
+            "linux-latest", new RemoteInstanceConfig("http://localhost:9678", "linux-latest", false)
+        );
+
+        String result = serviceWith(controller).collectHealthReport(true, conf);
+
+        assertEquals(JSONObject.toJSONString(Map.of("linux", "Unreachable")), result);
+        verify(controller).isInstanceRunning("linux-latest");
+    }
+
+    @Test
+    public void testControlledRunningInstanceIsProbed() {
+        RemoteInstanceController controller = mock(RemoteInstanceController.class);
+        when(controller.isInstanceControlled("linux-latest")).thenReturn(true);
+        when(controller.isInstanceRunning("linux-latest")).thenReturn(true);
+        Map<String, RemoteInstanceConfig> conf = Map.of(
+            "linux-latest", new RemoteInstanceConfig("http://localhost:9678", "linux-latest", false)
+        );
+
+        String result = serviceWith(controller).collectHealthReport(true, conf);
+
+        assertEquals(JSONObject.toJSONString(Map.of("linux", "Operational")), result);
+    }
+
+    @Test
+    public void testUncontrolledInstanceIsProbedWithoutConsultingController() {
+        RemoteInstanceController controller = mock(RemoteInstanceController.class);
+        Map<String, RemoteInstanceConfig> conf = Map.of(
+            "linux-latest", new RemoteInstanceConfig("http://localhost:9678", "linux-latest", true)
+        );
+
+        String result = serviceWith(controller).collectHealthReport(true, conf);
+
+        assertEquals(JSONObject.toJSONString(Map.of("linux", "Operational")), result);
+        verify(controller).isInstanceControlled("linux-latest");
+        verifyNoMoreInteractions(controller);
     }
 }

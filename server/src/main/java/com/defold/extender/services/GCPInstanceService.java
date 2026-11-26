@@ -27,6 +27,7 @@ import com.google.cloud.compute.v1.Operation;
 import com.defold.extender.log.Markers;
 import com.defold.extender.remote.RemoteHostConfiguration;
 import com.defold.extender.remote.RemoteInstanceConfig;
+import com.defold.extender.remote.RemoteInstanceController;
 import com.defold.extender.services.data.GCPInstanceState;
 import com.google.api.gax.core.InstantiatingExecutorProvider;
 import com.google.cloud.compute.v1.Instance.Status;
@@ -34,7 +35,7 @@ import com.google.cloud.compute.v1.Instance.Status;
 @Service
 @RestController
 @ConditionalOnProperty(prefix = "extender", name = "gcp.controller.enabled", havingValue = "true")
-public class GCPInstanceService {
+public class GCPInstanceService implements RemoteInstanceController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GCPInstanceService.class);
 
