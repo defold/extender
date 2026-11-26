@@ -31,7 +31,7 @@ import com.defold.extender.remote.operator.StubOperator.Seen;
 
 class OperatorInstanceControllerTest {
 
-    private static final String TOKEN = "e2e-token-0123456789abcdef";
+    private static final String TOKEN = "e2e-token-0123456789abcdef"; // gitleaks:allow (test fixture)
     private static final String BUILDER = "linux-latest";
     private static final OperatorInstanceController.Timing TIMING = new OperatorInstanceController.Timing(
             Duration.ofMinutes(5), Duration.ofSeconds(2), Duration.ofSeconds(10));
@@ -113,6 +113,20 @@ class OperatorInstanceControllerTest {
                 .hasMessageNotContaining(TOKEN);
         // Last sleep is clipped to the deadline, never past it.
         assertThat(sleeps.stream().reduce(Duration.ZERO, Duration::plus)).isEqualTo(Duration.ofMinutes(5));
+    }
+
+    @Test
+    void perBuilderWaitTimeoutOverridesTheDefault() {
+        operator.onTouch(waking());
+        OperatorInstanceController.Timing timing = new OperatorInstanceController.Timing(
+                Duration.ofMinutes(5), Duration.ofSeconds(2), Duration.ofSeconds(10), Map.of(BUILDER, Duration.ofMinutes(25)));
+        OperatorInstanceController c = controller(operator.uri(), timing);
+        assertThatThrownBy(() -> c.touchInstance(BUILDER))
+                .isInstanceOf(TimeoutException.class)
+                .hasMessageContaining("not ready after 1500s");
+        sleeps.clear();
+        assertThatThrownBy(() -> c.touchInstance("android"))   // no override: the default 5m
+                .hasMessageContaining("not ready after 300s");
     }
 
     @Test

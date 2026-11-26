@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -20,17 +21,21 @@ import org.springframework.boot.convert.DurationUnit;
  * makes the router fail to start with the offending property in the message.
  *
  * <p>{@code url} is normalized to {@code scheme://authority} (lower-case scheme, no trailing slash) so
- * callers can append {@code /v1/...}. Plain http is allowed: the touch API is plain HTTP on 8443 per
- * the operator's design. Durations without a unit are seconds.
+ * callers can append {@code /v1/...}. Plain http is allowed: the touch API is plain HTTP on 8090 (the
+ * operator's default). Durations without a unit are seconds.
+ *
+ * <p>{@code wait-timeouts.<instanceId>} overrides {@code wait-timeout} for single builders (e.g. a
+ * cold Android builder that needs a new node and a large image pull).
  */
 @ConfigurationProperties(OperatorControllerProperties.PREFIX)
 public record OperatorControllerProperties(
         boolean enabled,
         URI url,
         @DefaultValue(DEFAULT_TOKEN_FILE) Path tokenFile,
-        @DefaultValue("5m") @DurationUnit(ChronoUnit.SECONDS) Duration waitTimeout,
+        @DefaultValue("15m") @DurationUnit(ChronoUnit.SECONDS) Duration waitTimeout,
         @DefaultValue("2s") @DurationUnit(ChronoUnit.SECONDS) Duration pollInterval,
-        @DefaultValue("10s") @DurationUnit(ChronoUnit.SECONDS) Duration stateCacheTtl) {
+        @DefaultValue("10s") @DurationUnit(ChronoUnit.SECONDS) Duration stateCacheTtl,
+        Map<String, Duration> waitTimeouts) {
 
     public static final String PREFIX = "extender.operator.controller";
     static final String DEFAULT_TOKEN_FILE = "/var/run/secrets/extender-operator/token";
@@ -46,6 +51,19 @@ public record OperatorControllerProperties(
         if (pollInterval.compareTo(waitTimeout) >= 0) {
             throw invalid("poll-interval", "must be shorter than wait-timeout (" + waitTimeout + ")");
         }
+        waitTimeouts = waitTimeouts == null ? Map.of() : Map.copyOf(waitTimeouts);
+        for (Map.Entry<String, Duration> e : waitTimeouts.entrySet()) {
+            String name = "wait-timeouts." + e.getKey();
+            requirePositive(name, e.getValue());
+            if (pollInterval.compareTo(e.getValue()) >= 0) {
+                throw invalid(name, "must be longer than poll-interval (" + pollInterval + ")");
+            }
+        }
+    }
+
+    /** The wait timeout for one builder: its override, else {@code wait-timeout}. */
+    public Duration waitTimeoutFor(String instanceId) {
+        return waitTimeouts.getOrDefault(instanceId, waitTimeout);
     }
 
     private static void validateUrl(URI url) {

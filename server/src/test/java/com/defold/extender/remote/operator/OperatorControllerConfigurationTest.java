@@ -26,7 +26,7 @@ import com.defold.extender.remote.RemoteInstanceController;
 
 class OperatorControllerConfigurationTest {
 
-    private static final String SECRET = "s3cr3t-token-value";
+    private static final String SECRET = "s3cr3t-token-value"; // gitleaks:allow (test fixture)
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(OperatorControllerConfiguration.class)
@@ -90,7 +90,7 @@ class OperatorControllerConfigurationTest {
     private String[] enabled(String... extra) {
         List<String> props = new ArrayList<>(List.of(
                 "extender.operator.controller.enabled=true",
-                "extender.operator.controller.url=http://extender-operator.defold-extender.svc:8443",
+                "extender.operator.controller.url=http://extender-operator.defold-extender.svc:8090",
                 "extender.operator.controller.token-file=" + tokenFile));
         props.addAll(List.of(extra));
         return props.toArray(String[]::new);
@@ -123,7 +123,8 @@ class OperatorControllerConfigurationTest {
             assertThat(ctx).hasSingleBean(TokenProvider.class);
             assertThat(ctx.getBean(TokenProvider.class).token()).isEqualTo(SECRET);
             OperatorControllerProperties p = ctx.getBean(OperatorControllerProperties.class);
-            assertThat(p.waitTimeout()).isEqualTo(Duration.ofMinutes(5));
+            assertThat(p.waitTimeout()).isEqualTo(Duration.ofMinutes(15));
+            assertThat(p.waitTimeouts()).isEmpty();
             assertThat(p.pollInterval()).isEqualTo(Duration.ofSeconds(2));
             assertThat(p.stateCacheTtl()).isEqualTo(Duration.ofSeconds(10));
             assertThat(p.url().getHost()).isEqualTo("extender-operator.defold-extender.svc");
@@ -149,10 +150,10 @@ class OperatorControllerConfigurationTest {
 
     @ParameterizedTest(name = "{0} -> {1}")
     @CsvSource({
-            "HTTP://Op.Svc:8443/, http://Op.Svc:8443",
+            "HTTP://Op.Svc:8090/, http://Op.Svc:8090",
             "https://op.example, https://op.example",
-            "http://[::1]:8443, http://[::1]:8443",
-            "http://10.0.0.7:8443/, http://10.0.0.7:8443"})
+            "http://[::1]:8090, http://[::1]:8090",
+            "http://10.0.0.7:8090/, http://10.0.0.7:8090"})
     void normalizesUrl(String in, String want) {
         runner.withPropertyValues(enabled("extender.operator.controller.url=" + in)).run(ctx -> {
             assertThat(ctx).hasNotFailed();
@@ -167,6 +168,21 @@ class OperatorControllerConfigurationTest {
     }
 
     @Test
+    void bindsPerBuilderWaitTimeouts() {
+        // As rendered by the operator: keyed by instance id (= ExtenderBuilder name, dashes included).
+        runner.withPropertyValues(enabled(
+                        "extender.operator.controller.wait-timeouts.android-ndk25-sdk36=1500000ms",
+                        "extender.operator.controller.wait-timeouts.linux-latest=20m"))
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    OperatorControllerProperties p = ctx.getBean(OperatorControllerProperties.class);
+                    assertThat(p.waitTimeoutFor("android-ndk25-sdk36")).isEqualTo(Duration.ofMinutes(25));
+                    assertThat(p.waitTimeoutFor("linux-latest")).isEqualTo(Duration.ofMinutes(20));
+                    assertThat(p.waitTimeoutFor("other")).isEqualTo(Duration.ofMinutes(15));
+                });
+    }
+
+    @Test
     void userBeanWins() {
         TokenProvider custom = new TokenProvider(tokenFile);
         runner.withPropertyValues(enabled())
@@ -178,18 +194,20 @@ class OperatorControllerConfigurationTest {
         return Stream.of(
                 Arguments.of("extender.operator.controller.url=", "url is required"),
                 Arguments.of("extender.operator.controller.url=ftp://op:21", "scheme must be http or https"),
-                Arguments.of("extender.operator.controller.url=op.svc:8443", "scheme must be http or https"),
+                Arguments.of("extender.operator.controller.url=op.svc:8090", "scheme must be http or https"),
                 Arguments.of("extender.operator.controller.url=http:///path", "must have a host"),
-                Arguments.of("extender.operator.controller.url=http://u:p@op:8443", "must not contain user info"),
-                Arguments.of("extender.operator.controller.url=http://op:8443?x=1", "must not contain a query"),
-                Arguments.of("extender.operator.controller.url=http://op:8443/v1", "without a path"),
+                Arguments.of("extender.operator.controller.url=http://u:p@op:8090", "must not contain user info"),
+                Arguments.of("extender.operator.controller.url=http://op:8090?x=1", "must not contain a query"),
+                Arguments.of("extender.operator.controller.url=http://op:8090/v1", "without a path"),
                 Arguments.of("extender.operator.controller.url=http://op:0", "port must be 1-65535"),
                 Arguments.of("extender.operator.controller.url=http://op:99999", "port must be 1-65535"),
-                Arguments.of("extender.operator.controller.url=http://bad_host:8443", "must have a host"),
+                Arguments.of("extender.operator.controller.url=http://bad_host:8090", "must have a host"),
                 Arguments.of("extender.operator.controller.wait-timeout=0s", "wait-timeout must be a positive"),
+                Arguments.of("extender.operator.controller.wait-timeouts.linux-latest=0s", "wait-timeouts.linux-latest must be a positive"),
+                Arguments.of("extender.operator.controller.wait-timeouts.linux-latest=1s", "wait-timeouts.linux-latest must be longer than poll-interval"),
                 Arguments.of("extender.operator.controller.poll-interval=-1s", "poll-interval must be a positive"),
                 Arguments.of("extender.operator.controller.state-cache-ttl=0ms", "state-cache-ttl must be a positive"),
-                Arguments.of("extender.operator.controller.poll-interval=5m", "must be shorter than wait-timeout"),
+                Arguments.of("extender.operator.controller.poll-interval=20m", "must be shorter than wait-timeout"),
                 Arguments.of("extender.operator.controller.token-file=/does/not/exist", "is not a readable file"));
     }
 

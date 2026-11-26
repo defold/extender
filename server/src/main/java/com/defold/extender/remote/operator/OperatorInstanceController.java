@@ -49,12 +49,21 @@ public final class OperatorInstanceController implements RemoteInstanceControlle
         void sleep(Duration duration) throws InterruptedException;
     }
 
-    /** Timing knobs ({@code extender.operator.controller.*}). */
-    public record Timing(Duration waitTimeout, Duration pollInterval, Duration stateCacheTtl) {
+    /** Timing knobs ({@code extender.operator.controller.*}); {@code waitTimeouts} overrides {@code waitTimeout} per instance id. */
+    public record Timing(Duration waitTimeout, Duration pollInterval, Duration stateCacheTtl, Map<String, Duration> waitTimeouts) {
         public Timing {
             Objects.requireNonNull(waitTimeout, "waitTimeout");
             Objects.requireNonNull(pollInterval, "pollInterval");
             Objects.requireNonNull(stateCacheTtl, "stateCacheTtl");
+            waitTimeouts = waitTimeouts == null ? Map.of() : Map.copyOf(waitTimeouts);
+        }
+
+        public Timing(Duration waitTimeout, Duration pollInterval, Duration stateCacheTtl) {
+            this(waitTimeout, pollInterval, stateCacheTtl, Map.of());
+        }
+
+        Duration waitTimeoutFor(String instanceId) {
+            return waitTimeouts.getOrDefault(instanceId, waitTimeout);
         }
     }
 
@@ -104,7 +113,7 @@ public final class OperatorInstanceController implements RemoteInstanceControlle
             return;
         }
         long start = nanoTime.getAsLong();
-        long deadline = start + timing.waitTimeout().toNanos();
+        long deadline = start + timing.waitTimeoutFor(instanceId).toNanos();
         boolean warm = recentlyWarm(instanceId, start);
         while (true) {
             long requestStart = nanoTime.getAsLong();
