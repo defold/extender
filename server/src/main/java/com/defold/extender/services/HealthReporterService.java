@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.defold.extender.remote.RemoteInstanceConfig;
+import com.defold.extender.remote.RemoteInstanceController;
 import com.defold.extender.tracing.ExtenderTracerInterceptor;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
@@ -42,11 +43,11 @@ public class HealthReporterService {
         Operational
     }
 
-    private GCPInstanceService instanceService = null;
+    private RemoteInstanceController instanceService = null;
     private final HttpClient httpClient;
     private static final Logger LOGGER = LoggerFactory.getLogger(HealthReporterService.class);
 
-    public HealthReporterService(Optional<GCPInstanceService> instanceService,
+    public HealthReporterService(Optional<RemoteInstanceController> instanceService,
                             @Autowired Tracer tracer,
                             @Autowired Propagator propogator) {
         instanceService.ifPresent(val -> { this.instanceService = val; });

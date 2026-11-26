@@ -9,7 +9,6 @@ import com.defold.extender.progress.BuildProgressService;
 import com.defold.extender.progress.BuildStage;
 import com.defold.extender.progress.ProgressReporter;
 import com.defold.extender.services.DataCacheService;
-import com.defold.extender.services.GCPInstanceService;
 import com.defold.extender.tracing.ExtenderTracerInterceptor;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -73,7 +72,7 @@ public class RemoteEngineBuilder {
     private static final String RECONNECT_METRIC_ID = "extender.service.remoteBuilder.reconnect";
     private static final int MAX_ERROR_BODY_LENGTH = 200;
 
-    private GCPInstanceService instanceService;
+    private RemoteInstanceController instanceService;
     private BuildProgressService buildProgressService;
     private final MeterRegistry meterRegistry;
     private File jobResultLocation;
@@ -84,7 +83,7 @@ public class RemoteEngineBuilder {
     private boolean keepJobDirectory = false;
     protected final CloseableHttpClient httpClient;
 
-    public RemoteEngineBuilder(Optional<GCPInstanceService> instanceService,
+    public RemoteEngineBuilder(Optional<RemoteInstanceController> instanceService,
                             BuildProgressService buildProgressService,
                             @Value("${extender.job-result.location}") String jobResultLocation,
                             @Value("${extender.remote-builder.build-sleep-timeout:5000}") long buildSleepTimeout,

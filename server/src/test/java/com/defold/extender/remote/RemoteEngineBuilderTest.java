@@ -54,7 +54,6 @@ import com.defold.extender.ExtenderException;
 import com.defold.extender.metrics.MetricsWriter;
 import com.defold.extender.progress.BuildProgressService;
 import com.defold.extender.services.DataCacheService;
-import com.defold.extender.services.GCPInstanceService;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.http.Fault;
@@ -126,12 +125,12 @@ public class RemoteEngineBuilderTest {
         return createBuilder(Optional.empty(), resultDownloadRetries, buildResultWaitTimeout);
     }
 
-    private RemoteEngineBuilder createBuilder(Optional<GCPInstanceService> instanceService,
+    private RemoteEngineBuilder createBuilder(Optional<RemoteInstanceController> instanceService,
                                               int resultDownloadRetries, long buildResultWaitTimeout) {
         return createBuilder(instanceService, resultDownloadRetries, buildResultWaitTimeout, SOCKET_TIMEOUT);
     }
 
-    private RemoteEngineBuilder createBuilder(Optional<GCPInstanceService> instanceService,
+    private RemoteEngineBuilder createBuilder(Optional<RemoteInstanceController> instanceService,
                                               int resultDownloadRetries, long buildResultWaitTimeout,
                                               int socketTimeout) {
         RemoteEngineBuilder builder = new RemoteEngineBuilder(
@@ -466,7 +465,7 @@ public class RemoteEngineBuilderTest {
         builderMock.stubFor(get(urlPathEqualTo("/job_result"))
                 .willReturn(aResponse().withStatus(200).withBody(new byte[] {0x50, 0x4b, 0x03, 0x04})));
 
-        GCPInstanceService instanceService = mock(GCPInstanceService.class);
+        RemoteInstanceController instanceService = mock(RemoteInstanceController.class);
         doThrow(new TimeoutException("touch timed out")).when(instanceService).touchInstance(anyString());
         RemoteEngineBuilder builder = createBuilder(Optional.of(instanceService), 1, BUILD_RESULT_WAIT_TIMEOUT);
 
