@@ -183,6 +183,20 @@ class OperatorControllerConfigurationTest {
     }
 
     @Test
+    void unitlessPerBuilderWaitTimeoutsAreSeconds() {
+        // Same rule as the scalar durations; Spring's default for a bare number would be milliseconds.
+        runner.withPropertyValues(enabled(
+                        "extender.operator.controller.wait-timeouts.linux-latest=90",
+                        "extender.operator.controller.wait-timeouts.android-ndk25-sdk36=3000"))
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    OperatorControllerProperties p = ctx.getBean(OperatorControllerProperties.class);
+                    assertThat(p.waitTimeoutFor("linux-latest")).isEqualTo(Duration.ofSeconds(90));
+                    assertThat(p.waitTimeoutFor("android-ndk25-sdk36")).isEqualTo(Duration.ofSeconds(3000));
+                });
+    }
+
+    @Test
     void userBeanWins() {
         TokenProvider custom = new TokenProvider(tokenFile);
         runner.withPropertyValues(enabled())
@@ -205,6 +219,7 @@ class OperatorControllerConfigurationTest {
                 Arguments.of("extender.operator.controller.wait-timeout=0s", "wait-timeout must be a positive"),
                 Arguments.of("extender.operator.controller.wait-timeouts.linux-latest=0s", "wait-timeouts.linux-latest must be a positive"),
                 Arguments.of("extender.operator.controller.wait-timeouts.linux-latest=1s", "wait-timeouts.linux-latest must be longer than poll-interval"),
+                Arguments.of("extender.operator.controller.wait-timeouts.linux-latest=soon", "wait-timeouts.linux-latest is not a duration"),
                 Arguments.of("extender.operator.controller.poll-interval=-1s", "poll-interval must be a positive"),
                 Arguments.of("extender.operator.controller.state-cache-ttl=0ms", "state-cache-ttl must be a positive"),
                 Arguments.of("extender.operator.controller.poll-interval=20m", "must be shorter than wait-timeout"),

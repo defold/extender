@@ -6,6 +6,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
@@ -54,6 +55,7 @@ final class StubOperator implements AutoCloseable {
     private final List<Seen> seen = Collections.synchronizedList(new ArrayList<>());
     private volatile Reply defaultTouch = error(500, "no_script");
     private volatile Reply defaultState = error(500, "no_script");
+    private volatile Duration hang;
 
     StubOperator() throws IOException {
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -90,6 +92,12 @@ final class StubOperator implements AutoCloseable {
         }
     }
 
+    /** Accept requests but answer only after {@code d} (null: answer right away), like a hung operator. */
+    StubOperator hang(Duration d) {
+        hang = d;
+        return this;
+    }
+
     List<Seen> seen() {
         synchronized (seen) {
             return List.copyOf(seen);
@@ -103,6 +111,16 @@ final class StubOperator implements AutoCloseable {
     private void handle(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
         seen.add(new Seen(exchange.getRequestMethod(), path, exchange.getRequestHeaders().getFirst("Authorization")));
+        Duration delay = hang;
+        if (delay != null) {
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                exchange.close();
+                return;
+            }
+        }
         Reply reply;
         if (path.endsWith("/touch")) {
             Reply next = touchReplies.poll();

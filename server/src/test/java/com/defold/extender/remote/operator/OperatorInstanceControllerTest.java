@@ -61,7 +61,12 @@ class OperatorInstanceControllerTest {
     }
 
     private OperatorInstanceController controller(URI base, OperatorInstanceController.Timing timing) {
-        TouchApiClient client = new TouchApiClient(base, tokens, Duration.ofMillis(500), Duration.ofSeconds(2));
+        return controller(base, timing, Duration.ofSeconds(2));
+    }
+
+    private OperatorInstanceController controller(URI base, OperatorInstanceController.Timing timing,
+            Duration readTimeout) {
+        TouchApiClient client = new TouchApiClient(base, tokens, Duration.ofMillis(500), readTimeout);
         clients.add(client);
         return new OperatorInstanceController(client, Set.of(BUILDER, "android"), timing, () -> now, d -> {
             sleeps.add(d);
@@ -254,6 +259,19 @@ class OperatorInstanceControllerTest {
     }
 
     @Test
+    void notWarmAnswerCancelsFailOpen() throws Exception {
+        // Ready moments ago, but the builder restarts: once the operator says Waking, a later 503
+        // must not send the build to a builder we know is not ready.
+        operator.onTouch(ready());
+        OperatorInstanceController c = controller();
+        c.touchInstance(BUILDER);
+        operator.onTouch(waking(), error(503, "not_leader"), ready());
+        c.touchInstance(BUILDER);
+        assertThat(operator.count("POST")).isEqualTo(4);
+        assertThat(sleeps).hasSize(2);
+    }
+
+    @Test
     void operatorDownColdBuilderTimesOut() throws IOException {
         OperatorInstanceController c = controller(closedPort(), TIMING);
         assertThatThrownBy(() -> c.touchInstance(BUILDER))
@@ -329,6 +347,36 @@ class OperatorInstanceControllerTest {
         assertThat(operator.count("GET")).isEqualTo(1);
         advance(Duration.ofSeconds(10));
         c.isInstanceRunning(BUILDER);
+        assertThat(operator.count("GET")).isEqualTo(2);
+    }
+
+    @Test
+    void hungOperatorCostsTheHealthReportOneTimeoutNotOnePerBuilder() throws Exception {
+        // HealthReporterService asks about builders one after another; a hung operator would cost a
+        // read timeout per builder. After one transport failure the others answer from what we know.
+        operator.hang(Duration.ofSeconds(5));
+        OperatorInstanceController c = controller(operator.uri(), TIMING, Duration.ofMillis(200));
+        assertThat(c.isInstanceRunning(BUILDER)).isFalse();
+        assertThat(c.isInstanceRunning("android")).isFalse();
+        assertThat(operator.count("GET")).isEqualTo(1);
+
+        advance(TIMING.stateCacheTtl());
+        operator.hang(null);
+        operator.onState(state("Cold", false));
+        assertThat(c.isInstanceSuspended("android")).isTrue(); // window over: asks again
+        assertThat(operator.count("GET")).isEqualTo(2);
+    }
+
+    @Test
+    void operatorAnswerEndsTheUnreachableWindowEarly() throws Exception {
+        operator.hang(Duration.ofSeconds(5));
+        OperatorInstanceController c = controller(operator.uri(), TIMING, Duration.ofMillis(200));
+        assertThat(c.isInstanceRunning(BUILDER)).isFalse();
+        operator.hang(null);
+        operator.onTouch(ready());
+        operator.onState(state("Cold", false));
+        c.touchInstance(BUILDER); // the operator is back
+        assertThat(c.isInstanceSuspended("android")).isTrue();
         assertThat(operator.count("GET")).isEqualTo(2);
     }
 

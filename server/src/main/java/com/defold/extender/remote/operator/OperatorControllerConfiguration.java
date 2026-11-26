@@ -63,9 +63,10 @@ public class OperatorControllerConfiguration {
             TouchApiClient client, RemoteHostConfiguration remoteHosts) {
         Set<String> controlled = controlledInstanceIds(remoteHosts.getPlatforms());
         log.info("Extender operator controls builders {} (wait timeout {}, overrides {})", controlled,
-                properties.waitTimeout(), properties.waitTimeouts());
+                properties.waitTimeout(), properties.waitTimeoutOverrides());
         return new OperatorInstanceController(client, controlled, new OperatorInstanceController.Timing(
-                properties.waitTimeout(), properties.pollInterval(), properties.stateCacheTtl(), properties.waitTimeouts()));
+                properties.waitTimeout(), properties.pollInterval(), properties.stateCacheTtl(),
+                properties.waitTimeoutOverrides()));
     }
 
     /**

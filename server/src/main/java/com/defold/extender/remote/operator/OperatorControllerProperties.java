@@ -5,12 +5,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.boot.convert.DurationStyle;
 import org.springframework.boot.convert.DurationUnit;
 
 /**
@@ -35,7 +37,8 @@ public record OperatorControllerProperties(
         @DefaultValue("15m") @DurationUnit(ChronoUnit.SECONDS) Duration waitTimeout,
         @DefaultValue("2s") @DurationUnit(ChronoUnit.SECONDS) Duration pollInterval,
         @DefaultValue("10s") @DurationUnit(ChronoUnit.SECONDS) Duration stateCacheTtl,
-        Map<String, Duration> waitTimeouts) {
+        // Raw strings: @DurationUnit doesn't reach map values, so a bare number would bind as milliseconds.
+        Map<String, String> waitTimeouts) {
 
     public static final String PREFIX = "extender.operator.controller";
     static final String DEFAULT_TOKEN_FILE = "/var/run/secrets/extender-operator/token";
@@ -52,7 +55,7 @@ public record OperatorControllerProperties(
             throw invalid("poll-interval", "must be shorter than wait-timeout (" + waitTimeout + ")");
         }
         waitTimeouts = waitTimeouts == null ? Map.of() : Map.copyOf(waitTimeouts);
-        for (Map.Entry<String, Duration> e : waitTimeouts.entrySet()) {
+        for (Map.Entry<String, Duration> e : parse(waitTimeouts).entrySet()) {
             String name = "wait-timeouts." + e.getKey();
             requirePositive(name, e.getValue());
             if (pollInterval.compareTo(e.getValue()) >= 0) {
@@ -61,9 +64,26 @@ public record OperatorControllerProperties(
         }
     }
 
+    /** {@code wait-timeouts} as durations (validated at startup, so this can't fail). */
+    public Map<String, Duration> waitTimeoutOverrides() {
+        return parse(waitTimeouts);
+    }
+
     /** The wait timeout for one builder: its override, else {@code wait-timeout}. */
     public Duration waitTimeoutFor(String instanceId) {
-        return waitTimeouts.getOrDefault(instanceId, waitTimeout);
+        return waitTimeoutOverrides().getOrDefault(instanceId, waitTimeout);
+    }
+
+    private static Map<String, Duration> parse(Map<String, String> raw) {
+        Map<String, Duration> parsed = new HashMap<>(raw.size());
+        raw.forEach((id, value) -> {
+            try {
+                parsed.put(id, DurationStyle.detectAndParse(value.trim(), ChronoUnit.SECONDS));
+            } catch (IllegalArgumentException e) {
+                throw invalid("wait-timeouts." + id, "is not a duration: '" + value + "'");
+            }
+        });
+        return Map.copyOf(parsed);
     }
 
     private static void validateUrl(URI url) {

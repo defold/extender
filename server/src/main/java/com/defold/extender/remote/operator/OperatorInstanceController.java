@@ -31,8 +31,9 @@ import com.defold.extender.remote.operator.TouchApiResponse.Ok;
  * a slow wake can't be scaled away mid-start.
  *
  * <p>Fail-open: if the operator can't answer (unreachable, 5xx, 429, 401) and the builder was seen
- * warm within {@link #FAIL_OPEN_MAX_AGE}, the build proceeds with a WARN. Older knowledge doesn't
- * count — the builder may have idled to zero since — so the build waits like a cold one.
+ * warm within {@link #FAIL_OPEN_MAX_AGE} (and no newer answer said otherwise), the build proceeds with a
+ * WARN. Older knowledge doesn't count — the builder may have idled to zero since — so the build waits
+ * like a cold one.
  */
 public final class OperatorInstanceController implements RemoteInstanceController {
 
@@ -82,6 +83,8 @@ public final class OperatorInstanceController implements RemoteInstanceControlle
     private final Sleeper sleeper;
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
     private final Map<String, Long> lastLogged = new ConcurrentHashMap<>();
+    /** Start of the latest request that got no HTTP response; null once the operator answers again. */
+    private volatile Long unreachableAt;
 
     public OperatorInstanceController(TouchApiClient client, Set<String> controlledInstanceIds, Timing timing) {
         this(client, controlledInstanceIds, timing, System::nanoTime, d -> Thread.sleep(d));
@@ -114,24 +117,27 @@ public final class OperatorInstanceController implements RemoteInstanceControlle
         }
         long start = nanoTime.getAsLong();
         long deadline = start + timing.waitTimeoutFor(instanceId).toNanos();
-        boolean warm = recentlyWarm(instanceId, start);
         while (true) {
             long requestStart = nanoTime.getAsLong();
             TouchApiResponse response = client.touch(instanceId);
             Duration wait = timing.pollInterval();
             if (response instanceof Ok ok) {
                 remember(instanceId, ok.state(), requestStart);
+                operatorAnswered(requestStart);
                 if (ok.state().warm()) {
                     return;
                 }
             } else if (response instanceof Failure failure) {
                 attempted(instanceId, requestStart);
+                operatorFailed(failure, requestStart);
                 if (!failure.kind().transientFailure()) {
                     // 404/other rejection: retrying can't help, and upstream would log an exception
                     // with a stack trace on every touch (every few seconds per build) and proceed anyway.
                     logRejection(instanceId, failure);
                     return;
                 }
+                // Decided now, not before the loop: a Waking/Draining answer during this wait cancels it.
+                boolean warm = recentlyWarm(instanceId, requestStart);
                 logFailure(instanceId, failure, warm);
                 if (warm) {
                     return; // fail-open: the builder was serving moments ago
@@ -183,13 +189,20 @@ public final class OperatorInstanceController implements RemoteInstanceControlle
         if (entry != null && now - entry.attemptAt() < ttl) {
             return usable(entry, now, entry.state() != null && now - entry.seenAt() < ttl ? ttl : FAIL_OPEN_MAX_AGE.toNanos());
         }
+        if (operatorRecentlyUnreachable(now)) {
+            // The health report asks builder after builder: don't pay a connect/read timeout for each.
+            attempted(instanceId, now);
+            return usable(entries.get(instanceId), now, FAIL_OPEN_MAX_AGE.toNanos());
+        }
         TouchApiResponse response = client.state(instanceId);
         if (response instanceof Ok ok) {
             remember(instanceId, ok.state(), now);
+            operatorAnswered(now);
             return effectivePhase(ok.state());
         }
         attempted(instanceId, now);
         Failure failure = (Failure) response;
+        operatorFailed(failure, now);
         logFailure(instanceId, failure, recentlyWarm(instanceId, now));
         return usable(entries.get(instanceId), now, FAIL_OPEN_MAX_AGE.toNanos());
     }
@@ -224,6 +237,28 @@ public final class OperatorInstanceController implements RemoteInstanceControlle
     private void attempted(String instanceId, long requestStart) {
         entries.merge(instanceId, new Entry(null, 0, requestStart),
                 (old, fresh) -> new Entry(old.state(), old.seenAt(), Math.max(old.attemptAt(), requestStart)));
+    }
+
+    /**
+     * Operator-wide: after a request got no HTTP response at all (refused, timeout), health-report state
+     * lookups skip the network for one state-cache-ttl. Touches never skip: a build keeps polling.
+     */
+    private boolean operatorRecentlyUnreachable(long now) {
+        Long since = unreachableAt;
+        return since != null && now - since < timing.stateCacheTtl().toNanos();
+    }
+
+    private void operatorFailed(Failure failure, long requestStart) {
+        if (failure.kind() == Kind.UNREACHABLE) {
+            unreachableAt = requestStart;
+        }
+    }
+
+    private void operatorAnswered(long requestStart) {
+        Long since = unreachableAt;
+        if (since != null && requestStart - since >= 0) {
+            unreachableAt = null; // benign race: at worst one extra lookup or one skipped
+        }
     }
 
     private String lastSeen(String instanceId, TouchApiResponse response) {
